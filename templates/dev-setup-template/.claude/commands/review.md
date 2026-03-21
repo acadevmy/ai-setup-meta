@@ -8,10 +8,12 @@ Esegui una code review del codice modificato nel branch corrente.
    - Esegui `git diff main...HEAD` per vedere tutti i cambiamenti
    - Analizza ogni file modificato
 
-2. **Verifica conformità CONSTITUTION.md**
-   - Schema-first: tutti gli input esterni sono validati con Zod?
-   - TypeScript strict: ci sono `any` nel codice?
-   - Gestione errori: ci sono `catch` vuoti?
+2. **Verifica conformita' CONSTITUTION.md**
+   - Schema-first: i dati esterni sono validati con lo schema validator del progetto?
+     (Zod per TypeScript, Pydantic per Python, struct tags per Go, ecc.)
+   - Strict typing: il codice usa tipi stretti senza bypass?
+     (no `any` in TS, no `# type: ignore` in Python, no `interface{}` in Go, ecc.)
+   - Gestione errori: ci sono `catch`/`except` vuoti?
    - Funzioni pure e piccole: qualche funzione supera le 40 righe?
    - Magic numbers/strings: ci sono valori hardcoded?
 

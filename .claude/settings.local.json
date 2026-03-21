@@ -15,7 +15,14 @@
       "WebFetch(domain:developer.clickup.com)",
       "Bash(gh pr:*)",
       "Bash(claude mcp remove clickup)",
-      "Bash(claude mcp add --transport http clickup https://mcp.clickup.com/mcp)"
+      "Bash(claude mcp add --transport http clickup https://mcp.clickup.com/mcp)",
+      "Bash(yes y)",
+      "Bash(bash scripts/release-template.sh minor)",
+      "Bash(source .env.local)",
+      "Bash(claude mcp add --help)",
+      "Bash(TEMP_DIR=\"/var/folders/dj/w8zxyclx0y747j2hg4sf50tr0000gn/T/tmp.2disI3z6ng\")",
+      "Bash(rsync -av --delete --exclude='.git' --exclude='.claude/settings.local.json' /Users/andreao/Works/ai-base-setup/templates/dev-setup-template/ \"$TEMP_DIR/\")",
+      "Bash(bash -n /Users/andreao/Works/ai-base-setup/templates/dev-setup-template/inject.sh)"
     ]
   }
 }

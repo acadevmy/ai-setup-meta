@@ -18,8 +18,19 @@ Avvia un ciclo TDD per la feature o il bugfix descritto dall'utente.
    - Applica le regole della CONSTITUTION.md
 
 4. **Verifica finale**
-   - Esegui tutti i test: `npm test`
-   - Esegui il linter: `npm run lint`
+   - Esegui i test del progetto:
+     - Se esiste `package.json` con script `test`: `npm test`
+     - Se esiste `pytest.ini` o `pyproject.toml` con `[tool.pytest]`: `pytest`
+     - Se esiste `go.mod`: `go test ./...`
+     - Se esiste `pubspec.yaml`: `flutter test`
+     - Se esiste `Cargo.toml`: `cargo test`
+     - Altrimenti: chiedi allo sviluppatore quale comando usare
+   - Esegui il linter del progetto (se configurato):
+     - Se esiste `package.json` con script `lint`: `npm run lint`
+     - Se esiste configurazione ruff: `ruff check .`
+     - Se esiste `.golangci.yml`: `golangci-lint run`
+     - Se esiste `analysis_options.yaml`: `dart analyze`
+     - Se esiste `Cargo.toml`: `cargo clippy`
 
 ## Input atteso
 Descrizione della feature o del bug da risolvere: $ARGUMENTS
