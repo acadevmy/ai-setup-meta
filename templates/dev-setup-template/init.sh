@@ -160,28 +160,77 @@ setup_claude_code() {
   print_step "Claude Code configurato"
 }
 
+# ── Setup MCP servers ────────────────────────────────────
+setup_mcp() {
+  print_step "Configuro MCP servers..."
+
+  if ! command -v claude &>/dev/null; then
+    print_warn "Claude CLI non trovato — configura i MCP manualmente"
+    print_warn "  Installa: npm install -g @anthropic-ai/claude-code"
+    print_warn "  Poi esegui:"
+    print_warn "    claude mcp add clickup -t url https://mcp.clickup.com/mcp"
+    print_warn "    claude mcp add context7 -- npx -y @upstash/context7-mcp@latest"
+    return
+  fi
+
+  # ClickUp — OAuth (URL type)
+  if claude mcp list 2>/dev/null | grep -q "clickup"; then
+    print_step "MCP ClickUp gia' configurato"
+  else
+    claude mcp add clickup -t url https://mcp.clickup.com/mcp 2>/dev/null || true
+    print_step "MCP ClickUp aggiunto (autenticati con OAuth al primo uso)"
+  fi
+
+  # Context7 — documentazione librerie
+  if claude mcp list 2>/dev/null | grep -q "context7"; then
+    print_step "MCP Context7 gia' configurato"
+  else
+    claude mcp add context7 -- npx -y @upstash/context7-mcp@latest 2>/dev/null || true
+    print_step "MCP Context7 aggiunto"
+  fi
+
+  # Figma — richiede token, configurazione opzionale
+  echo ""
+  read -rp "Vuoi configurare il MCP Figma? (richiede Personal Access Token) [y/N]: " setup_figma
+  if [[ "$setup_figma" =~ ^[Yy]$ ]]; then
+    read -rp "Inserisci il Figma Personal Access Token: " figma_token
+    if [ -n "$figma_token" ]; then
+      claude mcp add figma -e FIGMA_ACCESS_TOKEN="$figma_token" -- npx -y @figma/mcp-server 2>/dev/null || true
+      print_step "MCP Figma aggiunto"
+    else
+      print_warn "Token vuoto — MCP Figma non configurato"
+    fi
+  else
+    print_step "MCP Figma saltato (configurabile dopo con claude mcp add)"
+  fi
+}
+
 # ── Setup Husky + quality tools ──────────────────────────
 setup_quality_tools() {
   print_step "Configuro strumenti di qualità..."
 
-  # Installa dipendenze di qualità (richiede package.json)
-  if [ -f "${PROJECT_DIR}/package.json" ]; then
-    npm install --save-dev \
-      husky \
-      lint-staged \
-      @commitlint/cli \
-      @commitlint/config-conventional \
-      prettier \
-      eslint \
-      @typescript-eslint/eslint-plugin \
-      @typescript-eslint/parser \
-      2>/dev/null
-
-    # Inizializza Husky
-    npx husky init 2>/dev/null || true
-  else
-    print_warn "package.json non trovato — esegui 'npm init -y' e poi riesegui init.sh"
+  # Crea package.json se non esiste
+  if [ ! -f "${PROJECT_DIR}/package.json" ]; then
+    print_step "Creo package.json..."
+    (cd "${PROJECT_DIR}" && npm init -y > /dev/null 2>&1)
   fi
+
+  # Installa dipendenze di qualità
+  npm install --save-dev \
+    husky \
+    lint-staged \
+    @commitlint/cli \
+    @commitlint/config-conventional \
+    prettier \
+    eslint \
+    @typescript-eslint/eslint-plugin \
+    @typescript-eslint/parser \
+    2>/dev/null
+
+  print_step "Dipendenze di qualita' installate"
+
+  # Inizializza Husky
+  npx husky init 2>/dev/null || true
 
   # Copia hook e configurazioni (solo se esecuzione da directory diversa)
   if [ "$SCRIPT_DIR" != "$PROJECT_DIR" ]; then
@@ -311,9 +360,8 @@ print_summary() {
   echo ""
   echo "Prossimi passi:"
   echo "  1. Copia .env.example in .env e compila le variabili"
-  echo "  2. Configura i MCP: claude mcp add clickup https://mcp.clickup.com/mcp"
-  echo "  3. Esegui npm install per installare le dipendenze"
-  echo "  4. Inizia a sviluppare seguendo il workflow TDD!"
+  echo "  2. Verifica MCP: claude mcp list"
+  echo "  3. Inizia a sviluppare seguendo il workflow TDD!"
   echo ""
 }
 
@@ -325,6 +373,7 @@ main() {
   select_mobile_framework
   copy_base_files
   setup_claude_code
+  setup_mcp
   setup_quality_tools
   apply_profile
   setup_gitignore
