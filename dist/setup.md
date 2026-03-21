@@ -12,8 +12,11 @@ Scarica le risorse da ai-setup-meta e le applica in modo adattivo.
 ```
 SOURCE_REPO: acadevmy/ai-setup-meta
 SOURCE_BRANCH: main
-BASE_URL: https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main
 ```
+
+Il fetch dei file avviene tramite `gh api` (GitHub CLI), che gestisce automaticamente
+l'autenticazione e funziona anche con repo privati. Il developer deve essere autenticato
+con `gh auth login`.
 
 ## File da scaricare
 
@@ -129,14 +132,23 @@ Se sceglie **Mobile**, chiedi anche:
 
 ### Passo 3 — Scarica le risorse dal repo sorgente
 
-Usa `curl` per scaricare i file. Il BASE_URL e': `https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main`
+Usa `gh api` per scaricare i file dal repo `acadevmy/ai-setup-meta`. Questo comando gestisce
+l'autenticazione automaticamente e funziona con repo privati.
+
+**Prerequisito**: verifica che `gh` sia autenticato con `gh auth status`. Se non lo e', informa
+lo sviluppatore di eseguire `gh auth login` e fermati.
+
+**Comando per scaricare un file**:
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/<PATH> -H "Accept: application/vnd.github.raw" > <OUTPUT>
+```
 
 **IMPORTANTE**: Scrivi i file scaricati **esattamente come ricevuti**, senza modifiche. Non riformattare, non aggiustare, non migliorare. Il contenuto deve essere verbatim.
 
 #### 3.1 — CONSTITUTION.md
 
 ```bash
-curl -sL "${BASE_URL}/templates/dev-setup-template/CONSTITUTION.md" -o /tmp/CONSTITUTION_SOURCE.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/CONSTITUTION.md -H "Accept: application/vnd.github.raw" > /tmp/CONSTITUTION_SOURCE.md
 ```
 
 Scarica il file in un percorso temporaneo. Lo adatterai nel passo successivo.
@@ -145,38 +157,38 @@ Scarica il file in un percorso temporaneo. Lo adatterai nel passo successivo.
 
 **Per modalita' EXISTING:**
 ```bash
-curl -sL "${BASE_URL}/templates/dev-setup-template/AGENT.inject.md" -o /tmp/AGENT_TEMPLATE.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/AGENT.inject.md -H "Accept: application/vnd.github.raw" > /tmp/AGENT_TEMPLATE.md
 ```
 
 **Per modalita' GREENFIELD:**
 ```bash
-curl -sL "${BASE_URL}/templates/dev-setup-template/AGENT.md" -o /tmp/AGENT_TEMPLATE.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/AGENT.md -H "Accept: application/vnd.github.raw" > /tmp/AGENT_TEMPLATE.md
 ```
 
 #### 3.3 — settings.json
 
 ```bash
-curl -sL "${BASE_URL}/templates/dev-setup-template/.claude/settings.json" -o /tmp/claude_settings.json
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/settings.json -H "Accept: application/vnd.github.raw" > /tmp/claude_settings.json
 ```
 
 #### 3.4 — Comandi slash
 
 ```bash
-curl -sL "${BASE_URL}/templates/dev-setup-template/.claude/commands/start-task.md" -o /tmp/cmd_start-task.md
-curl -sL "${BASE_URL}/templates/dev-setup-template/.claude/commands/tdd.md" -o /tmp/cmd_tdd.md
-curl -sL "${BASE_URL}/templates/dev-setup-template/.claude/commands/review.md" -o /tmp/cmd_review.md
-curl -sL "${BASE_URL}/templates/dev-setup-template/.claude/commands/sync-task.md" -o /tmp/cmd_sync-task.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/start-task.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_start-task.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/tdd.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_tdd.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/review.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_review.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/sync-task.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_sync-task.md
 ```
 
 #### 3.5 — Profilo stack (solo GREENFIELD)
 
 Scarica il profilo selezionato:
-- Web Frontend: `curl -sL "${BASE_URL}/profiles/web-frontend.md" -o /tmp/profile.md`
-- Backend Node: `curl -sL "${BASE_URL}/profiles/backend-node.md" -o /tmp/profile.md`
-- Mobile: `curl -sL "${BASE_URL}/profiles/mobile.md" -o /tmp/profile.md`
+- Web Frontend: `gh api repos/acadevmy/ai-setup-meta/contents/profiles/web-frontend.md -H "Accept: application/vnd.github.raw" > /tmp/profile.md`
+- Backend Node: `gh api repos/acadevmy/ai-setup-meta/contents/profiles/backend-node.md -H "Accept: application/vnd.github.raw" > /tmp/profile.md`
+- Mobile: `gh api repos/acadevmy/ai-setup-meta/contents/profiles/mobile.md -H "Accept: application/vnd.github.raw" > /tmp/profile.md`
 - Full-stack: scarica sia `web-frontend.md` che `backend-node.md`
 
-**Verifica che i download siano andati a buon fine**: controlla che i file scaricati non siano vuoti e contengano contenuto valido (non pagine 404). Se un download fallisce, informa lo sviluppatore e fermati.
+**Verifica che i download siano andati a buon fine**: controlla che i file scaricati non siano vuoti e non contengano errori JSON (es. `{"message":"Not Found"}`). Se un download fallisce, informa lo sviluppatore e fermati.
 
 ---
 
@@ -514,4 +526,5 @@ Prossimi passi:
 - **Verbatim**: CONSTITUTION.md, settings.json e i comandi slash devono essere copiati esattamente come scaricati. Non generare il contenuto di questi file — scaricalo e copialo.
 - **Conflict detection**: Chiedi sempre prima di sovrascrivere file esistenti.
 - **Tooling esistente**: In modalita' EXISTING, non installare ne' modificare: git hooks, linter, formatter, CI/CD, .gitignore, dipendenze. Innesta solo il workflow AI.
-- **Errori di download**: Se `curl` restituisce un errore o un file vuoto, informa lo sviluppatore e fermati. Non procedere con contenuto parziale.
+- **Errori di download**: Se `gh api` restituisce un errore (es. 404, 401) o un file vuoto, informa lo sviluppatore e fermati. Non procedere con contenuto parziale.
+- **Autenticazione**: Lo sviluppatore deve essere autenticato con `gh auth login`. Se `gh auth status` fallisce, fermati e chiedi di autenticarsi.
