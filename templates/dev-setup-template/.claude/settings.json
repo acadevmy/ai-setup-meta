@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(npm:*)",
+      "Bash(node:*)",
+      "Bash(ls:*)",
+      "Bash(gh:*)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push origin main*)",
+      "Bash(git commit*--no-verify*)",
+      "Bash(npm publish*)",
+      "Bash(rm -rf /*)",
+      "Bash(curl * | bash*)",
+      "Bash(wget * | bash*)"
+    ]
+  },
+  "env": {
+    "CLAUDE_COMPACT_RESPONSES": "true"
+  },
+  "includeCoAuthoredBy": true
+}

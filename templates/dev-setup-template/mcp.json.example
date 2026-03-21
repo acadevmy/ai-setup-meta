@@ -1,7 +1,8 @@
 {
-  "_comment": "Template MCP — Vedi docs/onboarding.md per le istruzioni. GitHub usa gh CLI + git (nessun MCP necessario).",
+  "_comment": "Template MCP — GitHub usa gh CLI (nessun MCP necessario). Configura i server con 'claude mcp add'.",
   "mcpServers": {
     "clickup": {
+      "_setup": "Autenticazione OAuth: esegui 'claude mcp add clickup https://mcp.clickup.com/mcp' e autorizza con il tuo account ClickUp",
       "type": "url",
       "url": "https://mcp.clickup.com/mcp"
     },
