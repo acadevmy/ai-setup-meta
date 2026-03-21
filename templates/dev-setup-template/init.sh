@@ -168,8 +168,8 @@ setup_mcp() {
     print_warn "Claude CLI non trovato — configura i MCP manualmente"
     print_warn "  Installa: npm install -g @anthropic-ai/claude-code"
     print_warn "  Poi esegui:"
-    print_warn "    claude mcp add clickup -t url https://mcp.clickup.com/mcp"
-    print_warn "    claude mcp add context7 -- npx -y @upstash/context7-mcp@latest"
+    print_warn "    claude mcp add clickup -t http -s project https://mcp.clickup.com/mcp"
+    print_warn "    claude mcp add context7 -s project -- npx -y @upstash/context7-mcp@latest"
     return
   fi
 
@@ -177,16 +177,22 @@ setup_mcp() {
   if claude mcp list 2>/dev/null | grep -q "clickup"; then
     print_step "MCP ClickUp gia' configurato"
   else
-    claude mcp add clickup -t url https://mcp.clickup.com/mcp 2>/dev/null || true
-    print_step "MCP ClickUp aggiunto (autenticati con OAuth al primo uso)"
+    if claude mcp add clickup -t http -s project https://mcp.clickup.com/mcp; then
+      print_step "MCP ClickUp aggiunto (autenticati con OAuth al primo uso)"
+    else
+      print_warn "Errore nell'aggiunta di ClickUp MCP — configuralo manualmente"
+    fi
   fi
 
   # Context7 — documentazione librerie
   if claude mcp list 2>/dev/null | grep -q "context7"; then
     print_step "MCP Context7 gia' configurato"
   else
-    claude mcp add context7 -- npx -y @upstash/context7-mcp@latest 2>/dev/null || true
-    print_step "MCP Context7 aggiunto"
+    if claude mcp add context7 -s project -- npx -y @upstash/context7-mcp@latest; then
+      print_step "MCP Context7 aggiunto"
+    else
+      print_warn "Errore nell'aggiunta di Context7 MCP — configuralo manualmente"
+    fi
   fi
 
   # Figma — richiede token, configurazione opzionale
@@ -195,7 +201,7 @@ setup_mcp() {
   if [[ "$setup_figma" =~ ^[Yy]$ ]]; then
     read -rp "Inserisci il Figma Personal Access Token: " figma_token
     if [ -n "$figma_token" ]; then
-      claude mcp add figma -e FIGMA_ACCESS_TOKEN="$figma_token" -- npx -y @figma/mcp-server 2>/dev/null || true
+      claude mcp add figma -s project -e FIGMA_ACCESS_TOKEN="$figma_token" -- npx -y @figma/mcp-server
       print_step "MCP Figma aggiunto"
     else
       print_warn "Token vuoto — MCP Figma non configurato"
