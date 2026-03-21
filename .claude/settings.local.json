@@ -13,7 +13,9 @@
       "Bash(mv render-template.md .claude/skills/)",
       "WebSearch",
       "WebFetch(domain:developer.clickup.com)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(claude mcp remove clickup)",
+      "Bash(claude mcp add --transport http clickup https://mcp.clickup.com/mcp)"
     ]
   }
 }
