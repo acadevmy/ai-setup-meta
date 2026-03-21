@@ -18,22 +18,22 @@ NC='\033[0m' # No Color
 
 print_header() {
   echo ""
-  echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
-  echo -e "${BLUE}║   AI-Native Dev Setup — Inizializzazione    ║${NC}"
-  echo -e "${BLUE}╚══════════════════════════════════════════════╝${NC}"
+  printf '%b\n' "${BLUE}╔══════════════════════════════════════════════╗${NC}"
+  printf '%b\n' "${BLUE}║   AI-Native Dev Setup — Inizializzazione    ║${NC}"
+  printf '%b\n' "${BLUE}╚══════════════════════════════════════════════╝${NC}"
   echo ""
 }
 
 print_step() {
-  echo -e "${GREEN}▸${NC} $1"
+  printf '%b\n' "${GREEN}▸${NC} $1"
 }
 
 print_warn() {
-  echo -e "${YELLOW}⚠${NC} $1"
+  printf '%b\n' "${YELLOW}⚠${NC} $1"
 }
 
 print_error() {
-  echo -e "${RED}✗${NC} $1"
+  printf '%b\n' "${RED}✗${NC} $1"
 }
 
 # ── Verifica prerequisiti ──────────────────────────────────
@@ -75,25 +75,27 @@ check_prerequisites() {
 
 # ── Menu selezione stack ──────────────────────────────────
 select_stack() {
-  echo "Seleziona il profilo stack per questo progetto:"
-  echo ""
-  echo "  1) Web Frontend    — Next.js / Angular / React + ShadCN/UI + Tailwind"
-  echo "  2) Backend Node    — Node.js / NestJS + Prisma + Zod"
-  echo "  3) Mobile          — Flutter / React Native (Expo)"
-  echo "  4) Full-stack      — Frontend + Backend (monorepo)"
-  echo ""
-  read -rp "Scelta [1-4]: " stack_choice
+  while true; do
+    echo "Seleziona il profilo stack per questo progetto:"
+    echo ""
+    echo "  1) Web Frontend    — Next.js / Angular / React + ShadCN/UI + Tailwind"
+    echo "  2) Backend Node    — Node.js / NestJS + Prisma + Zod"
+    echo "  3) Mobile          — Flutter / React Native (Expo)"
+    echo "  4) Full-stack      — Frontend + Backend (monorepo)"
+    echo ""
+    read -rp "Scelta [1-4]: " stack_choice
 
-  case "$stack_choice" in
-    1) STACK="web-frontend" ;;
-    2) STACK="backend-node" ;;
-    3) STACK="mobile" ;;
-    4) STACK="fullstack" ;;
-    *)
-      print_error "Scelta non valida"
-      exit 1
-      ;;
-  esac
+    case "$stack_choice" in
+      1) STACK="web-frontend"; break ;;
+      2) STACK="backend-node"; break ;;
+      3) STACK="mobile"; break ;;
+      4) STACK="fullstack"; break ;;
+      *)
+        print_warn "Scelta non valida. Inserisci un numero da 1 a 4."
+        echo ""
+        ;;
+    esac
+  done
 
   print_step "Stack selezionato: ${STACK}"
 }
@@ -107,16 +109,17 @@ select_mobile_framework() {
     echo "  1) Flutter"
     echo "  2) React Native (Expo)"
     echo ""
-    read -rp "Scelta [1-2]: " mobile_choice
+    while true; do
+      read -rp "Scelta [1-2]: " mobile_choice
 
-    case "$mobile_choice" in
-      1) MOBILE_FW="flutter" ;;
-      2) MOBILE_FW="react-native" ;;
-      *)
-        print_error "Scelta non valida"
-        exit 1
-        ;;
-    esac
+      case "$mobile_choice" in
+        1) MOBILE_FW="flutter"; break ;;
+        2) MOBILE_FW="react-native"; break ;;
+        *)
+          print_warn "Scelta non valida. Inserisci 1 o 2."
+          ;;
+      esac
+    done
 
     print_step "Framework mobile: ${MOBILE_FW}"
   fi
@@ -124,6 +127,11 @@ select_mobile_framework() {
 
 # ── Copia file base ──────────────────────────────────────
 copy_base_files() {
+  if [ "$SCRIPT_DIR" = "$PROJECT_DIR" ]; then
+    print_step "Esecuzione in-place — file base gia' presenti"
+    return
+  fi
+
   print_step "Copio file base..."
 
   cp "${SCRIPT_DIR}/CONSTITUTION.md" "${PROJECT_DIR}/CONSTITUTION.md"
@@ -140,11 +148,13 @@ setup_claude_code() {
 
   mkdir -p "${PROJECT_DIR}/.claude/commands"
 
-  cp "${SCRIPT_DIR}/.claude/settings.json" "${PROJECT_DIR}/.claude/settings.json"
+  if [ "$SCRIPT_DIR" != "$PROJECT_DIR" ]; then
+    cp "${SCRIPT_DIR}/.claude/settings.json" "${PROJECT_DIR}/.claude/settings.json"
 
-  # Copia comandi slash
-  if [ -d "${SCRIPT_DIR}/.claude/commands" ]; then
-    cp -r "${SCRIPT_DIR}/.claude/commands/"* "${PROJECT_DIR}/.claude/commands/" 2>/dev/null || true
+    # Copia comandi slash
+    if [ -d "${SCRIPT_DIR}/.claude/commands" ]; then
+      cp -r "${SCRIPT_DIR}/.claude/commands/"* "${PROJECT_DIR}/.claude/commands/" 2>/dev/null || true
+    fi
   fi
 
   print_step "Claude Code configurato"
@@ -154,31 +164,37 @@ setup_claude_code() {
 setup_quality_tools() {
   print_step "Configuro strumenti di qualità..."
 
-  # Installa dipendenze di qualità
-  npm install --save-dev \
-    husky \
-    @commitlint/cli \
-    @commitlint/config-conventional \
-    prettier \
-    eslint \
-    @typescript-eslint/eslint-plugin \
-    @typescript-eslint/parser \
-    2>/dev/null
+  # Installa dipendenze di qualità (richiede package.json)
+  if [ -f "${PROJECT_DIR}/package.json" ]; then
+    npm install --save-dev \
+      husky \
+      lint-staged \
+      @commitlint/cli \
+      @commitlint/config-conventional \
+      prettier \
+      eslint \
+      @typescript-eslint/eslint-plugin \
+      @typescript-eslint/parser \
+      2>/dev/null
 
-  # Inizializza Husky
-  npx husky init 2>/dev/null || true
+    # Inizializza Husky
+    npx husky init 2>/dev/null || true
+  else
+    print_warn "package.json non trovato — esegui 'npm init -y' e poi riesegui init.sh"
+  fi
 
-  # Copia hook
-  mkdir -p "${PROJECT_DIR}/.husky"
-  cp "${SCRIPT_DIR}/.husky/pre-commit" "${PROJECT_DIR}/.husky/pre-commit"
-  cp "${SCRIPT_DIR}/.husky/commit-msg" "${PROJECT_DIR}/.husky/commit-msg"
+  # Copia hook e configurazioni (solo se esecuzione da directory diversa)
+  if [ "$SCRIPT_DIR" != "$PROJECT_DIR" ]; then
+    mkdir -p "${PROJECT_DIR}/.husky"
+    cp "${SCRIPT_DIR}/.husky/pre-commit" "${PROJECT_DIR}/.husky/pre-commit"
+    cp "${SCRIPT_DIR}/.husky/commit-msg" "${PROJECT_DIR}/.husky/commit-msg"
+    cp "${SCRIPT_DIR}/.commitlintrc.json" "${PROJECT_DIR}/.commitlintrc.json"
+    cp "${SCRIPT_DIR}/.prettierrc.json" "${PROJECT_DIR}/.prettierrc.json"
+    cp "${SCRIPT_DIR}/.eslintrc.base.json" "${PROJECT_DIR}/.eslintrc.base.json"
+  fi
+
   chmod +x "${PROJECT_DIR}/.husky/pre-commit"
   chmod +x "${PROJECT_DIR}/.husky/commit-msg"
-
-  # Copia configurazioni
-  cp "${SCRIPT_DIR}/.commitlintrc.json" "${PROJECT_DIR}/.commitlintrc.json"
-  cp "${SCRIPT_DIR}/.prettierrc.json" "${PROJECT_DIR}/.prettierrc.json"
-  cp "${SCRIPT_DIR}/.eslintrc.base.json" "${PROJECT_DIR}/.eslintrc.base.json"
 
   print_step "Strumenti di qualità configurati"
 }
@@ -190,29 +206,33 @@ apply_profile() {
   local profile_dir="${SCRIPT_DIR}/profiles/${STACK}"
 
   if [ -d "$profile_dir" ]; then
-    # Copia ESLint specifico se presente
-    if [ -f "${profile_dir}/.eslintrc.json" ]; then
-      cp "${profile_dir}/.eslintrc.json" "${PROJECT_DIR}/.eslintrc.json"
-    fi
+    if [ "$SCRIPT_DIR" != "$PROJECT_DIR" ]; then
+      # Copia ESLint specifico se presente
+      if [ -f "${profile_dir}/.eslintrc.json" ]; then
+        cp "${profile_dir}/.eslintrc.json" "${PROJECT_DIR}/.eslintrc.json"
+      fi
 
-    # Copia tsconfig se presente
-    if [ -f "${profile_dir}/tsconfig.json" ]; then
-      cp "${profile_dir}/tsconfig.json" "${PROJECT_DIR}/tsconfig.json"
-    fi
+      # Copia tsconfig se presente
+      if [ -f "${profile_dir}/tsconfig.json" ]; then
+        cp "${profile_dir}/tsconfig.json" "${PROJECT_DIR}/tsconfig.json"
+      fi
 
-    # Copia jest config se presente
-    if [ -f "${profile_dir}/jest.config.ts" ]; then
-      cp "${profile_dir}/jest.config.ts" "${PROJECT_DIR}/jest.config.ts"
-    fi
+      # Copia jest config se presente
+      if [ -f "${profile_dir}/jest.config.ts" ]; then
+        cp "${profile_dir}/jest.config.ts" "${PROJECT_DIR}/jest.config.ts"
+      fi
 
-    # Per Flutter: copia analysis_options
-    if [ -f "${profile_dir}/analysis_options.yaml" ]; then
-      cp "${profile_dir}/analysis_options.yaml" "${PROJECT_DIR}/analysis_options.yaml"
+      # Per Flutter: copia analysis_options
+      if [ -f "${profile_dir}/analysis_options.yaml" ]; then
+        cp "${profile_dir}/analysis_options.yaml" "${PROJECT_DIR}/analysis_options.yaml"
+      fi
+    else
+      print_step "Esecuzione in-place — file profilo gia' presenti in profiles/${STACK}/"
     fi
   fi
 
   # Fullstack: applica sia frontend che backend
-  if [ "$STACK" = "fullstack" ]; then
+  if [ "$STACK" = "fullstack" ] && [ "$SCRIPT_DIR" != "$PROJECT_DIR" ]; then
     print_step "Setup monorepo fullstack..."
     mkdir -p "${PROJECT_DIR}/apps/web" "${PROJECT_DIR}/apps/api"
 
@@ -274,9 +294,9 @@ GITIGNORE
 # ── Riepilogo ────────────────────────────────────────────
 print_summary() {
   echo ""
-  echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
-  echo -e "${GREEN}║          Setup completato con successo!      ║${NC}"
-  echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
+  printf '%b\n' "${GREEN}╔══════════════════════════════════════════════╗${NC}"
+  printf '%b\n' "${GREEN}║          Setup completato con successo!      ║${NC}"
+  printf '%b\n' "${GREEN}╚══════════════════════════════════════════════╝${NC}"
   echo ""
   echo "File generati:"
   echo "  - CONSTITUTION.md      — regole di governance"
