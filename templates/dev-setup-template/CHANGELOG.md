@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.1] - 2026-03-21
+
+- Aggiornamento automatico via release-template.sh
+- Vedi GitHub Release per dettaglio modifiche
+
 Tutte le modifiche rilevanti al `dev-setup-template` sono documentate in questo file.
 
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/),
