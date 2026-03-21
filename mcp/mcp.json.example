@@ -2,9 +2,8 @@
   "_comment": "Template MCP — Vedi docs/onboarding.md per le istruzioni. GitHub usa gh CLI + git (nessun MCP necessario).",
   "mcpServers": {
     "clickup": {
-      "_setup": "Autenticazione OAuth: esegui 'claude mcp add clickup https://mcp.clickup.com/mcp' e autorizza con il tuo account ClickUp",
-      "type": "url",
-      "url": "https://mcp.clickup.com/mcp"
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.clickup.com/mcp"]
     },
     "figma": {
       "_setup": "Genera un Personal Access Token su https://www.figma.com/developers/api#access-tokens",

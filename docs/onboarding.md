@@ -46,10 +46,9 @@ Non condividere mai i token con altri membri del team.
    ```
 
 2. **ClickUp** — autenticazione OAuth (non serve API key):
-   ```bash
-   claude mcp add clickup https://mcp.clickup.com/mcp
-   ```
-   Si apre il browser: accedi con il tuo account ClickUp e autorizza. Funziona anche per utenti guest.
+   La configurazione e' gia' nel `mcp.json.example`. Al primo utilizzo, `mcp-remote`
+   apre il browser per l'autenticazione OAuth con il tuo account ClickUp.
+   Funziona anche per utenti guest.
 
 3. **GitHub** — autenticazione via `gh` CLI (non serve PAT manuale):
    ```bash
