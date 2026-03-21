@@ -36,8 +36,10 @@ Il team lavora principalmente su:
 
 ### Branching
 - Crea sempre un branch dal nome descrittivo: `feat/`, `fix/`, `chore/`
-- Formato: `feat/update-eslint-config` oppure `chore/sync-constitution-v2`
-- Usa il MCP GitHub per creare branch e PR
+- Se il task proviene da ClickUp, includi il customId (es. DE-123) nel nome del branch
+- Formato: `feat/DE-123-add-user-auth` oppure `chore/DE-456-update-dependencies`
+- Per task senza customId (es. manutenzione interna): `chore/sync-constitution-v2`
+- Usa `git` e `gh` CLI per creare branch e PR
 
 ### Commit
 - Lingua: **inglese**

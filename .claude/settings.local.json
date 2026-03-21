@@ -12,7 +12,8 @@
       "Bash(mv validate-setup.md .claude/skills/)",
       "Bash(mv render-template.md .claude/skills/)",
       "WebSearch",
-      "WebFetch(domain:developer.clickup.com)"
+      "WebFetch(domain:developer.clickup.com)",
+      "Bash(gh pr:*)"
     ]
   }
 }

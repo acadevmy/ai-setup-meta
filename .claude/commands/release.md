@@ -38,14 +38,14 @@ Tagga e pubblica una nuova versione del `dev-setup-template` su GitHub.
    ```
 
 5. **Crea tag**
-   Usa GitHub MCP:
+   Usa `gh` CLI:
    ```
    tag: template-vX.Y.Z
    message: "Release dev-setup-template vX.Y.Z\n\n<descrizione>"
    ```
 
 6. **Pubblica GitHub Release**
-   Usa GitHub MCP per creare una Release con:
+   Usa `gh release create` per creare una Release con:
    - Tag: `template-vX.Y.Z`
    - Titolo: `dev-setup-template vX.Y.Z`
    - Body: contenuto della sezione CHANGELOG per questa versione
@@ -56,6 +56,12 @@ Tagga e pubblica una nuova versione del `dev-setup-template` su GitHub.
    - Titolo: `[AI Setup] Aggiornare dev-setup alla v X.Y.Z`
    - Descrizione: link alla Release GitHub + istruzioni di aggiornamento
    - Assegna a: tutti gli sviluppatori del team
+
+## Nota su semantic-release nei progetti dei developer
+
+I progetti generati dal template includono semantic-release configurato
+(`.releaserc.json` + `.github/workflows/release.yml`). Le release dei
+singoli progetti dei developer sono automatizzate via CI.
 
 ## Output atteso
 - Tag `template-vX.Y.Z` creato su GitHub

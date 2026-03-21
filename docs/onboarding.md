@@ -101,6 +101,26 @@ Puoi subito usare i comandi slash disponibili per il tuo stack.
 | `/project:review` | Code review del branch corrente |
 | `/project:pr` | Crea PR su GitHub con descrizione generata |
 
+## Release automatiche con semantic-release
+
+Il template include **semantic-release** gia' configurato. Ad ogni push su `main`,
+la GitHub Action analizza i commit (Conventional Commits) e automaticamente:
+
+- Calcola la nuova versione (major/minor/patch)
+- Genera `CHANGELOG.md`
+- Aggiorna la versione nel `package.json`
+- Crea tag e GitHub Release
+
+Non serve fare nulla di manuale: basta seguire le convenzioni di commit della Costituzione (regola 12).
+
+| Tipo di commit | Effetto sulla versione |
+|---|---|
+| `feat(...)` | MINOR (1.0.0 -> 1.1.0) |
+| `fix(...)`, `perf(...)`, `refactor(...)` | PATCH (1.0.0 -> 1.0.1) |
+| Commit con `BREAKING CHANGE` nel footer | MAJOR (1.0.0 -> 2.0.0) |
+
+Per un dry-run locale: `npm run release:dry`
+
 ## FAQ
 
 **Posso usare Codex invece di Claude Code?**
