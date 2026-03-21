@@ -168,17 +168,17 @@ setup_mcp() {
     print_warn "Claude CLI non trovato — configura i MCP manualmente"
     print_warn "  Installa: npm install -g @anthropic-ai/claude-code"
     print_warn "  Poi esegui:"
-    print_warn "    claude mcp add clickup -t http -s project https://mcp.clickup.com/mcp"
+    print_warn "    claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp"
     print_warn "    claude mcp add context7 -s project -- npx -y @upstash/context7-mcp@latest"
     return
   fi
 
-  # ClickUp — OAuth (URL type)
+  # ClickUp — OAuth (URL type), scope user (trasversale a tutti i progetti)
   if claude mcp list 2>/dev/null | grep -q "clickup"; then
     print_step "MCP ClickUp gia' configurato"
   else
-    if claude mcp add clickup -t http -s project https://mcp.clickup.com/mcp; then
-      print_step "MCP ClickUp aggiunto (autenticati con OAuth al primo uso)"
+    if claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp; then
+      print_step "MCP ClickUp aggiunto a livello user (autenticati con OAuth al primo uso)"
     else
       print_warn "Errore nell'aggiunta di ClickUp MCP — configuralo manualmente"
     fi
