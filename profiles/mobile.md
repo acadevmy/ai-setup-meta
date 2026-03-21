@@ -112,7 +112,12 @@ src/
   "devDependencies": {
     "jest": "^29.7.0",
     "@testing-library/react-native": "^12.5.0",
-    "@types/jest": "^29.5.0"
+    "@types/jest": "^29.5.0",
+    "semantic-release": "^24.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^10.0.0",
+    "conventional-changelog-conventionalcommits": "^8.0.0"
   }
 }
 ```

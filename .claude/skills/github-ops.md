@@ -11,8 +11,18 @@ NON usare MCP GitHub — usare sempre i comandi diretti.
 
 ### Creare un branch
 ```
-git checkout -b <nome-branch>
-Naming convention: vedi AGENT.md
+git checkout -b <tipo>/<customId>-<descrizione-breve>
+
+Naming convention:
+  - Prefisso: feat/, fix/, chore/, hotfix/
+  - CustomId: il custom_id del task ClickUp (es. DE-123)
+  - Descrizione: breve, in kebab-case, in inglese
+
+Esempi:
+  feat/DE-123-add-user-auth
+  fix/DE-456-handle-null-response
+  chore/DE-789-update-dependencies
+
 Base: sempre `main` salvo indicazioni diverse
 ```
 
@@ -20,7 +30,7 @@ Base: sempre `main` salvo indicazioni diverse
 ```
 gh pr create --title "<titolo>" --body "<body>"
 Campi obbligatori:
-  - title: segue Conventional Commits
+  - title: segue Conventional Commits, include customId — es. "feat(auth): add refresh token rotation [DE-123]"
   - body: include sezioni Cosa / Perché / Come testare
   - labels: uno tra [constitution, template, skill, profile, release]
   - base: main
@@ -43,6 +53,9 @@ Template body PR:
 - [ ] Nessun segreto o API key inclusi
 - [ ] CHANGELOG aggiornato
 - [ ] CONSTITUTION rispettata
+
+## ClickUp
+- Task: [DE-XXX](link al task)
 ```
 
 ### Creare un tag e una Release

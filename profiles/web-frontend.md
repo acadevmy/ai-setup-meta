@@ -22,7 +22,12 @@ Testing: Jest + Testing Library
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/user-event": "^14.5.0",
     "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0"
+    "jest-environment-jsdom": "^29.7.0",
+    "semantic-release": "^24.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^10.0.0",
+    "conventional-changelog-conventionalcommits": "^8.0.0"
   },
   "dependencies": {
     "zod": "^3.23.0",

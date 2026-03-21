@@ -13,11 +13,25 @@ Tempo stimato: **30–45 minuti** (prima installazione).
 | Claude Code | ultima | `npm install -g @anthropic-ai/claude-code` |
 | Account Claude | Piano Pro o Max | [claude.ai](https://claude.ai) |
 
-## Passo 1 — Clonare il template
+## Passo 1 — Creare il progetto dal template
 
+Hai due opzioni:
+
+### Opzione A — Da GitHub (consigliata)
+1. Vai su `https://github.com/YOUR_ORG/dev-setup-template`
+2. Clicca **"Use this template"** > **"Create a new repository"**
+3. Scegli nome e visibilita' del tuo progetto
+4. Clona il repo appena creato:
+   ```bash
+   git clone git@github.com:YOUR_ORG/nome-progetto.git
+   cd nome-progetto
+   ```
+
+### Opzione B — Da CLI
 ```bash
-# Clona il repo template (non questo meta-repo)
-git clone git@github.com:YOUR_ORG/dev-setup-template.git nome-progetto
+gh repo create YOUR_ORG/nome-progetto \
+  --template YOUR_ORG/dev-setup-template \
+  --private --clone
 cd nome-progetto
 ```
 
@@ -32,10 +46,9 @@ Non condividere mai i token con altri membri del team.
    ```
 
 2. **ClickUp** — autenticazione OAuth (non serve API key):
-   ```bash
-   claude mcp add clickup https://mcp.clickup.com/mcp
-   ```
-   Si apre il browser: accedi con il tuo account ClickUp e autorizza. Funziona anche per utenti guest.
+   La configurazione e' gia' nel `mcp.json.example`. Al primo utilizzo, `mcp-remote`
+   apre il browser per l'autenticazione OAuth con il tuo account ClickUp.
+   Funziona anche per utenti guest.
 
 3. **GitHub** — autenticazione via `gh` CLI (non serve PAT manuale):
    ```bash
@@ -100,6 +113,26 @@ Puoi subito usare i comandi slash disponibili per il tuo stack.
 | `/project:simplify` | Refactoring del codice corrente |
 | `/project:review` | Code review del branch corrente |
 | `/project:pr` | Crea PR su GitHub con descrizione generata |
+
+## Release automatiche con semantic-release
+
+Il template include **semantic-release** gia' configurato. Ad ogni push su `main`,
+la GitHub Action analizza i commit (Conventional Commits) e automaticamente:
+
+- Calcola la nuova versione (major/minor/patch)
+- Genera `CHANGELOG.md`
+- Aggiorna la versione nel `package.json`
+- Crea tag e GitHub Release
+
+Non serve fare nulla di manuale: basta seguire le convenzioni di commit della Costituzione (regola 12).
+
+| Tipo di commit | Effetto sulla versione |
+|---|---|
+| `feat(...)` | MINOR (1.0.0 -> 1.1.0) |
+| `fix(...)`, `perf(...)`, `refactor(...)` | PATCH (1.0.0 -> 1.0.1) |
+| Commit con `BREAKING CHANGE` nel footer | MAJOR (1.0.0 -> 2.0.0) |
+
+Per un dry-run locale: `npm run release:dry`
 
 ## FAQ
 

@@ -19,7 +19,12 @@ ORM: Prisma (preferito) o TypeORM
     "@types/jest": "^29.5.0",
     "ts-jest": "^29.1.0",
     "supertest": "^7.0.0",
-    "@types/supertest": "^6.0.0"
+    "@types/supertest": "^6.0.0",
+    "semantic-release": "^24.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^10.0.0",
+    "conventional-changelog-conventionalcommits": "^8.0.0"
   },
   "dependencies": {
     "zod": "^3.23.0",

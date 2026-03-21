@@ -152,19 +152,7 @@ EOF
 
 ok "MCP configurato in $MCP_TARGET"
 
-# ── 5b. Autenticazione OAuth per ClickUp ────────────────────────────────────
-step "Autenticazione ClickUp via OAuth"
-
-echo "  ClickUp usa OAuth — si apre il browser per autorizzare con il tuo account."
-echo "  Funziona anche per utenti guest."
-echo ""
-read -rp "Premi INVIO per avviare l'autenticazione ClickUp (o Ctrl+C per saltare)..."
-
-if command -v claude >/dev/null 2>&1; then
-  claude mcp add clickup https://mcp.clickup.com/mcp && ok "ClickUp OAuth completato" || warn "ClickUp OAuth fallito — riprova con: claude mcp add clickup https://mcp.clickup.com/mcp"
-else
-  warn "Claude Code non installato — configura ClickUp manualmente: claude mcp add clickup https://mcp.clickup.com/mcp"
-fi
+ok "ClickUp configurato — l'autenticazione OAuth avverra' automaticamente al primo utilizzo"
 
 # ── 6. Verifica git ───────────────────────────────────────────────────────────
 step "Verifica configurazione git"

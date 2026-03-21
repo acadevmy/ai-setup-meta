@@ -1,63 +1,42 @@
 # /project:release
 
-Tagga e pubblica una nuova versione del `dev-setup-template` su GitHub.
+Esegue la release di una nuova versione del `dev-setup-template`.
 
 ## Quando usarlo
-- Dopo una o più PR mergate che modificano il template
-- Quando il team è pronto ad adottare le modifiche
-- Seguire semantic versioning: MAJOR.MINOR.PATCH
+- Quando vuoi pubblicare una nuova versione del template
+- Lo script si occupa di: sync file, tag, push, GitHub Release
 
-| Tipo di modifica | Versione |
-|---|---|
-| Breaking change (struttura incompatibile) | MAJOR |
-| Nuova feature/skill/profilo | MINOR |
-| Bugfix, aggiornamento dipendenze | PATCH |
+## Contesto
 
-## Input richiesto
-- **Tipo di release**: `major` / `minor` / `patch`
-- **Descrizione**: riassunto delle modifiche (2-3 righe)
+Il flusso di release e' a due repo:
+
+```
+ai-setup-meta (sorgente)
+    |
+    | bash scripts/release-template.sh [patch|minor|major]
+    | -> copia templates/dev-setup-template/ -> repo template
+    | -> tag + GitHub Release
+    v
+dev-setup-template (repo GitHub separato)
+    |
+    | "Use this template" o clone
+    v
+Repo progetto sviluppatore
+```
 
 ## Procedura
 
-1. **Verifica stato repo**
-   - Sei su `main` e il branch è aggiornato
-   - Non ci sono PR aperte in attesa di merge che influenzano il template
-   - Tutti i test passano
+1. **Chiedi il tipo di release** se non specificato dall'utente: `patch`, `minor` o `major`
+2. **Esegui lo script**: `bash scripts/release-template.sh <tipo>`
+3. **Mostra il risultato** con il link alla GitHub Release
 
-2. **Calcola la nuova versione**
-   Leggi la versione corrente da `templates/dev-setup-template/CHANGELOG.md`
-   e incrementa secondo il tipo di release.
+## Nota su semantic-release nei progetti dei developer
 
-3. **Aggiorna i file di versione**
-   - `templates/dev-setup-template/CHANGELOG.md` — aggiungi sezione `## [X.Y.Z] - YYYY-MM-DD`
-   - `.env.example` in questo repo — aggiorna `TEMPLATE_VERSION`
-
-4. **Crea commit di release**
-   ```
-   chore(release): bump dev-setup-template to vX.Y.Z
-   ```
-
-5. **Crea tag**
-   Usa GitHub MCP:
-   ```
-   tag: template-vX.Y.Z
-   message: "Release dev-setup-template vX.Y.Z\n\n<descrizione>"
-   ```
-
-6. **Pubblica GitHub Release**
-   Usa GitHub MCP per creare una Release con:
-   - Tag: `template-vX.Y.Z`
-   - Titolo: `dev-setup-template vX.Y.Z`
-   - Body: contenuto della sezione CHANGELOG per questa versione
-   - Allega: nessun artifact (il repo template è distribuito via clone)
-
-7. **Notifica il team**
-   Crea un task in ClickUp nella lista `${CLICKUP_SETUP_LIST_ID}` con:
-   - Titolo: `[AI Setup] Aggiornare dev-setup alla v X.Y.Z`
-   - Descrizione: link alla Release GitHub + istruzioni di aggiornamento
-   - Assegna a: tutti gli sviluppatori del team
+I progetti generati dal template includono semantic-release configurato
+(`.releaserc.json` + `.github/workflows/release.yml`). Le release dei
+singoli progetti dei developer sono **automatizzate via CI** — non serve
+questo comando per quei progetti.
 
 ## Output atteso
-- Tag `template-vX.Y.Z` creato su GitHub
-- GitHub Release pubblicata
-- Task ClickUp creato per notificare il team
+- GitHub Release creata sul repo template
+- Link alla release mostrato all'utente

@@ -35,6 +35,8 @@ Genera o rigenera il `dev-setup-template` completo a partire dalle sorgenti di q
    - `.commitlintrc.json` — configurazione conventional commits
    - `.prettierrc.json` — configurazione Prettier
    - `.eslintrc.base.json` — config ESLint base (estesa dai profili)
+   - `.releaserc.json` — configurazione semantic-release (copia da template)
+   - `.github/workflows/release.yml` — GitHub Action per release automatica (copia da template)
 
 5. **Genera profili stack**
    Per ciascun profilo in `profiles/*.md`:
