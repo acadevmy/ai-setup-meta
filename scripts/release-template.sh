@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# release-template.sh — Pubblica nuova versione del dev-setup-template
-# Sincronizza i file dal meta-repo al repo template separato su GitHub.
+# release-template.sh — Pubblica il setup agent su dev-setup-template
+# Sincronizza dist/setup.md e un README dal meta-repo al repo template.
 #
 # Uso: bash scripts/release-template.sh [patch|minor|major]
 #
@@ -22,7 +22,6 @@ fail() { echo -e "${RED}✗${NC} $1"; exit 1; }
 step() { echo -e "\n${YELLOW}▶ $1${NC}"; }
 
 RELEASE_TYPE="${1:-patch}"
-TEMPLATE_SOURCE="templates/dev-setup-template"
 
 if [[ ! "$RELEASE_TYPE" =~ ^(patch|minor|major)$ ]]; then
   fail "Tipo release non valido: '$RELEASE_TYPE'. Usa: patch | minor | major"
@@ -40,6 +39,14 @@ source .env.local 2>/dev/null || fail "File .env.local non trovato. Copia da .en
 [ -n "${GITHUB_ORG:-}" ] || fail "GITHUB_ORG non configurata in .env.local"
 [ -n "${GITHUB_TEMPLATE_REPO:-}" ] || fail "GITHUB_TEMPLATE_REPO non configurata in .env.local"
 ok "Variabili: GITHUB_ORG=$GITHUB_ORG, GITHUB_TEMPLATE_REPO=$GITHUB_TEMPLATE_REPO"
+
+# Verifica che setup.md esista
+[ -f "dist/setup.md" ] || fail "dist/setup.md non trovato. Generalo prima di rilasciare."
+
+# Validazione URL
+if [ -f "scripts/validate-setup-urls.sh" ]; then
+  bash scripts/validate-setup-urls.sh || fail "Validazione URL fallita. Correggi prima di rilasciare."
+fi
 
 # ── Verifica branch ─────────────────────────────────────────────────────────
 step "Verifica branch e stato git"
@@ -67,7 +74,7 @@ if ! gh repo view "${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}" >/dev/null 2>&1; then
   if [[ "$CREATE_REPO" =~ ^[Yy]$ ]]; then
     gh repo create "${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}" \
       --private \
-      --description "Template AI-native per sviluppatori — generato da ai-setup-meta" \
+      --description "Setup agent AI-native — scarica ed esegui /project:setup" \
       --clone=false
     ok "Repo ${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO} creato"
   else
@@ -101,6 +108,7 @@ ok "Tag: $TAG"
 echo ""
 echo "  Stai per rilasciare: $TAG ($RELEASE_TYPE)"
 echo "  Repo target: ${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
+echo "  Contenuto: setup.md + README.md"
 read -rp "  Confermi? [y/N] " CONFIRM
 [[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "Operazione annullata."; exit 0; }
 
@@ -111,23 +119,8 @@ sed -i.bak "s/^TEMPLATE_VERSION=.*/TEMPLATE_VERSION=$NEW_VERSION/" .env.example
 rm -f .env.example.bak
 ok ".env.example aggiornato"
 
-# Aggiorna CHANGELOG del template
-CHANGELOG="$TEMPLATE_SOURCE/CHANGELOG.md"
-if [ -f "$CHANGELOG" ]; then
-  TEMP=$(mktemp)
-  head -1 "$CHANGELOG" > "$TEMP"
-  echo "" >> "$TEMP"
-  echo "## [$NEW_VERSION] - $TODAY" >> "$TEMP"
-  echo "" >> "$TEMP"
-  echo "- Aggiornamento automatico via release-template.sh" >> "$TEMP"
-  echo "- Vedi GitHub Release per dettaglio modifiche" >> "$TEMP"
-  tail -n +2 "$CHANGELOG" >> "$TEMP"
-  mv "$TEMP" "$CHANGELOG"
-  ok "CHANGELOG aggiornato"
-fi
-
 # Commit nel meta-repo
-git add .env.example "$CHANGELOG" 2>/dev/null || true
+git add .env.example
 if ! git diff --cached --quiet; then
   git commit -m "chore(release): bump dev-setup-template to v$NEW_VERSION"
   ok "Commit nel meta-repo creato"
@@ -155,9 +148,49 @@ fi
 # Pulisci il contenuto esistente (tranne .git)
 find "$WORK_DIR/template" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
 
-# Copia i file del template
-cp -R "$TEMPLATE_SOURCE"/. "$WORK_DIR/template/"
-ok "File copiati da $TEMPLATE_SOURCE"
+# Copia setup.md nella struttura corretta
+mkdir -p "$WORK_DIR/template/.claude/commands"
+cp dist/setup.md "$WORK_DIR/template/.claude/commands/setup.md"
+ok "setup.md copiato"
+
+# Genera README per il repo template
+cat > "$WORK_DIR/template/README.md" << 'READMEEOF'
+# dev-setup-template
+
+Setup agent AI-Native per progetti di sviluppo.
+
+## Avvio rapido
+
+```bash
+# 1. Nel tuo progetto, scarica il setup agent
+mkdir -p .claude/commands && curl -sL \
+  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/commands/setup.md \
+  -o .claude/commands/setup.md
+
+# 2. Avvia Claude Code ed esegui il setup
+claude
+# poi digita: /project:setup
+```
+
+L'agente analizzera' il progetto (greenfield o esistente), scarichera' le risorse
+necessarie e applichera' tutto in modo adattivo.
+
+**Prerequisiti**: `git`, `claude` CLI (`npm install -g @anthropic-ai/claude-code`)
+
+## Cosa fa l'agente
+
+- **Progetto esistente**: innesta solo il workflow AI (CONSTITUTION, AGENT.md, comandi, MCP) senza toccare il tooling
+- **Progetto nuovo (greenfield)**: setup completo con quality tools, profilo stack, MCP
+
+## Aggiornamento
+
+Per aggiornare il setup, riesegui lo stesso curl e poi `/project:setup`. L'agente rileva
+che il setup e' gia' presente e aggiorna solo i file necessari.
+
+---
+*Generato da [ai-setup-meta](https://github.com/acadevmy/ai-setup-meta)*
+READMEEOF
+ok "README.md generato"
 
 # Commit e push nel repo template
 cd "$WORK_DIR/template"
@@ -171,7 +204,7 @@ else
   git commit -m "chore(release): v$NEW_VERSION
 
 Generato automaticamente da ai-setup-meta.
-Vedi il meta-repo per la storia completa delle modifiche."
+Contiene solo il setup agent (.claude/commands/setup.md)."
 
   git tag -a "$TAG" -m "Release dev-setup-template v$NEW_VERSION"
 
@@ -190,21 +223,22 @@ ok "Meta-repo aggiornato"
 # ── Crea GitHub Release ─────────────────────────────────────────────────────
 step "Creazione GitHub Release"
 
-RELEASE_NOTES="Release v$NEW_VERSION ($TODAY)
+RELEASE_NOTES="## Release v$NEW_VERSION ($TODAY)
 
 Tipo: $RELEASE_TYPE
-Generata da: ai-setup-meta/scripts/release-template.sh"
 
-# Aggiungi contenuto CHANGELOG se disponibile
-if [ -f "$CHANGELOG" ]; then
-  CHANGELOG_SECTION=$(sed -n "/## \[$NEW_VERSION\]/,/## \[/p" "$CHANGELOG" | head -n -1)
-  if [ -n "$CHANGELOG_SECTION" ]; then
-    RELEASE_NOTES="$CHANGELOG_SECTION
+### Setup
+
+\`\`\`bash
+mkdir -p .claude/commands && curl -sL \\
+  https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}/main/.claude/commands/setup.md \\
+  -o .claude/commands/setup.md
+\`\`\`
+
+Poi esegui \`/project:setup\` in Claude Code.
 
 ---
 Generata da: ai-setup-meta/scripts/release-template.sh"
-  fi
-fi
 
 gh release create "$TAG" \
   --repo "${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}" \
@@ -221,6 +255,5 @@ echo "╚═══════════════════════�
 echo ""
 echo "  Repo aggiornato: https://github.com/${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
 echo "  Tag: $TAG"
-echo ""
-echo "  La GitHub Release e' la notifica ufficiale per il team."
+echo "  Contenuto: .claude/commands/setup.md + README.md"
 echo ""

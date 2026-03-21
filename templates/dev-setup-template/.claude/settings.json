@@ -19,6 +19,7 @@
       "Bash(diff:*)",
       "Bash(gh:*)",
       "Bash(claude:*)",
+      "Bash(curl:*)",
       "mcp__clickup__*",
       "mcp__context7__*",
       "mcp__figma__*"

@@ -1,50 +1,61 @@
 # ai-setup-meta
 
-Repository privato di governance AI. Claude Code opera qui per **generare e mantenere** il
-`dev-setup-template` usato dagli 11 sviluppatori del team.
+Repository di governance AI. Contiene le risorse sorgente (CONSTITUTION, profili, comandi)
+e il **setup agent** che le distribuisce ai progetti degli sviluppatori.
 
-## Architettura a due repository
+## Setup per sviluppatori
+
+Per aggiungere il workflow AI-Native a qualsiasi progetto (nuovo o esistente):
+
+```bash
+# 1. Scarica il setup agent nel tuo progetto
+mkdir -p .claude/commands && curl -sL \
+  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/commands/setup.md \
+  -o .claude/commands/setup.md
+
+# 2. Avvia Claude Code ed esegui il setup
+claude
+# poi digita: /project:setup
+```
+
+L'agente analizzera' il progetto, scarichera' le risorse da questo repository
+e applichera' tutto in modo adattivo:
+- **Progetto esistente**: innesta solo il workflow AI (CONSTITUTION, AGENT, comandi, MCP) senza toccare il tooling
+- **Progetto nuovo (greenfield)**: setup completo con quality tools, profilo stack, MCP
+
+**Prerequisiti**: `git`, `claude` CLI
+
+## Architettura
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      ai-setup-meta                          │
-│  (questo repo — solo il maintainer ci lavora)               │
+│  (questo repo — sorgente di verita')                        │
 │                                                             │
-│  Contiene: CONSTITUTION, profili stack, skill, comandi,     │
-│  script di release e la SORGENTE del template in            │
-│  templates/dev-setup-template/                              │
+│  Contiene: CONSTITUTION, profili stack, skill, comandi.     │
+│  Il setup agent e' pubblicato su dev-setup-template.        │
 │                                                             │
-│  Claude Code opera qui con autonomia su task definiti.      │
 │  Ogni modifica a main passa per PR obbligatoria.            │
 └────────────────────────┬────────────────────────────────────┘
                          │
-                         │ bash scripts/release-template.sh
-                         │ (copia files, commit, tag, GitHub Release)
+                         │  release script
+                         │  (copia setup.md + README)
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│           dev-setup-template (repo GitHub separato)          │
-│  (GITHUB_ORG/GITHUB_TEMPLATE_REPO in .env.local)           │
-│                                                             │
-│  Contiene SOLO i file generati dal template.                │
-│  NON va modificato direttamente — le modifiche si fanno    │
-│  nel meta-repo e si pubblicano con release-template.sh.    │
-│                                                             │
-│  Configurato come GitHub Template Repository per            │
-│  permettere "Use this template" ai developer.               │
+│              dev-setup-template (repo pubblico)              │
+│  Contiene SOLO: .claude/commands/setup.md + README.md       │
+│  Lo sviluppatore scarica setup.md con un curl one-liner.    │
 └────────────────────────┬────────────────────────────────────┘
                          │
-                         │ "Use this template" su GitHub
-                         │ oppure: git clone + init.sh
+                         │  /project:setup
+                         │  L'agente scarica risorse da ai-setup-meta
+                         │  via raw.githubusercontent.com
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │            Repo progetto sviluppatore (×11)                  │
 │                                                             │
-│  Ogni progetto e' un repo indipendente creato dal           │
-│  template. Lo sviluppatore esegue init.sh per               │
-│  personalizzare stack, MCP e AGENT.md.                      │
-│                                                             │
-│  Claude Code / Codex pronti, MCP connessi,                  │
-│  semantic-release configurato per release automatiche.      │
+│  Claude Code scarica e applica le risorse in modo adattivo. │
+│  Workflow AI-Native configurato, MCP connessi.              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -75,9 +86,12 @@ ai-setup-meta/
 │   ├── web-frontend.md       # Stack: Next.js, Angular, React
 │   ├── backend-node.md       # Stack: Node.js, NestJS
 │   └── mobile.md             # Stack: Flutter, React Native
+├── dist/
+│   └── setup.md              # Sorgente del setup agent (pubblicato su dev-setup-template)
 ├── scripts/
 │   ├── init-meta.sh          # Bootstrap iniziale di questo repo
-│   └── release-template.sh   # Sincronizza e pubblica sul repo template
+│   ├── release-template.sh   # Pubblica setup.md su dev-setup-template
+│   └── validate-setup-urls.sh # Verifica coerenza URL in setup.md
 ├── templates/
 │   └── dev-setup-template/   # SORGENTE del template (qui si modifica)
 │       ├── AGENT.md
@@ -93,34 +107,21 @@ ai-setup-meta/
     └── adr/                  # Architecture Decision Records
 ```
 
-## Flusso di release
-
-```
-1. Maintainer lavora nel meta-repo (branch + PR)
-2. Merge su main
-3. bash scripts/release-template.sh minor
-   → Aggiorna versione nel meta-repo
-   → Copia templates/dev-setup-template/ → repo template
-   → Crea tag e GitHub Release sul repo template
-4. /project:release in Claude Code → notifica il team su ClickUp
-```
-
 ## Regole operative
 
 - **Nessun push diretto su `main`** — nemmeno dall'agente. Sempre PR.
-- **La `CONSTITUTION.md`** in questo repo e' la sorgente di verita'. Quella nel template e' generata.
+- **La `CONSTITUTION.md`** in questo repo e' la sorgente di verita'.
 - **Le API key non entrano mai nel repo** — solo in `.env.local` (gitignored) o nei secret GitHub.
-- **Ogni modifica al template** deve aggiornare anche `CHANGELOG.md` nel template stesso.
-- **Il repo template non va mai modificato direttamente** — le modifiche si fanno qui.
+- Dopo ogni modifica ai file in `templates/` o `profiles/`, eseguire `bash scripts/validate-setup-urls.sh` per verificare la coerenza.
 
-## Avvio rapido (prima volta)
+## Avvio rapido — meta-repo (solo maintainer)
 
 ```bash
-git clone git@github.com:your-org/ai-setup-meta.git
+git clone git@github.com:acadevmy/ai-setup-meta.git
 cd ai-setup-meta
-cp .env.example .env.local          # Compilare: GITHUB_ORG, GITHUB_TEMPLATE_REPO, ecc.
-bash scripts/init-meta.sh           # Installa dipendenze e verifica MCP
-claude                              # Avvia Claude Code
+cp .env.example .env.local
+bash scripts/init-meta.sh
+claude
 ```
 
 ## Comandi disponibili
