@@ -1,14 +1,59 @@
 # ai-setup-meta
 
 Repository privato di governance AI. Claude Code opera qui per **generare e mantenere** il
-[dev-setup-template](../dev-setup-template) usato dagli 11 sviluppatori del team.
+`dev-setup-template` usato dagli 11 sviluppatori del team.
 
-## Struttura
+## Architettura a due repository
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      ai-setup-meta                          │
+│  (questo repo — solo il maintainer ci lavora)               │
+│                                                             │
+│  Contiene: CONSTITUTION, profili stack, skill, comandi,     │
+│  script di release e la SORGENTE del template in            │
+│  templates/dev-setup-template/                              │
+│                                                             │
+│  Claude Code opera qui con autonomia su task definiti.      │
+│  Ogni modifica a main passa per PR obbligatoria.            │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         │ bash scripts/release-template.sh
+                         │ (copia files, commit, tag, GitHub Release)
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│           dev-setup-template (repo GitHub separato)          │
+│  (GITHUB_ORG/GITHUB_TEMPLATE_REPO in .env.local)           │
+│                                                             │
+│  Contiene SOLO i file generati dal template.                │
+│  NON va modificato direttamente — le modifiche si fanno    │
+│  nel meta-repo e si pubblicano con release-template.sh.    │
+│                                                             │
+│  Configurato come GitHub Template Repository per            │
+│  permettere "Use this template" ai developer.               │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         │ "Use this template" su GitHub
+                         │ oppure: git clone + init.sh
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│            Repo progetto sviluppatore (×11)                  │
+│                                                             │
+│  Ogni progetto e' un repo indipendente creato dal           │
+│  template. Lo sviluppatore esegue init.sh per               │
+│  personalizzare stack, MCP e AGENT.md.                      │
+│                                                             │
+│  Claude Code / Codex pronti, MCP connessi,                  │
+│  semantic-release configurato per release automatiche.      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Struttura del meta-repo
 
 ```
 ai-setup-meta/
 ├── AGENT.md                  # Contesto e istruzioni per Claude Code (questo repo)
-├── CONSTITUTION.md           # Regole inviolabili — sorgente di verità
+├── CONSTITUTION.md           # Regole inviolabili — sorgente di verita'
 ├── .claude/
 │   ├── settings.json         # Configurazione Claude Code per questo repo
 │   ├── commands/             # Slash commands disponibili in questo repo
@@ -32,14 +77,15 @@ ai-setup-meta/
 │   └── mobile.md             # Stack: Flutter, React Native
 ├── scripts/
 │   ├── init-meta.sh          # Bootstrap iniziale di questo repo
-│   └── release-template.sh  # Pubblica nuova versione del dev-setup-template
+│   └── release-template.sh   # Sincronizza e pubblica sul repo template
 ├── templates/
-│   └── dev-setup-template/   # Sorgente del template per gli sviluppatori
+│   └── dev-setup-template/   # SORGENTE del template (qui si modifica)
 │       ├── AGENT.md
 │       ├── CONSTITUTION.md
+│       ├── .releaserc.json
+│       ├── .github/workflows/release.yml
+│       ├── .claude/commands/start-task.md
 │       ├── mcp.json.example
-│       ├── .claude/
-│       ├── .husky/
 │       └── init.sh
 └── docs/
     ├── onboarding.md         # Guida per nuovi sviluppatori
@@ -47,41 +93,32 @@ ai-setup-meta/
     └── adr/                  # Architecture Decision Records
 ```
 
-## Come funziona
+## Flusso di release
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   ai-setup-meta                     │
-│  Claude Code opera qui con autonomia su task definiti│
-│  Ogni modifica a main passa per PR obbligatoria      │
-└────────────────────┬────────────────────────────────┘
-                     │ genera / aggiorna
-                     ▼
-┌─────────────────────────────────────────────────────┐
-│             dev-setup-template (repo GitHub)         │
-│  Template clonato da ogni sviluppatore               │
-└────────────────────┬────────────────────────────────┘
-                     │ clone + init.sh
-                     ▼
-┌─────────────────────────────────────────────────────┐
-│          Workstation sviluppatore (×11)               │
-│  Claude Code / Codex pronti, MCP connessi            │
-└─────────────────────────────────────────────────────┘
+1. Maintainer lavora nel meta-repo (branch + PR)
+2. Merge su main
+3. bash scripts/release-template.sh minor
+   → Aggiorna versione nel meta-repo
+   → Copia templates/dev-setup-template/ → repo template
+   → Crea tag e GitHub Release sul repo template
+4. /project:release in Claude Code → notifica il team su ClickUp
 ```
 
 ## Regole operative
 
 - **Nessun push diretto su `main`** — nemmeno dall'agente. Sempre PR.
-- **La `CONSTITUTION.md`** in questo repo è la sorgente di verità. Quella nel template è generata.
+- **La `CONSTITUTION.md`** in questo repo e' la sorgente di verita'. Quella nel template e' generata.
 - **Le API key non entrano mai nel repo** — solo in `.env.local` (gitignored) o nei secret GitHub.
 - **Ogni modifica al template** deve aggiornare anche `CHANGELOG.md` nel template stesso.
+- **Il repo template non va mai modificato direttamente** — le modifiche si fanno qui.
 
 ## Avvio rapido (prima volta)
 
 ```bash
 git clone git@github.com:your-org/ai-setup-meta.git
 cd ai-setup-meta
-cp .env.example .env.local          # Inserire le API key
+cp .env.example .env.local          # Compilare: GITHUB_ORG, GITHUB_TEMPLATE_REPO, ecc.
 bash scripts/init-meta.sh           # Installa dipendenze e verifica MCP
 claude                              # Avvia Claude Code
 ```

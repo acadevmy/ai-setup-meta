@@ -13,11 +13,25 @@ Tempo stimato: **30–45 minuti** (prima installazione).
 | Claude Code | ultima | `npm install -g @anthropic-ai/claude-code` |
 | Account Claude | Piano Pro o Max | [claude.ai](https://claude.ai) |
 
-## Passo 1 — Clonare il template
+## Passo 1 — Creare il progetto dal template
 
+Hai due opzioni:
+
+### Opzione A — Da GitHub (consigliata)
+1. Vai su `https://github.com/YOUR_ORG/dev-setup-template`
+2. Clicca **"Use this template"** > **"Create a new repository"**
+3. Scegli nome e visibilita' del tuo progetto
+4. Clona il repo appena creato:
+   ```bash
+   git clone git@github.com:YOUR_ORG/nome-progetto.git
+   cd nome-progetto
+   ```
+
+### Opzione B — Da CLI
 ```bash
-# Clona il repo template (non questo meta-repo)
-git clone git@github.com:YOUR_ORG/dev-setup-template.git nome-progetto
+gh repo create YOUR_ORG/nome-progetto \
+  --template YOUR_ORG/dev-setup-template \
+  --private --clone
 cd nome-progetto
 ```
 

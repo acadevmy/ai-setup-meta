@@ -10,7 +10,7 @@ Maintainer individua un miglioramento
          │
          ▼
   Crea branch di lavoro
-  git checkout -b feat/descrizione
+  git checkout -b feat/DE-123-descrizione
          │
          ▼
   Avvia Claude Code: claude
@@ -23,20 +23,39 @@ Maintainer individua un miglioramento
          │
          ▼
   Claude Code lavora in autonomia:
-  - Crea/modifica file
+  - Crea/modifica file in templates/dev-setup-template/
   - Valida con validate-setup
   - Aggiorna CHANGELOG
-  - Apre PR via GitHub MCP
+  - Apre PR via gh CLI
          │
          ▼
   Maintainer revisiona la PR su GitHub
          │
          ▼
-  Merge → /project:release (quando pronto)
+  Merge su main
          │
          ▼
-  Team sviluppatori notificati via ClickUp
+  bash scripts/release-template.sh minor
+  → Sincronizza verso il repo template separato
+  → Crea tag + GitHub Release
+         │
+         ▼
+  /project:release → notifica il team su ClickUp
 ```
+
+## Come funziona il release
+
+Il release script (`scripts/release-template.sh`) fa da ponte tra i due repo:
+
+1. Calcola la nuova versione (semver)
+2. Aggiorna `CHANGELOG.md` e `.env.example` nel meta-repo
+3. Clona il repo template (`GITHUB_ORG/GITHUB_TEMPLATE_REPO`)
+4. Copia tutto il contenuto di `templates/dev-setup-template/` nel repo clonato
+5. Commit, tag e push sul repo template
+6. Crea la GitHub Release con `gh release create`
+
+**Il repo template non va mai modificato direttamente.** Ogni modifica parte
+dal meta-repo e viene pubblicata con il release script.
 
 ## Operazioni frequenti
 
@@ -71,34 +90,53 @@ claude
 ```bash
 # Assicurarsi di essere su main aggiornato
 git checkout main && git pull
+
+# Pubblica sul repo template
 bash scripts/release-template.sh minor   # o patch / major
-# Poi in Claude Code per notificare su ClickUp:
+
+# Notifica il team su ClickUp
 claude
 /project:release
 ```
 
+## Setup iniziale del repo template
+
+La prima volta che si esegue `release-template.sh`, lo script:
+1. Verifica se il repo `GITHUB_ORG/GITHUB_TEMPLATE_REPO` esiste su GitHub
+2. Se non esiste, offre di crearlo automaticamente con `gh repo create`
+3. Pubblica la prima versione
+
+Dopo la creazione, si consiglia di:
+- Andare su GitHub > Settings del repo template
+- Spuntare **"Template repository"** per abilitare "Use this template"
+
 ## Regole per il maintainer
 
 1. **Non operare mai su `main` direttamente** — sempre branch + PR
-2. **Leggere ogni PR di Claude** prima di approvarla — la responsabilità resta umana
+2. **Leggere ogni PR di Claude** prima di approvarla — la responsabilita' resta umana
 3. **Non approvare PR che modificano `CONSTITUTION.md`** senza una review attenta
 4. **Aggiornare `AGENT.md`** se cambiano strumenti, profili o processi del team
 5. **Testare `init.sh`** su una macchina pulita prima di ogni release minor/major
+6. **Non modificare mai il repo template direttamente** — usare sempre il meta-repo
 
 ## Gestione degli errori di Claude Code
 
 Se Claude Code fa qualcosa di inatteso:
 
 1. **Non fare merge della PR** — chiuderla senza merge
-2. Analizzare cosa è andato storto nell'`AGENT.md` o nei comandi slash
+2. Analizzare cosa e' andato storto nell'`AGENT.md` o nei comandi slash
 3. Correggere le istruzioni e riprovare
-4. Se il problema è ricorrente, aprire una PR per migliorare il prompt
+4. Se il problema e' ricorrente, aprire una PR per migliorare il prompt
 
 ## Branch protection consigliata (GitHub Settings)
 
-Per il repo `ai-setup-meta`, abilitare:
-- ✅ Require a pull request before merging
-- ✅ Require approvals: 1
-- ✅ Dismiss stale pull request approvals when new commits are pushed
-- ✅ Require status checks to pass (se configurate GitHub Actions)
-- ✅ Do not allow bypassing the above settings
+### Per il meta-repo (`ai-setup-meta`)
+- Require a pull request before merging
+- Require approvals: 1
+- Dismiss stale pull request approvals when new commits are pushed
+- Require status checks to pass (se configurate GitHub Actions)
+- Do not allow bypassing the above settings
+
+### Per il repo template (`dev-setup-template`)
+- Nessuna branch protection necessaria — il repo viene aggiornato solo dallo script di release
+- Abilitare "Template repository" nelle Settings per permettere "Use this template"
