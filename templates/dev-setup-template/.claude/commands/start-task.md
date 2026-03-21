@@ -68,7 +68,7 @@ Procedi con il flusso TDD (regola 9 della Costituzione):
 4. Implementa il minimo codice per farli passare (green)
 5. Refactoring (refactor)
 
-### 6. Al termine — Apri PR e aggiorna stato
+### 6. Al termine — Qualita', review e PR
 Quando lo sviluppo e' completato:
 
 1. **Commit** con Conventional Commits (includi il customId):
@@ -76,18 +76,31 @@ Quando lo sviluppo e' completato:
    feat(auth): add refresh token rotation [DE-123]
    ```
 
-2. **Push** del branch:
+2. **Simplify** — Esegui la skill `simplify` per rivedere il codice modificato:
+   - Cerca opportunita' di riuso di codice esistente
+   - Migliora qualita' e efficienza
+   - Correggi eventuali problemi trovati
+   - Se ci sono modifiche, committale: `refactor(<scope>): simplify implementation`
+
+3. **Review** — Esegui `/project:review` per:
+   - Verificare conformita' alla CONSTITUTION.md
+   - Verificare qualita' del codice
+   - Aggiornare automaticamente `REGISTRY.md` con le nuove entry
+
+4. **Push** del branch:
    ```bash
    git push -u origin <branch-name>
    ```
 
-3. **Apri PR** con `gh pr create`:
+5. **Apri PR** con `gh pr create`:
    - Titolo: segue Conventional Commits con customId
    - Body: include sezioni Cosa / Perche' / Come testare + link al task ClickUp
 
-4. **Aggiorna stato** del task su ClickUp a **IN REVIEW** (o **CODE REVIEW**)
+6. **Aggiorna stato** del task su ClickUp a **IN REVIEW** (o **CODE REVIEW**)
 
 ## Output atteso
 - Branch creato con customId nel nome
+- Codice ottimizzato (simplify) e conforme alla CONSTITUTION (review)
+- `REGISTRY.md` aggiornato con le nuove entry
 - Task spostato: SPRINT → IN PROGRESS → IN REVIEW
 - PR aperta su GitHub con riferimento al task ClickUp
