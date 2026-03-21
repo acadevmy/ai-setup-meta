@@ -5,6 +5,16 @@ Tutte le modifiche rilevanti al `dev-setup-template` sono documentate in questo 
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.1.0] - 2026-03-21
+
+### Added
+- README.md per ogni profilo stack (web-frontend, backend-node, mobile)
+- Supporto customId ClickUp nella convenzione branch naming (AGENT.md)
+
+### Changed
+- AGENT.md — aggiunto customId nella sezione branch naming
+- CONSTITUTION.md — rigenerata copia esatta dal repo sorgente
+
 ## [1.0.0] - 2026-03-21
 
 ### Added

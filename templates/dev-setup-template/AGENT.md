@@ -42,11 +42,13 @@ Questo progetto utilizza uno dei seguenti stack (selezionato durante `init.sh`):
 
 ### Branch naming
 ```
-feat/<descrizione-breve>
-fix/<descrizione-breve>
-chore/<descrizione-breve>
-hotfix/<descrizione-breve>
+feat/<customId>-<descrizione-breve>
+fix/<customId>-<descrizione-breve>
+chore/<customId>-<descrizione-breve>
+hotfix/<customId>-<descrizione-breve>
 ```
+Il `customId` è l'identificativo del task ClickUp (es. `DE-123`).
+Se il branch non è associato a un task ClickUp, omettere il customId.
 
 ### Pull Request
 - Titolo: segue Conventional Commits
