@@ -1,16 +1,28 @@
 # /project:start-task
 
-Prende il prossimo task da ClickUp e avvia il flusso di sviluppo.
+Prende un task specifico o il prossimo task dalla lista ClickUp e avvia il flusso di sviluppo.
+
+**Uso**: `/project:start-task [TASK_ID]`
+- Con `TASK_ID` (es. `DE-123`): recupera direttamente quel task da ClickUp
+- Senza argomenti: cerca il prossimo task nella lista ClickUp
 
 ## Flusso completo
 
-### 1. Recupera il prossimo task da ClickUp
-Usa il MCP ClickUp per cercare i task con:
-- **Stato**: `SPRINT`
-- **Ordinamento**: per priorita' (1 = urgent, 2 = high, 3 = normal, 4 = low)
-- Prendi il **primo task** con priorita' piu' alta
+### 1. Recupera il task da ClickUp
 
-Se non ci sono task in stato SPRINT, informa lo sviluppatore e fermati.
+**Se e' stato fornito un TASK_ID** (argomento `$ARGUMENTS`):
+- Usa il MCP ClickUp `clickup_get_task` con il task ID fornito
+- Se il task non esiste, informa lo sviluppatore e fermati
+
+**Se NON e' stato fornito un TASK_ID**:
+- Leggi `CLICKUP_SETUP_LIST_ID` dal file `.env` nella root del progetto
+- Se la variabile non e' configurata, informa lo sviluppatore di compilare `.env` e fermati
+- Usa il MCP ClickUp `clickup_filter_tasks` per cercare i task nella lista con:
+  - **list_id**: il valore di `CLICKUP_SETUP_LIST_ID`
+  - **Stato**: `SPRINT`
+  - **Ordinamento**: per priorita' (1 = urgent, 2 = high, 3 = normal, 4 = low)
+  - Prendi il **primo task** con priorita' piu' alta
+- Se non ci sono task in stato SPRINT, informa lo sviluppatore e fermati
 
 Recupera dal task:
 - `custom_id` (es. DE-123)
