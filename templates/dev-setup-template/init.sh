@@ -255,51 +255,63 @@ setup_quality_tools() {
 }
 
 # ── Applica profilo stack ────────────────────────────────
+# Sposta i file di configurazione del profilo scelto nella root
+# del progetto e rimuove la cartella profiles/ (non serve nel progetto finale)
 apply_profile() {
   print_step "Applico profilo ${STACK}..."
 
   local profile_dir="${SCRIPT_DIR}/profiles/${STACK}"
 
-  if [ -d "$profile_dir" ]; then
-    if [ "$SCRIPT_DIR" != "$PROJECT_DIR" ]; then
-      # Copia ESLint specifico se presente
-      if [ -f "${profile_dir}/.eslintrc.json" ]; then
-        cp "${profile_dir}/.eslintrc.json" "${PROJECT_DIR}/.eslintrc.json"
-      fi
-
-      # Copia tsconfig se presente
-      if [ -f "${profile_dir}/tsconfig.json" ]; then
-        cp "${profile_dir}/tsconfig.json" "${PROJECT_DIR}/tsconfig.json"
-      fi
-
-      # Copia jest config se presente
-      if [ -f "${profile_dir}/jest.config.ts" ]; then
-        cp "${profile_dir}/jest.config.ts" "${PROJECT_DIR}/jest.config.ts"
-      fi
-
-      # Per Flutter: copia analysis_options
-      if [ -f "${profile_dir}/analysis_options.yaml" ]; then
-        cp "${profile_dir}/analysis_options.yaml" "${PROJECT_DIR}/analysis_options.yaml"
-      fi
-    else
-      print_step "Esecuzione in-place — file profilo gia' presenti in profiles/${STACK}/"
-    fi
+  if [ ! -d "$profile_dir" ]; then
+    print_warn "Profilo ${STACK} non trovato in profiles/ — skip"
+    return
   fi
 
-  # Fullstack: applica sia frontend che backend
-  if [ "$STACK" = "fullstack" ] && [ "$SCRIPT_DIR" != "$PROJECT_DIR" ]; then
+  # Funzione helper: copia un file dal profilo alla root se non esiste gia'
+  copy_if_missing() {
+    local src="$1"
+    local dest="${PROJECT_DIR}/$(basename "$src")"
+    if [ -f "$src" ]; then
+      if [ ! -f "$dest" ]; then
+        cp "$src" "$dest"
+        print_step "  $(basename "$src") applicato"
+      else
+        print_warn "  $(basename "$src") gia' presente — non sovrascritto"
+      fi
+    fi
+  }
+
+  # Applica file del profilo selezionato
+  copy_if_missing "${profile_dir}/.eslintrc.json"
+  copy_if_missing "${profile_dir}/tsconfig.json"
+  copy_if_missing "${profile_dir}/jest.config.ts"
+  copy_if_missing "${profile_dir}/analysis_options.yaml"
+
+  # Fullstack: applica sia frontend che backend in sottocartelle
+  if [ "$STACK" = "fullstack" ]; then
     print_step "Setup monorepo fullstack..."
     mkdir -p "${PROJECT_DIR}/apps/web" "${PROJECT_DIR}/apps/api"
 
-    if [ -d "${SCRIPT_DIR}/profiles/web-frontend" ]; then
-      cp "${SCRIPT_DIR}/profiles/web-frontend/.eslintrc.json" "${PROJECT_DIR}/apps/web/.eslintrc.json" 2>/dev/null || true
-      cp "${SCRIPT_DIR}/profiles/web-frontend/tsconfig.json" "${PROJECT_DIR}/apps/web/tsconfig.json" 2>/dev/null || true
+    local web_dir="${SCRIPT_DIR}/profiles/web-frontend"
+    local api_dir="${SCRIPT_DIR}/profiles/backend-node"
+
+    if [ -d "$web_dir" ]; then
+      cp "${web_dir}/.eslintrc.json" "${PROJECT_DIR}/apps/web/.eslintrc.json" 2>/dev/null || true
+      cp "${web_dir}/tsconfig.json" "${PROJECT_DIR}/apps/web/tsconfig.json" 2>/dev/null || true
+      cp "${web_dir}/jest.config.ts" "${PROJECT_DIR}/apps/web/jest.config.ts" 2>/dev/null || true
     fi
 
-    if [ -d "${SCRIPT_DIR}/profiles/backend-node" ]; then
-      cp "${SCRIPT_DIR}/profiles/backend-node/.eslintrc.json" "${PROJECT_DIR}/apps/api/.eslintrc.json" 2>/dev/null || true
-      cp "${SCRIPT_DIR}/profiles/backend-node/tsconfig.json" "${PROJECT_DIR}/apps/api/tsconfig.json" 2>/dev/null || true
+    if [ -d "$api_dir" ]; then
+      cp "${api_dir}/.eslintrc.json" "${PROJECT_DIR}/apps/api/.eslintrc.json" 2>/dev/null || true
+      cp "${api_dir}/tsconfig.json" "${PROJECT_DIR}/apps/api/tsconfig.json" 2>/dev/null || true
+      cp "${api_dir}/jest.config.ts" "${PROJECT_DIR}/apps/api/jest.config.ts" 2>/dev/null || true
     fi
+  fi
+
+  # Rimuovi la cartella profiles/ — non serve nel progetto finale
+  if [ -d "${PROJECT_DIR}/profiles" ]; then
+    rm -rf "${PROJECT_DIR}/profiles"
+    print_step "Cartella profiles/ rimossa (file applicati nella root)"
   fi
 
   print_step "Profilo ${STACK} applicato"
@@ -346,6 +358,29 @@ GITIGNORE
   fi
 }
 
+# ── Cleanup file del template ────────────────────────────
+cleanup_template_files() {
+  print_step "Pulizia file del template..."
+
+  # Rimuovi init.sh — ha fatto il suo lavoro
+  if [ -f "${PROJECT_DIR}/init.sh" ]; then
+    rm "${PROJECT_DIR}/init.sh"
+    print_step "init.sh rimosso"
+  fi
+
+  # Rimuovi mcp.json.example — MCP gia' configurato via CLI
+  if [ -f "${PROJECT_DIR}/mcp.json.example" ]; then
+    rm "${PROJECT_DIR}/mcp.json.example"
+    print_step "mcp.json.example rimosso (MCP configurato via CLI)"
+  fi
+
+  # Rimuovi CHANGELOG del template — il progetto ne avra' uno suo via semantic-release
+  if [ -f "${PROJECT_DIR}/CHANGELOG.md" ]; then
+    rm "${PROJECT_DIR}/CHANGELOG.md"
+    print_step "CHANGELOG.md del template rimosso"
+  fi
+}
+
 # ── Riepilogo ────────────────────────────────────────────
 print_summary() {
   echo ""
@@ -353,16 +388,17 @@ print_summary() {
   printf '%b\n' "${GREEN}║          Setup completato con successo!      ║${NC}"
   printf '%b\n' "${GREEN}╚══════════════════════════════════════════════╝${NC}"
   echo ""
-  echo "File generati:"
-  echo "  - CONSTITUTION.md      — regole di governance"
-  echo "  - AGENT.md             — istruzioni per Claude Code"
-  echo "  - .claude/             — configurazione Claude Code"
-  echo "  - .husky/              — git hooks (lint + commit)"
-  echo "  - .eslintrc.base.json  — configurazione ESLint base"
-  echo "  - .prettierrc.json     — configurazione Prettier"
-  echo "  - .commitlintrc.json   — configurazione Commitlint"
-  echo "  - .env.example         — variabili d'ambiente richieste"
-  echo "  - mcp.json.example     — template MCP"
+  echo "Configurazione del progetto:"
+  echo "  - CONSTITUTION.md       — regole di governance"
+  echo "  - AGENT.md              — istruzioni per Claude Code"
+  echo "  - .claude/              — settings + slash commands"
+  echo "  - .husky/               — git hooks (lint + commit)"
+  echo "  - .eslintrc.base.json   — ESLint base"
+  echo "  - .eslintrc.json        — ESLint profilo ${STACK}"
+  echo "  - .prettierrc.json      — Prettier"
+  echo "  - .commitlintrc.json    — Conventional Commits"
+  echo "  - .releaserc.json       — semantic-release"
+  echo "  - .env.example          — variabili d'ambiente"
   echo ""
   echo "Prossimi passi:"
   echo "  1. Copia .env.example in .env e compila le variabili"
@@ -383,6 +419,7 @@ main() {
   setup_quality_tools
   apply_profile
   setup_gitignore
+  cleanup_template_files
   print_summary
 }
 
