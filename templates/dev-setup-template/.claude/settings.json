@@ -3,9 +3,25 @@
     "allow": [
       "Bash(git:*)",
       "Bash(npm:*)",
+      "Bash(npx:*)",
       "Bash(node:*)",
       "Bash(ls:*)",
-      "Bash(gh:*)"
+      "Bash(cat:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(chmod:*)",
+      "Bash(echo:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(find:*)",
+      "Bash(diff:*)",
+      "Bash(gh:*)",
+      "Bash(claude:*)",
+      "mcp__clickup__*",
+      "mcp__context7__*",
+      "mcp__figma__*"
     ],
     "deny": [
       "Bash(git push --force*)",
