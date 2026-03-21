@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv settings.json .claude/settings.json)",
+      "Bash(mv generate-setup.md .claude/commands/)",
+      "Bash(mv update-constitution.md .claude/commands/)",
+      "Bash(mv sync-profiles.md .claude/commands/)",
+      "Bash(mv new-skill.md .claude/commands/)",
+      "Bash(mv release.md .claude/commands/)",
+      "Bash(mv clickup.md .claude/skills/)",
+      "Bash(mv github-ops.md .claude/skills/)",
+      "Bash(mv validate-setup.md .claude/skills/)",
+      "Bash(mv render-template.md .claude/skills/)"
+    ]
+  }
+}
