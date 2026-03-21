@@ -30,6 +30,7 @@ con `gh auth login`.
 | `templates/dev-setup-template/.claude/commands/tdd.md` | Comando TDD |
 | `templates/dev-setup-template/.claude/commands/review.md` | Comando review |
 | `templates/dev-setup-template/.claude/commands/sync-task.md` | Comando sync-task |
+| `templates/dev-setup-template/REGISTRY.md` | Template registro progetto |
 | `profiles/web-frontend.md` | Profilo Web Frontend |
 | `profiles/backend-node.md` | Profilo Backend Node |
 | `profiles/mobile.md` | Profilo Mobile |
@@ -180,7 +181,13 @@ gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claud
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/sync-task.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_sync-task.md
 ```
 
-#### 3.5 — Profilo stack (solo GREENFIELD)
+#### 3.5 — REGISTRY.md
+
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/REGISTRY.md -H "Accept: application/vnd.github.raw" > /tmp/REGISTRY.md
+```
+
+#### 3.6 — Profilo stack (solo GREENFIELD)
 
 Scarica il profilo selezionato:
 - Web Frontend: `gh api repos/acadevmy/ai-setup-meta/contents/profiles/web-frontend.md -H "Accept: application/vnd.github.raw" > /tmp/profile.md`
@@ -246,6 +253,14 @@ Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
 **Conflict detection**: Se `AGENT.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
 
 Scrivi il risultato in `AGENT.md` nella root del progetto.
+
+---
+
+### Passo 5b — Installa REGISTRY.md
+
+**Conflict detection**: Se `REGISTRY.md` esiste gia' nel progetto, chiedi allo sviluppatore prima di sovrascrivere.
+
+Se non esiste o lo sviluppatore conferma: copia il contenuto scaricato da `/tmp/REGISTRY.md` verbatim in `REGISTRY.md` nella root del progetto.
 
 ---
 
@@ -465,7 +480,7 @@ npm-debug.log*
 
 Rimuovi i file temporanei:
 ```bash
-rm -f /tmp/CONSTITUTION_SOURCE.md /tmp/AGENT_TEMPLATE.md /tmp/claude_settings.json /tmp/cmd_*.md /tmp/profile.md
+rm -f /tmp/CONSTITUTION_SOURCE.md /tmp/AGENT_TEMPLATE.md /tmp/claude_settings.json /tmp/cmd_*.md /tmp/REGISTRY.md /tmp/profile.md
 ```
 
 ---
@@ -481,6 +496,7 @@ Setup completato!
 File installati:
   - CONSTITUTION.md       — regole di governance
   - AGENT.md              — istruzioni per Claude Code
+  - REGISTRY.md           — registro feature e servizi
   - .claude/              — settings + slash commands
 
 Stack rilevato:
@@ -505,6 +521,7 @@ Setup completato!
 Configurazione del progetto:
   - CONSTITUTION.md       — regole di governance
   - AGENT.md              — istruzioni per Claude Code
+  - REGISTRY.md           — registro feature e servizi
   - .claude/              — settings + slash commands
   - .husky/               — git hooks (lint + commit)
   - .eslintrc.base.json   — ESLint base
