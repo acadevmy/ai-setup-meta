@@ -8,6 +8,7 @@ Eseguire sempre prima di `/project:release`.
 ### 1. File obbligatori presenti
 Verifica che esistano tutti questi file in `templates/dev-setup-template/`:
 - [ ] `AGENT.md`
+- [ ] `REGISTRY.md`
 - [ ] `CONSTITUTION.md`
 - [ ] `init.sh`
 - [ ] `mcp.json.example`
@@ -56,6 +57,12 @@ Verifica che `.env.local` e altri file sensibili siano in `.gitignore`:
 
 ### 7. CHANGELOG aggiornato
 - [ ] L'ultima versione in CHANGELOG corrisponde a `TEMPLATE_VERSION` in `.env.example`
+
+### 8. REGISTRY.md struttura valida
+- [ ] Contiene l'header `# REGISTRY.md`
+- [ ] Contiene le sezioni: `## Feature`, `## Servizi e utility`, `## Componenti UI`, `## Decisioni architetturali`
+- [ ] Contiene la sezione `## Convenzioni` con il formato entry documentato
+- [ ] Nessun placeholder `{{...}}` non risolto
 
 ## Come eseguire la validazione
 Chiedi all'agente di eseguire i comandi `diff` e `grep` sopra elencati

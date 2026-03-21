@@ -19,6 +19,7 @@ Genera o rigenera il `dev-setup-template` completo a partire dalle sorgenti di q
    Crea o aggiorna `templates/dev-setup-template/` con:
    - `CONSTITUTION.md` — copia esatta da questo repo (non editare)
    - `AGENT.md` — versione per sviluppatori (tono diverso, scope limitato)
+   - `REGISTRY.md` — template del registro progetto (vuoto, con struttura e convenzioni)
    - `init.sh` — script con menu interattivo per selezione stack
    - `mcp.json.example` — template MCP senza chiavi
    - `.env.example` — variabili richieste senza valori

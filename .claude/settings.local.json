@@ -23,7 +23,9 @@
       "Bash(TEMP_DIR=\"/var/folders/dj/w8zxyclx0y747j2hg4sf50tr0000gn/T/tmp.2disI3z6ng\")",
       "Bash(rsync -av --delete --exclude='.git' --exclude='.claude/settings.local.json' /Users/andreao/Works/ai-base-setup/templates/dev-setup-template/ \"$TEMP_DIR/\")",
       "Bash(bash -n /Users/andreao/Works/ai-base-setup/templates/dev-setup-template/inject.sh)",
-      "Bash(bash scripts/validate-setup-urls.sh)"
+      "Bash(bash scripts/validate-setup-urls.sh)",
+      "Bash(bash scripts/release-template.sh patch)",
+      "Bash(bash -n /Users/andreao/Works/ai-base-setup/templates/dev-setup-template/init.sh)"
     ]
   }
 }

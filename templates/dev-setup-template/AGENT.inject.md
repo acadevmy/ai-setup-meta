@@ -20,8 +20,9 @@ Stack rilevato: **{{STACK_DESCRIPTION}}**
 ## Regole operative fondamentali
 
 ### Prima di qualsiasi modifica
-1. Leggi `CONSTITUTION.md` per verificare i vincoli applicabili
-2. Verifica lo stato del branch corrente — non operare mai direttamente su `main`
+1. Leggi `REGISTRY.md` per conoscere feature, servizi e decisioni gia' presenti nel progetto
+2. Leggi `CONSTITUTION.md` per verificare i vincoli applicabili
+3. Verifica lo stato del branch corrente — non operare mai direttamente su `main`
 
 ### Workflow TDD (obbligatorio)
 1. Scrivi il test che descrive il comportamento atteso
@@ -100,6 +101,14 @@ prima di procedere.
 | **Context7** | Documentazione aggiornata di librerie e framework |
 
 > Le operazioni GitHub (branch, PR, commit) si eseguono con il CLI `gh`.
+
+## Registro del progetto
+
+`REGISTRY.md` contiene l'indice strutturato di feature, servizi, componenti e decisioni
+architetturali del progetto. Leggilo **sempre** all'inizio di una nuova sessione.
+
+Il comando `/project:review` aggiorna automaticamente il registro al termine di ogni feature.
+Non modificare `REGISTRY.md` manualmente durante lo sviluppo.
 
 ## Checklist pre-commit
 

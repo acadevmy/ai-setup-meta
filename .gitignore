@@ -10,3 +10,4 @@ mcp/mcp.json
 
 # Dependencies
 node_modules/
+settings.local.json

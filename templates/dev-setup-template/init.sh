@@ -136,6 +136,7 @@ copy_base_files() {
 
   cp "${SCRIPT_DIR}/CONSTITUTION.md" "${PROJECT_DIR}/CONSTITUTION.md"
   cp "${SCRIPT_DIR}/AGENT.md" "${PROJECT_DIR}/AGENT.md"
+  cp "${SCRIPT_DIR}/REGISTRY.md" "${PROJECT_DIR}/REGISTRY.md"
   cp "${SCRIPT_DIR}/mcp.json.example" "${PROJECT_DIR}/mcp.json.example"
   cp "${SCRIPT_DIR}/.env.example" "${PROJECT_DIR}/.env.example"
 
@@ -391,6 +392,7 @@ print_summary() {
   echo "Configurazione del progetto:"
   echo "  - CONSTITUTION.md       — regole di governance"
   echo "  - AGENT.md              — istruzioni per Claude Code"
+  echo "  - REGISTRY.md           — registro feature e servizi"
   echo "  - .claude/              — settings + slash commands"
   echo "  - .husky/               — git hooks (lint + commit)"
   echo "  - .eslintrc.base.json   — ESLint base"

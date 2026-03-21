@@ -470,6 +470,7 @@ print_summary() {
   echo "File installati:"
   echo "  - CONSTITUTION.md       — regole di governance"
   echo "  - AGENT.md              — istruzioni per Claude Code"
+  echo "  - REGISTRY.md           — registro feature e servizi"
   echo "  - .claude/              — settings + slash commands"
   echo ""
   echo "Stack rilevato:"
@@ -507,6 +508,7 @@ main() {
   echo ""
   generate_constitution
   generate_agent_md
+  safe_copy "${SCRIPT_DIR}/REGISTRY.md" "${PROJECT_DIR}/REGISTRY.md" "REGISTRY.md"
   setup_claude_code
   setup_env
   setup_mcp

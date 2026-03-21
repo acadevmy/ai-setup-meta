@@ -21,6 +21,7 @@ Genera o rigenera lo script `inject.sh` e i file di supporto per l'innesto del w
    - Funzioni di auto-detection stack (linguaggio, test runner, linter, validazione, frontend, mobile)
    - CONSTITUTION modulare (sezioni VI/VII condizionali in base a frontend/mobile rilevati)
    - AGENT.md adattivo generato da `AGENT.inject.md` con sostituzione placeholders
+   - REGISTRY.md copiato nella root del progetto (safe_copy con conflict detection)
    - Setup `.claude/` con conflict detection (non sovrascrive file esistenti)
    - Setup MCP (ClickUp user scope, Context7 project scope, Figma condizionale)
    - Setup `.env` con merge (appende `CLICKUP_SETUP_LIST_ID` senza sovrascrivere)
@@ -29,6 +30,7 @@ Genera o rigenera lo script `inject.sh` e i file di supporto per l'innesto del w
 3. **Genera il template AGENT.inject.md**
    Crea `templates/dev-setup-template/AGENT.inject.md` con:
    - Struttura identica ad `AGENT.md` ma con placeholders: `{{STACK_DESCRIPTION}}`, `{{TEST_COMMAND}}`, `{{LINT_COMMAND}}`, `{{VALIDATION_TOOL}}`
+   - Riferimento a `REGISTRY.md` nella sezione "Prima di qualsiasi modifica"
    - Sezioni stack-agnostic (no riferimenti a TypeScript/Zod/Jest specifici)
    - Checklist pre-commit generica (strict typing, no debug logs, no secrets)
 
