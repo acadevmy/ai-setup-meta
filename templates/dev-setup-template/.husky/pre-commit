@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+
+# Pre-commit hook: ESLint + Prettier sui file staged
+npx lint-staged --concurrent false
