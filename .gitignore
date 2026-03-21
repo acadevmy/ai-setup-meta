@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Secrets
+.env
+.env.*
+
+# MCP config locale (contiene token personali)
+mcp/mcp.json
+
+# Dependencies
+node_modules/

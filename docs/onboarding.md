@@ -9,6 +9,7 @@ Tempo stimato: **30–45 minuti** (prima installazione).
 |---|---|---|
 | Node.js | 20.x LTS | [nodejs.org](https://nodejs.org) |
 | git | 2.40+ | preinstallato su macOS/Linux |
+| gh CLI | 2.x+ | `brew install gh` oppure [cli.github.com](https://cli.github.com) |
 | Claude Code | ultima | `npm install -g @anthropic-ai/claude-code` |
 | Account Claude | Piano Pro o Max | [claude.ai](https://claude.ai) |
 
@@ -20,7 +21,40 @@ git clone git@github.com:YOUR_ORG/dev-setup-template.git nome-progetto
 cd nome-progetto
 ```
 
-## Passo 2 — Eseguire lo script di init
+## Passo 2 — Configurare i token MCP (account personale)
+
+Ogni sviluppatore deve usare i **propri token personali** per i server MCP.
+Non condividere mai i token con altri membri del team.
+
+1. Copia il template MCP nella tua configurazione locale:
+   ```bash
+   cp mcp/mcp.json.example mcp/mcp.json
+   ```
+
+2. **ClickUp** — autenticazione OAuth (non serve API key):
+   ```bash
+   claude mcp add clickup https://mcp.clickup.com/mcp
+   ```
+   Si apre il browser: accedi con il tuo account ClickUp e autorizza. Funziona anche per utenti guest.
+
+3. **GitHub** — autenticazione via `gh` CLI (non serve PAT manuale):
+   ```bash
+   gh auth login
+   ```
+   Si apre il browser: accedi con il tuo account GitHub e autorizza. Le operazioni git e GitHub useranno la tua identità.
+
+4. **Figma** (opzionale) — genera il tuo token personale:
+   | Servizio | Dove generarlo |
+   |---|---|
+   | Figma | [figma.com/developers/api](https://www.figma.com/developers/api#access-tokens) |
+
+   Configura la variabile d'ambiente nel tuo `~/.zshrc` (o `~/.bashrc`):
+   ```bash
+   export FIGMA_ACCESS_TOKEN="figd_il_tuo_token"
+   ```
+   Poi ricarica il terminale: `source ~/.zshrc`
+
+## Passo 3 — Eseguire lo script di init
 
 ```bash
 bash init.sh
@@ -33,9 +67,8 @@ Lo script ti chiederà di:
    - `2` Backend (Node.js / NestJS)
    - `3` Mobile (Flutter / React Native)
    - `4` Full Stack (Web + Backend)
-3. Inserire le API key necessarie (le trovi su Notion > AI Setup)
 
-## Passo 3 — Verificare la configurazione
+## Passo 4 — Verificare la configurazione
 
 ```bash
 # Verifica Claude Code
@@ -48,7 +81,7 @@ claude mcp list
 cat .husky/pre-commit
 ```
 
-## Passo 4 — Primo avvio
+## Passo 5 — Primo avvio
 
 ```bash
 claude

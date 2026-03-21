@@ -11,7 +11,6 @@ I file template usano la sintassi `{{VARIABILE}}` per i placeholder:
 
 Stack selezionato: {{STACK_PROFILE}}
 Sviluppatore: {{DEVELOPER_NAME}}
-ClickUp Team: {{CLICKUP_TEAM_ID}}
 ```
 
 ## Come renderizzare un file
@@ -29,7 +28,6 @@ ClickUp Team: {{CLICKUP_TEAM_ID}}
 | `{{STACK_PROFILE}}` | Input utente | `web-frontend` / `backend-node` / `mobile` |
 | `{{DEVELOPER_NAME}}` | Input utente | Nome dello sviluppatore |
 | `{{GITHUB_ORG}}` | `.env.local` | Organizzazione GitHub |
-| `{{CLICKUP_TEAM_ID}}` | `.env.local` | ID team ClickUp |
 | `{{TEMPLATE_VERSION}}` | `.env.local` | Versione del template |
 | `{{SETUP_DATE}}` | Automatico | Data di esecuzione (YYYY-MM-DD) |
 

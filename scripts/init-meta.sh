@@ -29,6 +29,20 @@ command -v npm    >/dev/null 2>&1 || fail "npm non trovato."
 command -v git    >/dev/null 2>&1 || fail "git non trovato."
 command -v claude >/dev/null 2>&1 || warn "Claude Code non trovato nel PATH. Installa con: npm install -g @anthropic-ai/claude-code"
 
+# gh CLI — installa automaticamente se mancante
+if ! command -v gh >/dev/null 2>&1; then
+  warn "gh CLI non trovata. Tentativo di installazione..."
+  if command -v brew >/dev/null 2>&1; then
+    brew install gh && ok "gh CLI installata via Homebrew"
+  elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get install -y gh && ok "gh CLI installata via apt"
+  else
+    fail "gh CLI non trovata e installazione automatica non disponibile. Installa da https://cli.github.com"
+  fi
+else
+  ok "gh CLI $(gh --version | head -1 | awk '{print $3}')"
+fi
+
 NODE_VERSION=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
 if [ "$NODE_VERSION" -lt 20 ]; then
   fail "Node.js 20+ richiesto. Versione attuale: $(node -v)"
@@ -41,57 +55,58 @@ ok "git $(git --version | awk '{print $3}')"
 # ── 2. Variabili d'ambiente ───────────────────────────────────────────────────
 step "Configurazione variabili d'ambiente"
 
-if [ ! -f ".env.local" ]; then
-  cp .env.example .env.local
-  warn ".env.local creato da .env.example — compila le API key prima di procedere."
+# ── 2. Autenticazione GitHub via gh CLI ──────────────────────────────────────
+step "Autenticazione GitHub"
+
+if gh auth status >/dev/null 2>&1; then
+  GH_USER=$(gh api user --jq '.login' 2>/dev/null || echo "unknown")
+  ok "gh CLI autenticata come: $GH_USER"
+else
+  echo "  GitHub usa gh CLI — si apre il browser per autorizzare con il tuo account."
   echo ""
-  echo "  File da compilare: .env.local"
-  echo "  Variabili richieste:"
-  echo "    GITHUB_TOKEN       → github.com > Settings > Developer settings > PAT"
-  echo "    GITHUB_ORG         → nome organizzazione GitHub"
-  echo "    CLICKUP_API_KEY    → app.clickup.com > Settings > Apps"
-  echo "    CLICKUP_TEAM_ID    → URL workspace ClickUp"
-  echo "    FIGMA_ACCESS_TOKEN → figma.com > Account Settings > Personal tokens"
-  echo ""
-  read -rp "Premi INVIO dopo aver compilato .env.local, oppure Ctrl+C per uscire..."
+  read -rp "Premi INVIO per avviare l'autenticazione GitHub (o Ctrl+C per saltare)..."
+  gh auth login || fail "Autenticazione GitHub fallita. Riprova con: gh auth login"
+  ok "gh CLI autenticata"
 fi
 
-# Carica variabili
-set -a
-# shellcheck source=.env.local
-source .env.local
-set +a
+# ── 3. Variabili d'ambiente (opzionali) ─────────────────────────────────────
+step "Configurazione variabili d'ambiente"
 
-ok ".env.local caricato"
-
-# ── 3. Verifica variabili obbligatorie ────────────────────────────────────────
-step "Verifica variabili obbligatorie"
-
-MISSING=0
-for VAR in GITHUB_TOKEN GITHUB_ORG CLICKUP_API_KEY CLICKUP_TEAM_ID; do
-  if [ -z "${!VAR:-}" ]; then
-    warn "Variabile mancante: $VAR"
-    MISSING=1
+if [ ! -f ".env.local" ]; then
+  if [ -f ".env.example" ]; then
+    cp .env.example .env.local
   else
-    ok "$VAR impostata"
+    touch .env.local
   fi
-done
+  warn ".env.local creato — compila le variabili opzionali se necessario."
+  echo ""
+  echo "  Variabili opzionali:"
+  echo "    FIGMA_ACCESS_TOKEN → figma.com > Account Settings > Personal tokens"
+  echo ""
+  echo "  GitHub: autenticato via gh CLI — nessun token manuale necessario."
+  echo "  ClickUp: si configura via OAuth al passo successivo."
+  echo ""
+  read -rp "Premi INVIO per continuare..."
+fi
+
+# Carica variabili (se presenti)
+if [ -s ".env.local" ]; then
+  set -a
+  # shellcheck source=.env.local
+  source .env.local
+  set +a
+  ok ".env.local caricato"
+fi
 
 # Figma non bloccante
 if [ -z "${FIGMA_ACCESS_TOKEN:-}" ]; then
   warn "FIGMA_ACCESS_TOKEN non impostata — MCP Figma non disponibile"
 fi
 
-if [ "$MISSING" -eq 1 ]; then
-  fail "Alcune variabili obbligatorie mancano. Compila .env.local e riprova."
-fi
-
 # ── 4. Installazione dipendenze MCP ──────────────────────────────────────────
 step "Installazione MCP servers"
 
 MCP_SERVERS=(
-  "@modelcontextprotocol/server-github"
-  "@ClickUp/mcp-server"
   "@upstash/context7-mcp"
 )
 
@@ -111,24 +126,13 @@ step "Configurazione MCP in Claude Code"
 MCP_TARGET="${HOME}/.claude/mcp.json"
 mkdir -p "$(dirname "$MCP_TARGET")"
 
-# Genera mcp.json con le variabili reali sostituite
+# Genera mcp.json — GitHub usa gh CLI (no MCP), ClickUp usa OAuth
 cat > "$MCP_TARGET" <<EOF
 {
   "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
-      }
-    },
     "clickup": {
-      "command": "npx",
-      "args": ["-y", "@ClickUp/mcp-server"],
-      "env": {
-        "CLICKUP_API_KEY": "${CLICKUP_API_KEY}",
-        "CLICKUP_TEAM_ID": "${CLICKUP_TEAM_ID}"
-      }
+      "type": "url",
+      "url": "https://mcp.clickup.com/mcp"
     },
     "context7": {
       "command": "npx",
@@ -147,6 +151,20 @@ cat > "$MCP_TARGET" <<EOF
 EOF
 
 ok "MCP configurato in $MCP_TARGET"
+
+# ── 5b. Autenticazione OAuth per ClickUp ────────────────────────────────────
+step "Autenticazione ClickUp via OAuth"
+
+echo "  ClickUp usa OAuth — si apre il browser per autorizzare con il tuo account."
+echo "  Funziona anche per utenti guest."
+echo ""
+read -rp "Premi INVIO per avviare l'autenticazione ClickUp (o Ctrl+C per saltare)..."
+
+if command -v claude >/dev/null 2>&1; then
+  claude mcp add clickup https://mcp.clickup.com/mcp && ok "ClickUp OAuth completato" || warn "ClickUp OAuth fallito — riprova con: claude mcp add clickup https://mcp.clickup.com/mcp"
+else
+  warn "Claude Code non installato — configura ClickUp manualmente: claude mcp add clickup https://mcp.clickup.com/mcp"
+fi
 
 # ── 6. Verifica git ───────────────────────────────────────────────────────────
 step "Verifica configurazione git"

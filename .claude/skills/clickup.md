@@ -4,7 +4,9 @@ Operazioni ClickUp tramite MCP. Usare per leggere task, aggiornare stati,
 creare notifiche al team.
 
 ## Pre-condizioni
-- MCP ClickUp configurato (`CLICKUP_API_KEY`, `CLICKUP_TEAM_ID` in `.env.local`)
+- MCP ClickUp configurato via OAuth: `claude mcp add clickup https://mcp.clickup.com/mcp`
+- Ogni sviluppatore si autentica con il proprio account ClickUp (supporta anche guest)
+- Ogni operazione lavora su una specifica `list_id` — non serve un `TEAM_ID` globale
 
 ## Operazioni disponibili
 
