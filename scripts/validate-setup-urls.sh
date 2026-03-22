@@ -17,8 +17,7 @@ NC='\033[0m'
 # File referenziati in setup.md che devono esistere
 REQUIRED_FILES=(
   "templates/dev-setup-template/CONSTITUTION.md"
-  "templates/dev-setup-template/AGENT.md"
-  "templates/dev-setup-template/AGENT.inject.md"
+  "templates/dev-setup-template/AGENT.template.md"
   "templates/dev-setup-template/.claude/settings.json"
   "templates/dev-setup-template/.claude/commands/start-task.md"
   "templates/dev-setup-template/.claude/commands/tdd.md"
