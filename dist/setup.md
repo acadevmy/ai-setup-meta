@@ -29,6 +29,8 @@ con `gh auth login`.
 | `templates/dev-setup-template/.claude/commands/tdd.md` | Comando TDD |
 | `templates/dev-setup-template/.claude/commands/review.md` | Comando review |
 | `templates/dev-setup-template/.claude/commands/sync-task.md` | Comando sync-task |
+| `templates/dev-setup-template/.claude/agents/clickup.md` | Agent ClickUp (operazioni task) |
+| `templates/dev-setup-template/.claude/agents/review.md` | Agent Review (code review isolata) |
 | `templates/dev-setup-template/REGISTRY.md` | Template registro progetto |
 | `profiles/web-frontend.md` | Profilo Web Frontend |
 | `profiles/backend-node.md` | Profilo Backend Node |
@@ -176,6 +178,13 @@ gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claud
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/sync-task.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_sync-task.md
 ```
 
+#### 3.4b — Agent files
+
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/agents/clickup.md -H "Accept: application/vnd.github.raw" > /tmp/agent_clickup.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/agents/review.md -H "Accept: application/vnd.github.raw" > /tmp/agent_review.md
+```
+
 #### 3.5 — REGISTRY.md
 
 ```bash
@@ -273,7 +282,7 @@ Se non esiste o lo sviluppatore conferma: copia il contenuto scaricato da `/tmp/
 #### 6.1 — Crea la struttura
 
 ```bash
-mkdir -p .claude/commands
+mkdir -p .claude/commands .claude/agents
 ```
 
 #### 6.2 — settings.json
@@ -285,6 +294,12 @@ Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
 
 Per ognuno dei 4 comandi (start-task.md, tdd.md, review.md, sync-task.md):
 - Se il file **non** esiste in `.claude/commands/`: copialo dal file scaricato
+- Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente
+
+#### 6.3b — Agent files
+
+Per ognuno dei 2 agent (clickup.md, review.md):
+- Se il file **non** esiste in `.claude/agents/`: copialo dal file scaricato
 - Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente
 
 #### 6.4 — Mantieni setup.md
@@ -484,7 +499,7 @@ npm-debug.log*
 
 Rimuovi i file temporanei:
 ```bash
-rm -f /tmp/CONSTITUTION_SOURCE.md /tmp/AGENT_TEMPLATE.md /tmp/claude_settings.json /tmp/cmd_*.md /tmp/REGISTRY.md /tmp/profile.md
+rm -f /tmp/CONSTITUTION_SOURCE.md /tmp/AGENT_TEMPLATE.md /tmp/claude_settings.json /tmp/cmd_*.md /tmp/agent_*.md /tmp/REGISTRY.md /tmp/profile.md
 ```
 
 ---
@@ -501,7 +516,7 @@ File installati:
   - CONSTITUTION.md       — regole di governance
   - AGENT.md              — istruzioni per Claude Code
   - REGISTRY.md           — registro feature e servizi
-  - .claude/              — settings + slash commands
+  - .claude/              — settings + slash commands + agents
 
 Stack rilevato:
   - Linguaggi:   <linguaggi>
@@ -526,7 +541,7 @@ Configurazione del progetto:
   - CONSTITUTION.md       — regole di governance
   - AGENT.md              — istruzioni per Claude Code
   - REGISTRY.md           — registro feature e servizi
-  - .claude/              — settings + slash commands
+  - .claude/              — settings + slash commands + agents
   - .husky/               — git hooks (lint + commit)
   - .eslintrc.base.json   — ESLint base
   - .eslintrc.json        — ESLint profilo <stack>
@@ -544,7 +559,7 @@ Prossimi passi:
 
 ## Note importanti
 
-- **Verbatim**: CONSTITUTION.md, settings.json e i comandi slash devono essere copiati esattamente come scaricati. Non generare il contenuto di questi file — scaricalo e copialo.
+- **Verbatim**: CONSTITUTION.md, settings.json, comandi slash e agent files devono essere copiati esattamente come scaricati. Non generare il contenuto di questi file — scaricalo e copialo.
 - **Conflict detection**: Chiedi sempre prima di sovrascrivere file esistenti.
 - **Tooling esistente**: In modalita' EXISTING, non installare ne' modificare: git hooks, linter, formatter, CI/CD, .gitignore, dipendenze. Innesta solo il workflow AI.
 - **Errori di download**: Se `gh api` restituisce un errore (es. 404, 401) o un file vuoto, informa lo sviluppatore e fermati. Non procedere con contenuto parziale.

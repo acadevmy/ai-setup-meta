@@ -1,53 +1,60 @@
 # /project:review
 
-Esegui una code review del codice modificato nel branch corrente.
+Esegui una code review del codice modificato nel branch corrente tramite il Review Agent.
 
 ## Procedura
 
-1. **Identifica le modifiche**
-   - Esegui `git diff main...HEAD` per vedere tutti i cambiamenti
-   - Analizza ogni file modificato
+### 1. Lancia il Review Agent
 
-2. **Verifica conformita' CONSTITUTION.md**
-   - Schema-first: i dati esterni sono validati con lo schema validator del progetto?
-     (Zod per TypeScript, Pydantic per Python, struct tags per Go, ecc.)
-   - Strict typing: il codice usa tipi stretti senza bypass?
-     (no `any` in TS, no `# type: ignore` in Python, no `interface{}` in Go, ecc.)
-   - Gestione errori: ci sono `catch`/`except` vuoti?
-   - Funzioni pure e piccole: qualche funzione supera le 40 righe?
-   - Magic numbers/strings: ci sono valori hardcoded?
+Lancia l'agent `review` con:
+- BASE_BRANCH: `main`
+- CONSTITUTION_PATH: `./CONSTITUTION.md`
+- REGISTRY_PATH: `./REGISTRY.md`
+- TASK_ID: estratto dal nome del branch corrente (es. `feat/DE-123-desc` → `DE-123`), se presente
 
-3. **Verifica qualità**
-   - I test coprono i casi principali?
-   - I nomi sono descrittivi e in inglese?
-   - La struttura dei layer è rispettata?
+### 2. Analizza il risultato
 
-4. **Output**
-   Fornisci un report con:
-   - Lista dei problemi trovati (con file e riga)
-   - Suggerimenti di miglioramento
-   - Conferma di conformità se tutto ok
+Parsa l'output `---REVIEW-RESULT---` restituito dall'agent.
 
-5. **Aggiorna REGISTRY.md**
-   Dopo la review, aggiorna `REGISTRY.md` con le entry nuove o modificate:
+**Se STATUS = fail**:
+- Mostra tutte le VIOLATIONS con file, riga e regola violata
+- Mostra i WARNINGS come suggerimenti
+- Informa lo sviluppatore che la review non e' passata
+- Fermati — il codice va corretto prima di procedere
 
-   a. Leggi `REGISTRY.md` corrente
-   b. Analizza i file in `git diff main...HEAD` per identificare:
-      - Nuove feature, servizi, componenti, utility, endpoint
-      - Feature esistenti modificate in modo sostanziale (nuovi file, nuovi endpoint)
-      - Decisioni architetturali rilevanti (nuova libreria, cambio pattern, nuovo layer)
-   c. Per ogni entry nuova, aggiungi un blocco nella sezione appropriata:
-      ```
-      ### <scope>/<slug>
-      - **Type**: feature | service | component | utility | api-endpoint | config
-      - **Layer**: controller | service | repository | component | hook | utility | config
-      - **Files**: `path/to/file1.ts`, `path/to/file2.ts`
-      - **Depends on**: entry esistenti o "nessuno"
-      - **Exposed API**: `METHOD /path` (se applicabile)
-      - **Added**: data odierna (YYYY-MM-DD)
-      - **Task**: ID del task ClickUp dal branch name (se presente)
-      - **Summary**: una riga di descrizione
-      ```
-   d. Per entry gia' esistenti che sono state modificate, aggiorna solo i campi cambiati (Files, Summary, Depends on)
-   e. Rimuovi i placeholder "_Nessuna ... registrata._" quando aggiungi la prima entry in una sezione
-   f. Committa l'aggiornamento: `docs(registry): update REGISTRY.md`
+**Se STATUS = pass-with-warnings**:
+- Mostra i WARNINGS come suggerimenti di miglioramento
+- Procedi con il passo successivo
+
+**Se STATUS = pass**:
+- Conferma che il codice e' conforme
+- Procedi con il passo successivo
+
+### 3. Applica aggiornamenti REGISTRY
+
+Se l'agent ha restituito REGISTRY_UPDATES non vuoto:
+
+1. Leggi `REGISTRY.md` corrente
+2. Per ogni entry con ACTION: `add`:
+   - Aggiungi il blocco ENTRY nella SECTION indicata
+   - Rimuovi eventuali placeholder `_Nessuna ... registrata._` dalla sezione
+3. Per ogni entry con ACTION: `update`:
+   - Trova l'entry esistente nella sezione e aggiorna i campi modificati
+4. Committa l'aggiornamento: `docs(registry): update REGISTRY.md`
+
+### 4. Report finale
+
+Mostra un riepilogo:
+```
+Review: <STATUS>
+Violazioni: <numero>
+Warning: <numero>
+REGISTRY aggiornato: <si/no>
+
+<SUMMARY dall'agent>
+```
+
+## Output atteso
+- Report di conformita' alla CONSTITUTION
+- `REGISTRY.md` aggiornato con le nuove entry (se presenti)
+- Commit `docs(registry): update REGISTRY.md` (se modifiche al registry)

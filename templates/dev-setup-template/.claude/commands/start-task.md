@@ -8,27 +8,28 @@ Prende un task specifico o il prossimo task dalla lista ClickUp e avvia il fluss
 
 ## Flusso completo
 
-### 1. Recupera il task da ClickUp
+### 1. Recupera il task tramite ClickUp Agent
 
 **Se e' stato fornito un TASK_ID** (argomento `$ARGUMENTS`):
-- Usa il MCP ClickUp `clickup_get_task` con il task ID fornito
-- Se il task non esiste, informa lo sviluppatore e fermati
+- Lancia l'agent `clickup` con:
+  - INTENT: `read`
+  - PARAMS: `task_id: <TASK_ID fornito>`
+- Se l'agent restituisce STATUS: error, informa lo sviluppatore e fermati
 
 **Se NON e' stato fornito un TASK_ID**:
 - Leggi `CLICKUP_SETUP_LIST_ID` dal file `.env` nella root del progetto
 - Se la variabile non e' configurata, informa lo sviluppatore di compilare `.env` e fermati
-- Usa il MCP ClickUp `clickup_filter_tasks` per cercare i task nella lista con:
-  - **list_id**: il valore di `CLICKUP_SETUP_LIST_ID`
-  - **Stato**: `SPRINT`
-  - **Ordinamento**: per priorita' (1 = urgent, 2 = high, 3 = normal, 4 = low)
-  - Prendi il **primo task** con priorita' piu' alta
-- Se non ci sono task in stato SPRINT, informa lo sviluppatore e fermati
+- Lancia l'agent `clickup` con:
+  - INTENT: `next-task`
+  - PARAMS: `list_id: <CLICKUP_SETUP_LIST_ID>`
+- Se l'agent restituisce STATUS: error (nessun task in SPRINT), informa lo sviluppatore e fermati
 
-Recupera dal task:
+Dall'output dell'agent, estrai:
 - `custom_id` (es. DE-123)
 - `name` (titolo)
-- `description` (descrizione/brief)
+- `description` (descrizione/brief — riportata integralmente dall'agent)
 - `priority`
+- `task_id` (per aggiornamenti successivi)
 
 ### 2. Crea il branch di lavoro
 Determina il tipo di branch dal titolo/descrizione del task:
@@ -46,7 +47,10 @@ git checkout -b <tipo>/<customId>-<descrizione-breve>
 Esempio: `feat/DE-123-add-user-auth`
 
 ### 3. Aggiorna lo stato del task
-Usa il MCP ClickUp per spostare il task in stato **IN PROGRESS**.
+
+Lancia l'agent `clickup` con:
+- INTENT: `update`
+- PARAMS: `task_id: <task_id>, status: IN PROGRESS`
 
 ### 4. Mostra il brief allo sviluppatore
 Presenta un riepilogo:
@@ -57,7 +61,7 @@ Branch:   feat/DE-123-add-user-auth
 Stato:    IN PROGRESS
 
 Descrizione:
-<contenuto della descrizione del task>
+<contenuto della descrizione del task — come restituito dall'agent>
 ```
 
 ### 5. Avvia lo sviluppo
@@ -83,7 +87,7 @@ Quando lo sviluppo e' completato:
    - Se ci sono modifiche, committale: `refactor(<scope>): simplify implementation`
 
 3. **Review** — Esegui `/project:review` per:
-   - Verificare conformita' alla CONSTITUTION.md
+   - Verificare conformita' alla CONSTITUTION.md (tramite Review Agent)
    - Verificare qualita' del codice
    - Aggiornare automaticamente `REGISTRY.md` con le nuove entry
 
@@ -96,7 +100,9 @@ Quando lo sviluppo e' completato:
    - Titolo: segue Conventional Commits con customId
    - Body: include sezioni Cosa / Perche' / Come testare + link al task ClickUp
 
-6. **Aggiorna stato** del task su ClickUp a **IN REVIEW** (o **CODE REVIEW**)
+6. **Aggiorna stato** — Lancia l'agent `clickup` con:
+   - INTENT: `update`
+   - PARAMS: `task_id: <task_id>, status: IN REVIEW`
 
 ## Output atteso
 - Branch creato con customId nel nome

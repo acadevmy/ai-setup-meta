@@ -86,13 +86,23 @@ Usa i MCP per operazioni esterne — non simulare ciò che puoi fare concretamen
 | **Figma** | Recuperare design token, componenti, specifiche |
 | **Context7** | Documentazione aggiornata di librerie e framework |
 
+## Agent disponibili
+
+Gli agent sono sub-processi isolati con il proprio contesto. Usali per delegare operazioni
+specifiche senza inquinare il contesto principale.
+
+| Agent | File | Ruolo | Distribuzione |
+|---|---|---|---|
+| **clickup** | `.claude/agents/clickup.md` | Tutte le operazioni ClickUp (read, update, create, filter). Passthrough fedele — restituisce i dati integralmente senza rielaborazione. | Meta-repo + Template |
+| **review** | `.claude/agents/review.md` | Code review isolata. Verifica conformita' CONSTITUTION, propone aggiornamenti REGISTRY. Non modifica file. | Meta-repo + Template |
+| **validate-template** | `.claude/agents/validate-template.md` | Validazione pre-release del template. Checklist automatizzata con output strutturato. | Solo meta-repo |
+
 ## Skill disponibili
 
 Prima di scrivere logica custom, verifica se esiste una skill in `.claude/skills/`:
 
-- `clickup.md` — operazioni ClickUp (fetch task, update status)
+- `clickup.md` — documentazione di riferimento per operazioni ClickUp (l'agent `clickup` e' il componente operativo)
 - `github-ops.md` — operazioni GitHub (branch, PR, merge)
-- `validate-setup.md` — validazione coerenza del template
 - `render-template.md` — renderizzazione file da template con variabili
 
 ## Comandi disponibili
@@ -118,6 +128,7 @@ dev-setup-template/
 ├── .env.example          # Variabili richieste (senza valori)
 ├── .claude/
 │   ├── settings.json     # Config Claude Code per sviluppatori
+│   ├── agents/           # Sub-agent isolati (clickup, review)
 │   └── commands/         # Slash commands per sviluppatori
 ├── .husky/               # Git hooks
 ├── profiles/             # Configurazioni per stack specifici

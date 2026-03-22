@@ -26,9 +26,15 @@ Repo progetto sviluppatore
 
 ## Procedura
 
-1. **Chiedi il tipo di release** se non specificato dall'utente: `patch`, `minor` o `major`
-2. **Esegui lo script**: `bash scripts/release-template.sh <tipo>`
-3. **Mostra il risultato** con il link alla GitHub Release
+1. **Validazione pre-release** — Lancia l'agent `validate-template` con:
+   - TEMPLATE_PATH: `templates/dev-setup-template`
+   - SOURCE_CONSTITUTION_PATH: `./CONSTITUTION.md`
+   - Se l'agent restituisce STATUS: fail, mostra i FAILURES con i suggerimenti di fix e fermati
+   - Se STATUS: pass, procedi
+
+2. **Chiedi il tipo di release** se non specificato dall'utente: `patch`, `minor` o `major`
+3. **Esegui lo script**: `bash scripts/release-template.sh <tipo>`
+4. **Mostra il risultato** con il link alla GitHub Release
 
 ## Nota su semantic-release nei progetti dei developer
 

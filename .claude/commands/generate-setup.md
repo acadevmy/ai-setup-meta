@@ -46,7 +46,10 @@ Genera o rigenera il `dev-setup-template` completo a partire dalle sorgenti di q
    - `profiles/mobile/` — config specifiche Flutter/React Native
 
 6. **Validazione**
-   Esegui la skill `validate-setup` per verificare coerenza
+   Lancia l'agent `validate-template` con:
+   - TEMPLATE_PATH: `templates/dev-setup-template`
+   - SOURCE_CONSTITUTION_PATH: `./CONSTITUTION.md`
+   Se STATUS: fail, correggi i problemi segnalati prima di procedere
 
 7. **Aggiorna CHANGELOG**
    Aggiungi entry in `templates/dev-setup-template/CHANGELOG.md`

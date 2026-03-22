@@ -64,6 +64,16 @@ prima di procedere.
 
 > Le operazioni GitHub (branch, PR, commit) si eseguono con il CLI `gh`.
 
+## Agent disponibili
+
+Gli agent sono sub-processi isolati con il proprio contesto. I comandi li lanciano automaticamente
+quando necessario — non serve invocarli manualmente.
+
+| Agent | Ruolo |
+|---|---|
+| **clickup** | Tutte le operazioni ClickUp (read, update, create, filter). Passthrough fedele — restituisce i dati integralmente senza rielaborazione. |
+| **review** | Code review isolata. Verifica conformita' CONSTITUTION, propone aggiornamenti REGISTRY. Non modifica file direttamente. |
+
 ## Registro del progetto
 
 `REGISTRY.md` contiene l'indice strutturato di feature, servizi, componenti e decisioni
