@@ -25,7 +25,8 @@
       "Bash(bash -n /Users/andreao/Works/ai-base-setup/templates/dev-setup-template/inject.sh)",
       "Bash(bash scripts/validate-setup-urls.sh)",
       "Bash(bash scripts/release-template.sh patch)",
-      "Bash(bash -n /Users/andreao/Works/ai-base-setup/templates/dev-setup-template/init.sh)"
+      "Bash(bash -n /Users/andreao/Works/ai-base-setup/templates/dev-setup-template/init.sh)",
+      "Bash(bash scripts/release-template.sh major)"
     ]
   }
 }
