@@ -158,11 +158,13 @@ chore(deps): upgrade zod to 3.23
 
 ### 13. Branch naming
 ```
-feat/<descrizione-breve>
-fix/<descrizione-breve>
-chore/<descrizione-breve>
-hotfix/<descrizione-breve>
+feat/<customId>-<descrizione-breve>
+fix/<customId>-<descrizione-breve>
+chore/<customId>-<descrizione-breve>
+hotfix/<customId>-<descrizione-breve>
 ```
+Il `customId` e' l'identificativo del task ClickUp (es. `DE-123`).
+Se il branch non e' associato a un task ClickUp, omettere il customId.
 
 ### 14. Pull Request
 - Titolo: segue Conventional Commits
