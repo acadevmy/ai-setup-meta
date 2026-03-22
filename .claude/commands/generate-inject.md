@@ -20,19 +20,19 @@ Genera o rigenera lo script `inject.sh` e i file di supporto per l'innesto del w
    - Prerequisiti minimi (solo `git` e `claude` CLI, NO Node.js requirement)
    - Funzioni di auto-detection stack (linguaggio, test runner, linter, validazione, frontend, mobile)
    - CONSTITUTION modulare (sezioni VI/VII condizionali in base a frontend/mobile rilevati)
-   - AGENT.md adattivo generato da `AGENT.inject.md` con sostituzione placeholders
+   - AGENT.md generato da `AGENT.template.md` con sostituzione placeholder
    - REGISTRY.md copiato nella root del progetto (safe_copy con conflict detection)
    - Setup `.claude/` con conflict detection (non sovrascrive file esistenti)
    - Setup MCP (ClickUp user scope, Context7 project scope, Figma condizionale)
    - Setup `.env` con merge (appende `CLICKUP_SETUP_LIST_ID` senza sovrascrivere)
    - Cleanup e summary finale
 
-3. **Genera il template AGENT.inject.md**
-   Crea `templates/dev-setup-template/AGENT.inject.md` con:
-   - Struttura identica ad `AGENT.md` ma con placeholders: `{{STACK_DESCRIPTION}}`, `{{TEST_COMMAND}}`, `{{LINT_COMMAND}}`, `{{VALIDATION_TOOL}}`
-   - Riferimento a `REGISTRY.md` nella sezione "Prima di qualsiasi modifica"
-   - Sezioni stack-agnostic (no riferimenti a TypeScript/Zod/Jest specifici)
-   - Checklist pre-commit generica (strict typing, no debug logs, no secrets)
+3. **Verifica coerenza AGENT.template.md**
+   Verifica che `templates/dev-setup-template/AGENT.template.md` contenga tutti i placeholder necessari:
+   - `{{STACK_DESCRIPTION}}`
+   - `{{TEST_COMMAND}}`
+   - `{{LINT_COMMAND}}`
+   Se mancano, aggiornalo.
 
 4. **Aggiorna comandi slash adattivi**
    Verifica che `tdd.md` e `review.md` usino detection multi-stack:
@@ -42,7 +42,6 @@ Genera o rigenera lo script `inject.sh` e i file di supporto per l'innesto del w
 5. **Validazione**
    - Verifica che `inject.sh` sia eseguibile (`chmod +x`)
    - Verifica che `init.sh` non sia stato modificato (flusso greenfield intatto)
-   - Verifica che `AGENT.inject.md` contenga tutti i placeholders necessari
    - Esegui `bash -n inject.sh` per verificare la sintassi
 
 6. **Apri PR**
@@ -59,7 +58,10 @@ Genera o rigenera lo script `inject.sh` e i file di supporto per l'innesto del w
 | Installa tooling | Si (husky, eslint, prettier...) | No |
 | Profili stack | Si (web-frontend, backend-node, mobile) | No (auto-detection) |
 | CONSTITUTION | Copia completa | Modulare (sezioni condizionali) |
-| AGENT.md | Versione fissa | Template con placeholders |
+| AGENT.md | Template con valori da profilo scelto | Template con valori da auto-detection |
+
+> **Nota**: Entrambi usano lo stesso `AGENT.template.md`. La differenza e' solo nella fonte
+> dei valori per i placeholder (profilo scelto vs auto-detection).
 
 ## Output atteso
 PR aperta su GitHub con inject.sh e file di supporto aggiornati.

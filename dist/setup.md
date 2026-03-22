@@ -23,8 +23,7 @@ con `gh auth login`.
 | Path nel repo sorgente | Descrizione |
 |---|---|
 | `templates/dev-setup-template/CONSTITUTION.md` | Regole di governance |
-| `templates/dev-setup-template/AGENT.md` | Istruzioni agente (greenfield) |
-| `templates/dev-setup-template/AGENT.inject.md` | Istruzioni agente con placeholder (existing) |
+| `templates/dev-setup-template/AGENT.template.md` | Istruzioni agente (template unico con placeholder) |
 | `templates/dev-setup-template/.claude/settings.json` | Permessi Claude Code |
 | `templates/dev-setup-template/.claude/commands/start-task.md` | Comando start-task |
 | `templates/dev-setup-template/.claude/commands/tdd.md` | Comando TDD |
@@ -156,15 +155,11 @@ Scarica il file in un percorso temporaneo. Lo adatterai nel passo successivo.
 
 #### 3.2 — AGENT template
 
-**Per modalita' EXISTING:**
 ```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/AGENT.inject.md -H "Accept: application/vnd.github.raw" > /tmp/AGENT_TEMPLATE.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/AGENT.template.md -H "Accept: application/vnd.github.raw" > /tmp/AGENT_TEMPLATE.md
 ```
 
-**Per modalita' GREENFIELD:**
-```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/AGENT.md -H "Accept: application/vnd.github.raw" > /tmp/AGENT_TEMPLATE.md
-```
+Un unico template con placeholder, usato sia per GREENFIELD che per EXISTING.
 
 #### 3.3 — settings.json
 
@@ -231,20 +226,29 @@ Scrivi il risultato in `CONSTITUTION.md` nella root del progetto.
 
 ### Passo 5 — Genera AGENT.md
 
-#### Per modalita' EXISTING:
+Leggi il contenuto scaricato da `/tmp/AGENT_TEMPLATE.md` e sostituisci i placeholder.
+Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
 
-Leggi il contenuto scaricato di `AGENT.inject.md` e sostituisci i placeholder:
+#### Valori placeholder per modalita' EXISTING:
 
-- `{{STACK_DESCRIPTION}}` → descrizione compatta dello stack rilevato. Formato: `linguaggi[, test: comando_test][, linter: comando_lint][, validazione: tool]`
-  - Esempio: `node, test: npm test, linter: npm run lint, validazione: Zod`
+- `{{STACK_DESCRIPTION}}` → descrizione compatta dello stack rilevato. Formato: `Stack rilevato: linguaggi[, test: comando_test][, linter: comando_lint][, validazione: tool]`
+  - Esempio: `Stack rilevato: **node**, test: npm test, linter: npm run lint, validazione: Zod`
   - Se test/linter/validazione sono `non rilevato`, omettili dalla stringa
+  - Aggiungi nota: `> Questo stack e' stato rilevato automaticamente. Se non e' corretto, aggiorna questa sezione manualmente.`
 - `{{TEST_COMMAND}}` → il comando test rilevato (es. `npm test`, `pytest`, `non rilevato`)
 - `{{LINT_COMMAND}}` → il comando linter rilevato (es. `npm run lint`, `ruff check .`, `non rilevato`)
-- `{{VALIDATION_TOOL}}` → il tool rilevato (es. `Zod`, `Pydantic`, `non rilevato`)
 
-#### Per modalita' GREENFIELD:
+#### Valori placeholder per modalita' GREENFIELD:
 
-Copia il file `AGENT.md` scaricato verbatim.
+In base allo stack scelto nel Passo 2b:
+
+| Stack | `{{STACK_DESCRIPTION}}` | `{{TEST_COMMAND}}` | `{{LINT_COMMAND}}` |
+|---|---|---|---|
+| Web Frontend | `**Web Frontend**: Next.js 14+ / Angular 17+ / React 18+, ShadCN/UI, Tailwind CSS, Zod, Jest + Testing Library` | `npm test` | `npm run lint` |
+| Backend Node | `**Backend Node**: Node.js 20+, NestJS 10+, Zod + class-validator, Jest + Supertest, Prisma` | `npm test` | `npm run lint` |
+| Mobile (Flutter) | `**Mobile**: Flutter 3.24+ (BLoC/Riverpod)` | `flutter test` | `dart analyze` |
+| Mobile (React Native) | `**Mobile**: React Native con Expo (Zustand/Jotai)` | `npm test` | `npm run lint` |
+| Full-stack | `**Full-stack**: Web Frontend (Next.js/Angular/React) + Backend Node (NestJS)` | `npm test` | `npm run lint` |
 
 #### Per modalita' UPDATE:
 
