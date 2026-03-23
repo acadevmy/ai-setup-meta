@@ -35,26 +35,27 @@ gh repo create YOUR_ORG/nome-progetto \
 cd nome-progetto
 ```
 
-## Passo 2 — Configurare i token MCP (account personale)
+## Passo 2 — Configurare autenticazione e MCP (account personale)
 
-Ogni sviluppatore deve usare i **propri token personali** per i server MCP.
-Non condividere mai i token con altri membri del team.
+Ogni sviluppatore deve usare i **propri account personali**.
+Non condividere mai token o credenziali con altri membri del team.
 
-1. Copia il template MCP nella tua configurazione locale:
+1. **GitHub** — autenticazione via `gh` CLI (non serve PAT manuale):
+   ```bash
+   gh auth login
+   ```
+   Si apre il browser: accedi con il tuo account GitHub e autorizza.
+   Le operazioni git e GitHub useranno la tua identita'. GitHub non usa MCP ma `gh` CLI + `git`.
+
+2. Copia il template MCP nella tua configurazione locale:
    ```bash
    cp mcp/mcp.json.example mcp/mcp.json
    ```
 
-2. **ClickUp** — autenticazione OAuth (non serve API key):
+3. **ClickUp** — autenticazione OAuth (non serve API key):
    La configurazione e' gia' nel `mcp.json.example`. Al primo utilizzo, `mcp-remote`
    apre il browser per l'autenticazione OAuth con il tuo account ClickUp.
    Funziona anche per utenti guest.
-
-3. **GitHub** — autenticazione via `gh` CLI (non serve PAT manuale):
-   ```bash
-   gh auth login
-   ```
-   Si apre il browser: accedi con il tuo account GitHub e autorizza. Le operazioni git e GitHub useranno la tua identità.
 
 4. **Figma** (opzionale) — genera il tuo token personale:
    | Servizio | Dove generarlo |
@@ -67,20 +68,26 @@ Non condividere mai i token con altri membri del team.
    ```
    Poi ricarica il terminale: `source ~/.zshrc`
 
+5. **Context7** — nessuna configurazione necessaria:
+   Gia' incluso nel `mcp.json.example`, funziona senza token.
+
 ## Passo 3 — Eseguire il setup agent
 
 ```bash
-# Scarica il setup agent
-mkdir -p .claude/skills && curl -sL \
-  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/skills/setup.md \
-  -o .claude/skills/setup.md
+# Scarica il setup agent dal repo template
+mkdir -p .claude/skills/setup && curl -sL \
+  https://raw.githubusercontent.com/YOUR_ORG/dev-setup-template/main/.claude/skills/setup/SKILL.md \
+  -o .claude/skills/setup/SKILL.md
 
 # Avvia Claude Code ed esegui il setup
 claude
 # poi digita: /project:setup
 ```
 
-L'agente analizzera' il progetto e applichera' il setup in modo adattivo.
+L'agente analizza il progetto e opera in tre modalita':
+- **GREENFIELD** — progetto nuovo: setup completo con quality tools (husky, commitlint, prettier, eslint), profilo stack, MCP, semantic-release
+- **EXISTING** — progetto con codice esistente: innesta solo il workflow AI (CONSTITUTION, AGENT.md, skills, MCP) senza toccare il tooling
+- **UPDATE** — setup gia' presente: aggiorna solo i file necessari alla nuova versione
 
 ## Passo 4 — Verificare la configurazione
 
@@ -88,10 +95,10 @@ L'agente analizzera' il progetto e applichera' il setup in modo adattivo.
 # Verifica Claude Code
 claude --version
 
-# Verifica MCP (dovrebbero apparire tutti e 4)
+# Verifica MCP (dovrebbero apparire 3: clickup, figma, context7)
 claude mcp list
 
-# Verifica git hooks
+# Verifica git hooks (solo per progetti greenfield)
 cat .husky/pre-commit
 ```
 
@@ -104,28 +111,27 @@ claude
 Al primo avvio Claude Code legge automaticamente `AGENT.md` e `CONSTITUTION.md`.
 Puoi subito usare i comandi slash disponibili per il tuo stack.
 
-## Comandi slash disponibili (dopo l'init)
+## Comandi slash disponibili (dopo il setup)
 
 | Comando | Descrizione |
 |---|---|
-| `/project:start-task` | Prende il prossimo task da ClickUp e inizia il flusso TDD |
-| `/project:new-feature` | Scaffolda una nuova feature per il tuo stack |
-| `/project:write-tests` | Genera test Jest/flutter_test per il file corrente |
-| `/project:simplify` | Refactoring del codice corrente |
-| `/project:review` | Code review del branch corrente |
-| `/project:pr` | Crea PR su GitHub con descrizione generata |
+| `/project:start-task` | Prende un task da ClickUp e avvia il flusso di sviluppo (TDD o BDD) |
+| `/project:tdd` | Ciclo Red-Green-Refactor per codice backend |
+| `/project:bdd` | Ciclo Given/When/Then per codice frontend |
+| `/project:review` | Code review del branch corrente con verifica CONSTITUTION |
+| `/project:sync-task` | Sincronizza lo stato del task con ClickUp |
 
 ## Release automatiche con semantic-release
 
-Il template include **semantic-release** gia' configurato. Ad ogni push su `main`,
-la GitHub Action analizza i commit (Conventional Commits) e automaticamente:
+Per i progetti **greenfield**, il setup agent configura automaticamente **semantic-release**
+con GitHub Actions. Ad ogni push su `main`, la CI analizza i commit (Conventional Commits) e:
 
 - Calcola la nuova versione (major/minor/patch)
 - Genera `CHANGELOG.md`
 - Aggiorna la versione nel `package.json`
 - Crea tag e GitHub Release
 
-Non serve fare nulla di manuale: basta seguire le convenzioni di commit della Costituzione (regola 12).
+Non serve fare nulla di manuale: basta seguire le convenzioni di commit della Costituzione.
 
 | Tipo di commit | Effetto sulla versione |
 |---|---|
@@ -133,7 +139,8 @@ Non serve fare nulla di manuale: basta seguire le convenzioni di commit della Co
 | `fix(...)`, `perf(...)`, `refactor(...)` | PATCH (1.0.0 -> 1.0.1) |
 | Commit con `BREAKING CHANGE` nel footer | MAJOR (1.0.0 -> 2.0.0) |
 
-Per un dry-run locale: `npm run release:dry`
+> **Nota**: per progetti **existing**, semantic-release non viene configurato automaticamente.
+> Se lo desideri, chiedi al setup agent di aggiungerlo.
 
 ## FAQ
 
