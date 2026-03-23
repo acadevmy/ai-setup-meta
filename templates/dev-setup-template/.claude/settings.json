@@ -33,10 +33,6 @@
       "Bash(wget * | bash*)"
     ]
   },
-  "env": {
-    "CLAUDE_COMPACT_RESPONSES": "true"
-  },
-  "includeCoAuthoredBy": true,
   "hooks": {
     "PreToolUse": [
       {
