@@ -33,7 +33,8 @@ con `gh auth login`.
 | `templates/dev-setup-template/AGENT.template.md` | Istruzioni agente (template unico con placeholder) |
 | `templates/dev-setup-template/.claude/settings.json` | Permessi Claude Code |
 | `templates/dev-setup-template/.claude/skills/start-task.md` | Skill start-task |
-| `templates/dev-setup-template/.claude/skills/tdd.md` | Skill TDD |
+| `templates/dev-setup-template/.claude/skills/tdd.md` | Skill TDD (backend) |
+| `templates/dev-setup-template/.claude/skills/bdd.md` | Skill BDD (frontend) |
 | `templates/dev-setup-template/.claude/skills/review.md` | Skill review |
 | `templates/dev-setup-template/.claude/skills/sync-task.md` | Skill sync-task |
 | `templates/dev-setup-template/.claude/agents/clickup.md` | Agent ClickUp (operazioni task) |
@@ -181,6 +182,7 @@ gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claud
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/start-task.md -H "Accept: application/vnd.github.raw" > /tmp/skill_start-task.md
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/tdd.md -H "Accept: application/vnd.github.raw" > /tmp/skill_tdd.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/bdd.md -H "Accept: application/vnd.github.raw" > /tmp/skill_bdd.md
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/review.md -H "Accept: application/vnd.github.raw" > /tmp/skill_review.md
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/sync-task.md -H "Accept: application/vnd.github.raw" > /tmp/skill_sync-task.md
 ```
@@ -299,7 +301,16 @@ Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
 
 #### 6.3 — Skills
 
-Per ognuna delle 4 skills (start-task.md, tdd.md, review.md, sync-task.md):
+Scarica sempre tutte le skills, ma installa quelle appropriate in base al progetto:
+
+**Skills comuni** (sempre installate): start-task.md, review.md, sync-task.md
+
+**Skills di metodologia** (in base al tipo di progetto):
+- Se **frontend rilevato** (o stack Web Frontend / Mobile / Full-stack) → installa `bdd.md`
+- Se **backend rilevato** (o stack Backend Node / Full-stack) → installa `tdd.md`
+- Se **full-stack** o non determinabile → installa entrambe (`tdd.md` + `bdd.md`)
+
+Per ogni skill da installare:
 - Se il file **non** esiste in `.claude/skills/`: copialo dal file scaricato
 - Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente
 
@@ -559,7 +570,7 @@ Configurazione del progetto:
 Prossimi passi:
   1. Copia .env.example in .env e compila le variabili
   2. Verifica MCP: claude mcp list
-  3. Inizia a sviluppare seguendo il workflow TDD!
+  3. Inizia a sviluppare con /project:tdd (backend) o /project:bdd (frontend)!
 ```
 
 ---

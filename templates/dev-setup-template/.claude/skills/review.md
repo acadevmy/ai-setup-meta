@@ -1,6 +1,7 @@
 ---
 name: review
 description: Esegue code review del branch corrente verificando conformita' CONSTITUTION e aggiornando REGISTRY
+model: sonnet
 user-invocable: true
 disable-model-invocation: false
 ---

@@ -1,6 +1,7 @@
 ---
 name: sync-task
 description: Sincronizza il contesto di un task ClickUp con il branch corrente
+model: sonnet
 user-invocable: true
 disable-model-invocation: true
 ---

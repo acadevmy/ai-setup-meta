@@ -1,6 +1,7 @@
 ---
 name: start-task
 description: Prende un task ClickUp e avvia il flusso di sviluppo completo (branch, TDD, review, PR)
+model: opus
 user-invocable: true
 disable-model-invocation: true
 ---

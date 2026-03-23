@@ -2,7 +2,7 @@
 name: clickup
 description: Gestisce tutte le operazioni ClickUp (read, update, create, filter task) in isolamento. Usare quando serve interagire con ClickUp per leggere task, aggiornare stati, creare task o filtrare liste.
 tools: Read, Grep, Glob, Bash
-model: haiku
+model: sonnet
 permissionMode: dontAsk
 ---
 
