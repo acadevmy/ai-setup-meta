@@ -26,16 +26,11 @@ Verifica che esistano TUTTI questi file in `<TEMPLATE_PATH>/`:
 - `AGENT.template.md`
 - `REGISTRY.md`
 - `CONSTITUTION.md`
-- `mcp.json.example`
 - `.env.example`
 - `CHANGELOG.md`
 - `.claude/settings.json`
 - `.claude/agents/clickup.md`
 - `.claude/agents/review.md`
-- `.husky/pre-commit`
-- `.husky/commit-msg`
-- `.commitlintrc.json`
-- `.prettierrc.json`
 - `.gitignore`
 
 Se manca anche un solo file, il check FAIL. Elenca i file mancanti.
@@ -75,6 +70,7 @@ Se manca anche una sola entry, il check FAIL.
 
 ### Check 5: mcp.json.example senza chiavi reali
 
+Verifica `mcp/mcp.json.example` (nella root del meta-repo, NON nel template):
 - Verifica che tutti i valori sensibili siano placeholder (`your-key-here`, `${VARIABILE}`)
 - Verifica che siano presenti le configurazioni per: `clickup`, `context7`, `figma`
 
@@ -106,7 +102,7 @@ Restituisci SEMPRE in questo formato esatto:
 ---VALIDATION-RESULT---
 STATUS: pass | fail
 CHECKS:
-  - [PASS] required-files: Tutti i 14 file obbligatori presenti
+  - [PASS] required-files: Tutti i 9 file obbligatori presenti
   - [FAIL] constitution-sync: Differenze trovate alla riga 42
   - [PASS] no-secrets: Nessun segreto trovato
   - [PASS] gitignore: Tutte le entry richieste presenti

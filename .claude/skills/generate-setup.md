@@ -36,22 +36,13 @@ Genera o rigenera il `dev-setup-template` completo a partire dalle sorgenti di q
    - `settings.json` — permessi per sviluppatori (più restrittivi di questo repo)
    - `skills/` — skill per sviluppatori (workflow TDD, ClickUp sync, ecc.)
 
-4. **Genera configurazione qualità**
-   - `.husky/pre-commit` — ESLint + Prettier
-   - `.husky/commit-msg` — Commitlint
-   - `.commitlintrc.json` — configurazione conventional commits
-   - `.prettierrc.json` — configurazione Prettier
-   - `.eslintrc.base.json` — config ESLint base (estesa dai profili)
-   - `.releaserc.json` — configurazione semantic-release (copia da template)
-   - `.github/workflows/release.yml` — GitHub Action per release automatica (copia da template)
+4. **Verifica configurazioni di qualita' in dist/setup.md**
+   Le config di qualita' (husky, commitlint, prettier, eslint, releaserc, CI/CD workflow)
+   NON sono file statici nel template — vengono generate al momento del bootstrap
+   dall'agente setup (passi 9.3–9.6 di `dist/setup.md`). Verifica che i blocchi
+   in setup.md siano aggiornati e coerenti con i profili in `profiles/*.md`.
 
-5. **Genera profili stack**
-   Per ciascun profilo in `profiles/*.md`:
-   - `profiles/web-frontend/` — config specifiche Next.js/Angular/React
-   - `profiles/backend-node/` — config specifiche Node.js/NestJS
-   - `profiles/mobile/` — config specifiche Flutter/React Native
-
-6. **Validazione**
+5. **Validazione**
    Lancia l'agent `validate-template` con:
    - TEMPLATE_PATH: `templates/dev-setup-template`
    - SOURCE_CONSTITUTION_PATH: `./CONSTITUTION.md`

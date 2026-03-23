@@ -1,4 +1,0 @@
-#!/usr/bin/env sh
-
-# Commit message hook: verifica formato Conventional Commits
-npx --no -- commitlint --edit "$1"

@@ -45,10 +45,10 @@ Repo progetto sviluppatore
 
 ## Nota su semantic-release nei progetti dei developer
 
-I progetti generati dal template includono semantic-release configurato
-(`.releaserc.json` + `.github/workflows/release.yml`). Le release dei
-singoli progetti dei developer sono **automatizzate via CI** — non serve
-questo comando per quei progetti.
+Per i progetti greenfield, il setup agent (passo 9.6 di `dist/setup.md`)
+genera il workflow CI/CD (`.github/workflows/release.yml`) al momento del
+bootstrap. Le release dei singoli progetti dei developer sono
+**automatizzate via CI** — non serve questo comando per quei progetti.
 
 ## Output atteso
 - GitHub Release creata sul repo template

@@ -427,7 +427,17 @@ chmod +x .husky/pre-commit .husky/commit-msg
 Crea **`.commitlintrc.json`**:
 ```json
 {
-  "extends": ["@commitlint/config-conventional"]
+  "extends": ["@commitlint/config-conventional"],
+  "rules": {
+    "type-enum": [
+      2,
+      "always",
+      ["feat", "fix", "docs", "style", "refactor", "test", "chore", "perf", "ci"]
+    ],
+    "subject-case": [2, "never", ["start-case", "pascal-case", "upper-case"]],
+    "subject-max-length": [2, "always", 100],
+    "body-max-line-length": [1, "always", 200]
+  }
 }
 ```
 
@@ -438,7 +448,59 @@ Crea **`.prettierrc.json`**:
   "singleQuote": true,
   "trailingComma": "all",
   "printWidth": 100,
-  "tabWidth": 2
+  "tabWidth": 2,
+  "arrowParens": "always",
+  "endOfLine": "lf"
+}
+```
+
+Crea **`.releaserc.json`** (semantic-release):
+```json
+{
+  "branches": ["main"],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          { "type": "feat", "release": "minor" },
+          { "type": "fix", "release": "patch" },
+          { "type": "perf", "release": "patch" },
+          { "type": "refactor", "release": "patch" },
+          { "type": "chore", "scope": "deps", "release": "patch" },
+          { "breaking": true, "release": "major" }
+        ]
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "Nuove funzionalita'" },
+            { "type": "fix", "section": "Bug fix" },
+            { "type": "perf", "section": "Performance" },
+            { "type": "refactor", "section": "Refactoring" },
+            { "type": "chore", "section": "Manutenzione" },
+            { "type": "docs", "section": "Documentazione" },
+            { "type": "ci", "section": "CI/CD" }
+          ]
+        }
+      }
+    ],
+    ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
+    ["@semantic-release/npm", { "npmPublish": false }],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md", "package.json", "package-lock.json"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
 }
 ```
 
@@ -473,7 +535,46 @@ Per lo stack **fullstack**:
 - Applica il profilo web-frontend in `apps/web/`
 - Applica il profilo backend-node in `apps/api/`
 
-#### 9.6 — .gitignore
+#### 9.6 — CI/CD workflow
+
+Crea **`.github/workflows/release.yml`** (GitHub Actions + semantic-release):
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+> **Nota**: Se lo sviluppatore usa GitLab CI o altro, adatta il workflow al provider CI/CD del progetto mantenendo gli stessi step (checkout, setup, install, semantic-release).
+
+#### 9.7 — .gitignore
 
 Se `.gitignore` non esiste, crealo con:
 ```
@@ -565,6 +666,8 @@ Configurazione del progetto:
   - .eslintrc.json        — ESLint profilo <stack>
   - .prettierrc.json      — Prettier
   - .commitlintrc.json    — Conventional Commits
+  - .releaserc.json       — semantic-release
+  - .github/workflows/    — CI/CD (semantic-release)
   - .env.example          — variabili d'ambiente
 
 Prossimi passi:
