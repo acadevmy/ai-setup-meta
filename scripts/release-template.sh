@@ -199,8 +199,8 @@ fi
 find "$WORK_DIR/template" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
 
 # Copia setup.md nella struttura corretta
-mkdir -p "$WORK_DIR/template/.claude/skills"
-cp dist/setup.md "$WORK_DIR/template/.claude/skills/setup.md"
+mkdir -p "$WORK_DIR/template/.claude/skills/setup"
+cp dist/setup.md "$WORK_DIR/template/.claude/skills/setup/SKILL.md"
 ok "setup.md copiato"
 
 # Copia CHANGELOG.md
@@ -217,9 +217,9 @@ Setup agent AI-Native per progetti di sviluppo.
 
 ```bash
 # 1. Nel tuo progetto, scarica il setup agent
-mkdir -p .claude/skills && curl -sL \
-  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/skills/setup.md \
-  -o .claude/skills/setup.md
+mkdir -p .claude/skills/setup && curl -sL \
+  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/skills/setup/SKILL.md \
+  -o .claude/skills/setup/SKILL.md
 
 # 2. Avvia Claude Code ed esegui il setup
 claude
@@ -258,7 +258,7 @@ else
   git commit -m "chore(release): v$NEW_VERSION
 
 Generato automaticamente da ai-setup-meta.
-Contiene solo il setup agent (.claude/skills/setup.md)."
+Contiene solo il setup agent (.claude/skills/setup/SKILL.md)."
 
   git tag -a "$TAG" -m "Release dev-setup-template v$NEW_VERSION"
 
@@ -284,9 +284,9 @@ Tipo: $RELEASE_TYPE
 ### Setup
 
 \`\`\`bash
-mkdir -p .claude/skills && curl -sL \\
-  https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}/main/.claude/skills/setup.md \\
-  -o .claude/skills/setup.md
+mkdir -p .claude/skills/setup && curl -sL \\
+  https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}/main/.claude/skills/setup/SKILL.md \\
+  -o .claude/skills/setup/SKILL.md
 \`\`\`
 
 Poi esegui \`/project:setup\` in Claude Code.
@@ -309,5 +309,5 @@ echo "╚═══════════════════════�
 echo ""
 echo "  Repo aggiornato: https://github.com/${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
 echo "  Tag: $TAG"
-echo "  Contenuto: .claude/skills/setup.md + README.md + CHANGELOG.md"
+echo "  Contenuto: .claude/skills/setup/SKILL.md + README.md + CHANGELOG.md"
 echo ""

@@ -9,9 +9,9 @@ Per aggiungere il workflow AI-Native a qualsiasi progetto (nuovo o esistente):
 
 ```bash
 # 1. Scarica il setup agent nel tuo progetto
-mkdir -p .claude/skills && curl -sL \
-  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/skills/setup.md \
-  -o .claude/skills/setup.md
+mkdir -p .claude/skills/setup && curl -sL \
+  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/skills/setup/SKILL.md \
+  -o .claude/skills/setup/SKILL.md
 
 # 2. Avvia Claude Code ed esegui il setup
 claude
@@ -43,7 +43,7 @@ e applichera' tutto in modo adattivo:
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              dev-setup-template (repo pubblico)              │
-│  Contiene SOLO: .claude/skills/setup.md + README.md         │
+│  Contiene SOLO: .claude/skills/setup/SKILL.md + README.md   │
 │  Lo sviluppatore scarica setup.md con un curl one-liner.    │
 └────────────────────────┬────────────────────────────────────┘
                          │
@@ -96,7 +96,7 @@ ai-setup-meta/
 │       ├── CONSTITUTION.md
 │       ├── .releaserc.json
 │       ├── .github/workflows/release.yml
-│       ├── .claude/skills/start-task.md
+│       ├── .claude/skills/start-task/SKILL.md
 │       └── mcp.json.example
 └── docs/
     ├── onboarding.md         # Guida per nuovi sviluppatori

@@ -32,11 +32,11 @@ con `gh auth login`.
 | `templates/dev-setup-template/CONSTITUTION.md` | Regole di governance |
 | `templates/dev-setup-template/AGENT.template.md` | Istruzioni agente (template unico con placeholder) |
 | `templates/dev-setup-template/.claude/settings.json` | Permessi Claude Code |
-| `templates/dev-setup-template/.claude/skills/start-task.md` | Skill start-task |
-| `templates/dev-setup-template/.claude/skills/tdd.md` | Skill TDD (backend) |
-| `templates/dev-setup-template/.claude/skills/bdd.md` | Skill BDD (frontend) |
-| `templates/dev-setup-template/.claude/skills/review.md` | Skill review |
-| `templates/dev-setup-template/.claude/skills/sync-task.md` | Skill sync-task |
+| `templates/dev-setup-template/.claude/skills/start-task/SKILL.md` | Skill start-task |
+| `templates/dev-setup-template/.claude/skills/tdd/SKILL.md` | Skill TDD (backend) |
+| `templates/dev-setup-template/.claude/skills/bdd/SKILL.md` | Skill BDD (frontend) |
+| `templates/dev-setup-template/.claude/skills/review/SKILL.md` | Skill review |
+| `templates/dev-setup-template/.claude/skills/sync-task/SKILL.md` | Skill sync-task |
 | `templates/dev-setup-template/.claude/agents/clickup.md` | Agent ClickUp (operazioni task) |
 | `templates/dev-setup-template/.claude/agents/review.md` | Agent Review (code review isolata) |
 | `templates/dev-setup-template/REGISTRY.md` | Template registro progetto |
@@ -180,11 +180,11 @@ gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claud
 #### 3.4 — Skills
 
 ```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/start-task.md -H "Accept: application/vnd.github.raw" > /tmp/skill_start-task.md
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/tdd.md -H "Accept: application/vnd.github.raw" > /tmp/skill_tdd.md
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/bdd.md -H "Accept: application/vnd.github.raw" > /tmp/skill_bdd.md
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/review.md -H "Accept: application/vnd.github.raw" > /tmp/skill_review.md
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/sync-task.md -H "Accept: application/vnd.github.raw" > /tmp/skill_sync-task.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/start-task/SKILL.md -H "Accept: application/vnd.github.raw" > /tmp/skill_start-task.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/tdd/SKILL.md -H "Accept: application/vnd.github.raw" > /tmp/skill_tdd.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/bdd/SKILL.md -H "Accept: application/vnd.github.raw" > /tmp/skill_bdd.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/review/SKILL.md -H "Accept: application/vnd.github.raw" > /tmp/skill_review.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/sync-task/SKILL.md -H "Accept: application/vnd.github.raw" > /tmp/skill_sync-task.md
 ```
 
 #### 3.4b — Agent files
@@ -292,6 +292,8 @@ Se non esiste o lo sviluppatore conferma: copia il contenuto scaricato da `/tmp/
 
 ```bash
 mkdir -p .claude/skills .claude/agents
+# Crea le sottodirectory per ogni skill
+mkdir -p .claude/skills/{start-task,tdd,bdd,review,sync-task,setup}
 ```
 
 #### 6.2 — settings.json
@@ -303,15 +305,15 @@ Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
 
 Scarica sempre tutte le skills, ma installa quelle appropriate in base al progetto:
 
-**Skills comuni** (sempre installate): start-task.md, review.md, sync-task.md
+**Skills comuni** (sempre installate): start-task, review, sync-task
 
 **Skills di metodologia** (in base al tipo di progetto):
-- Se **frontend rilevato** (o stack Web Frontend / Mobile / Full-stack) → installa `bdd.md`
-- Se **backend rilevato** (o stack Backend Node / Full-stack) → installa `tdd.md`
-- Se **full-stack** o non determinabile → installa entrambe (`tdd.md` + `bdd.md`)
+- Se **frontend rilevato** (o stack Web Frontend / Mobile / Full-stack) → installa `bdd`
+- Se **backend rilevato** (o stack Backend Node / Full-stack) → installa `tdd`
+- Se **full-stack** o non determinabile → installa entrambe (`tdd` + `bdd`)
 
 Per ogni skill da installare:
-- Se il file **non** esiste in `.claude/skills/`: copialo dal file scaricato
+- Se la directory **non** esiste in `.claude/skills/<nome>/`: crea la directory e copia il file scaricato come `SKILL.md`
 - Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente
 
 #### 6.3b — Agent files
@@ -322,7 +324,7 @@ Per ognuno dei 2 agent (clickup.md, review.md):
 
 #### 6.4 — Mantieni setup.md
 
-Il file `.claude/skills/setup.md` (questa skill) e' gia' presente. Non toccarlo.
+Il file `.claude/skills/setup/SKILL.md` (questa skill) e' gia' presente. Non toccarlo.
 
 ---
 

@@ -35,7 +35,7 @@ Descrivi la skill da creare:
    - `quality/` — skill per review, testing, validazione
 
 3. **Crea il file skill**
-   Path: `templates/dev-setup-template/.claude/skills/<categoria>/<nome>.md`
+   Path: `templates/dev-setup-template/.claude/skills/<nome>/SKILL.md`
 
    Struttura obbligatoria:
    ```markdown
