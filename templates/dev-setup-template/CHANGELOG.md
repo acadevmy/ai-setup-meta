@@ -5,6 +5,34 @@ Tutte le modifiche rilevanti al `dev-setup-template` sono documentate in questo 
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.6.0] - 2026-03-23
+
+### Added
+- Remove example MCP configuration, add commands to copy agent files, and refine .gitignore for local settings.
+- remove `CLAUDE_COMPACT_RESPONSES` and `includeCoAuthoredBy` settings, and add agent file copy commands to local settings
+- Introduce distinct TDD/BDD testing methodologies and examples in CONSTITUTION.md and add commands to copy Claude agent files to the template.
+- Add BDD skill for frontend development, refine TDD skill for backend, and update associated documentation and skill models.
+- add Claude Code hooks for auto-format, file protection, context re-injection, and quality gate
+- add 3 sub-agents (clickup, review, validate-template)
+- unify AGENT.md and AGENT.inject.md into single template
+- integrate simplify and review steps into start-task workflow
+
+### Changed
+- update onboarding, workflow docs and fix template version
+- migrate skills to directory/SKILL.md format
+- bump dev-setup-template to v1.5.0
+- remove static config files from template, generate at bootstrap
+- bump dev-setup-template to v1.4.1
+- Restructure REGISTRY.md to include pattern entries and simplify existing formats, updating associated agents and hooks.
+- remove init.sh, inject.sh and generate-inject skill
+- migrate setup.md distribution and update all references
+- migrate all commands to skills with frontmatter
+
+### Fixed
+- add TEMPLATE_VERSION to .env.example for changelog validation
+- sync CONSTITUTION.md with source
+- add semantic-release deps and upgrade CI to Node 22
+
 ## [1.5.0] - 2026-03-23
 
 ### Added
