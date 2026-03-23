@@ -44,7 +44,7 @@ Se l'agent ha restituito REGISTRY_UPDATES non vuoto:
 1. Leggi `REGISTRY.md` corrente
 2. Per ogni entry con ACTION: `add`:
    - Aggiungi il blocco ENTRY nella SECTION indicata
-   - Rimuovi eventuali placeholder `_Nessuna ... registrata._` dalla sezione
+   - Rimuovi eventuali placeholder `_Nessun(a|o) ... registrat(a|o)._` dalla sezione
 3. Per ogni entry con ACTION: `update`:
    - Trova l'entry esistente nella sezione e aggiorna i campi modificati
 4. Committa l'aggiornamento: `docs(registry): update REGISTRY.md`

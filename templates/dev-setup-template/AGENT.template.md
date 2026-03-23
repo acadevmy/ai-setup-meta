@@ -21,7 +21,7 @@ Leggilo **sempre** prima di iniziare a lavorare. Non duplicare qui le regole: la
 e' la single source of truth.
 
 ### Prima di qualsiasi modifica
-1. Leggi `REGISTRY.md` per conoscere feature, servizi e decisioni gia' presenti nel progetto
+1. Leggi `REGISTRY.md` per conoscere componenti, pattern e decisioni gia' presenti nel progetto
 2. Leggi `CONSTITUTION.md` per verificare i vincoli applicabili
 3. Verifica lo stato del branch corrente — non operare mai direttamente su `main`
 
@@ -76,8 +76,9 @@ quando necessario — non serve invocarli manualmente.
 
 ## Registro del progetto
 
-`REGISTRY.md` contiene l'indice strutturato di feature, servizi, componenti e decisioni
-architetturali del progetto. Leggilo **sempre** all'inizio di una nuova sessione.
+`REGISTRY.md` e' un indice sintetico di componenti riutilizzabili, pattern adottati e decisioni
+architetturali. Fornisce al modello un quadro rapido del progetto con riferimenti al codice
+per approfondire. Leggilo **sempre** all'inizio di una nuova sessione.
 
 Il comando `/project:review` aggiorna automaticamente il registro al termine di ogni feature.
 Non modificare `REGISTRY.md` manualmente durante lo sviluppo.

@@ -68,19 +68,25 @@ Controlla ogni regola applicabile:
 Analizza i file nel diff per identificare:
 - Nuove feature, servizi, componenti, utility, endpoint
 - Feature esistenti modificate in modo sostanziale
+- Pattern ricorrenti adottati (es. Repository pattern, error handling centralizzato)
 - Decisioni architetturali rilevanti (nuova libreria, cambio pattern)
 
-Per ogni entry nuova o da aggiornare, compila il formato REGISTRY:
+Per ogni entry nuova o da aggiornare, usa il formato compatto del REGISTRY:
+
+**Entry standard (componente/servizio/feature):**
 ```
 ### <scope>/<slug>
-- **Type**: feature | service | component | utility | api-endpoint | config
-- **Layer**: controller | service | repository | component | hook | utility | config
 - **Files**: `path/to/file1.ts`, `path/to/file2.ts`
 - **Depends on**: entry esistenti o "nessuno"
-- **Exposed API**: `METHOD /path` (se applicabile)
-- **Added**: data odierna (YYYY-MM-DD)
-- **Task**: <TASK_ID se fornito>
+- **API**: `METHOD /path` (solo se espone endpoint)
 - **Summary**: una riga di descrizione
+```
+
+**Entry pattern:**
+```
+### <nome-pattern>
+- **Dove**: `path/esempio.ts` (implementazione di riferimento)
+- **Summary**: cosa fa e quando usarlo
 ```
 
 Leggi il REGISTRY.md corrente per evitare duplicati e per aggiornare entry esistenti anziche' crearne di nuove.
@@ -98,16 +104,12 @@ WARNINGS:
   - <file>:<riga> — <suggerimento di miglioramento>
 REGISTRY_UPDATES:
   - ACTION: add | update
-    SECTION: <Feature | Servizi e utility | Componenti UI | Decisioni architetturali>
+    SECTION: <Feature | Servizi e utility | Componenti UI | Pattern e convenzioni | Decisioni architetturali>
     ENTRY: |
       ### <scope>/<slug>
-      - **Type**: ...
-      - **Layer**: ...
       - **Files**: ...
       - **Depends on**: ...
-      - **Exposed API**: ...
-      - **Added**: ...
-      - **Task**: ...
+      - **API**: ... (solo se endpoint)
       - **Summary**: ...
 SUMMARY: <valutazione complessiva in una riga>
 ---END---

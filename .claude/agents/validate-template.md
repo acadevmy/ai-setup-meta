@@ -92,7 +92,7 @@ Se non corrispondono, il check FAIL.
 
 Verifica che `<TEMPLATE_PATH>/REGISTRY.md` contenga:
 - Header `# REGISTRY.md`
-- Sezioni: `## Feature`, `## Servizi e utility`, `## Componenti UI`, `## Decisioni architetturali`
+- Sezioni: `## Feature`, `## Servizi e utility`, `## Componenti UI`, `## Pattern e convenzioni`, `## Decisioni architetturali`
 - Sezione `## Convenzioni` con il formato entry documentato
 - Nessun placeholder `{{...}}` non risolto
 
