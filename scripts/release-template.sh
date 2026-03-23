@@ -108,9 +108,59 @@ ok "Tag: $TAG"
 echo ""
 echo "  Stai per rilasciare: $TAG ($RELEASE_TYPE)"
 echo "  Repo target: ${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
-echo "  Contenuto: setup.md + README.md"
+echo "  Contenuto: setup.md + README.md + CHANGELOG.md"
 read -rp "  Confermi? [y/N] " CONFIRM
 [[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "Operazione annullata."; exit 0; }
+
+# ── Aggiorna CHANGELOG ────────────────────────────────────────────────────────
+step "Aggiornamento CHANGELOG"
+
+CHANGELOG_FILE="templates/dev-setup-template/CHANGELOG.md"
+PREV_TAG="v$CURRENT_VERSION"
+
+# Raccogli i commit che hanno toccato il template dalla versione precedente
+CHANGELOG_ADDED=""
+CHANGELOG_CHANGED=""
+CHANGELOG_FIXED=""
+
+while IFS= read -r MSG; do
+  [ -z "$MSG" ] && continue
+  case "$MSG" in
+    feat:*|feat\(*) CHANGELOG_ADDED="${CHANGELOG_ADDED}\n- ${MSG#*: }" ;;
+    fix:*|fix\(*)   CHANGELOG_FIXED="${CHANGELOG_FIXED}\n- ${MSG#*: }" ;;
+    *)               CHANGELOG_CHANGED="${CHANGELOG_CHANGED}\n- ${MSG#*: }" ;;
+  esac
+done < <(git log --format='%s' "${PREV_TAG}..HEAD" -- templates/dev-setup-template/ 2>/dev/null || \
+         git log --format='%s' -20 -- templates/dev-setup-template/)
+
+# Genera la nuova entry
+NEW_ENTRY="## [$NEW_VERSION] - $TODAY"
+[ -n "$CHANGELOG_ADDED" ]  && NEW_ENTRY="${NEW_ENTRY}\n\n### Added$(echo -e "$CHANGELOG_ADDED")"
+[ -n "$CHANGELOG_CHANGED" ] && NEW_ENTRY="${NEW_ENTRY}\n\n### Changed$(echo -e "$CHANGELOG_CHANGED")"
+[ -n "$CHANGELOG_FIXED" ]   && NEW_ENTRY="${NEW_ENTRY}\n\n### Fixed$(echo -e "$CHANGELOG_FIXED")"
+
+# Se nessun commit trovato, inserisci una riga generica
+if [ -z "$CHANGELOG_ADDED" ] && [ -z "$CHANGELOG_CHANGED" ] && [ -z "$CHANGELOG_FIXED" ]; then
+  NEW_ENTRY="${NEW_ENTRY}\n\n### Changed\n- Aggiornamento setup agent"
+fi
+
+# Inserisci la nuova entry dopo l'header del CHANGELOG
+sed -i.bak '/^## \[/,$!b; /^## \[/{i\
+'"$(echo -e "$NEW_ENTRY")"'
+;:a;n;ba}' "$CHANGELOG_FILE" 2>/dev/null || true
+rm -f "${CHANGELOG_FILE}.bak"
+
+# Fallback: se sed non ha funzionato, usa approccio con file temporaneo
+if ! grep -q "\[$NEW_VERSION\]" "$CHANGELOG_FILE"; then
+  TMPFILE=$(mktemp)
+  HEAD_LINES=$(grep -n '^## \[' "$CHANGELOG_FILE" | head -1 | cut -d: -f1)
+  head -n $((HEAD_LINES - 1)) "$CHANGELOG_FILE" > "$TMPFILE"
+  echo -e "$NEW_ENTRY\n" >> "$TMPFILE"
+  tail -n +"$HEAD_LINES" "$CHANGELOG_FILE" >> "$TMPFILE"
+  mv "$TMPFILE" "$CHANGELOG_FILE"
+fi
+
+ok "CHANGELOG.md aggiornato con v$NEW_VERSION"
 
 # ── Aggiorna versione nel meta-repo ─────────────────────────────────────────
 step "Aggiornamento versione nel meta-repo"
@@ -120,7 +170,7 @@ rm -f .env.example.bak
 ok ".env.example aggiornato"
 
 # Commit nel meta-repo
-git add .env.example
+git add .env.example "$CHANGELOG_FILE"
 if ! git diff --cached --quiet; then
   git commit -m "chore(release): bump dev-setup-template to v$NEW_VERSION"
   ok "Commit nel meta-repo creato"
@@ -152,6 +202,10 @@ find "$WORK_DIR/template" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {}
 mkdir -p "$WORK_DIR/template/.claude/skills"
 cp dist/setup.md "$WORK_DIR/template/.claude/skills/setup.md"
 ok "setup.md copiato"
+
+# Copia CHANGELOG.md
+cp "$CHANGELOG_FILE" "$WORK_DIR/template/CHANGELOG.md"
+ok "CHANGELOG.md copiato"
 
 # Genera README per il repo template
 cat > "$WORK_DIR/template/README.md" << 'READMEEOF'
@@ -255,5 +309,5 @@ echo "╚═══════════════════════�
 echo ""
 echo "  Repo aggiornato: https://github.com/${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
 echo "  Tag: $TAG"
-echo "  Contenuto: .claude/skills/setup.md + README.md"
+echo "  Contenuto: .claude/skills/setup.md + README.md + CHANGELOG.md"
 echo ""
