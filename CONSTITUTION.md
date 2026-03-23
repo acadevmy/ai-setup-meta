@@ -109,12 +109,23 @@ Mai istanziare dipendenze pesanti con `new` dentro funzioni.
 
 ## III. Testing
 
-### 9. TDD — test prima dell'implementazione
+### 9. Metodologia di test
+
+La metodologia varia in base al layer:
+
+#### Backend (logica, API, servizi) — TDD
 Per ogni nuova feature o bugfix:
 1. Scrivi il test che descrive il comportamento atteso
 2. Verifica che fallisca (red)
 3. Implementa il minimo codice per farlo passare (green)
 4. Refactoring (refactor)
+
+#### Frontend (componenti, pagine, flussi utente) — BDD
+Per ogni nuova feature o bugfix:
+1. Definisci gli scenari in linguaggio naturale (Given/When/Then)
+2. Traduci gli scenari in test eseguibili
+3. Implementa il codice per far passare gli scenari
+4. Refactoring
 
 ### 10. Copertura minima
 | Layer | Copertura minima |
@@ -125,6 +136,8 @@ Per ogni nuova feature o bugfix:
 | UI components | 70% (con Testing Library) |
 
 ### 11. Struttura dei test
+
+#### Backend — TDD
 ```typescript
 describe('UserService', () => {
   describe('createUser', () => {
@@ -133,6 +146,17 @@ describe('UserService', () => {
     it('dovrebbe lanciare ConflictError se email già esistente', async () => { ... });
   });
 });
+```
+
+#### Frontend — BDD
+```gherkin
+Feature: Login utente
+
+  Scenario: Login con credenziali valide
+    Given l'utente è nella pagina di login
+    When inserisce email e password validi
+    And clicca il pulsante "Accedi"
+    Then viene reindirizzato alla dashboard
 ```
 
 ---
