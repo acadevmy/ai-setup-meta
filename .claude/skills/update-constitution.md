@@ -1,3 +1,10 @@
+---
+name: update-constitution
+description: Aggiorna CONSTITUTION.md con modifiche specificate e propaga al dev-setup-template
+user-invocable: true
+disable-model-invocation: true
+---
+
 # /project:update-constitution
 
 Aggiorna `CONSTITUTION.md` con le modifiche specificate e propaga al `dev-setup-template`.
@@ -23,7 +30,7 @@ Descrivi la modifica da apportare:
 2. **Analizza la modifica richiesta**
    - Verifica che non sia in contrasto con regole esistenti
    - Identifica la sezione corretta
-   - Prepara esempi di codice (✅ corretto / ❌ vietato) se applicabile
+   - Prepara esempi di codice (corretto / vietato) se applicabile
 
 3. **Modifica `CONSTITUTION.md`**
    - Aggiorna il numero di versione (patch per correzioni, minor per nuove regole)
@@ -38,7 +45,7 @@ Descrivi la modifica da apportare:
    - Label: `constitution`
    - Descrizione: regola aggiunta/modificata + motivazione
 
-## ⚠️ Nota importante
+## Nota importante
 Questo comando **non** approva automaticamente le modifiche alla Costituzione.
 La PR richiede approvazione umana esplicita prima del merge.
 Nessun agente può auto-approvare modifiche a `CONSTITUTION.md`.

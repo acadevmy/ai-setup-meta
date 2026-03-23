@@ -25,10 +25,10 @@ con `gh auth login`.
 | `templates/dev-setup-template/CONSTITUTION.md` | Regole di governance |
 | `templates/dev-setup-template/AGENT.template.md` | Istruzioni agente (template unico con placeholder) |
 | `templates/dev-setup-template/.claude/settings.json` | Permessi Claude Code |
-| `templates/dev-setup-template/.claude/commands/start-task.md` | Comando start-task |
-| `templates/dev-setup-template/.claude/commands/tdd.md` | Comando TDD |
-| `templates/dev-setup-template/.claude/commands/review.md` | Comando review |
-| `templates/dev-setup-template/.claude/commands/sync-task.md` | Comando sync-task |
+| `templates/dev-setup-template/.claude/skills/start-task.md` | Skill start-task |
+| `templates/dev-setup-template/.claude/skills/tdd.md` | Skill TDD |
+| `templates/dev-setup-template/.claude/skills/review.md` | Skill review |
+| `templates/dev-setup-template/.claude/skills/sync-task.md` | Skill sync-task |
 | `templates/dev-setup-template/.claude/agents/clickup.md` | Agent ClickUp (operazioni task) |
 | `templates/dev-setup-template/.claude/agents/review.md` | Agent Review (code review isolata) |
 | `templates/dev-setup-template/REGISTRY.md` | Template registro progetto |
@@ -169,13 +169,13 @@ Un unico template con placeholder, usato sia per GREENFIELD che per EXISTING.
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/settings.json -H "Accept: application/vnd.github.raw" > /tmp/claude_settings.json
 ```
 
-#### 3.4 — Comandi slash
+#### 3.4 — Skills
 
 ```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/start-task.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_start-task.md
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/tdd.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_tdd.md
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/review.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_review.md
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/commands/sync-task.md -H "Accept: application/vnd.github.raw" > /tmp/cmd_sync-task.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/start-task.md -H "Accept: application/vnd.github.raw" > /tmp/skill_start-task.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/tdd.md -H "Accept: application/vnd.github.raw" > /tmp/skill_tdd.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/review.md -H "Accept: application/vnd.github.raw" > /tmp/skill_review.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup-template/.claude/skills/sync-task.md -H "Accept: application/vnd.github.raw" > /tmp/skill_sync-task.md
 ```
 
 #### 3.4b — Agent files
@@ -282,7 +282,7 @@ Se non esiste o lo sviluppatore conferma: copia il contenuto scaricato da `/tmp/
 #### 6.1 — Crea la struttura
 
 ```bash
-mkdir -p .claude/commands .claude/agents
+mkdir -p .claude/skills .claude/agents
 ```
 
 #### 6.2 — settings.json
@@ -290,10 +290,10 @@ mkdir -p .claude/commands .claude/agents
 Se `.claude/settings.json` **non** esiste: scrivi il contenuto scaricato da `/tmp/claude_settings.json` verbatim.
 Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
 
-#### 6.3 — Comandi slash
+#### 6.3 — Skills
 
-Per ognuno dei 4 comandi (start-task.md, tdd.md, review.md, sync-task.md):
-- Se il file **non** esiste in `.claude/commands/`: copialo dal file scaricato
+Per ognuna delle 4 skills (start-task.md, tdd.md, review.md, sync-task.md):
+- Se il file **non** esiste in `.claude/skills/`: copialo dal file scaricato
 - Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente
 
 #### 6.3b — Agent files

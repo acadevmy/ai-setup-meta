@@ -351,13 +351,13 @@ setup_claude_code() {
     print_step ".claude/settings.json installato"
   fi
 
-  # Comandi: copia solo quelli mancanti
-  for cmd in start-task.md sync-task.md tdd.md review.md; do
-    if [ -f "${PROJECT_DIR}/.claude/commands/${cmd}" ]; then
-      print_warn ".claude/commands/${cmd} esiste — mantenuto"
+  # Skills: copia solo quelle mancanti
+  for skill in start-task.md sync-task.md tdd.md review.md; do
+    if [ -f "${PROJECT_DIR}/.claude/skills/${skill}" ]; then
+      print_warn ".claude/skills/${skill} esiste — mantenuto"
     else
-      cp "${SCRIPT_DIR}/.claude/commands/${cmd}" "${PROJECT_DIR}/.claude/commands/${cmd}"
-      print_step ".claude/commands/${cmd} installato"
+      cp "${SCRIPT_DIR}/.claude/skills/${skill}" "${PROJECT_DIR}/.claude/skills/${skill}"
+      print_step ".claude/skills/${skill} installato"
     fi
   done
 

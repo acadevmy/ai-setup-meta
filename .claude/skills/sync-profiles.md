@@ -1,3 +1,10 @@
+---
+name: sync-profiles
+description: Sincronizza i profili stack da profiles/ nel dev-setup-template
+user-invocable: true
+disable-model-invocation: true
+---
+
 # /project:sync-profiles
 
 Sincronizza i profili stack da `profiles/` nel `dev-setup-template`.

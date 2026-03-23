@@ -1,3 +1,10 @@
+---
+name: generate-inject
+description: Genera o rigenera inject.sh per innesto workflow AI in codebase esistenti
+user-invocable: true
+disable-model-invocation: true
+---
+
 # /project:generate-inject
 
 Genera o rigenera lo script `inject.sh` e i file di supporto per l'innesto del workflow AI in codebase esistenti.
@@ -13,7 +20,7 @@ Genera o rigenera lo script `inject.sh` e i file di supporto per l'innesto del w
    - Controlla di non essere su `main`
    - Crea branch `feat/generate-inject-script` se non esiste
    - Leggi `CONSTITUTION.md` per vincoli aggiornati
-   - Leggi tutti i file in `.claude/commands/` per il workflow corrente
+   - Leggi tutti i file in `.claude/skills/` per il workflow corrente
 
 2. **Genera lo script inject**
    Crea o aggiorna `templates/dev-setup-template/inject.sh` con:
@@ -34,7 +41,7 @@ Genera o rigenera lo script `inject.sh` e i file di supporto per l'innesto del w
    - `{{LINT_COMMAND}}`
    Se mancano, aggiornalo.
 
-4. **Aggiorna comandi slash adattivi**
+4. **Aggiorna skill adattive**
    Verifica che `tdd.md` e `review.md` usino detection multi-stack:
    - `tdd.md`: step "Verifica finale" con detection di npm test/pytest/go test/flutter test/cargo test
    - `review.md`: controlli conformita' con schema validator e typing del progetto rilevato

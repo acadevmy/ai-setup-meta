@@ -1,3 +1,10 @@
+---
+name: release
+description: Esegue la release di una nuova versione del dev-setup-template
+user-invocable: true
+disable-model-invocation: true
+---
+
 # /project:release
 
 Esegue la release di una nuova versione del `dev-setup-template`.

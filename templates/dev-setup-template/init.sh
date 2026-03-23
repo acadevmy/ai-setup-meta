@@ -147,14 +147,14 @@ copy_base_files() {
 setup_claude_code() {
   print_step "Configuro Claude Code..."
 
-  mkdir -p "${PROJECT_DIR}/.claude/commands"
+  mkdir -p "${PROJECT_DIR}/.claude/skills"
 
   if [ "$SCRIPT_DIR" != "$PROJECT_DIR" ]; then
     cp "${SCRIPT_DIR}/.claude/settings.json" "${PROJECT_DIR}/.claude/settings.json"
 
-    # Copia comandi slash
-    if [ -d "${SCRIPT_DIR}/.claude/commands" ]; then
-      cp -r "${SCRIPT_DIR}/.claude/commands/"* "${PROJECT_DIR}/.claude/commands/" 2>/dev/null || true
+    # Copia skills
+    if [ -d "${SCRIPT_DIR}/.claude/skills" ]; then
+      cp -r "${SCRIPT_DIR}/.claude/skills/"* "${PROJECT_DIR}/.claude/skills/" 2>/dev/null || true
     fi
   fi
 

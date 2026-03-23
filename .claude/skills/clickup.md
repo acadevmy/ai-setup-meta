@@ -1,3 +1,10 @@
+---
+name: clickup
+description: Documentazione di riferimento per operazioni ClickUp tramite MCP (stati, workflow, CRUD task)
+user-invocable: false
+disable-model-invocation: false
+---
+
 # Skill: ClickUp Operations
 
 Operazioni ClickUp tramite MCP. Usare per leggere task, aggiornare stati,

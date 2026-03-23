@@ -1,3 +1,10 @@
+---
+name: render-template
+description: Renderizza file con variabili da .env.local o input fornito per generare file personalizzati
+user-invocable: false
+disable-model-invocation: false
+---
+
 # Skill: Render Template
 
 Renderizza file con variabili da `.env.local` o da input fornito.

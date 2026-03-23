@@ -1,3 +1,10 @@
+---
+name: github-ops
+description: Documentazione di riferimento per operazioni Git e GitHub (branch, PR, tag, release)
+user-invocable: false
+disable-model-invocation: false
+---
+
 # Skill: GitHub Operations
 
 Operazioni Git e GitHub tramite `git` e `gh` CLI.

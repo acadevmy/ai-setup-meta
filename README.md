@@ -98,7 +98,7 @@ ai-setup-meta/
 │       ├── CONSTITUTION.md
 │       ├── .releaserc.json
 │       ├── .github/workflows/release.yml
-│       ├── .claude/commands/start-task.md
+│       ├── .claude/skills/start-task.md
 │       ├── mcp.json.example
 │       └── init.sh
 └── docs/

@@ -101,19 +101,24 @@ specifiche senza inquinare il contesto principale.
 
 Prima di scrivere logica custom, verifica se esiste una skill in `.claude/skills/`:
 
-- `clickup.md` — documentazione di riferimento per operazioni ClickUp (l'agent `clickup` e' il componente operativo)
-- `github-ops.md` — operazioni GitHub (branch, PR, merge)
-- `render-template.md` — renderizzazione file da template con variabili
+### Skill invocabili (`/project:<nome>`)
 
-## Comandi disponibili
+| Skill | Descrizione | Auto-invocabile |
+|---|---|---|
+| `/project:generate-setup` | Genera il dev-setup-template completo | No |
+| `/project:generate-inject` | Genera inject.sh per codebase esistenti | No |
+| `/project:update-constitution` | Aggiorna CONSTITUTION e propaga | No |
+| `/project:sync-profiles` | Sincronizza i profili stack | No |
+| `/project:new-skill` | Scaffolda una nuova skill | No |
+| `/project:release` | Pubblica nuova versione del template | No |
 
-| Comando | Descrizione breve |
+### Skill di background (knowledge per Claude)
+
+| Skill | Descrizione |
 |---|---|
-| `/project:generate-setup` | Genera il dev-setup-template completo |
-| `/project:update-constitution` | Aggiorna CONSTITUTION e propaga |
-| `/project:sync-profiles` | Sincronizza i profili stack |
-| `/project:new-skill` | Scaffolda una nuova skill |
-| `/project:release` | Pubblica nuova versione del template |
+| `clickup.md` | Documentazione di riferimento per operazioni ClickUp |
+| `github-ops.md` | Operazioni GitHub (branch, PR, merge) |
+| `render-template.md` | Renderizzazione file da template con variabili |
 
 ## Struttura output attesa
 
@@ -129,7 +134,7 @@ dev-setup-template/
 ├── .claude/
 │   ├── settings.json     # Config Claude Code per sviluppatori
 │   ├── agents/           # Sub-agent isolati (clickup, review)
-│   └── commands/         # Slash commands per sviluppatori
+│   └── skills/           # Skill per sviluppatori (workflow TDD, review, ecc.)
 ├── .husky/               # Git hooks
 ├── profiles/             # Configurazioni per stack specifici
 └── CHANGELOG.md          # Aggiornato ad ogni release

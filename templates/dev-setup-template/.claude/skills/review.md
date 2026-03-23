@@ -1,3 +1,10 @@
+---
+name: review
+description: Esegue code review del branch corrente verificando conformita' CONSTITUTION e aggiornando REGISTRY
+user-invocable: true
+disable-model-invocation: false
+---
+
 # /project:review
 
 Esegui una code review del codice modificato nel branch corrente tramite il Review Agent.

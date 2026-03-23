@@ -1,3 +1,10 @@
+---
+name: tdd
+description: Avvia un ciclo TDD (Red-Green-Refactor) per feature o bugfix
+user-invocable: true
+disable-model-invocation: false
+---
+
 # /project:tdd
 
 Avvia un ciclo TDD per la feature o il bugfix descritto dall'utente.

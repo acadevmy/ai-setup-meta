@@ -1,3 +1,10 @@
+---
+name: start-task
+description: Prende un task ClickUp e avvia il flusso di sviluppo completo (branch, TDD, review, PR)
+user-invocable: true
+disable-model-invocation: true
+---
+
 # /project:start-task
 
 Prende un task specifico o il prossimo task dalla lista ClickUp e avvia il flusso di sviluppo.

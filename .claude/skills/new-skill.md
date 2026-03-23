@@ -1,3 +1,10 @@
+---
+name: new-skill
+description: Scaffolda una nuova skill da aggiungere al dev-setup-template
+user-invocable: true
+disable-model-invocation: true
+---
+
 # /project:new-skill
 
 Scaffolda una nuova skill da aggiungere al `dev-setup-template`.
@@ -32,6 +39,13 @@ Descrivi la skill da creare:
 
    Struttura obbligatoria:
    ```markdown
+   ---
+   name: <nome>
+   description: <una frase che descrive cosa fa>
+   user-invocable: true|false
+   disable-model-invocation: true|false
+   ---
+
    # Skill: <Nome>
 
    ## Scopo

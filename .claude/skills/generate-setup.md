@@ -1,3 +1,10 @@
+---
+name: generate-setup
+description: Genera o rigenera il dev-setup-template completo a partire dalle sorgenti
+user-invocable: true
+disable-model-invocation: true
+---
+
 # /project:generate-setup
 
 Genera o rigenera il `dev-setup-template` completo a partire dalle sorgenti di questo repo.
@@ -28,7 +35,7 @@ Genera o rigenera il `dev-setup-template` completo a partire dalle sorgenti di q
 3. **Genera configurazione Claude Code**
    Crea `.claude/` con:
    - `settings.json` — permessi per sviluppatori (più restrittivi di questo repo)
-   - `commands/` — slash commands per sviluppatori (workflow TDD, ClickUp sync, ecc.)
+   - `skills/` — skill per sviluppatori (workflow TDD, ClickUp sync, ecc.)
 
 4. **Genera configurazione qualità**
    - `.husky/pre-commit` — ESLint + Prettier
@@ -55,7 +62,7 @@ Genera o rigenera il `dev-setup-template` completo a partire dalle sorgenti di q
    Aggiungi entry in `templates/dev-setup-template/CHANGELOG.md`
 
 8. **Apri PR**
-   Usa GitHub MCP per aprire PR con:
+   Usa GitHub CLI per aprire PR con:
    - Titolo: `chore(template): regenerate dev-setup-template vX.Y.Z`
    - Label: `template`
    - Descrizione: lista dei file generati/modificati
