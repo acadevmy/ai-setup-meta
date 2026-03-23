@@ -341,7 +341,7 @@ generate_agent_md() {
 setup_claude_code() {
   print_step "Configuro Claude Code..."
 
-  mkdir -p "${PROJECT_DIR}/.claude/commands"
+  mkdir -p "${PROJECT_DIR}/.claude/skills"
 
   # Settings: merge se esiste, altrimenti copia
   if [ -f "${PROJECT_DIR}/.claude/settings.json" ]; then

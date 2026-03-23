@@ -1,6 +1,6 @@
 # ai-setup-meta
 
-Repository di governance AI. Contiene le risorse sorgente (CONSTITUTION, profili, comandi)
+Repository di governance AI. Contiene le risorse sorgente (CONSTITUTION, profili, skills)
 e il **setup agent** che le distribuisce ai progetti degli sviluppatori.
 
 ## Setup per sviluppatori
@@ -9,9 +9,9 @@ Per aggiungere il workflow AI-Native a qualsiasi progetto (nuovo o esistente):
 
 ```bash
 # 1. Scarica il setup agent nel tuo progetto
-mkdir -p .claude/commands && curl -sL \
-  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/commands/setup.md \
-  -o .claude/commands/setup.md
+mkdir -p .claude/skills && curl -sL \
+  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/skills/setup.md \
+  -o .claude/skills/setup.md
 
 # 2. Avvia Claude Code ed esegui il setup
 claude
@@ -20,7 +20,7 @@ claude
 
 L'agente analizzera' il progetto, scarichera' le risorse da questo repository
 e applichera' tutto in modo adattivo:
-- **Progetto esistente**: innesta solo il workflow AI (CONSTITUTION, AGENT, comandi, MCP) senza toccare il tooling
+- **Progetto esistente**: innesta solo il workflow AI (CONSTITUTION, AGENT, skills, MCP) senza toccare il tooling
 - **Progetto nuovo (greenfield)**: setup completo con quality tools, profilo stack, MCP
 
 **Prerequisiti**: `git`, `claude` CLI
@@ -32,7 +32,7 @@ e applichera' tutto in modo adattivo:
 │                      ai-setup-meta                          │
 │  (questo repo — sorgente di verita')                        │
 │                                                             │
-│  Contiene: CONSTITUTION, profili stack, skill, comandi.     │
+│  Contiene: CONSTITUTION, profili stack, skills.             │
 │  Il setup agent e' pubblicato su dev-setup-template.        │
 │                                                             │
 │  Ogni modifica a main passa per PR obbligatoria.            │
@@ -43,7 +43,7 @@ e applichera' tutto in modo adattivo:
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              dev-setup-template (repo pubblico)              │
-│  Contiene SOLO: .claude/commands/setup.md + README.md       │
+│  Contiene SOLO: .claude/skills/setup.md + README.md         │
 │  Lo sviluppatore scarica setup.md con un curl one-liner.    │
 └────────────────────────┬────────────────────────────────────┘
                          │
@@ -67,17 +67,16 @@ ai-setup-meta/
 ├── CONSTITUTION.md           # Regole inviolabili — sorgente di verita'
 ├── .claude/
 │   ├── settings.json         # Configurazione Claude Code per questo repo
-│   ├── commands/             # Slash commands disponibili in questo repo
+│   ├── skills/               # Skills (invocabili e di background)
 │   │   ├── generate-setup.md        # /project:generate-setup
 │   │   ├── update-constitution.md   # /project:update-constitution
 │   │   ├── sync-profiles.md         # /project:sync-profiles
 │   │   ├── new-skill.md             # /project:new-skill
-│   │   └── release.md               # /project:release
-│   ├── skills/               # Skill riutilizzabili dall'agente
-│   │   ├── clickup.md               # Interazione con ClickUp API
-│   │   ├── github-ops.md            # Branch, PR, commit operations
-│   │   ├── validate-setup.md        # Validazione coerenza del template
-│   │   └── render-template.md       # Renderizzazione file da template
+│   │   ├── release.md               # /project:release
+│   │   ├── generate-inject.md       # /project:generate-inject
+│   │   ├── clickup.md               # Interazione con ClickUp API (background)
+│   │   ├── github-ops.md            # Branch, PR, commit operations (background)
+│   │   └── render-template.md       # Renderizzazione file da template (background)
 │   └── agents/
 │       └── setup-maintainer.md      # Sotto-agente specializzato in sync
 ├── mcp/
@@ -124,12 +123,13 @@ bash scripts/init-meta.sh
 claude
 ```
 
-## Comandi disponibili
+## Skill disponibili
 
-| Comando | Descrizione |
-|---|---|
-| `/project:generate-setup` | Genera/rigenera il dev-setup-template da zero |
-| `/project:update-constitution` | Aggiorna le regole e propaga al template |
-| `/project:sync-profiles` | Aggiorna i profili stack nel template |
-| `/project:new-skill` | Crea una nuova skill per gli sviluppatori |
-| `/project:release` | Tagga e pubblica nuova versione del template |
+| Skill | Descrizione | Auto-invocabile |
+|---|---|---|
+| `/project:generate-setup` | Genera/rigenera il dev-setup-template da zero | No |
+| `/project:generate-inject` | Genera inject.sh per codebase esistenti | No |
+| `/project:update-constitution` | Aggiorna le regole e propaga al template | No |
+| `/project:sync-profiles` | Aggiorna i profili stack nel template | No |
+| `/project:new-skill` | Crea una nuova skill per gli sviluppatori | No |
+| `/project:release` | Tagga e pubblica nuova versione del template | No |

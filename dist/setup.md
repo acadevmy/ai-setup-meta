@@ -1,3 +1,10 @@
+---
+name: setup
+description: Setup agent per innestare il workflow AI-Native in qualsiasi progetto (greenfield o esistente)
+user-invocable: true
+disable-model-invocation: true
+---
+
 # /project:setup
 
 Setup agent per innestare il workflow AI-Native in qualsiasi progetto.
@@ -304,7 +311,7 @@ Per ognuno dei 2 agent (clickup.md, review.md):
 
 #### 6.4 — Mantieni setup.md
 
-Il file `.claude/commands/setup.md` (questo comando) e' gia' presente. Non toccarlo.
+Il file `.claude/skills/setup.md` (questa skill) e' gia' presente. Non toccarlo.
 
 ---
 
@@ -499,7 +506,7 @@ npm-debug.log*
 
 Rimuovi i file temporanei:
 ```bash
-rm -f /tmp/CONSTITUTION_SOURCE.md /tmp/AGENT_TEMPLATE.md /tmp/claude_settings.json /tmp/cmd_*.md /tmp/agent_*.md /tmp/REGISTRY.md /tmp/profile.md
+rm -f /tmp/CONSTITUTION_SOURCE.md /tmp/AGENT_TEMPLATE.md /tmp/claude_settings.json /tmp/skill_*.md /tmp/agent_*.md /tmp/REGISTRY.md /tmp/profile.md
 ```
 
 ---
@@ -516,7 +523,7 @@ File installati:
   - CONSTITUTION.md       — regole di governance
   - AGENT.md              — istruzioni per Claude Code
   - REGISTRY.md           — registro feature e servizi
-  - .claude/              — settings + slash commands + agents
+  - .claude/              — settings + skills + agents
 
 Stack rilevato:
   - Linguaggi:   <linguaggi>
@@ -541,7 +548,7 @@ Configurazione del progetto:
   - CONSTITUTION.md       — regole di governance
   - AGENT.md              — istruzioni per Claude Code
   - REGISTRY.md           — registro feature e servizi
-  - .claude/              — settings + slash commands + agents
+  - .claude/              — settings + skills + agents
   - .husky/               — git hooks (lint + commit)
   - .eslintrc.base.json   — ESLint base
   - .eslintrc.json        — ESLint profilo <stack>
@@ -559,7 +566,7 @@ Prossimi passi:
 
 ## Note importanti
 
-- **Verbatim**: CONSTITUTION.md, settings.json, comandi slash e agent files devono essere copiati esattamente come scaricati. Non generare il contenuto di questi file — scaricalo e copialo.
+- **Verbatim**: CONSTITUTION.md, settings.json, skills e agent files devono essere copiati esattamente come scaricati. Non generare il contenuto di questi file — scaricalo e copialo.
 - **Conflict detection**: Chiedi sempre prima di sovrascrivere file esistenti.
 - **Tooling esistente**: In modalita' EXISTING, non installare ne' modificare: git hooks, linter, formatter, CI/CD, .gitignore, dipendenze. Innesta solo il workflow AI.
 - **Errori di download**: Se `gh api` restituisce un errore (es. 404, 401) o un file vuoto, informa lo sviluppatore e fermati. Non procedere con contenuto parziale.
