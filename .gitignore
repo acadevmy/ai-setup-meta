@@ -5,9 +5,11 @@
 .env
 .env.*
 
+# Local
+settings.local.json
+
 # MCP config locale (contiene token personali)
 mcp/mcp.json
 
 # Dependencies
 node_modules/
-settings.local.json
