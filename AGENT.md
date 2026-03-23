@@ -106,7 +106,6 @@ Prima di scrivere logica custom, verifica se esiste una skill in `.claude/skills
 | Skill | Descrizione | Auto-invocabile |
 |---|---|---|
 | `/project:generate-setup` | Genera il dev-setup-template completo | No |
-| `/project:generate-inject` | Genera inject.sh per codebase esistenti | No |
 | `/project:update-constitution` | Aggiorna CONSTITUTION e propaga | No |
 | `/project:sync-profiles` | Sincronizza i profili stack | No |
 | `/project:new-skill` | Scaffolda una nuova skill | No |
@@ -126,16 +125,16 @@ Quando modifichi `templates/dev-setup-template/`, assicurati che la struttura ri
 
 ```
 dev-setup-template/
-├── AGENT.md              # Personalizzato per sviluppatore (non questo file)
+├── AGENT.template.md     # Template con placeholder (usato dal setup agent)
 ├── CONSTITUTION.md       # Copia esatta da questo repo — non editare manualmente
-├── init.sh               # Script bootstrap con selezione profilo stack
+├── REGISTRY.md           # Template registro progetto
 ├── mcp.json.example      # Template MCP senza chiavi
 ├── .env.example          # Variabili richieste (senza valori)
 ├── .claude/
 │   ├── settings.json     # Config Claude Code per sviluppatori
 │   ├── agents/           # Sub-agent isolati (clickup, review)
 │   └── skills/           # Skill per sviluppatori (workflow TDD, review, ecc.)
-├── .husky/               # Git hooks
+├── .husky/               # Git hooks (per setup greenfield)
 ├── profiles/             # Configurazioni per stack specifici
 └── CHANGELOG.md          # Aggiornato ad ogni release
 ```
@@ -148,7 +147,6 @@ Prima di aprire una PR, verifica:
 - [ ] Il `CHANGELOG.md` del template è aggiornato
 - [ ] I profili stack sono coerenti con `profiles/*.md` in questo repo
 - [ ] La `CONSTITUTION.md` nel template è identica alla sorgente
-- [ ] Lo script `init.sh` è stato testato in dry-run
 - [ ] La descrizione PR include istruzioni per testare
 
 ## Aggiornamento di questo file

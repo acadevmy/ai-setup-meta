@@ -27,7 +27,6 @@ Genera o rigenera il `dev-setup-template` completo a partire dalle sorgenti di q
    - `CONSTITUTION.md` — copia esatta da questo repo (non editare)
    - `AGENT.template.md` — template unico con placeholder (usato sia per greenfield che existing)
    - `REGISTRY.md` — template del registro progetto (vuoto, con struttura e convenzioni)
-   - `init.sh` — script con menu interattivo per selezione stack
    - `mcp.json.example` — template MCP senza chiavi
    - `.env.example` — variabili richieste senza valori
    - `CHANGELOG.md` — inizializza con versione corrente

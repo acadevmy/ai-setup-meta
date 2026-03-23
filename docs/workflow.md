@@ -116,7 +116,7 @@ Dopo la creazione, si consiglia di:
 2. **Leggere ogni PR di Claude** prima di approvarla — la responsabilita' resta umana
 3. **Non approvare PR che modificano `CONSTITUTION.md`** senza una review attenta
 4. **Aggiornare `AGENT.md`** se cambiano strumenti, profili o processi del team
-5. **Testare `init.sh`** su una macchina pulita prima di ogni release minor/major
+5. **Testare `/project:setup`** su un progetto pulito prima di ogni release minor/major
 6. **Non modificare mai il repo template direttamente** — usare sempre il meta-repo
 
 ## Gestione degli errori di Claude Code

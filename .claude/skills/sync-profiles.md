@@ -38,10 +38,6 @@ Specifica quale profilo aggiornare (o `all` per tutti):
       - `jest.config.ts` — configurazione Jest del profilo
       - `README.md` — istruzioni di attivazione del profilo
 
-   c. Aggiorna `templates/dev-setup-template/init.sh`:
-      - Verifica che il menu di selezione profilo sia aggiornato
-      - Verifica che i comandi di installazione dipendenze siano corretti
-
 3. **Valida la coerenza**
    Esegui la skill `validate-setup` per ogni profilo aggiornato
 

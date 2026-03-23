@@ -26,7 +26,6 @@ Verifica che esistano TUTTI questi file in `<TEMPLATE_PATH>/`:
 - `AGENT.template.md`
 - `REGISTRY.md`
 - `CONSTITUTION.md`
-- `init.sh`
 - `mcp.json.example`
 - `.env.example`
 - `CHANGELOG.md`
@@ -74,22 +73,14 @@ Verifica che `<TEMPLATE_PATH>/.gitignore` contenga almeno:
 
 Se manca anche una sola entry, il check FAIL.
 
-### Check 5: init.sh eseguibile e completo
-
-- Verifica che `init.sh` abbia permessi di esecuzione (`test -x`)
-- Verifica che contenga il menu per selezione profilo: cerca le stringhe `web-frontend`, `backend-node`, `mobile`
-- Verifica che lo script gestisca tutti e 3 i profili
-
-Se uno di questi controlli fallisce, il check FAIL.
-
-### Check 6: mcp.json.example senza chiavi reali
+### Check 5: mcp.json.example senza chiavi reali
 
 - Verifica che tutti i valori sensibili siano placeholder (`your-key-here`, `${VARIABILE}`)
 - Verifica che siano presenti le configurazioni per: `clickup`, `context7`, `figma`
 
 Se ci sono chiavi reali o mancano configurazioni MCP, il check FAIL.
 
-### Check 7: CHANGELOG aggiornato
+### Check 6: CHANGELOG aggiornato
 
 - Leggi la versione piu' recente in `<TEMPLATE_PATH>/CHANGELOG.md`
 - Leggi `TEMPLATE_VERSION` da `<TEMPLATE_PATH>/.env.example`
@@ -97,7 +88,7 @@ Se ci sono chiavi reali o mancano configurazioni MCP, il check FAIL.
 
 Se non corrispondono, il check FAIL.
 
-### Check 8: REGISTRY.md struttura valida
+### Check 7: REGISTRY.md struttura valida
 
 Verifica che `<TEMPLATE_PATH>/REGISTRY.md` contenga:
 - Header `# REGISTRY.md`
@@ -115,17 +106,16 @@ Restituisci SEMPRE in questo formato esatto:
 ---VALIDATION-RESULT---
 STATUS: pass | fail
 CHECKS:
-  - [PASS] required-files: Tutti i 15 file obbligatori presenti
+  - [PASS] required-files: Tutti i 14 file obbligatori presenti
   - [FAIL] constitution-sync: Differenze trovate alla riga 42
   - [PASS] no-secrets: Nessun segreto trovato
   - [PASS] gitignore: Tutte le entry richieste presenti
-  - [PASS] init-sh: Eseguibile, menu completo con 3 profili
   - [PASS] mcp-json: Solo placeholder, 3 MCP configurati
   - [PASS] changelog-version: v2.0.0 corrisponde
   - [PASS] registry-structure: Struttura valida, nessun placeholder
 FAILURES:
   - constitution-sync: CONSTITUTION.md differisce dalla sorgente. Righe diverse: 42-45. Eseguire: cp CONSTITUTION.md templates/dev-setup-template/CONSTITUTION.md
-SUMMARY: 7/8 check superati
+SUMMARY: 6/7 check superati
 ---END---
 ```
 

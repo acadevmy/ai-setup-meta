@@ -8,7 +8,7 @@ disable-model-invocation: false
 # Skill: Render Template
 
 Renderizza file con variabili da `.env.local` o da input fornito.
-Utile per generare file personalizzati per ogni sviluppatore durante `init.sh`.
+Utile per generare file personalizzati per ogni sviluppatore durante il setup.
 
 ## Sintassi variabili nei template
 I file template usano la sintassi `{{VARIABILE}}` per i placeholder:

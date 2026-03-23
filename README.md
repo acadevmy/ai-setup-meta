@@ -73,7 +73,6 @@ ai-setup-meta/
 │   │   ├── sync-profiles.md         # /project:sync-profiles
 │   │   ├── new-skill.md             # /project:new-skill
 │   │   ├── release.md               # /project:release
-│   │   ├── generate-inject.md       # /project:generate-inject
 │   │   ├── clickup.md               # Interazione con ClickUp API (background)
 │   │   ├── github-ops.md            # Branch, PR, commit operations (background)
 │   │   └── render-template.md       # Renderizzazione file da template (background)
@@ -98,8 +97,7 @@ ai-setup-meta/
 │       ├── .releaserc.json
 │       ├── .github/workflows/release.yml
 │       ├── .claude/skills/start-task.md
-│       ├── mcp.json.example
-│       └── init.sh
+│       └── mcp.json.example
 └── docs/
     ├── onboarding.md         # Guida per nuovi sviluppatori
     ├── workflow.md           # Come opera Claude Code in questo repo
@@ -128,7 +126,6 @@ claude
 | Skill | Descrizione | Auto-invocabile |
 |---|---|---|
 | `/project:generate-setup` | Genera/rigenera il dev-setup-template da zero | No |
-| `/project:generate-inject` | Genera inject.sh per codebase esistenti | No |
 | `/project:update-constitution` | Aggiorna le regole e propaga al template | No |
 | `/project:sync-profiles` | Aggiorna i profili stack nel template | No |
 | `/project:new-skill` | Crea una nuova skill per gli sviluppatori | No |

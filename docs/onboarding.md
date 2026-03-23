@@ -67,19 +67,20 @@ Non condividere mai i token con altri membri del team.
    ```
    Poi ricarica il terminale: `source ~/.zshrc`
 
-## Passo 3 — Eseguire lo script di init
+## Passo 3 — Eseguire il setup agent
 
 ```bash
-bash init.sh
+# Scarica il setup agent
+mkdir -p .claude/skills && curl -sL \
+  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/skills/setup.md \
+  -o .claude/skills/setup.md
+
+# Avvia Claude Code ed esegui il setup
+claude
+# poi digita: /project:setup
 ```
 
-Lo script ti chiederà di:
-1. Inserire il tuo nome (per personalizzare `AGENT.md`)
-2. Selezionare il profilo stack del progetto:
-   - `1` Web Frontend (Next.js / Angular / React)
-   - `2` Backend (Node.js / NestJS)
-   - `3` Mobile (Flutter / React Native)
-   - `4` Full Stack (Web + Backend)
+L'agente analizzera' il progetto e applichera' il setup in modo adattivo.
 
 ## Passo 4 — Verificare la configurazione
 
@@ -142,7 +143,7 @@ Per Codex, la configurazione MCP è diversa — chiedi al maintainer del meta-re
 
 **Come aggiorno il setup quando esce una nuova versione?**
 Il maintainer crea un task ClickUp quando c'è una nuova release.
-Segui le istruzioni nel task — di solito si tratta di fare pull e rieseguire `init.sh`.
+Segui le istruzioni nel task — di solito si tratta di rieseguire `/project:setup` che rileva e aggiorna automaticamente.
 
 **Posso modificare la Costituzione per il mio progetto?**
 No — la `CONSTITUTION.md` è condivisa e modificabile solo tramite il meta-repo.
