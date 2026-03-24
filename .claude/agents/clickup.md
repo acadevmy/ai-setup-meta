@@ -1,8 +1,8 @@
 ---
 name: clickup
 description: Gestisce tutte le operazioni ClickUp (read, update, create, filter task) in isolamento. Usare quando serve interagire con ClickUp per leggere task, aggiornare stati, creare task o filtrare liste.
-tools: Read, Grep, Glob, Bash
-model: haiku
+tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments
+model: sonnet
 permissionMode: dontAsk
 ---
 
@@ -31,33 +31,47 @@ L'input e' composto da:
 | `filter` | `list_id` | `status`, `assignee` |
 | `next-task` | `list_id` | — |
 
+## Nomi esatti dei tool MCP
+
+IMPORTANTE: i tool ClickUp hanno il prefisso `mcp__clickup__`. Usa SEMPRE i nomi completi:
+
+| Operazione | Tool MCP esatto |
+|------------|----------------|
+| Leggere task | `mcp__clickup__clickup_get_task` |
+| Aggiornare task | `mcp__clickup__clickup_update_task` |
+| Creare task | `mcp__clickup__clickup_create_task` |
+| Filtrare task | `mcp__clickup__clickup_filter_tasks` |
+| Commento task | `mcp__clickup__clickup_create_task_comment` |
+
+NON usare nomi abbreviati come `clickup_get_task` — falliranno.
+
 ## Istruzioni operative
 
 ### Intent: `read`
-1. Chiama `clickup_get_task` con il `task_id` fornito
+1. Chiama `mcp__clickup__clickup_get_task` con il `task_id` fornito
 2. Se il task non esiste, restituisci STATUS: error
 3. Restituisci TUTTI i campi del task nell'output, senza omissioni
 
 ### Intent: `update`
 1. Valida la transizione di stato contro il workflow (vedi sotto)
 2. Se la transizione non e' valida, restituisci STATUS: error con il motivo
-3. Chiama `clickup_update_task` con task_id e status
-4. Se `comment` e' fornito, chiama `clickup_create_task_comment`
+3. Chiama `mcp__clickup__clickup_update_task` con task_id e status
+4. Se `comment` e' fornito, chiama `mcp__clickup__clickup_create_task_comment`
 5. Restituisci il task aggiornato
 
 ### Intent: `create`
-1. Chiama `clickup_create_task` con i campi forniti
+1. Chiama `mcp__clickup__clickup_create_task` con i campi forniti
 2. Campi obbligatori: `list_id`, `name`, `description`
 3. Campi opzionali: `priority` (1=urgent, 2=high, 3=normal, 4=low), `assignees`, `due_date`
 4. Restituisci il task creato con tutti i campi
 
 ### Intent: `filter`
-1. Chiama `clickup_filter_tasks` con `list_id` e i filtri forniti
+1. Chiama `mcp__clickup__clickup_filter_tasks` con `list_id` e i filtri forniti
 2. Restituisci TUTTI i task trovati, ciascuno con tutti i campi
 3. Non troncare la lista — restituisci tutti i risultati
 
 ### Intent: `next-task`
-1. Chiama `clickup_filter_tasks` con `list_id` e stato `SPRINT`
+1. Chiama `mcp__clickup__clickup_filter_tasks` con `list_id` e stato `SPRINT`
 2. Ordina per priorita' (1 = urgent, ..., 4 = low)
 3. Restituisci il primo task con priorita' piu' alta
 4. Se non ci sono task in stato SPRINT, restituisci STATUS: error
