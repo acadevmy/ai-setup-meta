@@ -2,7 +2,7 @@
 # release-template.sh — Pubblica setup agent + agent di dominio sul repo di distribuzione
 # Sincronizza dist/ (setup.md, agents/, CHANGELOG, README) dal meta-repo al repo dist.
 #
-# Uso: bash scripts/release-template.sh [patch|minor|major] [template-name]
+# Uso: bash scripts/release-template.sh [patch|minor|major] [template-name] [--yes]
 #
 # Prerequisiti:
 #   - gh CLI autenticata (gh auth login)
@@ -21,8 +21,13 @@ warn() { echo -e "${YELLOW}⚠${NC}  $1"; }
 fail() { echo -e "${RED}✗${NC} $1"; exit 1; }
 step() { echo -e "\n${YELLOW}▶ $1${NC}"; }
 
+AUTO_CONFIRM=false
 RELEASE_TYPE="${1:-patch}"
 TEMPLATE_NAME="${2:-}"
+
+for arg in "$@"; do
+  [[ "$arg" == "--yes" || "$arg" == "-y" ]] && AUTO_CONFIRM=true
+done
 
 if [[ ! "$RELEASE_TYPE" =~ ^(patch|minor|major)$ ]]; then
   fail "Tipo release non valido: '$RELEASE_TYPE'. Usa: patch | minor | major"
@@ -99,7 +104,11 @@ DIST_REPO_URL="git@github.com:${GITHUB_ORG}/${GITHUB_DIST_REPO}.git"
 if ! gh repo view "${GITHUB_ORG}/${GITHUB_DIST_REPO}" >/dev/null 2>&1; then
   echo ""
   echo "  Il repo ${GITHUB_ORG}/${GITHUB_DIST_REPO} non esiste."
-  read -rp "  Vuoi crearlo ora? [y/N] " CREATE_REPO
+  if [ "$AUTO_CONFIRM" = false ]; then
+    read -rp "  Vuoi crearlo ora? [y/N] " CREATE_REPO
+  else
+    CREATE_REPO="y"
+  fi
   if [[ "$CREATE_REPO" =~ ^[Yy]$ ]]; then
     gh repo create "${GITHUB_ORG}/${GITHUB_DIST_REPO}" \
       --private \
@@ -140,8 +149,10 @@ echo "  Stai per rilasciare: $TAG ($RELEASE_TYPE)"
 echo "  Template: $TEMPLATE_NAME"
 echo "  Repo target: ${GITHUB_ORG}/${GITHUB_DIST_REPO}"
 echo "  Contenuto: setup.md + agents/ + README.md + CHANGELOG.md"
-read -rp "  Confermi? [y/N] " CONFIRM
-[[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "Operazione annullata."; exit 0; }
+if [ "$AUTO_CONFIRM" = false ]; then
+  read -rp "  Confermi? [y/N] " CONFIRM
+  [[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "Operazione annullata."; exit 0; }
+fi
 
 # ── Aggiorna CHANGELOG ────────────────────────────────────────────────────────
 step "Aggiornamento CHANGELOG"
