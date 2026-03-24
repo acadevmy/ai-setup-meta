@@ -13,26 +13,17 @@ Tempo stimato: **30–45 minuti** (prima installazione).
 | Claude Code | ultima | `npm install -g @anthropic-ai/claude-code` |
 | Account Claude | Piano Pro o Max | [claude.ai](https://claude.ai) |
 
-## Passo 1 — Creare il progetto dal template
+## Passo 1 — Creare il progetto
 
-Hai due opzioni:
+Crea un nuovo repo (o usa uno esistente) e posizionati nella root:
 
-### Opzione A — Da GitHub (consigliata)
-1. Vai su `https://github.com/YOUR_ORG/dev-setup-template`
-2. Clicca **"Use this template"** > **"Create a new repository"**
-3. Scegli nome e visibilita' del tuo progetto
-4. Clona il repo appena creato:
-   ```bash
-   git clone git@github.com:YOUR_ORG/nome-progetto.git
-   cd nome-progetto
-   ```
-
-### Opzione B — Da CLI
 ```bash
-gh repo create YOUR_ORG/nome-progetto \
-  --template YOUR_ORG/dev-setup-template \
-  --private --clone
+# Nuovo progetto
+gh repo create YOUR_ORG/nome-progetto --private --clone
 cd nome-progetto
+
+# Oppure, progetto esistente
+cd /path/to/progetto-esistente
 ```
 
 ## Passo 2 — Configurare autenticazione e MCP (account personale)
@@ -74,10 +65,11 @@ Non condividere mai token o credenziali con altri membri del team.
 ## Passo 3 — Eseguire il setup agent
 
 ```bash
-# Scarica il setup agent dal repo template
-mkdir -p .claude/skills/setup && curl -sL \
-  https://raw.githubusercontent.com/YOUR_ORG/dev-setup-template/main/.claude/skills/setup/SKILL.md \
-  -o .claude/skills/setup/SKILL.md
+# Clona il repo di distribuzione e copia skill + agents nel progetto
+gh repo clone YOUR_ORG/dev-setup-template .tmp-ai-setup && \
+  cp -r .tmp-ai-setup/.claude/skills .claude/skills && \
+  cp -r .tmp-ai-setup/.claude/agents .claude/agents && \
+  rm -rf .tmp-ai-setup
 
 # Avvia Claude Code ed esegui il setup
 claude
@@ -153,8 +145,8 @@ Il maintainer crea un task ClickUp quando c'è una nuova release.
 Segui le istruzioni nel task — di solito si tratta di rieseguire `/project:setup` che rileva e aggiorna automaticamente.
 
 **Posso modificare la Costituzione per il mio progetto?**
-No — la `CONSTITUTION.md` è condivisa e modificabile solo tramite il meta-repo.
-Se hai una proposta, aprila come task ClickUp o parla con il maintainer.
+No — la `CONSTITUTION.md` e' gestita centralmente nel template del meta-repo e distribuita a tutti i progetti.
+Se hai una proposta di modifica, aprila come task ClickUp o parla con il maintainer.
 
 **Qualcosa non funziona nel setup — a chi mi rivolgo?**
 Apri un task ClickUp nella lista "AI Setup" con:

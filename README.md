@@ -43,9 +43,9 @@ e applichera' tutto in modo adattivo:
                          │  (copia agent + dispatcher in dist/)
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              dev-setup-template (repo pubblico)              │
-│  Contiene SOLO: .claude/skills/setup/SKILL.md + README.md   │
-│  Lo sviluppatore scarica setup.md con un curl one-liner.    │
+│          dev-setup-template (repo distribuzione)             │
+│  Contiene: .claude/skills/setup/ + .claude/agents/ + README │
+│  Lo sviluppatore clona con gh e copia skill + agents.       │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          │  /project:setup

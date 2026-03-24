@@ -24,7 +24,7 @@ Maintainer individua un miglioramento
          │
          ▼
   Claude Code lavora in autonomia:
-  - Crea/modifica file in templates/dev-setup-template/
+  - Crea/modifica file in templates/dev-setup/
   - Valida con validate-setup
   - Aggiorna CHANGELOG
   - Apre PR via gh CLI
@@ -37,7 +37,7 @@ Maintainer individua un miglioramento
          │
          ▼
   bash scripts/release-template.sh minor
-  → Sincronizza verso il repo template separato
+  → Sincronizza verso il repo di distribuzione
   → Crea tag + GitHub Release
          │
          ▼
@@ -47,26 +47,28 @@ Maintainer individua un miglioramento
 ## Come funziona il release
 
 Il release script (`scripts/release-template.sh`) pubblica il **setup agent** sul repo template.
-Il repo template contiene solo l'entry point per il bootstrap — non l'intero contenuto di
-`templates/dev-setup-template/`. I file del template vengono scaricati a runtime dal setup agent.
+Il repo di distribuzione contiene solo l'entry point per il bootstrap (dispatcher + agent di dominio)
+— non l'intero contenuto di `templates/dev-setup/`. I file del template vengono scaricati a runtime
+dal setup agent via `gh api`.
 
 Il flusso:
 
 1. Verifica prerequisiti (`gh` CLI, `.env.local`, branch `main` pulito)
 2. Valida gli URL nel setup agent (`scripts/validate-setup-urls.sh`)
 3. Calcola la nuova versione (semver)
-4. Aggiorna `templates/dev-setup-template/CHANGELOG.md` e `.env.example` nel meta-repo
-5. Crea commit nel meta-repo: `chore(release): bump dev-setup-template to vX.Y.Z`
-6. Clona il repo template (`GITHUB_ORG/GITHUB_TEMPLATE_REPO`)
-7. Copia **solo 3 file** nel repo template:
-   - `.claude/skills/setup/SKILL.md` (da `dist/setup.md`)
+4. Aggiorna `templates/dev-setup/CHANGELOG.md` e `.env.example` nel meta-repo
+5. Crea commit nel meta-repo: `chore(release): bump dev-setup to vX.Y.Z`
+6. Clona il repo di distribuzione (`GITHUB_ORG/GITHUB_DIST_REPO`)
+7. Copia **4 elementi** nel repo di distribuzione:
+   - `.claude/skills/setup/SKILL.md` (da `dist/setup.md` — il dispatcher)
+   - `.claude/agents/*.md` (da `dist/agents/` — agent di dominio)
    - `README.md` (generato dallo script)
    - `CHANGELOG.md`
-8. Commit, tag e push sul repo template
+8. Commit, tag e push sul repo di distribuzione
 9. Push del meta-repo
 10. Crea la GitHub Release con `gh release create`
 
-**Il repo template non va mai modificato direttamente.** Ogni modifica parte
+**Il repo di distribuzione non va mai modificato direttamente.** Ogni modifica parte
 dal meta-repo e viene pubblicata con il release script.
 
 ## Operazioni frequenti
@@ -120,16 +122,12 @@ claude
 /project:release
 ```
 
-## Setup iniziale del repo template
+## Setup iniziale del repo di distribuzione
 
 La prima volta che si esegue `release-template.sh`, lo script:
-1. Verifica se il repo `GITHUB_ORG/GITHUB_TEMPLATE_REPO` esiste su GitHub
+1. Verifica se il repo `GITHUB_ORG/GITHUB_DIST_REPO` esiste su GitHub
 2. Se non esiste, offre di crearlo automaticamente con `gh repo create`
 3. Pubblica la prima versione
-
-Dopo la creazione, si consiglia di:
-- Andare su GitHub > Settings del repo template
-- Spuntare **"Template repository"** per abilitare "Use this template"
 
 ## Regole per il maintainer
 
@@ -158,6 +156,5 @@ Se Claude Code fa qualcosa di inatteso:
 - Require status checks to pass (se configurate GitHub Actions)
 - Do not allow bypassing the above settings
 
-### Per il repo template (`dev-setup-template`)
+### Per il repo di distribuzione (`dev-setup-template`)
 - Nessuna branch protection necessaria — il repo viene aggiornato solo dallo script di release
-- Abilitare "Template repository" nelle Settings per permettere "Use this template"
