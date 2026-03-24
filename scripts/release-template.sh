@@ -277,14 +277,11 @@ Setup agent AI-Native — seleziona il dominio e configura il tuo progetto.
 ## Avvio rapido
 
 \`\`\`bash
-# 1. Nel tuo progetto, scarica il setup agent e gli agent di dominio
-mkdir -p .claude/skills/setup .claude/agents && \\
-  curl -sL https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_DIST_REPO}/main/.claude/skills/setup/SKILL.md \\
-    -o .claude/skills/setup/SKILL.md && \\
-  for agent in \$(curl -sL "https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_DIST_REPO}/contents/.claude/agents" | python3 -c "import sys,json; [print(f['name']) for f in json.load(sys.stdin) if f['name'].endswith('.md')]" 2>/dev/null); do \\
-    curl -sL "https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_DIST_REPO}/main/.claude/agents/\$agent" \\
-      -o ".claude/agents/\$agent"; \\
-  done
+# 1. Clona il repo e copia skill + agents nel tuo progetto
+gh repo clone ${GITHUB_ORG}/${GITHUB_DIST_REPO} .tmp-ai-setup && \\
+  cp -r .tmp-ai-setup/.claude/skills .claude/skills && \\
+  cp -r .tmp-ai-setup/.claude/agents .claude/agents && \\
+  rm -rf .tmp-ai-setup
 
 # 2. Avvia Claude Code ed esegui il setup
 claude
@@ -349,11 +346,10 @@ Tipo: $RELEASE_TYPE
 ### Setup
 
 \`\`\`bash
-mkdir -p .claude/skills/setup .claude/agents && \\
-  curl -sL https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_DIST_REPO}/main/.claude/skills/setup/SKILL.md \\
-    -o .claude/skills/setup/SKILL.md && \\
-  curl -sL https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_DIST_REPO}/main/.claude/agents/${AGENT_FILE} \\
-    -o .claude/agents/${AGENT_FILE}
+gh repo clone ${GITHUB_ORG}/${GITHUB_DIST_REPO} .tmp-ai-setup && \\
+  cp -r .tmp-ai-setup/.claude/skills .claude/skills && \\
+  cp -r .tmp-ai-setup/.claude/agents .claude/agents && \\
+  rm -rf .tmp-ai-setup
 \`\`\`
 
 Poi esegui \`/project:setup\` in Claude Code.
