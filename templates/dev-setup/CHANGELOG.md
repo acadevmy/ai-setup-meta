@@ -5,6 +5,13 @@ Tutte le modifiche rilevanti al template `dev-setup` sono documentate in questo 
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
+## [2.0.0] - 2026-03-24
+
+### Changed
+- Merge branch 'feat/multi-template-architecture'
+- remove root CONSTITUTION.md, make template the source of truth
+- Implement a multi-domain templating system with manifest.json, restructure the repository for shared agents and skills, and update documentation and scripts accordingly.
+
 ## [1.6.0] - 2026-03-23
 
 ### Added
