@@ -13,7 +13,6 @@ Questo agent e' **esclusivo del meta-repo**. NON va distribuito nei progetti deg
 ## Input
 
 - **TEMPLATE_NAME**: nome del template (es. `dev-setup`). Il path viene ricavato come `templates/<TEMPLATE_NAME>`
-- **SOURCE_CONSTITUTION_PATH**: percorso alla CONSTITUTION sorgente (default: `./CONSTITUTION.md`)
 
 ## Istruzioni operative
 
@@ -51,19 +50,11 @@ Per ogni entry in `manifest.template_skills`:
 
 Se manca anche un solo file, il check FAIL.
 
-### Check 2: CONSTITUTION coerente
+### Check 2: CONSTITUTION presente
 
-Se `manifest.copy_constitution` e' `true`:
+Verifica che `<TEMPLATE_PATH>/CONSTITUTION.md` esista e non sia vuoto.
 
-Confronta `<TEMPLATE_PATH>/CONSTITUTION.md` con `<SOURCE_CONSTITUTION_PATH>`.
-Devono essere identiche byte per byte.
-
-Esegui:
-```bash
-diff <SOURCE_CONSTITUTION_PATH> <TEMPLATE_PATH>/CONSTITUTION.md
-```
-
-Se ci sono differenze, il check FAIL. Mostra le prime 10 righe di differenza.
+Se il file non esiste o e' vuoto, il check FAIL.
 
 ### Check 3: Nessun segreto nei file tracciati
 
@@ -123,14 +114,14 @@ CHECKS:
   - [PASS] required-files: Tutti i file obbligatori presenti
   - [PASS] shared-assets: Tutti gli shared assets presenti
   - [PASS] template-assets: Tutti i template assets presenti
-  - [FAIL] constitution-sync: Differenze trovate alla riga 42
+  - [FAIL] constitution-present: CONSTITUTION.md mancante o vuoto
   - [PASS] no-secrets: Nessun segreto trovato
   - [PASS] gitignore: Tutte le entry richieste presenti
   - [PASS] manifest-valid: Manifest completo e coerente
   - [PASS] changelog-version: v2.0.0 corrisponde
   - [PASS] registry-structure: Struttura valida, nessun placeholder
 FAILURES:
-  - constitution-sync: CONSTITUTION.md differisce dalla sorgente. Righe diverse: 42-45. Eseguire: cp CONSTITUTION.md templates/<TEMPLATE_NAME>/CONSTITUTION.md
+  - constitution-present: CONSTITUTION.md mancante o vuoto nel template
 SUMMARY: 8/9 check superati
 ---END---
 ```
@@ -142,4 +133,3 @@ Se almeno un check fallisce, STATUS e' `fail` e FAILURES elenca i dettagli con s
 
 - Template path non trovato: `STATUS: error`, `ERROR: Directory templates/<TEMPLATE_NAME> non trovata`
 - Manifest non trovato: `STATUS: error`, `ERROR: File templates/<TEMPLATE_NAME>/manifest.json non trovato`
-- CONSTITUTION sorgente non trovata: `STATUS: error`, `ERROR: File <path> non trovato`

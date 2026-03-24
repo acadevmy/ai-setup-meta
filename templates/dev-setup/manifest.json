@@ -7,7 +7,6 @@
   "template_agents": ["review.md"],
   "template_skills": ["start-task", "sync-task", "review", "tdd", "bdd"],
   "profiles": ["web-frontend.md", "backend-node.md", "mobile.md"],
-  "copy_constitution": true,
   "required_files": [
     "AGENT.template.md",
     "REGISTRY.md",

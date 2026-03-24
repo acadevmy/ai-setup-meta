@@ -28,7 +28,6 @@ Pubblica una nuova versione di un template sul repo di distribuzione.
 2. **Valida il template**
    Lancia l'agent `validate-template` con:
    - TEMPLATE_NAME: `<TEMPLATE_NAME>`
-   - SOURCE_CONSTITUTION_PATH: `./CONSTITUTION.md`
    Se STATUS non e' `pass`, fermati e mostra i problemi.
 
 3. **Chiedi tipo release**
