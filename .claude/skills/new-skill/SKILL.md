@@ -1,42 +1,45 @@
 ---
 name: new-skill
-description: Scaffolda una nuova skill da aggiungere al dev-setup-template
+description: Scaffolda una nuova skill (shared o specifica di un dominio)
 user-invocable: true
 disable-model-invocation: true
 ---
 
 # /project:new-skill
 
-Scaffolda una nuova skill da aggiungere al `dev-setup-template`.
+Scaffolda una nuova skill da aggiungere a un template o alla cartella shared.
 
 ## Quando usarlo
 - Il team ha un pattern ripetuto che vale la pena automatizzare
-- Un processo multi-step può essere codificato come skill riutilizzabile
+- Un processo multi-step puo' essere codificato come skill riutilizzabile
 - Un nuovo MCP richiede una skill di integrazione
 
 ## Input richiesto
 Descrivi la skill da creare:
 - **Nome**: snake_case (es. `create-feature`, `write-test`, `sync-clickup`)
 - **Scopo**: cosa fa questa skill in una frase
-- **Trigger**: quando uno sviluppatore dovrebbe usarla
-- **Stack**: si applica a tutti i profili o solo ad alcuni?
+- **Trigger**: quando un utente dovrebbe usarla
+- **Destinazione**: shared (comune a tutti i template) o specifica di un dominio?
 
 ## Procedura
 
-1. **Crea branch**
+1. **Determina la destinazione**
+   Chiedi: "Questa skill e' **shared** (comune a tutti i template) o **specifica** di un dominio?"
+   - Se **shared**: la skill verra' creata in `shared/skills/<nome>/SKILL.md`
+   - Se **specifica**: chiedi quale template (elenca `templates/*/`) e crea in `templates/<dominio>/.claude/skills/<nome>/SKILL.md`
+
+2. **Crea branch**
    ```
    feat/skill-<nome-skill>
    ```
 
-2. **Determina la categoria**
+3. **Determina la categoria**
    - `workflow/` — skill che orchestrano processi multi-step
    - `codegen/` — skill che generano codice boilerplate
    - `integration/` — skill che interagiscono con MCP esterni
    - `quality/` — skill per review, testing, validazione
 
-3. **Crea il file skill**
-   Path: `templates/dev-setup-template/.claude/skills/<nome>/SKILL.md`
-
+4. **Crea il file skill**
    Struttura obbligatoria:
    ```markdown
    ---
@@ -55,12 +58,6 @@ Descrivi la skill da creare:
    - Situazione 1
    - Situazione 2
 
-   ## Stack applicabili
-   - [ ] Web Frontend (Next.js, Angular, React)
-   - [ ] Backend (Node.js, NestJS)
-   - [ ] Mobile (Flutter, React Native)
-   - [ ] Tutti
-
    ## Pre-condizioni
    - Lista di condizioni che devono essere vere prima di eseguire
 
@@ -76,11 +73,9 @@ Descrivi la skill da creare:
    (opzionale) Casi d'uso concreti.
    ```
 
-4. **Aggiungi la skill anche a `.claude/skills/` di questo meta-repo**
-   se la skill è utile anche per il maintainer del meta-repo.
-
-5. **Aggiorna `templates/dev-setup-template/AGENT.md`**
-   Aggiungi la skill alla tabella "Skill disponibili".
+5. **Aggiorna il manifest** (se skill specifica di un dominio)
+   Aggiungi il nome della skill a `template_skills` in `templates/<dominio>/manifest.json`.
+   Se shared, aggiungi a `shared_skills` nei manifest dei template rilevanti.
 
 6. **Aggiorna CHANGELOG**
 

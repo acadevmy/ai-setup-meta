@@ -9,7 +9,6 @@
       "Bash(mkdir:*)",
       "Bash(cp:*)",
       "Bash(mv:*)",
-      "Bash(rm:*)",
       "Bash(chmod:*)",
       "Bash(echo:*)",
       "Bash(grep:*)",
@@ -22,16 +21,16 @@
     "deny": [
       "Bash(git push --force*)",
       "Bash(git push origin main*)",
+      "Bash(git push origin master*)",
+      "Bash(git push origin dev*)",
       "Bash(npm publish*)",
       "Bash(rm -rf /*)",
       "Bash(curl * | bash*)",
       "Bash(wget * | bash*)"
     ]
   },
-  "env": {
-    "CLAUDE_COMPACT_RESPONSES": "true",
-    "DISABLE_AUTOUPDATER": "0"
-  },
-  "includeCoAuthoredBy": true,
-  "cleanupPeriodDays": 30
+  "attribution": {
+    "commits": true,
+    "pullRequests": true
+  }
 }

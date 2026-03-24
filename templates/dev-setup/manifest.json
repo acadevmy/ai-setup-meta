@@ -1,0 +1,18 @@
+{
+  "name": "dev-setup",
+  "description": "Setup AI-native per progetti di sviluppo software",
+  "agent": "dev-setup-agent.md",
+  "shared_agents": ["clickup.md"],
+  "shared_skills": ["clickup", "github-ops", "render-template"],
+  "template_agents": ["review.md"],
+  "template_skills": ["start-task", "sync-task", "review", "tdd", "bdd"],
+  "profiles": ["web-frontend.md", "backend-node.md", "mobile.md"],
+  "required_files": [
+    "AGENT.template.md",
+    "REGISTRY.md",
+    "CONSTITUTION.md",
+    ".env.example",
+    ".claude/settings.json",
+    ".gitignore"
+  ]
+}

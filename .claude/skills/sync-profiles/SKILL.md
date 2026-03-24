@@ -1,13 +1,13 @@
 ---
 name: sync-profiles
-description: Sincronizza i profili stack da profiles/ nel dev-setup-template
+description: Sincronizza i profili stack nel template di dominio corrispondente
 user-invocable: true
 disable-model-invocation: true
 ---
 
 # /project:sync-profiles
 
-Sincronizza i profili stack da `profiles/` nel `dev-setup-template`.
+Sincronizza i profili stack nel template di dominio corrispondente.
 
 ## Quando usarlo
 - Aggiornamento di versioni di librerie (es. Next.js 15, NestJS 11)
@@ -15,34 +15,33 @@ Sincronizza i profili stack da `profiles/` nel `dev-setup-template`.
 - Modifica delle regole Zod o Jest per uno specifico profilo
 
 ## Input richiesto
-Specifica quale profilo aggiornare (o `all` per tutti):
-- `web-frontend` — Next.js, Angular, React
-- `backend-node` — Node.js, NestJS
-- `mobile` — Flutter, React Native
-- `all` — tutti i profili
+
+- **Template**: quale template aggiornare (es. `dev-setup`). Se non specificato, viene chiesto.
+- **Profilo**: quale profilo aggiornare (o `all` per tutti). I profili disponibili vengono letti dal `manifest.json` del template scelto.
 
 ## Procedura
 
-1. **Crea branch**
+1. **Seleziona il template**
+   Elenca i template disponibili in `templates/*/manifest.json`.
+   Leggi il campo `profiles` dal manifest per sapere quali profili sono disponibili.
+
+2. **Crea branch**
    ```
    chore/sync-profiles-<data>
    ```
 
-2. **Per ogni profilo da aggiornare**
+3. **Per ogni profilo da aggiornare**
 
-   a. Leggi `profiles/<profilo>.md` per le specifiche aggiornate
+   a. Leggi `templates/<TEMPLATE_NAME>/profiles/<profilo>.md` per le specifiche aggiornate
 
-   b. Aggiorna `templates/dev-setup-template/profiles/<profilo>/`:
-      - `eslint.config.js` — regole ESLint specifiche del profilo
-      - `tsconfig.json` — configurazione TypeScript del profilo
-      - `jest.config.ts` — configurazione Jest del profilo
-      - `README.md` — istruzioni di attivazione del profilo
+   b. Aggiorna i file di configurazione generati nel template o nella sezione corrispondente
+      dell'agent di dominio (`dist/setup.md` o `templates/<TEMPLATE_NAME>/<agent>`).
 
-3. **Valida la coerenza**
-   Esegui la skill `validate-setup` per ogni profilo aggiornato
+4. **Valida la coerenza**
+   Lancia l'agent `validate-template` con TEMPLATE_NAME per verificare
 
-4. **Aggiorna CHANGELOG**
+5. **Aggiorna CHANGELOG**
 
-5. **Apri PR**
+6. **Apri PR**
    - Titolo: `chore(profiles): sync <profilo> stack configuration`
    - Label: `profile`
