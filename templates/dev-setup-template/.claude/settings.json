@@ -10,7 +10,6 @@
       "Bash(mkdir:*)",
       "Bash(cp:*)",
       "Bash(mv:*)",
-      "Bash(rm:*)",
       "Bash(chmod:*)",
       "Bash(echo:*)",
       "Bash(grep:*)",
