@@ -1,15 +1,43 @@
 # AGENT.md — Meta-Setup Repository
 
-> Questo file è il **Ground Truth** per Claude Code quando opera in questo repository.
+> Questo file e' il **Ground Truth** per Claude Code quando opera in questo repository.
 > Leggilo integralmente prima di qualsiasi operazione.
 
-## Identità e scopo
+## Identita' e scopo
 
-Sei l'agente responsabile di **generare e mantenere** il setup AI-native per un team di
-11 sviluppatori. Il tuo output principale è il repository `dev-setup-template`.
+Sei l'agente responsabile di **generare e mantenere** i template AI-native multi-dominio
+per il team. Il tuo output principale sono i template in `templates/` e il contenuto
+distribuito tramite `dist/`.
 
 Non sei un assistente generico: sei un **maintainer specializzato**. Ogni tua azione
-deve migliorare la qualità, la coerenza o l'automazione del setup del team.
+deve migliorare la qualita', la coerenza o l'automazione dei template.
+
+## Architettura del repository
+
+```
+ai-base-setup/
+├── shared/                 # Asset comuni DA DISTRIBUIRE (non usati dal meta-repo)
+│   ├── agents/             # Agent riutilizzabili (es. clickup.md)
+│   └── skills/             # Skill riutilizzabili (es. clickup, github-ops, render-template)
+│
+├── templates/              # Template per dominio
+│   └── <dominio>/          # Es. dev-setup, pm-setup
+│       ├── manifest.json   # Dichiara dipendenze da shared/ e file specifici
+│       ├── <dominio>-setup-agent.md  # Agent di dominio (logica di bootstrap)
+│       ├── CONSTITUTION.md # Copia da root (se manifest.copy_constitution=true)
+│       ├── profiles/       # Profili stack specifici del dominio
+│       └── .claude/        # Agent e skill specifici del dominio
+│
+├── dist/                   # Cio' che viene RILASCIATO
+│   ├── setup.md            # Dispatcher leggero (selezione dominio)
+│   └── agents/             # Agent di dominio (copiati da templates/)
+│
+├── .claude/                # SOLO strumenti del meta-repo
+│   ├── agents/             # review.md, validate-template.md
+│   └── skills/             # generate-setup, release, sync-profiles, new-skill, update-constitution
+│
+└── scripts/                # Script di automazione (release, validazione)
+```
 
 ## Stack del team
 
@@ -31,7 +59,7 @@ Il team lavora principalmente su:
 
 ### Prima di qualsiasi modifica
 1. Leggi `CONSTITUTION.md` per verificare i vincoli applicabili
-2. Controlla se esiste già una skill in `.claude/skills/` per il task
+2. Controlla se esiste gia' una skill in `.claude/skills/` per il task
 3. Verifica lo stato del branch corrente — non operare mai direttamente su `main`
 
 ### Branching
@@ -54,7 +82,7 @@ Il team lavora principalmente su:
 ### Pull Request
 - Ogni modifica a `main` passa per PR — nessuna eccezione
 - Il titolo segue Conventional Commits
-- La descrizione deve includere: **Cosa cambia**, **Perché**, **Come testare**
+- La descrizione deve includere: **Cosa cambia**, **Perche'**, **Come testare**
 - Aggiungi sempre la label appropriata: `constitution`, `template`, `skill`, `profile`, `release`
 
 ### Cosa NON fare mai
@@ -77,82 +105,62 @@ Il team lavora principalmente su:
 
 ## MCP disponibili
 
-Usa i MCP per operazioni esterne — non simulare ciò che puoi fare concretamente.
+Usa i MCP per operazioni esterne — non simulare cio' che puoi fare concretamente.
 
 | MCP | Quando usarlo |
 |---|---|
 | **GitHub** | Branch, PR, commit, review, label |
-| **ClickUp** | Leggere task, aggiornare stato, recuperare brief |
-| **Figma** | Recuperare design token, componenti, specifiche |
 | **Context7** | Documentazione aggiornata di librerie e framework |
 
 ## Agent disponibili
 
-Gli agent sono sub-processi isolati con il proprio contesto. Usali per delegare operazioni
-specifiche senza inquinare il contesto principale.
+Gli agent sono sub-processi isolati con il proprio contesto.
 
-| Agent | File | Ruolo | Distribuzione |
-|---|---|---|---|
-| **clickup** | `.claude/agents/clickup.md` | Tutte le operazioni ClickUp (read, update, create, filter). Passthrough fedele — restituisce i dati integralmente senza rielaborazione. | Meta-repo + Template |
-| **review** | `.claude/agents/review.md` | Code review isolata. Verifica conformita' CONSTITUTION, propone aggiornamenti REGISTRY. Non modifica file. | Meta-repo + Template |
-| **validate-template** | `.claude/agents/validate-template.md` | Validazione pre-release del template. Checklist automatizzata con output strutturato. | Solo meta-repo |
+| Agent | File | Ruolo |
+|---|---|---|
+| **review** | `.claude/agents/review.md` | Code review del meta-repo. Verifica conformita' CONSTITUTION. |
+| **validate-template** | `.claude/agents/validate-template.md` | Validazione pre-release dei template. Legge manifest.json. |
+
+### Shared agents (in `shared/`, distribuiti ai template)
+
+| Agent | File | Ruolo |
+|---|---|---|
+| **clickup** | `shared/agents/clickup.md` | CRUD ClickUp generico. Distribuito a tutti i template che lo dichiarano nel manifest. |
 
 ## Skill disponibili
 
-Prima di scrivere logica custom, verifica se esiste una skill in `.claude/skills/`:
-
 ### Skill invocabili (`/project:<nome>`)
-
-| Skill | Descrizione | Auto-invocabile |
-|---|---|---|
-| `/project:generate-setup` | Genera il dev-setup-template completo | No |
-| `/project:update-constitution` | Aggiorna CONSTITUTION e propaga | No |
-| `/project:sync-profiles` | Sincronizza i profili stack | No |
-| `/project:new-skill` | Scaffolda una nuova skill | No |
-| `/project:release` | Pubblica nuova versione del template | No |
-
-### Skill di background (knowledge per Claude)
 
 | Skill | Descrizione |
 |---|---|
-| `clickup.md` | Documentazione di riferimento per operazioni ClickUp |
-| `github-ops.md` | Operazioni GitHub (branch, PR, merge) |
-| `render-template.md` | Renderizzazione file da template con variabili |
+| `/project:generate-setup` | Genera un template (multi-dominio, guidato da manifest) |
+| `/project:update-constitution` | Aggiorna CONSTITUTION e propaga ai template |
+| `/project:sync-profiles` | Sincronizza i profili stack nel template di dominio |
+| `/project:new-skill` | Scaffolda una nuova skill (shared o specifica) |
+| `/project:release` | Pubblica una nuova versione di un template |
 
-## Struttura output attesa
+### Shared skills (in `shared/`, distribuite ai template)
 
-Quando modifichi `templates/dev-setup-template/`, assicurati che la struttura risultante sia:
-
-```
-dev-setup-template/
-├── AGENT.template.md     # Template con placeholder (usato dal setup agent)
-├── CONSTITUTION.md       # Copia esatta da questo repo — non editare manualmente
-├── REGISTRY.md           # Template registro progetto
-├── mcp.json.example      # Template MCP senza chiavi
-├── .env.example          # Variabili richieste (senza valori)
-├── .claude/
-│   ├── settings.json     # Config Claude Code per sviluppatori
-│   ├── agents/           # Sub-agent isolati (clickup, review)
-│   └── skills/           # Skill per sviluppatori (workflow TDD, review, ecc.)
-├── .husky/               # Git hooks (per setup greenfield)
-├── profiles/             # Configurazioni per stack specifici
-└── CHANGELOG.md          # Aggiornato ad ogni release
-```
+| Skill | Descrizione |
+|---|---|
+| `clickup` | Documentazione di riferimento per operazioni ClickUp |
+| `github-ops` | Operazioni GitHub (branch, PR, merge) |
+| `render-template` | Renderizzazione file da template con variabili |
 
 ## Checklist pre-PR
 
 Prima di aprire una PR, verifica:
 
 - [ ] I file generati non contengono API key o segreti
-- [ ] Il `CHANGELOG.md` del template è aggiornato
-- [ ] I profili stack sono coerenti con `profiles/*.md` in questo repo
-- [ ] La `CONSTITUTION.md` nel template è identica alla sorgente
+- [ ] Il `CHANGELOG.md` del template e' aggiornato
+- [ ] I profili stack sono coerenti con quelli nel template
+- [ ] La `CONSTITUTION.md` nel template e' identica alla sorgente (se applicabile)
+- [ ] Il `manifest.json` del template e' coerente con i file presenti
 - [ ] La descrizione PR include istruzioni per testare
 
 ## Aggiornamento di questo file
 
-Questo file viene aggiornato tramite `/project:update-agent-context` o manualmente
-tramite PR. Non modificarlo direttamente su `main`.
+Questo file viene aggiornato manualmente tramite PR. Non modificarlo direttamente su `main`.
 
 ---
-*Versione: 1.0.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
+*Versione: 2.0.0 — aggiornare il numero di versione ad ogni modifica sostanziale*

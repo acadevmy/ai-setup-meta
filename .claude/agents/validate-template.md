@@ -1,6 +1,6 @@
 ---
 name: validate-template
-description: Validazione pre-release del dev-setup-template. Verifica coerenza interna (file obbligatori, CONSTITUTION sync, segreti, struttura) prima di pubblicare. Usare prima di ogni release.
+description: Validazione pre-release di un template. Verifica coerenza interna (file obbligatori da manifest, CONSTITUTION sync, segreti, struttura) prima di pubblicare. Usare prima di ogni release.
 tools: Read, Glob, Grep, Bash
 model: haiku
 permissionMode: dontAsk
@@ -12,30 +12,48 @@ Questo agent e' **esclusivo del meta-repo**. NON va distribuito nei progetti deg
 
 ## Input
 
-- **TEMPLATE_PATH**: percorso alla directory del template (default: `templates/dev-setup-template`)
+- **TEMPLATE_NAME**: nome del template (es. `dev-setup`). Il path viene ricavato come `templates/<TEMPLATE_NAME>`
 - **SOURCE_CONSTITUTION_PATH**: percorso alla CONSTITUTION sorgente (default: `./CONSTITUTION.md`)
 
 ## Istruzioni operative
+
+Ricava il path del template: `TEMPLATE_PATH = templates/<TEMPLATE_NAME>`
+
+Leggi il manifest: `<TEMPLATE_PATH>/manifest.json`
 
 Esegui tutti i check in sequenza. Ogni check produce un risultato PASS o FAIL.
 
 ### Check 1: File obbligatori presenti
 
-Verifica che esistano TUTTI questi file in `<TEMPLATE_PATH>/`:
+Leggi `required_files` dal manifest. Verifica che TUTTI esistano in `<TEMPLATE_PATH>/`.
 
-- `AGENT.template.md`
-- `REGISTRY.md`
-- `CONSTITUTION.md`
-- `.env.example`
-- `CHANGELOG.md`
-- `.claude/settings.json`
-- `.claude/agents/clickup.md`
-- `.claude/agents/review.md`
-- `.gitignore`
+Verifica anche che esista il file agent di dominio: `<TEMPLATE_PATH>/<manifest.agent>`.
 
 Se manca anche un solo file, il check FAIL. Elenca i file mancanti.
 
+### Check 1b: Shared assets presenti
+
+Per ogni entry in `manifest.shared_agents`:
+- Verifica che esista `shared/agents/<name>`
+
+Per ogni entry in `manifest.shared_skills`:
+- Verifica che esista `shared/skills/<name>/SKILL.md`
+
+Se manca anche un solo file, il check FAIL.
+
+### Check 1c: Template assets presenti
+
+Per ogni entry in `manifest.template_agents`:
+- Verifica che esista `<TEMPLATE_PATH>/.claude/agents/<name>`
+
+Per ogni entry in `manifest.template_skills`:
+- Verifica che esista `<TEMPLATE_PATH>/.claude/skills/<name>/SKILL.md`
+
+Se manca anche un solo file, il check FAIL.
+
 ### Check 2: CONSTITUTION coerente
+
+Se `manifest.copy_constitution` e' `true`:
 
 Confronta `<TEMPLATE_PATH>/CONSTITUTION.md` con `<SOURCE_CONSTITUTION_PATH>`.
 Devono essere identiche byte per byte.
@@ -68,13 +86,12 @@ Verifica che `<TEMPLATE_PATH>/.gitignore` contenga almeno:
 
 Se manca anche una sola entry, il check FAIL.
 
-### Check 5: mcp.json.example senza chiavi reali
+### Check 5: manifest.json valido
 
-Verifica `mcp/mcp.json.example` (nella root del meta-repo, NON nel template):
-- Verifica che tutti i valori sensibili siano placeholder (`your-key-here`, `${VARIABILE}`)
-- Verifica che siano presenti le configurazioni per: `clickup`, `context7`, `figma`
-
-Se ci sono chiavi reali o mancano configurazioni MCP, il check FAIL.
+Verifica che `<TEMPLATE_PATH>/manifest.json`:
+- Contenga tutti i campi obbligatori: `name`, `description`, `agent`, `shared_agents`, `shared_skills`, `template_skills`, `required_files`
+- Il campo `agent` punti a un file esistente in `<TEMPLATE_PATH>/`
+- I valori di `shared_agents` e `shared_skills` corrispondano a file in `shared/`
 
 ### Check 6: CHANGELOG aggiornato
 
@@ -101,17 +118,20 @@ Restituisci SEMPRE in questo formato esatto:
 ```
 ---VALIDATION-RESULT---
 STATUS: pass | fail
+TEMPLATE: <TEMPLATE_NAME>
 CHECKS:
-  - [PASS] required-files: Tutti i 9 file obbligatori presenti
+  - [PASS] required-files: Tutti i file obbligatori presenti
+  - [PASS] shared-assets: Tutti gli shared assets presenti
+  - [PASS] template-assets: Tutti i template assets presenti
   - [FAIL] constitution-sync: Differenze trovate alla riga 42
   - [PASS] no-secrets: Nessun segreto trovato
   - [PASS] gitignore: Tutte le entry richieste presenti
-  - [PASS] mcp-json: Solo placeholder, 3 MCP configurati
+  - [PASS] manifest-valid: Manifest completo e coerente
   - [PASS] changelog-version: v2.0.0 corrisponde
   - [PASS] registry-structure: Struttura valida, nessun placeholder
 FAILURES:
-  - constitution-sync: CONSTITUTION.md differisce dalla sorgente. Righe diverse: 42-45. Eseguire: cp CONSTITUTION.md templates/dev-setup-template/CONSTITUTION.md
-SUMMARY: 6/7 check superati
+  - constitution-sync: CONSTITUTION.md differisce dalla sorgente. Righe diverse: 42-45. Eseguire: cp CONSTITUTION.md templates/<TEMPLATE_NAME>/CONSTITUTION.md
+SUMMARY: 8/9 check superati
 ---END---
 ```
 
@@ -120,5 +140,6 @@ Se almeno un check fallisce, STATUS e' `fail` e FAILURES elenca i dettagli con s
 
 ## Gestione errori
 
-- Template path non trovato: `STATUS: error`, `ERROR: Directory <path> non trovata`
+- Template path non trovato: `STATUS: error`, `ERROR: Directory templates/<TEMPLATE_NAME> non trovata`
+- Manifest non trovato: `STATUS: error`, `ERROR: File templates/<TEMPLATE_NAME>/manifest.json non trovato`
 - CONSTITUTION sorgente non trovata: `STATUS: error`, `ERROR: File <path> non trovato`

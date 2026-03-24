@@ -1,6 +1,6 @@
 # Changelog
 
-Tutte le modifiche rilevanti al `dev-setup-template` sono documentate in questo file.
+Tutte le modifiche rilevanti al template `dev-setup` sono documentate in questo file.
 
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).

@@ -1,13 +1,13 @@
 ---
 name: update-constitution
-description: Aggiorna CONSTITUTION.md con modifiche specificate e propaga al dev-setup-template
+description: Aggiorna CONSTITUTION.md con modifiche specificate e propaga ai template che la includono
 user-invocable: true
 disable-model-invocation: true
 ---
 
 # /project:update-constitution
 
-Aggiorna `CONSTITUTION.md` con le modifiche specificate e propaga al `dev-setup-template`.
+Aggiorna `CONSTITUTION.md` con le modifiche specificate e propaga a tutti i template che la includono.
 
 ## Quando usarlo
 - Aggiunta o modifica di regole tecniche
@@ -36,9 +36,11 @@ Descrivi la modifica da apportare:
    - Aggiorna il numero di versione (patch per correzioni, minor per nuove regole)
    - Aggiorna la data "Aggiornato"
 
-4. **Propaga al template**
-   - Copia `CONSTITUTION.md` in `templates/dev-setup-template/CONSTITUTION.md`
-   - Aggiorna `templates/dev-setup-template/CHANGELOG.md`
+4. **Propaga ai template**
+   Per ogni directory in `templates/*/`:
+   - Leggi `manifest.json`
+   - Se `copy_constitution` e' `true`: copia `CONSTITUTION.md` in `templates/<nome>/CONSTITUTION.md`
+   - Aggiorna `templates/<nome>/CHANGELOG.md`
 
 5. **Apri PR**
    - Titolo: `feat(constitution): <descrizione modifica>`

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# release-template.sh — Pubblica il setup agent su dev-setup-template
-# Sincronizza dist/setup.md e un README dal meta-repo al repo template.
+# release-template.sh — Pubblica setup agent + agent di dominio sul repo di distribuzione
+# Sincronizza dist/ (setup.md, agents/, CHANGELOG, README) dal meta-repo al repo dist.
 #
-# Uso: bash scripts/release-template.sh [patch|minor|major]
+# Uso: bash scripts/release-template.sh [patch|minor|major] [template-name]
 #
 # Prerequisiti:
 #   - gh CLI autenticata (gh auth login)
-#   - .env.local con GITHUB_ORG e GITHUB_TEMPLATE_REPO compilati
+#   - .env.local con GITHUB_ORG e GITHUB_DIST_REPO compilati
 #   - Essere su branch main con working tree pulito
 
 set -euo pipefail
@@ -22,6 +22,7 @@ fail() { echo -e "${RED}✗${NC} $1"; exit 1; }
 step() { echo -e "\n${YELLOW}▶ $1${NC}"; }
 
 RELEASE_TYPE="${1:-patch}"
+TEMPLATE_NAME="${2:-}"
 
 if [[ ! "$RELEASE_TYPE" =~ ^(patch|minor|major)$ ]]; then
   fail "Tipo release non valido: '$RELEASE_TYPE'. Usa: patch | minor | major"
@@ -37,11 +38,39 @@ ok "gh CLI autenticata"
 source .env.local 2>/dev/null || fail "File .env.local non trovato. Copia da .env.example e compila."
 
 [ -n "${GITHUB_ORG:-}" ] || fail "GITHUB_ORG non configurata in .env.local"
-[ -n "${GITHUB_TEMPLATE_REPO:-}" ] || fail "GITHUB_TEMPLATE_REPO non configurata in .env.local"
-ok "Variabili: GITHUB_ORG=$GITHUB_ORG, GITHUB_TEMPLATE_REPO=$GITHUB_TEMPLATE_REPO"
+[ -n "${GITHUB_DIST_REPO:-}" ] || fail "GITHUB_DIST_REPO non configurata in .env.local"
+ok "Variabili: GITHUB_ORG=$GITHUB_ORG, GITHUB_DIST_REPO=$GITHUB_DIST_REPO"
 
 # Verifica che setup.md esista
 [ -f "dist/setup.md" ] || fail "dist/setup.md non trovato. Generalo prima di rilasciare."
+
+# Se template non specificato, trova quelli disponibili
+if [ -z "$TEMPLATE_NAME" ]; then
+  TEMPLATES=($(ls -d templates/*/manifest.json 2>/dev/null | xargs -I {} dirname {} | xargs -I {} basename {}))
+  if [ ${#TEMPLATES[@]} -eq 0 ]; then
+    fail "Nessun template trovato in templates/"
+  elif [ ${#TEMPLATES[@]} -eq 1 ]; then
+    TEMPLATE_NAME="${TEMPLATES[0]}"
+    ok "Template selezionato automaticamente: $TEMPLATE_NAME"
+  else
+    echo "Template disponibili:"
+    for i in "${!TEMPLATES[@]}"; do
+      echo "  $((i+1)). ${TEMPLATES[$i]}"
+    done
+    read -rp "Scegli un numero: " CHOICE
+    TEMPLATE_NAME="${TEMPLATES[$((CHOICE-1))]}"
+  fi
+fi
+
+TEMPLATE_DIR="templates/$TEMPLATE_NAME"
+[ -d "$TEMPLATE_DIR" ] || fail "Template '$TEMPLATE_NAME' non trovato in templates/"
+[ -f "$TEMPLATE_DIR/manifest.json" ] || fail "manifest.json non trovato in $TEMPLATE_DIR/"
+
+# Leggi agent name dal manifest
+AGENT_FILE=$(python3 -c "import json; print(json.load(open('$TEMPLATE_DIR/manifest.json'))['agent'])" 2>/dev/null || echo "")
+[ -n "$AGENT_FILE" ] || fail "Campo 'agent' non trovato in manifest.json"
+[ -f "$TEMPLATE_DIR/$AGENT_FILE" ] || fail "Agent file '$AGENT_FILE' non trovato in $TEMPLATE_DIR/"
+ok "Template: $TEMPLATE_NAME, Agent: $AGENT_FILE"
 
 # Validazione URL
 if [ -f "scripts/validate-setup-urls.sh" ]; then
@@ -62,32 +91,33 @@ fi
 
 ok "Branch: main, nessuna modifica pendente"
 
-# ── Verifica che il repo template esista ─────────────────────────────────────
-step "Verifica repo template su GitHub"
+# ── Verifica che il repo dist esista ─────────────────────────────────────────
+step "Verifica repo distribuzione su GitHub"
 
-TEMPLATE_REPO_URL="git@github.com:${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}.git"
+DIST_REPO_URL="git@github.com:${GITHUB_ORG}/${GITHUB_DIST_REPO}.git"
 
-if ! gh repo view "${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}" >/dev/null 2>&1; then
+if ! gh repo view "${GITHUB_ORG}/${GITHUB_DIST_REPO}" >/dev/null 2>&1; then
   echo ""
-  echo "  Il repo ${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO} non esiste."
+  echo "  Il repo ${GITHUB_ORG}/${GITHUB_DIST_REPO} non esiste."
   read -rp "  Vuoi crearlo ora? [y/N] " CREATE_REPO
   if [[ "$CREATE_REPO" =~ ^[Yy]$ ]]; then
-    gh repo create "${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}" \
+    gh repo create "${GITHUB_ORG}/${GITHUB_DIST_REPO}" \
       --private \
       --description "Setup agent AI-native — scarica ed esegui /project:setup" \
       --clone=false
-    ok "Repo ${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO} creato"
+    ok "Repo ${GITHUB_ORG}/${GITHUB_DIST_REPO} creato"
   else
     fail "Operazione annullata. Crea il repo manualmente e riprova."
   fi
 fi
 
-ok "Repo template: ${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
+ok "Repo distribuzione: ${GITHUB_ORG}/${GITHUB_DIST_REPO}"
 
 # ── Calcola nuova versione ──────────────────────────────────────────────────
 step "Calcolo nuova versione"
 
-CURRENT_VERSION="${TEMPLATE_VERSION:-1.0.0}"
+# Leggi TEMPLATE_VERSION dal .env.example del template
+CURRENT_VERSION=$(grep -oP 'TEMPLATE_VERSION=\K.*' "$TEMPLATE_DIR/.env.example" 2>/dev/null || echo "1.0.0")
 
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
@@ -99,7 +129,7 @@ esac
 
 NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 TODAY=$(date +%Y-%m-%d)
-TAG="v$NEW_VERSION"
+TAG="${TEMPLATE_NAME}-v${NEW_VERSION}"
 
 ok "Versione: $CURRENT_VERSION → $NEW_VERSION"
 ok "Tag: $TAG"
@@ -107,16 +137,17 @@ ok "Tag: $TAG"
 # ── Conferma ────────────────────────────────────────────────────────────────
 echo ""
 echo "  Stai per rilasciare: $TAG ($RELEASE_TYPE)"
-echo "  Repo target: ${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
-echo "  Contenuto: setup.md + README.md + CHANGELOG.md"
+echo "  Template: $TEMPLATE_NAME"
+echo "  Repo target: ${GITHUB_ORG}/${GITHUB_DIST_REPO}"
+echo "  Contenuto: setup.md + agents/ + README.md + CHANGELOG.md"
 read -rp "  Confermi? [y/N] " CONFIRM
 [[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "Operazione annullata."; exit 0; }
 
 # ── Aggiorna CHANGELOG ────────────────────────────────────────────────────────
 step "Aggiornamento CHANGELOG"
 
-CHANGELOG_FILE="templates/dev-setup-template/CHANGELOG.md"
-PREV_TAG="v$CURRENT_VERSION"
+CHANGELOG_FILE="$TEMPLATE_DIR/CHANGELOG.md"
+PREV_TAG="${TEMPLATE_NAME}-v${CURRENT_VERSION}"
 
 # Raccogli i commit che hanno toccato il template dalla versione precedente
 CHANGELOG_ADDED=""
@@ -130,8 +161,8 @@ while IFS= read -r MSG; do
     fix:*|fix\(*)   CHANGELOG_FIXED="${CHANGELOG_FIXED}\n- ${MSG#*: }" ;;
     *)               CHANGELOG_CHANGED="${CHANGELOG_CHANGED}\n- ${MSG#*: }" ;;
   esac
-done < <(git log --format='%s' "${PREV_TAG}..HEAD" -- templates/dev-setup-template/ 2>/dev/null || \
-         git log --format='%s' -20 -- templates/dev-setup-template/)
+done < <(git log --format='%s' "${PREV_TAG}..HEAD" -- "$TEMPLATE_DIR/" shared/ 2>/dev/null || \
+         git log --format='%s' -20 -- "$TEMPLATE_DIR/" shared/)
 
 # Genera la nuova entry
 NEW_ENTRY="## [$NEW_VERSION] - $TODAY"
@@ -162,92 +193,115 @@ fi
 
 ok "CHANGELOG.md aggiornato con v$NEW_VERSION"
 
-# ── Aggiorna versione nel meta-repo ─────────────────────────────────────────
-step "Aggiornamento versione nel meta-repo"
+# ── Aggiorna versione nel template ──────────────────────────────────────────
+step "Aggiornamento versione nel template"
 
-sed -i.bak "s/^TEMPLATE_VERSION=.*/TEMPLATE_VERSION=$NEW_VERSION/" .env.example
-rm -f .env.example.bak
-ok ".env.example aggiornato"
+sed -i.bak "s/^TEMPLATE_VERSION=.*/TEMPLATE_VERSION=$NEW_VERSION/" "$TEMPLATE_DIR/.env.example"
+rm -f "$TEMPLATE_DIR/.env.example.bak"
+ok "$TEMPLATE_DIR/.env.example aggiornato"
+
+# ── Copia agent di dominio in dist/ ─────────────────────────────────────────
+step "Aggiornamento dist/"
+
+mkdir -p dist/agents
+cp "$TEMPLATE_DIR/$AGENT_FILE" "dist/agents/$AGENT_FILE"
+ok "Agent di dominio copiato in dist/agents/$AGENT_FILE"
 
 # Commit nel meta-repo
-git add .env.example "$CHANGELOG_FILE"
+git add "$TEMPLATE_DIR/.env.example" "$CHANGELOG_FILE" "dist/agents/$AGENT_FILE"
 if ! git diff --cached --quiet; then
-  git commit -m "chore(release): bump dev-setup-template to v$NEW_VERSION"
+  git commit -m "chore(release): bump $TEMPLATE_NAME to v$NEW_VERSION"
   ok "Commit nel meta-repo creato"
 fi
 
-# ── Sync verso repo template ────────────────────────────────────────────────
-step "Sincronizzazione verso ${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
+# ── Sync verso repo distribuzione ──────────────────────────────────────────
+step "Sincronizzazione verso ${GITHUB_ORG}/${GITHUB_DIST_REPO}"
 
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-# Clona il repo template (o inizializza se vuoto)
-if git ls-remote "$TEMPLATE_REPO_URL" HEAD >/dev/null 2>&1; then
-  git clone --depth 1 "$TEMPLATE_REPO_URL" "$WORK_DIR/template" 2>/dev/null
-  ok "Repo template clonato"
+# Clona il repo dist (o inizializza se vuoto)
+if git ls-remote "$DIST_REPO_URL" HEAD >/dev/null 2>&1; then
+  git clone --depth 1 "$DIST_REPO_URL" "$WORK_DIR/dist" 2>/dev/null
+  ok "Repo distribuzione clonato"
 else
-  mkdir -p "$WORK_DIR/template"
-  cd "$WORK_DIR/template"
+  mkdir -p "$WORK_DIR/dist"
+  cd "$WORK_DIR/dist"
   git init
-  git remote add origin "$TEMPLATE_REPO_URL"
+  git remote add origin "$DIST_REPO_URL"
   cd - >/dev/null
-  ok "Repo template inizializzato (primo rilascio)"
+  ok "Repo distribuzione inizializzato (primo rilascio)"
 fi
 
 # Pulisci il contenuto esistente (tranne .git)
-find "$WORK_DIR/template" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+find "$WORK_DIR/dist" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
 
-# Copia setup.md nella struttura corretta
-mkdir -p "$WORK_DIR/template/.claude/skills/setup"
-cp dist/setup.md "$WORK_DIR/template/.claude/skills/setup/SKILL.md"
-ok "setup.md copiato"
+# Copia setup.md (dispatcher)
+mkdir -p "$WORK_DIR/dist/.claude/skills/setup"
+cp dist/setup.md "$WORK_DIR/dist/.claude/skills/setup/SKILL.md"
+ok "setup.md (dispatcher) copiato"
+
+# Copia agent di dominio
+mkdir -p "$WORK_DIR/dist/.claude/agents"
+cp dist/agents/*.md "$WORK_DIR/dist/.claude/agents/"
+ok "Agent di dominio copiati"
 
 # Copia CHANGELOG.md
-cp "$CHANGELOG_FILE" "$WORK_DIR/template/CHANGELOG.md"
+cp "$CHANGELOG_FILE" "$WORK_DIR/dist/CHANGELOG.md"
 ok "CHANGELOG.md copiato"
 
-# Genera README per il repo template
-cat > "$WORK_DIR/template/README.md" << 'READMEEOF'
-# dev-setup-template
+# Genera README per il repo distribuzione
+AVAILABLE_TEMPLATES=$(ls -d templates/*/manifest.json 2>/dev/null | while read f; do
+  DIR=$(dirname "$f")
+  NAME=$(basename "$DIR")
+  DESC=$(python3 -c "import json; print(json.load(open('$f'))['description'])" 2>/dev/null || echo "")
+  echo "- **$NAME**: $DESC"
+done)
 
-Setup agent AI-Native per progetti di sviluppo.
+cat > "$WORK_DIR/dist/README.md" << READMEEOF
+# AI Setup Agent
+
+Setup agent AI-Native — seleziona il dominio e configura il tuo progetto.
 
 ## Avvio rapido
 
-```bash
-# 1. Nel tuo progetto, scarica il setup agent
-mkdir -p .claude/skills/setup && curl -sL \
-  https://raw.githubusercontent.com/acadevmy/dev-setup-template/main/.claude/skills/setup/SKILL.md \
-  -o .claude/skills/setup/SKILL.md
+\`\`\`bash
+# 1. Nel tuo progetto, scarica il setup agent e gli agent di dominio
+mkdir -p .claude/skills/setup .claude/agents && \\
+  curl -sL https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_DIST_REPO}/main/.claude/skills/setup/SKILL.md \\
+    -o .claude/skills/setup/SKILL.md && \\
+  for agent in \$(curl -sL "https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_DIST_REPO}/contents/.claude/agents" | python3 -c "import sys,json; [print(f['name']) for f in json.load(sys.stdin) if f['name'].endswith('.md')]" 2>/dev/null); do \\
+    curl -sL "https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_DIST_REPO}/main/.claude/agents/\$agent" \\
+      -o ".claude/agents/\$agent"; \\
+  done
 
 # 2. Avvia Claude Code ed esegui il setup
 claude
 # poi digita: /project:setup
-```
+\`\`\`
 
-L'agente analizzera' il progetto (greenfield o esistente), scarichera' le risorse
-necessarie e applichera' tutto in modo adattivo.
+## Domini disponibili
 
-**Prerequisiti**: `git`, `claude` CLI (`npm install -g @anthropic-ai/claude-code`)
+$AVAILABLE_TEMPLATES
 
-## Cosa fa l'agente
+## Come funziona
 
-- **Progetto esistente**: innesta solo il workflow AI (CONSTITUTION, AGENT.md, skills, MCP) senza toccare il tooling
-- **Progetto nuovo (greenfield)**: setup completo con quality tools, profilo stack, MCP
+1. Il dispatcher (\`/project:setup\`) ti chiede quale tipo di setup vuoi
+2. Lancia l'agent di dominio corrispondente gia' scaricato in locale
+3. L'agent di dominio configura tutto: governance, skill, agent, MCP
 
 ## Aggiornamento
 
-Per aggiornare il setup, riesegui lo stesso curl e poi `/project:setup`. L'agente rileva
+Per aggiornare, riesegui il curl e poi \`/project:setup\`. L'agente rileva
 che il setup e' gia' presente e aggiorna solo i file necessari.
 
 ---
-*Generato da [ai-setup-meta](https://github.com/acadevmy/ai-setup-meta)*
+*Generato da [ai-setup-meta](https://github.com/${GITHUB_ORG}/ai-setup-meta)*
 READMEEOF
 ok "README.md generato"
 
-# Commit e push nel repo template
-cd "$WORK_DIR/template"
+# Commit e push nel repo distribuzione
+cd "$WORK_DIR/dist"
 
 git add -A
 
@@ -255,17 +309,17 @@ if git diff --cached --quiet; then
   warn "Nessuna modifica rilevata rispetto alla versione precedente"
   cd - >/dev/null
 else
-  git commit -m "chore(release): v$NEW_VERSION
+  git commit -m "chore(release): v$NEW_VERSION ($TEMPLATE_NAME)
 
 Generato automaticamente da ai-setup-meta.
-Contiene solo il setup agent (.claude/skills/setup/SKILL.md)."
+Contiene: dispatcher + agent di dominio."
 
-  git tag -a "$TAG" -m "Release dev-setup-template v$NEW_VERSION"
+  git tag -a "$TAG" -m "Release $TEMPLATE_NAME v$NEW_VERSION"
 
   git push origin main
   git push origin "$TAG"
   cd - >/dev/null
-  ok "Push completato su ${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
+  ok "Push completato su ${GITHUB_ORG}/${GITHUB_DIST_REPO}"
 fi
 
 # ── Push meta-repo ──────────────────────────────────────────────────────────
@@ -277,16 +331,18 @@ ok "Meta-repo aggiornato"
 # ── Crea GitHub Release ─────────────────────────────────────────────────────
 step "Creazione GitHub Release"
 
-RELEASE_NOTES="## Release v$NEW_VERSION ($TODAY)
+RELEASE_NOTES="## Release $TEMPLATE_NAME v$NEW_VERSION ($TODAY)
 
 Tipo: $RELEASE_TYPE
 
 ### Setup
 
 \`\`\`bash
-mkdir -p .claude/skills/setup && curl -sL \\
-  https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}/main/.claude/skills/setup/SKILL.md \\
-  -o .claude/skills/setup/SKILL.md
+mkdir -p .claude/skills/setup .claude/agents && \\
+  curl -sL https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_DIST_REPO}/main/.claude/skills/setup/SKILL.md \\
+    -o .claude/skills/setup/SKILL.md && \\
+  curl -sL https://raw.githubusercontent.com/${GITHUB_ORG}/${GITHUB_DIST_REPO}/main/.claude/agents/${AGENT_FILE} \\
+    -o .claude/agents/${AGENT_FILE}
 \`\`\`
 
 Poi esegui \`/project:setup\` in Claude Code.
@@ -295,8 +351,8 @@ Poi esegui \`/project:setup\` in Claude Code.
 Generata da: ai-setup-meta/scripts/release-template.sh"
 
 gh release create "$TAG" \
-  --repo "${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}" \
-  --title "dev-setup-template v$NEW_VERSION" \
+  --repo "${GITHUB_ORG}/${GITHUB_DIST_REPO}" \
+  --title "$TEMPLATE_NAME v$NEW_VERSION" \
   --notes "$RELEASE_NOTES"
 
 ok "GitHub Release creata"
@@ -304,10 +360,10 @@ ok "GitHub Release creata"
 # ── Riepilogo ───────────────────────────────────────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║       Release v$NEW_VERSION completata                         ║"
+echo "║       Release $TEMPLATE_NAME v$NEW_VERSION completata              ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
-echo "  Repo aggiornato: https://github.com/${GITHUB_ORG}/${GITHUB_TEMPLATE_REPO}"
+echo "  Repo aggiornato: https://github.com/${GITHUB_ORG}/${GITHUB_DIST_REPO}"
 echo "  Tag: $TAG"
-echo "  Contenuto: .claude/skills/setup/SKILL.md + README.md + CHANGELOG.md"
+echo "  Contenuto: setup.md + agents/ + README.md + CHANGELOG.md"
 echo ""
