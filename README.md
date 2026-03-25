@@ -7,12 +7,27 @@ e il **setup agent** che li distribuisce ai progetti degli sviluppatori.
 
 Per aggiungere il workflow AI-Native a qualsiasi progetto (nuovo o esistente):
 
+Se hai già una cartella .claude/ skills e agents, fai prima un backup:
+
 ```bash
 # 1. Clona il repo di distribuzione e copia skill + agents nel tuo progetto
 gh repo clone acadevmy/dev-setup-template .tmp-ai-setup && \
   cp -r .tmp-ai-setup/.claude/skills .claude/skills && \
   cp -r .tmp-ai-setup/.claude/agents .claude/agents && \
   rm -rf .tmp-ai-setup
+
+# 2. Avvia Claude Code ed esegui il setup
+claude
+# poi digita: /project:setup
+```
+
+Se non hai una cartella .claude nel progetto
+
+```bash
+mkdir .claude && mkdir .claude/skills && gh repo clone acadevmy/dev-setup-template ./tmp-ai-setup && \
+  cp -r ./tmp-ai-setup/.claude/skills .claude/skills && \
+  cp -r ./tmp-ai-setup/.claude/agents .claude/agents && \
+  rm -rf ./tmp-ai-setup
 
 # 2. Avvia Claude Code ed esegui il setup
 claude
