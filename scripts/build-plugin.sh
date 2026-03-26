@@ -317,7 +317,8 @@ ok ".mcp.json generato (clickup, figma, context7)"
 # ── Aggiorna marketplace.json ─────────────────────────────────────────────────
 step "Aggiornamento marketplace.json"
 
-MARKETPLACE="$ROOT_DIR/marketplace.json"
+MARKETPLACE="$ROOT_DIR/.claude-plugin/marketplace.json"
+mkdir -p "$ROOT_DIR/.claude-plugin"
 
 if [ -f "$MARKETPLACE" ]; then
   # Aggiorna la versione del plugin esistente o aggiungilo
