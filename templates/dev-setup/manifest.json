@@ -1,7 +1,9 @@
 {
   "name": "dev-setup",
   "description": "Setup AI-native per progetti di sviluppo software",
+  "author": "Acadevmy",
   "agent": "dev-setup-agent.md",
+  "setup_skill": "setup-skill.md",
   "shared_agents": ["clickup.md"],
   "shared_skills": ["clickup", "github-ops", "render-template"],
   "template_agents": ["review.md"],

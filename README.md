@@ -1,77 +1,56 @@
 # ai-setup-meta
 
 Repository di governance AI. Contiene i template multi-dominio, gli asset condivisi (agents, skills, profili)
-e il **setup agent** che li distribuisce ai progetti degli sviluppatori.
+e il sistema **plugin + marketplace** che li distribuisce ai progetti degli sviluppatori.
 
 ## Setup per sviluppatori
 
 Per aggiungere il workflow AI-Native a qualsiasi progetto (nuovo o esistente):
 
-Se hai già una cartella .claude/ skills e agents, fai prima un backup:
-
 ```bash
-# 1. Clona il repo di distribuzione e copia skill + agents nel tuo progetto
-gh repo clone acadevmy/dev-setup-template .tmp-ai-setup && \
-  cp -r .tmp-ai-setup/.claude/skills .claude/skills && \
-  cp -r .tmp-ai-setup/.claude/agents .claude/agents && \
-  rm -rf .tmp-ai-setup
+# 1. Aggiungi il marketplace Acadevmy (una tantum)
+/plugin marketplace add acadevmy/ai-setup-meta
 
-# 2. Avvia Claude Code ed esegui il setup
-claude
-# poi digita: /project:setup
+# 2. Installa il plugin dev-setup
+/plugin install dev-setup@acadevmy
+
+# 3. Avvia il setup nel tuo progetto
+/dev-setup:setup
 ```
 
-Se non hai una cartella .claude nel progetto
-
-```bash
-mkdir .claude && mkdir .claude/skills && gh repo clone acadevmy/dev-setup-template ./tmp-ai-setup && \
-  cp -r ./tmp-ai-setup/.claude/skills .claude/skills && \
-  cp -r ./tmp-ai-setup/.claude/agents .claude/agents && \
-  rm -rf ./tmp-ai-setup
-
-# 2. Avvia Claude Code ed esegui il setup
-claude
-# poi digita: /project:setup
-```
-
-L'agente analizzera' il progetto, scarichera' le risorse da questo repository
-e applichera' tutto in modo adattivo:
+L'agente analizzera' il progetto e applichera' tutto in modo adattivo:
 - **Progetto esistente**: innesta solo il workflow AI (CONSTITUTION, AGENT, skills, MCP) senza toccare il tooling
 - **Progetto nuovo (greenfield)**: setup completo con quality tools, profilo stack, MCP
 
-**Prerequisiti**: `git`, `gh` CLI (autenticata), `claude` CLI
+**Prerequisiti**: `git`, `claude` CLI. Opzionale: `gh` CLI (per MCP ClickUp e operazioni greenfield).
 
 ## Architettura
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      ai-setup-meta                          │
-│  (questo repo — sorgente di verita')                        │
+│  (questo repo — sorgente di verita' E marketplace)          │
 │                                                             │
-│  Contiene: template, profili stack, shared skills/agents.   │
-│  Il setup agent e' pubblicato su dev-setup-template.        │
+│  templates/     — sorgente dei template per dominio         │
+│  shared/        — agents e skills condivisi                 │
+│  dist/          — plugin built (generati da build script)   │
+│  marketplace.json — indice plugin per Claude Code           │
 │                                                             │
 │  Ogni modifica a main passa per PR obbligatoria.            │
 └────────────────────────┬────────────────────────────────────┘
                          │
-                         │  release script
-                         │  (copia agent + dispatcher in dist/)
+                         │  /plugin marketplace add
+                         │  /plugin install dev-setup@acadevmy
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│          dev-setup-template (repo distribuzione)             │
-│  Contiene: .claude/skills/setup/ + .claude/agents/ + README │
-│  Lo sviluppatore clona con gh e copia skill + agents.       │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         │  /project:setup
-                         │  L'agente scarica risorse da ai-setup-meta
-                         │  via raw.githubusercontent.com
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│            Repo progetto sviluppatore (×11)                  │
+│            Repo progetto sviluppatore                        │
 │                                                             │
-│  Claude Code scarica e applica le risorse in modo adattivo. │
-│  Workflow AI-Native configurato, MCP connessi.              │
+│  /dev-setup:setup                                           │
+│  → Rileva modalita' (UPDATE/GREENFIELD/EXISTING)            │
+│  → Auto-detect stack                                        │
+│  → Installa CONSTITUTION, AGENT.md, REGISTRY                │
+│  → Configura MCP (ClickUp, Context7, Figma)                │
+│  → Skills disponibili via plugin                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,51 +58,66 @@ e applichera' tutto in modo adattivo:
 
 ```
 ai-setup-meta/
-├── AGENT.md                  # Contesto e istruzioni per Claude Code (questo repo)
-├── .claude/
-│   ├── settings.json         # Configurazione Claude Code per questo repo
-│   ├── skills/               # Skills invocabili del meta-repo
-│   │   ├── generate-setup/          # /project:generate-setup
-│   │   ├── update-constitution/     # /project:update-constitution
-│   │   ├── sync-profiles/           # /project:sync-profiles
-│   │   ├── new-skill/               # /project:new-skill
-│   │   └── release/                 # /project:release
-│   └── agents/
-│       ├── review.md                # Code review, conformita' CONSTITUTION
-│       └── validate-template.md     # Validazione pre-release dei template
-├── shared/                   # Asset comuni distribuiti ai template
+├── marketplace.json             # Indice plugin per Claude Code
+├── shared/                      # Asset comuni distribuiti ai template
 │   ├── agents/
-│   │   └── clickup.md               # Agent CRUD ClickUp generico
+│   │   └── clickup.md
 │   └── skills/
-│       ├── clickup/                  # Documentazione operazioni ClickUp
-│       ├── github-ops/               # Branch, PR, commit operations
-│       └── render-template/          # Renderizzazione file da template
-├── templates/                # Template per dominio
-│   └── dev-setup/            # Template dev-setup (qui si modifica)
-│       ├── manifest.json            # Dipendenze da shared/ e file specifici
-│       ├── dev-setup-agent.md       # Agent di dominio (logica di bootstrap)
-│       ├── AGENT.template.md        # Template per AGENT.md generato
-│       ├── CONSTITUTION.md          # CONSTITUTION di riferimento per il dominio
-│       ├── CHANGELOG.md             # Changelog del template
-│       ├── REGISTRY.md              # Registro delle risorse del template
-│       └── profiles/                # Profili stack specifici del dominio
-│           ├── web-frontend.md      # Stack: Next.js, Angular, React
-│           ├── backend-node.md      # Stack: Node.js, NestJS
-│           └── mobile.md           # Stack: Flutter, React Native
-├── dist/                     # Cio' che viene rilasciato
-│   ├── setup.md                     # Dispatcher leggero (selezione dominio)
-│   └── agents/
-│       └── dev-setup-agent.md       # Agent di dominio (copiato da templates/)
+│       ├── clickup/
+│       ├── github-ops/
+│       └── render-template/
+├── templates/                   # Sorgente dei template per dominio
+│   └── dev-setup/
+│       ├── manifest.json               # Dipendenze da shared/ e file specifici
+│       ├── setup-skill.md              # Setup skill (logica di bootstrap)
+│       ├── dev-setup-agent.md          # Agent legacy (reference)
+│       ├── AGENT.template.md           # Template per AGENT.md generato
+│       ├── CONSTITUTION.md
+│       ├── REGISTRY.md
+│       ├── CHANGELOG.md
+│       ├── .claude/
+│       │   ├── settings.json           # Permessi + hooks (sorgente)
+│       │   ├── agents/review.md
+│       │   ├── hooks/                  # protect-files, post-edit, on-compact
+│       │   └── skills/                 # 9 workflow skills
+│       └── profiles/
+│           ├── web-frontend.md
+│           ├── backend-node.md
+│           └── mobile.md
+├── dist/                        # Plugin built (generati, committati)
+│   └── dev-setup/               # Plugin Claude Code self-contained
+│       ├── .claude-plugin/plugin.json
+│       ├── skills/              # 13 skills (template + shared + setup)
+│       ├── agents/              # 2 agents (review + clickup)
+│       ├── hooks/               # hooks.json + scripts
+│       └── .mcp.json            # context7
 ├── scripts/
-│   ├── init-meta.sh                 # Bootstrap iniziale di questo repo
-│   ├── release-template.sh          # Pubblica nuova versione del template
-│   └── validate-setup-urls.sh       # Verifica coerenza URL
+│   ├── build-plugin.sh          # Build: manifest → plugin in dist/
+│   ├── release-plugin.sh        # Release: version bump + build + tag + push
+│   ├── init-meta.sh
+│   └── validate-setup-urls.sh
 ├── mcp/
-│   └── mcp.json.example             # Esempio configurazione MCP servers
+│   └── mcp.json.example
 └── docs/
-    ├── onboarding.md                # Guida per nuovi sviluppatori
-    ├── developer-guide.md           # Guida tecnica per sviluppatori
-    └── workflow.md                  # Come opera Claude Code in questo repo
+    ├── onboarding.md
+    ├── developer-guide.md
+    └── workflow.md
+```
+
+## Build e release
+
+```bash
+# Build plugin (genera dist/dev-setup/)
+bash scripts/build-plugin.sh dev-setup
+
+# Validazione plugin
+claude plugin validate dist/dev-setup/
+
+# Test locale
+claude --plugin-dir dist/dev-setup/
+
+# Release (version bump + build + changelog + tag + push + GitHub Release)
+bash scripts/release-plugin.sh patch dev-setup
 ```
 
 ## Regole operative
@@ -131,48 +125,41 @@ ai-setup-meta/
 - **Nessun push diretto su `main`** — nemmeno dall'agente. Sempre PR.
 - **La `CONSTITUTION.md`** nel template e' la sorgente di verita' per quel dominio.
 - **Le API key non entrano mai nel repo** — solo in `.env.local` (gitignored) o nei secret GitHub.
-- Dopo ogni modifica ai file in `templates/` o `shared/`, eseguire `bash scripts/validate-setup-urls.sh` per verificare la coerenza.
+- `dist/` e' generato da `build-plugin.sh` ma committato (il marketplace punta li').
 
-## Avvio rapido — meta-repo (solo maintainer)
+## Skills distribuite dal plugin dev-setup
 
-```bash
-git clone git@github.com:acadevmy/ai-setup-meta.git
-cd ai-setup-meta
-cp .env.example .env.local
-bash scripts/init-meta.sh
-claude
-```
-
-## Skill disponibili
-
-### Skill invocabili (`/project:<nome>`)
+### Workflow skills
 
 | Skill | Descrizione |
 |---|---|
-| `/project:generate-setup` | Genera un template (multi-dominio, guidato da manifest) |
-| `/project:update-constitution` | Aggiorna CONSTITUTION e propaga ai template |
-| `/project:sync-profiles` | Sincronizza i profili stack nel template di dominio |
-| `/project:new-skill` | Scaffolda una nuova skill (shared o specifica) |
-| `/project:release` | Pubblica una nuova versione di un template |
+| `/dev-setup:setup` | Bootstrap AI-Native (rileva stack, installa governance) |
+| `/dev-setup:start-task` | Flow rapido: branch → TDD/BDD → review → PR |
+| `/dev-setup:sdd` | Flow Spec-Driven: spec → approvazione → sviluppo |
+| `/dev-setup:sdd-spec` | Genera specifica tecnica |
+| `/dev-setup:sdd-plan` | Presenta spec per discussione |
+| `/dev-setup:sdd-dev` | Sviluppo da spec approvata |
 
-### Shared skills (distribuite ai template via manifest)
+### Methodology skills
 
 | Skill | Descrizione |
 |---|---|
-| `clickup` | Documentazione di riferimento per operazioni ClickUp |
-| `github-ops` | Operazioni GitHub (branch, PR, merge) |
-| `render-template` | Renderizzazione file da template con variabili |
+| `/dev-setup:tdd` | Test-Driven Development (Red-Green-Refactor) |
+| `/dev-setup:bdd` | Behavior-Driven Development (Given/When/Then) |
+| `/dev-setup:review` | Code review con conformita' CONSTITUTION |
+
+### Shared skills
+
+| Skill | Descrizione |
+|---|---|
+| `/dev-setup:clickup` | Operazioni ClickUp via MCP |
+| `/dev-setup:github-ops` | Branch, PR, merge operations |
+| `/dev-setup:render-template` | Renderizzazione template con variabili |
+| `/dev-setup:sync-task` | Sincronizza contesto task ClickUp |
 
 ### Agents
 
-| Agent | File | Ruolo |
-|---|---|---|
-| **review** | `.claude/agents/review.md` | Code review, conformita' CONSTITUTION |
-| **validate-template** | `.claude/agents/validate-template.md` | Validazione pre-release dei template |
-| **clickup** (shared) | `shared/agents/clickup.md` | CRUD ClickUp generico, distribuito ai template |
-
-1. Seleziona task da eseguire
-2. Fai il plan (intervista)
-3. Sviluppa - scegli la metodologia
-4. Comando manuale: scrivi i test + PR
-5. Messaggio su Slack a Mirko!
+| Agent | Ruolo |
+|---|---|
+| **review** | Code review, conformita' CONSTITUTION, aggiorna REGISTRY |
+| **clickup** | CRUD ClickUp generico (passthrough MCP) |
