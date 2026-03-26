@@ -168,7 +168,7 @@ ok "CHANGELOG.md aggiornato"
 # ── Commit ───────────────────────────────────────────────────────────────────
 step "Commit e tag"
 
-git add "$TEMPLATE_DIR/.env.example" "$CHANGELOG_FILE" "dist/$TEMPLATE_NAME/" "marketplace.json"
+git add "$TEMPLATE_DIR/.env.example" "$CHANGELOG_FILE" "dist/$TEMPLATE_NAME/" ".claude-plugin/marketplace.json"
 if ! git diff --cached --quiet; then
   git commit -m "chore(release): bump $TEMPLATE_NAME to v$NEW_VERSION"
   ok "Commit creato"
@@ -221,5 +221,5 @@ echo "╚═══════════════════════�
 echo ""
 echo "  Tag: $TAG"
 echo "  Plugin: dist/$TEMPLATE_NAME/"
-echo "  Marketplace: marketplace.json"
+echo "  Marketplace: .claude-plugin/marketplace.json"
 echo ""
