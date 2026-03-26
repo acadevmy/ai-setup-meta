@@ -1,6 +1,7 @@
-# AGENT.md — Progetto di sviluppo
+# AGENTS.md — Progetto di sviluppo
 
-> Questo file e' il **Ground Truth** per Claude Code quando opera in questo progetto.
+> Questo file e' il **Ground Truth** per qualsiasi agente AI che opera in questo progetto.
+> Claude Code lo carica automaticamente tramite `CLAUDE.md` (che contiene `@AGENTS.md`).
 > Leggilo integralmente prima di qualsiasi operazione.
 
 ## Identita' e scopo

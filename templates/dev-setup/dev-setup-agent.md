@@ -34,7 +34,7 @@ quali file scaricare. Il manifest dichiara:
 - `template_agents` → scaricati da `templates/dev-setup/.claude/agents/<name>`
 - `template_skills` → scaricati da `templates/dev-setup/.claude/skills/<name>/SKILL.md`
 - `profiles` → scaricati da `templates/dev-setup/profiles/<name>`
-- `required_files` → file del template (CONSTITUTION, AGENT.template, REGISTRY, ecc.)
+- `required_files` → file del template (CONSTITUTION, AGENTS.template, REGISTRY, ecc.)
 
 ## Strategia di download
 
@@ -177,9 +177,9 @@ Questi file richiedono adattamento prima di essere installati. Scaricali nello s
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/CONSTITUTION.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/CONSTITUTION_SOURCE.md
 ```
 
-**AGENT template** (verra' processato al Passo 5):
+**AGENTS template** (verra' processato al Passo 5):
 ```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/AGENT.template.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/AGENT_TEMPLATE.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/AGENTS.template.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/AGENTS_TEMPLATE.md
 ```
 
 **Profilo stack** (solo GREENFIELD, verra' applicato al Passo 9.5):
@@ -289,9 +289,9 @@ Scrivi il risultato in `CONSTITUTION.md` nella root del progetto.
 
 ---
 
-### Passo 5 — Genera AGENT.md
+### Passo 5 — Genera AGENTS.md
 
-Leggi il contenuto scaricato da `.claude/.setup-tmp/AGENT_TEMPLATE.md` e sostituisci i placeholder.
+Leggi il contenuto scaricato da `.claude/.setup-tmp/AGENTS_TEMPLATE.md` e sostituisci i placeholder.
 Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
 
 #### Valori placeholder per modalita' EXISTING:
@@ -319,9 +319,28 @@ In base allo stack scelto nel Passo 2b:
 
 Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
 
-**Conflict detection**: Se `AGENT.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
+**Conflict detection**: Se `AGENTS.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
 
-Scrivi il risultato in `AGENT.md` nella root del progetto.
+Scrivi il risultato in `AGENTS.md` nella root del progetto.
+
+---
+
+### Passo 5b — Genera CLAUDE.md
+
+Claude Code legge `CLAUDE.md`, non `AGENTS.md`. Per garantire compatibilita' con Claude Code
+e al tempo stesso mantenere `AGENTS.md` come standard cross-tool (Codex, Copilot, Cursor, ecc.),
+genera un `CLAUDE.md` che referenzia `AGENTS.md`:
+
+```markdown
+@AGENTS.md
+```
+
+Il file `CLAUDE.md` deve contenere **solo** la riga sopra indicata. Non aggiungere
+altro contenuto: tutte le istruzioni devono restare in `AGENTS.md` come single source of truth.
+
+**Conflict detection**: Se `CLAUDE.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
+
+Scrivi il risultato in `CLAUDE.md` nella root del progetto.
 
 ---
 
@@ -631,8 +650,9 @@ Mostra un riepilogo allo sviluppatore in questo formato:
 Setup completato!
 
 File installati:
+  - CLAUDE.md             — entry point per Claude Code (importa AGENTS.md)
+  - AGENTS.md             — istruzioni per agenti AI (standard cross-tool)
   - CONSTITUTION.md       — regole di governance
-  - AGENT.md              — istruzioni per Claude Code
   - REGISTRY.md           — registro feature e servizi
   - .claude/              — settings + skills + agents
 
@@ -656,8 +676,9 @@ Prossimi passi:
 Setup completato!
 
 Configurazione del progetto:
+  - CLAUDE.md             — entry point per Claude Code (importa AGENTS.md)
+  - AGENTS.md             — istruzioni per agenti AI (standard cross-tool)
   - CONSTITUTION.md       — regole di governance
-  - AGENT.md              — istruzioni per Claude Code
   - REGISTRY.md           — registro feature e servizi
   - .claude/              — settings + skills + agents
   - .husky/               — git hooks (lint + commit)

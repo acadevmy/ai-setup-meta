@@ -48,7 +48,7 @@ L'agente analizzera' il progetto e applichera' tutto in modo adattivo:
 │  /dev-setup:setup                                           │
 │  → Rileva modalita' (UPDATE/GREENFIELD/EXISTING)            │
 │  → Auto-detect stack                                        │
-│  → Installa CONSTITUTION, AGENT.md, REGISTRY                │
+│  → Installa CONSTITUTION, AGENTS.md, CLAUDE.md, REGISTRY    │
 │  → Configura MCP (ClickUp, Context7, Figma)                │
 │  → Skills disponibili via plugin                            │
 └─────────────────────────────────────────────────────────────┘
@@ -71,7 +71,7 @@ ai-setup-meta/
 │       ├── manifest.json               # Dipendenze da shared/ e file specifici
 │       ├── setup-skill.md              # Setup skill (logica di bootstrap)
 │       ├── dev-setup-agent.md          # Agent legacy (reference)
-│       ├── AGENT.template.md           # Template per AGENT.md generato
+│       ├── AGENTS.template.md          # Template per AGENTS.md generato
 │       ├── CONSTITUTION.md
 │       ├── REGISTRY.md
 │       ├── CHANGELOG.md

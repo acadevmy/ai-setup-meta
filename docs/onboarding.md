@@ -78,7 +78,7 @@ claude
 
 L'agente analizza il progetto e opera in tre modalita':
 - **GREENFIELD** — progetto nuovo: setup completo con quality tools (husky, commitlint, prettier, eslint), profilo stack, MCP, semantic-release
-- **EXISTING** — progetto con codice esistente: innesta solo il workflow AI (CONSTITUTION, AGENT.md, skills, MCP) senza toccare il tooling
+- **EXISTING** — progetto con codice esistente: innesta solo il workflow AI (CONSTITUTION, AGENTS.md, CLAUDE.md, skills, MCP) senza toccare il tooling
 - **UPDATE** — setup gia' presente: aggiorna solo i file necessari alla nuova versione
 
 ## Passo 4 — Verificare la configurazione
@@ -100,7 +100,7 @@ cat .husky/pre-commit
 claude
 ```
 
-Al primo avvio Claude Code legge automaticamente `AGENT.md` e `CONSTITUTION.md`.
+Al primo avvio Claude Code legge automaticamente `CLAUDE.md` (che importa `AGENTS.md`) e `CONSTITUTION.md`.
 Puoi subito usare i comandi slash disponibili per il tuo stack.
 
 ## Comandi slash disponibili (dopo il setup)

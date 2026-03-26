@@ -40,7 +40,7 @@ Genera o rigenera un template completo a partire dalle sorgenti di questo repo.
 4. **Genera la struttura base del template**
    Verifica che tutti i `required_files` del manifest esistano in `templates/<TEMPLATE_NAME>/`.
    Crea o aggiorna i file mancanti:
-   - `AGENT.template.md` — template unico con placeholder
+   - `AGENTS.template.md` — template unico con placeholder
    - `REGISTRY.md` — template del registro progetto
    - `.env.example` — variabili richieste senza valori
    - `CHANGELOG.md` — inizializza con versione corrente

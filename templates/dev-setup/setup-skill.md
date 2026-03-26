@@ -21,7 +21,7 @@ Tutti i file template sono disponibili in:
 ${CLAUDE_SKILL_DIR}/templates/
 ```
 
-Contiene: AGENT.template.md, CONSTITUTION.md, REGISTRY.md, .env.example, .gitignore, settings.json, profiles/
+Contiene: AGENTS.template.md, CONSTITUTION.md, REGISTRY.md, .env.example, .gitignore, settings.json, profiles/
 
 ---
 
@@ -141,8 +141,8 @@ Questi file richiedono adattamento. Leggili dal plugin:
 **CONSTITUTION.md** (verra' adattato al Passo 4):
 Leggi `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`
 
-**AGENT template** (verra' processato al Passo 5):
-Leggi `${CLAUDE_SKILL_DIR}/templates/AGENT.template.md`
+**AGENTS template** (verra' processato al Passo 5):
+Leggi `${CLAUDE_SKILL_DIR}/templates/AGENTS.template.md`
 
 **Profilo stack** (solo GREENFIELD, verra' applicato al Passo 8.5):
 Leggi il profilo selezionato da `${CLAUDE_SKILL_DIR}/templates/profiles/`:
@@ -211,9 +211,9 @@ Scrivi il risultato in `CONSTITUTION.md` nella root del progetto.
 
 ---
 
-### Passo 5 — Genera AGENT.md
+### Passo 5 — Genera AGENTS.md
 
-Leggi il contenuto da `${CLAUDE_SKILL_DIR}/templates/AGENT.template.md` e sostituisci i placeholder.
+Leggi il contenuto da `${CLAUDE_SKILL_DIR}/templates/AGENTS.template.md` e sostituisci i placeholder.
 Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
 
 #### Valori placeholder per modalita' EXISTING:
@@ -241,9 +241,28 @@ In base allo stack scelto nel Passo 2b:
 
 Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
 
-**Conflict detection**: Se `AGENT.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
+**Conflict detection**: Se `AGENTS.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
 
-Scrivi il risultato in `AGENT.md` nella root del progetto.
+Scrivi il risultato in `AGENTS.md` nella root del progetto.
+
+---
+
+### Passo 5b — Genera CLAUDE.md
+
+Claude Code legge `CLAUDE.md`, non `AGENTS.md`. Per garantire compatibilita' con Claude Code
+e al tempo stesso mantenere `AGENTS.md` come standard cross-tool (Codex, Copilot, Cursor, ecc.),
+genera un `CLAUDE.md` che referenzia `AGENTS.md`:
+
+```markdown
+@AGENTS.md
+```
+
+Il file `CLAUDE.md` deve contenere **solo** la riga sopra indicata. Non aggiungere
+altro contenuto: tutte le istruzioni devono restare in `AGENTS.md` come single source of truth.
+
+**Conflict detection**: Se `CLAUDE.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
+
+Scrivi il risultato in `CLAUDE.md` nella root del progetto.
 
 ---
 
@@ -545,8 +564,9 @@ Mostra un riepilogo allo sviluppatore in questo formato:
 Setup completato!
 
 File installati:
+  - CLAUDE.md             — entry point per Claude Code (importa AGENTS.md)
+  - AGENTS.md             — istruzioni per agenti AI (standard cross-tool)
   - CONSTITUTION.md       — regole di governance
-  - AGENT.md              — istruzioni per Claude Code
   - REGISTRY.md           — registro feature e servizi
   - .claude/settings.json — permessi progetto
 
@@ -577,8 +597,9 @@ Prossimi passi:
 Setup completato!
 
 Configurazione del progetto:
+  - CLAUDE.md             — entry point per Claude Code (importa AGENTS.md)
+  - AGENTS.md             — istruzioni per agenti AI (standard cross-tool)
   - CONSTITUTION.md       — regole di governance
-  - AGENT.md              — istruzioni per Claude Code
   - REGISTRY.md           — registro feature e servizi
   - .claude/settings.json — permessi progetto
   - .husky/               — git hooks (lint + commit)

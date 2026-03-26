@@ -61,8 +61,8 @@ gh auth status
 # MCP servers connessi (clickup, context7 e opzionalmente figma)
 claude mcp list
 
-# AGENT.md e CONSTITUTION.md presenti nella root del progetto
-ls AGENT.md CONSTITUTION.md
+# AGENTS.md, CLAUDE.md e CONSTITUTION.md presenti nella root del progetto
+ls AGENTS.md CLAUDE.md CONSTITUTION.md
 ```
 
 Se manca qualcosa, torna alla guida di [onboarding.md](onboarding.md).
@@ -245,7 +245,8 @@ Dopo il setup, il tuo progetto avra' questi file AI-native:
 ```
 progetto/
 ├── CONSTITUTION.md          # Regole inviolabili (non modificare)
-├── AGENT.md                 # Istruzioni per Claude Code (specifiche al progetto)
+├── AGENTS.md                # Istruzioni per agenti AI (standard cross-tool)
+├── CLAUDE.md                # Entry point per Claude Code (importa AGENTS.md)
 ├── REGISTRY.md              # Indice di componenti, servizi, pattern, ADR
 ├── .env                     # Segreti locali (gitignored)
 ├── .claude/
@@ -308,7 +309,7 @@ Assicurati che nella root del progetto ci sia:
 Dopo aver completato il primo task:
 
 1. **Esplora il REGISTRY.md** — capire cosa e' gia' stato costruito nel progetto
-2. **Leggi il profilo stack** del tuo progetto in `AGENT.md` — contiene regole specifiche
+2. **Leggi il profilo stack** del tuo progetto in `AGENTS.md` — contiene regole specifiche
 3. **Usa Context7** — Claude Code accede alla documentazione aggiornata delle librerie via MCP,
    quindi puoi chiedergli riferimenti precisi senza cercare manualmente
 4. **Figma (opzionale)** — se hai configurato il token, Claude Code puo' leggere i design

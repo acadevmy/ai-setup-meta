@@ -1,6 +1,7 @@
-# AGENT.md — Meta-Setup Repository
+# AGENTS.md — Meta-Setup Repository
 
-> Questo file e' il **Ground Truth** per Claude Code quando opera in questo repository.
+> Questo file e' il **Ground Truth** per qualsiasi agente AI che opera in questo repository.
+> Claude Code lo carica automaticamente tramite `CLAUDE.md` (che contiene `@AGENTS.md`).
 > Leggilo integralmente prima di qualsiasi operazione.
 
 ## Identita' e scopo

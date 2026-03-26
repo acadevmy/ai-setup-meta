@@ -14,7 +14,7 @@ Utile per generare file personalizzati per ogni sviluppatore durante il setup.
 I file template usano la sintassi `{{VARIABILE}}` per i placeholder:
 
 ```markdown
-# AGENT.md — {{PROJECT_NAME}}
+# AGENTS.md — {{PROJECT_NAME}}
 
 Stack selezionato: {{STACK_PROFILE}}
 Sviluppatore: {{DEVELOPER_NAME}}
@@ -22,7 +22,7 @@ Sviluppatore: {{DEVELOPER_NAME}}
 
 ## Come renderizzare un file
 
-1. Leggi il file template (es. `templates/dev-setup-template/AGENT.md`)
+1. Leggi il file template (es. `templates/dev-setup-template/AGENTS.md`)
 2. Identifica tutti i placeholder `{{VARIABILE}}`
 3. Sostituisci con i valori forniti in input o da `.env.local`
 4. Scrivi il file renderizzato nella destinazione

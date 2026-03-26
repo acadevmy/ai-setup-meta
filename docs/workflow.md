@@ -134,7 +134,7 @@ La prima volta che si esegue `release-template.sh`, lo script:
 1. **Non operare mai su `main` direttamente** — sempre branch + PR
 2. **Leggere ogni PR di Claude** prima di approvarla — la responsabilita' resta umana
 3. **Non approvare PR che modificano `CONSTITUTION.md`** senza una review attenta
-4. **Aggiornare `AGENT.md`** se cambiano strumenti, profili o processi del team
+4. **Aggiornare `AGENTS.md`** se cambiano strumenti, profili o processi del team
 5. **Testare `/project:setup`** su un progetto pulito prima di ogni release minor/major
 6. **Non modificare mai il repo template direttamente** — usare sempre il meta-repo
 
@@ -143,7 +143,7 @@ La prima volta che si esegue `release-template.sh`, lo script:
 Se Claude Code fa qualcosa di inatteso:
 
 1. **Non fare merge della PR** — chiuderla senza merge
-2. Analizzare cosa e' andato storto nell'`AGENT.md` o nei comandi slash
+2. Analizzare cosa e' andato storto nell'`AGENTS.md` o nei comandi slash
 3. Correggere le istruzioni e riprovare
 4. Se il problema e' ricorrente, aprire una PR per migliorare il prompt
 

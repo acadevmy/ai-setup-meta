@@ -10,7 +10,8 @@
   "template_skills": ["start-task", "sync-task", "review", "tdd", "bdd", "sdd", "sdd-spec", "sdd-plan", "sdd-dev"],
   "profiles": ["web-frontend.md", "backend-node.md", "mobile.md"],
   "required_files": [
-    "AGENT.template.md",
+    "CLAUDE.md",
+    "AGENTS.template.md",
     "REGISTRY.md",
     "CONSTITUTION.md",
     ".env.example",
