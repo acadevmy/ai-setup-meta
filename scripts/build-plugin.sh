@@ -201,7 +201,16 @@ cat > "$DIST_DIR/.claude-plugin/plugin.json" << PLUGINJSON
   "skills": "./skills",
   "agents": $AGENTS_JSON,
   "hooks": "./hooks/hooks.json",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.mcp.json",
+  "userConfig": {
+    "CLICKUP_SETUP_LIST_ID": {
+      "title": "ClickUp Sprint List ID",
+      "description": "ID della lista ClickUp per i task di sprint (trovalo nell'URL: app.clickup.com/.../li/<ID>)",
+      "type": "string",
+      "sensitive": false,
+      "required": false
+    }
+  }
 }
 PLUGINJSON
 
