@@ -36,6 +36,13 @@ quali file scaricare. Il manifest dichiara:
 - `profiles` → scaricati da `templates/dev-setup/profiles/<name>`
 - `required_files` → file del template (CONSTITUTION, AGENT.template, REGISTRY, ecc.)
 
+## Strategia di download
+
+I file scaricati si dividono in due categorie:
+
+- **Verbatim**: scaricati direttamente nella destinazione finale (skills, agents, settings, REGISTRY). Prima del download si verifica il conflict detection.
+- **Con trasformazione**: scaricati in uno staging locale al progetto (`.claude/.setup-tmp/`), trasformati, poi scritti nella destinazione finale. Riguarda: CONSTITUTION (rimozione sezioni), AGENT template (sostituzione placeholder), profili (estrazione configurazioni).
+
 ---
 
 ## Procedura completa
@@ -147,73 +154,106 @@ gh api repos/acadevmy/ai-setup-meta/contents/<PATH> -H "Accept: application/vnd.
 
 **IMPORTANTE**: Scrivi i file scaricati **esattamente come ricevuti**, senza modifiche. Non riformattare, non aggiustare, non migliorare. Il contenuto deve essere verbatim.
 
-#### 3.0 — Scarica il manifest
+#### 3.0 — Prepara lo staging e scarica il manifest
 
+Crea la directory di staging locale al progetto per i file che richiedono trasformazione:
 ```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/manifest.json -H "Accept: application/vnd.github.raw" > /tmp/manifest.json
+mkdir -p .claude/.setup-tmp
+```
+
+Scarica il manifest nello staging:
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/manifest.json -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/manifest.json
 ```
 
 Leggi il manifest e usalo per guidare i download successivi.
 
-#### 3.1 — CONSTITUTION.md
+#### 3.1 — File con trasformazione (nello staging)
 
+Questi file richiedono adattamento prima di essere installati. Scaricali nello staging locale:
+
+**CONSTITUTION.md** (verra' adattato al Passo 4):
 ```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/CONSTITUTION.md -H "Accept: application/vnd.github.raw" > /tmp/CONSTITUTION_SOURCE.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/CONSTITUTION.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/CONSTITUTION_SOURCE.md
 ```
 
-Scarica il file in un percorso temporaneo. Lo adatterai nel passo successivo.
-
-#### 3.2 — AGENT template
-
+**AGENT template** (verra' processato al Passo 5):
 ```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/AGENT.template.md -H "Accept: application/vnd.github.raw" > /tmp/AGENT_TEMPLATE.md
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/AGENT.template.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/AGENT_TEMPLATE.md
 ```
 
-Un unico template con placeholder, usato sia per GREENFIELD che per EXISTING.
-
-#### 3.3 — settings.json
-
-```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/.claude/settings.json -H "Accept: application/vnd.github.raw" > /tmp/claude_settings.json
-```
-
-#### 3.4 — Skills (dal manifest)
-
-Per ogni skill in `shared_skills` del manifest:
-```bash
-gh api repos/acadevmy/ai-setup-meta/contents/shared/skills/<SKILL_NAME>/SKILL.md -H "Accept: application/vnd.github.raw" > /tmp/skill_<SKILL_NAME>.md
-```
-
-Per ogni skill in `template_skills` del manifest:
-```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/.claude/skills/<SKILL_NAME>/SKILL.md -H "Accept: application/vnd.github.raw" > /tmp/skill_<SKILL_NAME>.md
-```
-
-#### 3.4b — Agent files (dal manifest)
-
-Per ogni agent in `shared_agents` del manifest:
-```bash
-gh api repos/acadevmy/ai-setup-meta/contents/shared/agents/<AGENT_NAME> -H "Accept: application/vnd.github.raw" > /tmp/agent_<AGENT_NAME>
-```
-
-Per ogni agent in `template_agents` del manifest:
-```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/.claude/agents/<AGENT_NAME> -H "Accept: application/vnd.github.raw" > /tmp/agent_<AGENT_NAME>
-```
-
-#### 3.5 — REGISTRY.md
-
-```bash
-gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/REGISTRY.md -H "Accept: application/vnd.github.raw" > /tmp/REGISTRY.md
-```
-
-#### 3.6 — Profilo stack (solo GREENFIELD)
+**Profilo stack** (solo GREENFIELD, verra' applicato al Passo 9.5):
 
 Scarica il profilo selezionato dal manifest `profiles`:
-- Web Frontend: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/web-frontend.md -H "Accept: application/vnd.github.raw" > /tmp/profile.md`
-- Backend Node: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/backend-node.md -H "Accept: application/vnd.github.raw" > /tmp/profile.md`
-- Mobile: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/mobile.md -H "Accept: application/vnd.github.raw" > /tmp/profile.md`
-- Full-stack: scarica sia `web-frontend.md` che `backend-node.md`
+- Web Frontend: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/web-frontend.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
+- Backend Node: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/backend-node.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
+- Mobile: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/mobile.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
+- Full-stack: scarica sia `web-frontend.md` che `backend-node.md` (come `profile_web.md` e `profile_api.md`)
+
+#### 3.2 — File verbatim (direttamente a destinazione)
+
+Questi file vengono copiati esattamente come ricevuti. Prima di ogni download, verifica se il file di destinazione esiste gia' (**conflict detection**): se esiste, informa lo sviluppatore e mantieni quello esistente saltando il download.
+
+**Crea la struttura delle directory**:
+```bash
+mkdir -p .claude/skills .claude/agents
+mkdir -p .claude/skills/{start-task,tdd,bdd,review,sync-task,setup,sdd,sdd-spec,sdd-plan,sdd-dev}
+mkdir -p .claude/skills/{clickup,github-ops,render-template}
+```
+
+**settings.json**:
+Se `.claude/settings.json` **non** esiste:
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/.claude/settings.json -H "Accept: application/vnd.github.raw" > .claude/settings.json
+```
+Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
+
+**REGISTRY.md**:
+Se `REGISTRY.md` **non** esiste (o lo sviluppatore conferma la sovrascrittura):
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/REGISTRY.md -H "Accept: application/vnd.github.raw" > REGISTRY.md
+```
+
+**Skills** (dal manifest):
+
+Scarica e installa le skills appropriate in base al progetto.
+
+**Skills comuni** (sempre installate): start-task, review, sync-task
+**Skills SDD** (sempre installate): sdd, sdd-spec, sdd-plan, sdd-dev
+**Shared skills** (sempre installate): clickup, github-ops, render-template
+
+**Skills di metodologia** (in base al tipo di progetto):
+- Se **frontend rilevato** (o stack Web Frontend / Mobile / Full-stack) → installa `bdd`
+- Se **backend rilevato** (o stack Backend Node / Full-stack) → installa `tdd`
+- Se **full-stack** o non determinabile → installa entrambe (`tdd` + `bdd`)
+
+Per ogni shared skill da installare, se `.claude/skills/<SKILL_NAME>/SKILL.md` **non** esiste:
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/shared/skills/<SKILL_NAME>/SKILL.md -H "Accept: application/vnd.github.raw" > .claude/skills/<SKILL_NAME>/SKILL.md
+```
+
+Per ogni template skill da installare, se `.claude/skills/<SKILL_NAME>/SKILL.md` **non** esiste:
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/.claude/skills/<SKILL_NAME>/SKILL.md -H "Accept: application/vnd.github.raw" > .claude/skills/<SKILL_NAME>/SKILL.md
+```
+
+Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
+
+**Agent files** (dal manifest):
+
+Per ogni agent in `shared_agents`, se `.claude/agents/<AGENT_NAME>` **non** esiste:
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/shared/agents/<AGENT_NAME> -H "Accept: application/vnd.github.raw" > .claude/agents/<AGENT_NAME>
+```
+
+Per ogni agent in `template_agents`, se `.claude/agents/<AGENT_NAME>` **non** esiste:
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/.claude/agents/<AGENT_NAME> -H "Accept: application/vnd.github.raw" > .claude/agents/<AGENT_NAME>
+```
+
+Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
+
+**Mantieni setup.md**: Il file `.claude/skills/setup/SKILL.md` (la skill dispatcher) e' gia' presente. Non toccarlo.
 
 **Verifica che i download siano andati a buon fine**: controlla che i file scaricati non siano vuoti e non contengano errori JSON (es. `{"message":"Not Found"}`). Se un download fallisce, informa lo sviluppatore e fermati.
 
@@ -221,7 +261,7 @@ Scarica il profilo selezionato dal manifest `profiles`:
 
 ### Passo 4 — Adatta CONSTITUTION.md
 
-Parti dal contenuto scaricato in `/tmp/CONSTITUTION_SOURCE.md`.
+Parti dal contenuto scaricato in `.claude/.setup-tmp/CONSTITUTION_SOURCE.md`.
 
 #### Per modalita' EXISTING:
 
@@ -251,7 +291,7 @@ Scrivi il risultato in `CONSTITUTION.md` nella root del progetto.
 
 ### Passo 5 — Genera AGENT.md
 
-Leggi il contenuto scaricato da `/tmp/AGENT_TEMPLATE.md` e sostituisci i placeholder.
+Leggi il contenuto scaricato da `.claude/.setup-tmp/AGENT_TEMPLATE.md` e sostituisci i placeholder.
 Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
 
 #### Valori placeholder per modalita' EXISTING:
@@ -285,67 +325,11 @@ Scrivi il risultato in `AGENT.md` nella root del progetto.
 
 ---
 
-### Passo 5b — Installa REGISTRY.md
-
-**Conflict detection**: Se `REGISTRY.md` esiste gia' nel progetto, chiedi allo sviluppatore prima di sovrascrivere.
-
-Se non esiste o lo sviluppatore conferma: copia il contenuto scaricato da `/tmp/REGISTRY.md` verbatim in `REGISTRY.md` nella root del progetto.
-
----
-
-### Passo 6 — Installa configurazione Claude Code
-
-#### 6.1 — Crea la struttura
-
-```bash
-mkdir -p .claude/skills .claude/agents
-# Crea le sottodirectory per ogni skill
-mkdir -p .claude/skills/{start-task,tdd,bdd,review,sync-task,setup}
-```
-
-Crea anche le directory per le shared skills:
-```bash
-mkdir -p .claude/skills/{clickup,github-ops,render-template}
-```
-
-#### 6.2 — settings.json
-
-Se `.claude/settings.json` **non** esiste: scrivi il contenuto scaricato da `/tmp/claude_settings.json` verbatim.
-Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
-
-#### 6.3 — Skills
-
-Scarica sempre tutte le skills, ma installa quelle appropriate in base al progetto:
-
-**Skills comuni** (sempre installate): start-task, review, sync-task
-**Shared skills** (sempre installate): clickup, github-ops, render-template
-
-**Skills di metodologia** (in base al tipo di progetto):
-- Se **frontend rilevato** (o stack Web Frontend / Mobile / Full-stack) → installa `bdd`
-- Se **backend rilevato** (o stack Backend Node / Full-stack) → installa `tdd`
-- Se **full-stack** o non determinabile → installa entrambe (`tdd` + `bdd`)
-
-Per ogni skill da installare:
-- Se la directory **non** esiste in `.claude/skills/<nome>/`: crea la directory e copia il file scaricato come `SKILL.md`
-- Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente
-
-#### 6.3b — Agent files
-
-Per ogni agent dichiarato nel manifest (`shared_agents` + `template_agents`):
-- Se il file **non** esiste in `.claude/agents/`: copialo dal file scaricato
-- Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente
-
-#### 6.4 — Mantieni setup.md
-
-Il file `.claude/skills/setup/SKILL.md` (la skill dispatcher) e' gia' presente. Non toccarlo.
-
----
-
-### Passo 7 — Configura MCP servers
+### Passo 6 — Configura MCP servers
 
 Verifica se `claude` CLI e' disponibile con `command -v claude`. Se non lo e', stampa i comandi da eseguire manualmente e vai al passo successivo.
 
-#### 7.1 — ClickUp (user scope, sempre)
+#### 6.1 — ClickUp (user scope, sempre)
 
 Controlla con `claude mcp list` se `clickup` e' gia' configurato.
 Se non lo e':
@@ -353,7 +337,7 @@ Se non lo e':
 claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp
 ```
 
-#### 7.2 — Context7 (project scope, sempre)
+#### 6.2 — Context7 (project scope, sempre)
 
 Controlla se `context7` e' gia' configurato.
 Se non lo e':
@@ -361,7 +345,7 @@ Se non lo e':
 claude mcp add context7 -s project -- npx -y @upstash/context7-mcp@latest
 ```
 
-#### 7.3 — Figma (solo se frontend rilevato o stack web-frontend/fullstack)
+#### 6.3 — Figma (solo se frontend rilevato o stack web-frontend/fullstack)
 
 Se frontend rilevato, chiedi allo sviluppatore: "Vuoi configurare il MCP Figma? Serve il Personal Access Token di Figma."
 Se risponde si', chiedi il token e poi:
@@ -371,7 +355,7 @@ claude mcp add figma -s project -e FIGMA_ACCESS_TOKEN="<token>" -- npx -y @figma
 
 ---
 
-### Passo 8 — Setup file .env
+### Passo 7 — Setup file .env
 
 1. Se `.env` esiste e contiene gia' `CLICKUP_SETUP_LIST_ID` → non fare nulla
 2. Se `.env` esiste ma **non** contiene `CLICKUP_SETUP_LIST_ID` → appendi:
@@ -389,15 +373,15 @@ claude mcp add figma -s project -e FIGMA_ACCESS_TOKEN="<token>" -- npx -y @figma
 
 ---
 
-### Passo 9 — Setup greenfield (solo modalita' GREENFIELD)
+### Passo 8 — Setup greenfield (solo modalita' GREENFIELD)
 
-Questo passo si esegue **solo** per progetti greenfield. Per EXISTING e UPDATE, salta al Passo 10.
+Questo passo si esegue **solo** per progetti greenfield. Per EXISTING e UPDATE, salta al Passo 9.
 
-#### 9.1 — Prerequisiti
+#### 8.1 — Prerequisiti
 
 Verifica che siano installati: `node` (v20+), `npm`, `git`. Se mancano, informa lo sviluppatore e fermati.
 
-#### 9.2 — Inizializza il progetto
+#### 8.2 — Inizializza il progetto
 
 Se `package.json` non esiste:
 ```bash
@@ -409,7 +393,7 @@ Se `.git` non esiste:
 git init
 ```
 
-#### 9.3 — Installa quality tools
+#### 8.3 — Installa quality tools
 
 ```bash
 npm install --save-dev husky lint-staged @commitlint/cli @commitlint/config-conventional prettier eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
@@ -437,7 +421,7 @@ Rendi eseguibili:
 chmod +x .husky/pre-commit .husky/commit-msg
 ```
 
-#### 9.4 — Configurazioni di qualita'
+#### 8.4 — Configurazioni di qualita'
 
 Crea **`.commitlintrc.json`**:
 ```json
@@ -536,9 +520,9 @@ Crea **`.eslintrc.base.json`**:
 }
 ```
 
-#### 9.5 — Applica profilo stack
+#### 8.5 — Applica profilo stack
 
-Leggi il file profilo scaricato (`/tmp/profile.md`) e applica le configurazioni che contiene:
+Leggi il file profilo scaricato (`.claude/.setup-tmp/profile.md`) e applica le configurazioni che contiene:
 
 1. **Dipendenze**: Estrai il blocco JSON delle dipendenze dal profilo e installale con `npm install`
 2. **ESLint**: Se il profilo contiene una configurazione ESLint, crea `.eslintrc.json` con quel contenuto
@@ -550,7 +534,7 @@ Per lo stack **fullstack**:
 - Applica il profilo web-frontend in `apps/web/`
 - Applica il profilo backend-node in `apps/api/`
 
-#### 9.6 — CI/CD workflow
+#### 8.6 — CI/CD workflow
 
 Crea **`.github/workflows/release.yml`** (GitHub Actions + semantic-release):
 ```yaml
@@ -589,7 +573,7 @@ jobs:
 
 > **Nota**: Se lo sviluppatore usa GitLab CI o altro, adatta il workflow al provider CI/CD del progetto mantenendo gli stessi step (checkout, setup, install, semantic-release).
 
-#### 9.7 — .gitignore
+#### 8.7 — .gitignore
 
 Se `.gitignore` non esiste, crealo con:
 ```
@@ -629,16 +613,16 @@ npm-debug.log*
 
 ---
 
-### Passo 10 — Pulizia
+### Passo 9 — Pulizia
 
-Rimuovi i file temporanei:
+Rimuovi la directory di staging:
 ```bash
-rm -f /tmp/CONSTITUTION_SOURCE.md /tmp/AGENT_TEMPLATE.md /tmp/claude_settings.json /tmp/skill_*.md /tmp/agent_*.md /tmp/REGISTRY.md /tmp/profile.md /tmp/manifest.json
+rm -rf .claude/.setup-tmp
 ```
 
 ---
 
-### Passo 11 — Riepilogo
+### Passo 10 — Riepilogo
 
 Mostra un riepilogo allo sviluppatore in questo formato:
 
@@ -664,7 +648,7 @@ NON modificato (tooling esistente rispettato):
 Prossimi passi:
   1. Compila CLICKUP_SETUP_LIST_ID nel file .env
   2. Verifica MCP: claude mcp list
-  3. Usa /project:start-task per iniziare un task ClickUp
+  3. Usa /project:start-task o /project:sdd per iniziare un task ClickUp
 ```
 
 **Per GREENFIELD:**
@@ -688,14 +672,14 @@ Configurazione del progetto:
 Prossimi passi:
   1. Copia .env.example in .env e compila le variabili
   2. Verifica MCP: claude mcp list
-  3. Inizia a sviluppare con /project:tdd (backend) o /project:bdd (frontend)!
+  3. Usa /project:start-task (rapido) o /project:sdd (spec-driven) per iniziare!
 ```
 
 ---
 
 ## Note importanti
 
-- **Verbatim**: CONSTITUTION.md, settings.json, skills e agent files devono essere copiati esattamente come scaricati. Non generare il contenuto di questi file — scaricalo e copialo.
+- **Verbatim**: skills, agents e settings.json devono essere copiati esattamente come scaricati. Non generare il contenuto di questi file — scaricalo e copialo.
 - **Conflict detection**: Chiedi sempre prima di sovrascrivere file esistenti.
 - **Tooling esistente**: In modalita' EXISTING, non installare ne' modificare: git hooks, linter, formatter, CI/CD, .gitignore, dipendenze. Innesta solo il workflow AI.
 - **Errori di download**: Se `gh api` restituisce un errore (es. 404, 401) o un file vuoto, informa lo sviluppatore e fermati. Non procedere con contenuto parziale.

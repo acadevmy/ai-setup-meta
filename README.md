@@ -170,3 +170,9 @@ claude
 | **review** | `.claude/agents/review.md` | Code review, conformita' CONSTITUTION |
 | **validate-template** | `.claude/agents/validate-template.md` | Validazione pre-release dei template |
 | **clickup** (shared) | `shared/agents/clickup.md` | CRUD ClickUp generico, distribuito ai template |
+
+1. Seleziona task da eseguire
+2. Fai il plan (intervista)
+3. Sviluppa - scegli la metodologia
+4. Comando manuale: scrivi i test + PR
+5. Messaggio su Slack a Mirko!

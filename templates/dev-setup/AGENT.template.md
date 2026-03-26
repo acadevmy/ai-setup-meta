@@ -74,6 +74,19 @@ quando necessario — non serve invocarli manualmente.
 | **clickup** | Tutte le operazioni ClickUp (read, update, create, filter). Passthrough fedele — restituisce i dati integralmente senza rielaborazione. |
 | **review** | Code review isolata. Verifica conformita' CONSTITUTION, propone aggiornamenti REGISTRY. Non modifica file direttamente. |
 
+## Flussi di lavoro
+
+| Comando | Quando usarlo |
+|---|---|
+| `/project:start-task [TASK_ID]` | Flusso rapido: prende un task e va direttamente allo sviluppo (TDD/BDD) |
+| `/project:sdd [TASK_ID]` | Flusso Spec-Driven: genera prima una specifica tecnica, la discute, poi sviluppa |
+| `/project:sdd-spec [TASK_ID]` | Genera solo la specifica tecnica per un task (invocabile standalone) |
+| `/project:sdd-plan [SPEC_REF]` | Presenta e discute una specifica esistente per approvazione |
+| `/project:sdd-dev <SPEC_REF> [tdd\|bdd\|none]` | Sviluppa seguendo una specifica approvata |
+
+> Usa `/project:start-task` per task semplici e ben definiti.
+> Usa `/project:sdd` per task complessi che beneficiano di una fase di analisi e specifica.
+
 ## Registro del progetto
 
 `REGISTRY.md` e' un indice sintetico di componenti riutilizzabili, pattern adottati e decisioni
