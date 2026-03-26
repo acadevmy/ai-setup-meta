@@ -34,7 +34,7 @@ ai-base-setup/
 │   └── agents/             # Agent di dominio (copiati da templates/)
 │
 ├── .claude/                # SOLO strumenti del meta-repo
-│   ├── agents/             # review.md, validate-template.md
+│   ├── agents/             # validate-template.md
 │   ├── commands/           # Comandi invocabili (/project:build-plugin, release-plugin, validate)
 │   └── skills/             # generate-setup, release, sync-profiles, new-skill, update-constitution
 │
@@ -120,7 +120,6 @@ Gli agent sono sub-processi isolati con il proprio contesto.
 
 | Agent | File | Ruolo |
 |---|---|---|
-| **review** | `.claude/agents/review.md` | Code review del meta-repo. Verifica conformita' CONSTITUTION. |
 | **validate-template** | `.claude/agents/validate-template.md` | Validazione pre-release dei template. Legge manifest.json. |
 
 ### Shared agents (in `shared/`, distribuiti ai template)
@@ -139,7 +138,6 @@ Gli agent sono sub-processi isolati con il proprio contesto.
 | `/project:update-constitution` | Aggiorna CONSTITUTION e propaga ai template |
 | `/project:sync-profiles` | Sincronizza i profili stack nel template di dominio |
 | `/project:new-skill` | Scaffolda una nuova skill (shared o specifica) |
-| `/project:release` | Pubblica una nuova versione di un template |
 
 ### Comandi (`/project:<nome>`)
 

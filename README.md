@@ -77,7 +77,6 @@ ai-setup-meta/
 │       ├── CHANGELOG.md
 │       ├── .claude/
 │       │   ├── settings.json           # Permessi + hooks (sorgente)
-│       │   ├── agents/review.md
 │       │   ├── hooks/                  # protect-files, post-edit, on-compact
 │       │   └── skills/                 # 9 workflow skills
 │       └── profiles/
