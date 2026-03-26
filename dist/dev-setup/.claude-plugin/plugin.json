@@ -1,0 +1,12 @@
+{
+  "name": "dev-setup",
+  "version": "1.0.0",
+  "description": "Setup AI-native per progetti di sviluppo software",
+  "author": {
+    "name": "Acadevmy"
+  },
+  "skills": "./skills",
+  "agents": ["./agents/clickup.md","./agents/review.md"],
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json"
+}
