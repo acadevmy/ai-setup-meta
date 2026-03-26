@@ -35,9 +35,10 @@ ai-base-setup/
 │
 ├── .claude/                # SOLO strumenti del meta-repo
 │   ├── agents/             # review.md, validate-template.md
+│   ├── commands/           # Comandi invocabili (/project:build-plugin, release-plugin, validate)
 │   └── skills/             # generate-setup, release, sync-profiles, new-skill, update-constitution
 │
-└── scripts/                # Script di automazione (release, validazione)
+└── scripts/                # Script sh di supporto (build-plugin, release-plugin, validate-setup-urls)
 ```
 
 ## Stack del team
@@ -139,6 +140,16 @@ Gli agent sono sub-processi isolati con il proprio contesto.
 | `/project:sync-profiles` | Sincronizza i profili stack nel template di dominio |
 | `/project:new-skill` | Scaffolda una nuova skill (shared o specifica) |
 | `/project:release` | Pubblica una nuova versione di un template |
+
+### Comandi (`/project:<nome>`)
+
+Comandi che invocano script sh sottostanti per operazioni di build/release/validazione.
+
+| Comando | Descrizione |
+|---|---|
+| `/project:build-plugin` | Build del plugin da manifest.json → `dist/` |
+| `/project:release-plugin` | Release completa: bump, build, changelog, tag, push, GitHub Release |
+| `/project:validate` | Validazione pre-release: verifica file referenziati dai manifest |
 
 ### Shared skills (in `shared/`, distribuite ai template)
 
