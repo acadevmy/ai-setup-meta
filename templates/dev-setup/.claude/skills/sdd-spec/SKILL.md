@@ -38,16 +38,17 @@ nella directory `.specs/`.
 - Identifica i file rilevanti nel progetto in base ai requisiti del task
 - Controlla `.specs/` per verificare che non esista gia' una spec per lo stesso task
 
-### 3. Intervista lo sviluppatore
+### 3. Discovery (condizionale)
 
-Prima di generare la spec, fai domande mirate allo sviluppatore per:
-- Chiarire aspetti ambigui del task
-- Raccogliere preferenze tecniche o vincoli non documentati
-- Identificare eventuali criticita' o dipendenze note
-- Capire se ci sono componenti esistenti da riutilizzare o pattern da seguire
-- Verificare se ci sono requisiti non funzionali (performance, sicurezza, UX) importanti
+**Se e' presente un Discovery Summary nel contesto della conversazione** (passato dall'orchestratore `sdd` o da un'invocazione precedente di `/project:sdd-discovery`):
+- Usa il Discovery Summary come base per la generazione della spec
+- Non ripetere l'intervista
 
-Non procedere alla generazione finche' non hai raccolto informazioni sufficienti.
+**Se NON e' presente un Discovery Summary**:
+- Invoca `/project:sdd-discovery` passando il contesto del task
+- Attendi il completamento della discovery prima di procedere alla generazione
+
+Non procedere alla generazione finche' non e' disponibile un Discovery Summary.
 
 ### 4. Crea la directory specs
 
