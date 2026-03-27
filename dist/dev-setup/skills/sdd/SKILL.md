@@ -90,20 +90,19 @@ Descrizione:
 <contenuto della descrizione del task — come restituito dall'agent>
 ```
 
-### 5. Intervista lo sviluppatore
+### 5. Discovery — Intervista strutturata
 
-Prima di generare la spec, fai domande mirate allo sviluppatore per:
-- Chiarire aspetti ambigui o poco definiti nel task
-- Raccogliere preferenze tecniche, vincoli o requisiti non documentati
-- Identificare criticita', dipendenze o rischi noti
-- Capire se ci sono componenti esistenti da riutilizzare
-- Verificare requisiti non funzionali (performance, sicurezza, UX)
+Invoca `/project:sdd-discovery` passando il contesto del task (custom_id, name, description, priority, url).
 
-Raccogli le risposte e usale come contesto aggiuntivo per la generazione della spec.
+La skill condurra' un'intervista interattiva con lo sviluppatore per raccogliere
+requisiti completi, edge cases, vincoli e preferenze. Al termine produrra' un
+**Discovery Summary** strutturato che verra' usato come input per la generazione della spec.
+
+Attendi il completamento della discovery prima di procedere.
 
 ### 6. Genera la specifica tecnica
 
-Invoca `/project:sdd-spec` passando il contesto del task (custom_id, name, description, url, branch, risposte dell'intervista).
+Invoca `/project:sdd-spec` passando il contesto del task (custom_id, name, description, url, branch) e il Discovery Summary prodotto allo step precedente.
 
 La spec verra' generata in `.specs/<customId>-<slug>.md` con status `draft`.
 
