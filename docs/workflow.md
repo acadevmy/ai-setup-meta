@@ -18,7 +18,6 @@ Maintainer individua un miglioramento
          ▼
   Esegue il comando slash appropriato:
   /project:update-constitution  (se modifica regole)
-  /project:new-skill            (se nuova skill)
   /project:sync-profiles        (se aggiorna stack)
   /project:generate-setup       (se rigenera il setup agent)
          │
@@ -89,15 +88,6 @@ claude
 # In Claude Code:
 /project:sync-profiles
 # Scegliere il profilo da aggiornare
-```
-
-### Creare una nuova skill per gli sviluppatori
-```bash
-git checkout -b feat/skill-nome-skill
-claude
-# In Claude Code:
-/project:new-skill
-# Descrivere nome, scopo e stack applicabile
 ```
 
 ### Rigenerare il setup agent
