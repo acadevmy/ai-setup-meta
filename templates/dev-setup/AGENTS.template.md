@@ -1,7 +1,6 @@
 # AGENTS.md — Progetto di sviluppo
 
 > Questo file e' il **Ground Truth** per qualsiasi agente AI che opera in questo progetto.
-> Claude Code lo carica automaticamente tramite `CLAUDE.md` (che contiene `@AGENTS.md`).
 > Leggilo integralmente prima di qualsiasi operazione.
 
 ## Identita' e scopo
@@ -25,16 +24,6 @@ e' la single source of truth.
 1. Leggi `REGISTRY.md` per conoscere componenti, pattern e decisioni gia' presenti nel progetto
 2. Leggi `CONSTITUTION.md` per verificare i vincoli applicabili
 3. Verifica lo stato del branch corrente — non operare mai direttamente su `main`
-
-### Branch naming
-```
-feat/<customId>-<descrizione-breve>
-fix/<customId>-<descrizione-breve>
-chore/<customId>-<descrizione-breve>
-hotfix/<customId>-<descrizione-breve>
-```
-Il `customId` e' l'identificativo del task ClickUp (es. `DE-123`).
-Se il branch non e' associato a un task ClickUp, omettere il customId.
 
 ## Comandi test e lint
 

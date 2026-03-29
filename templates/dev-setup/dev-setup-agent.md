@@ -197,7 +197,7 @@ Questi file vengono copiati esattamente come ricevuti. Prima di ogni download, v
 **Crea la struttura delle directory**:
 ```bash
 mkdir -p .claude/skills .claude/agents
-mkdir -p .claude/skills/{start-task,tdd,bdd,review,sync-task,setup,sdd,sdd-spec,sdd-plan,sdd-dev}
+mkdir -p .claude/skills/{start-task,tdd,bdd,review,setup,sdd,sdd-spec,sdd-plan,sdd-dev}
 mkdir -p .claude/skills/{clickup,github-ops,render-template}
 ```
 
@@ -218,7 +218,7 @@ gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/REGISTRY.md -H 
 
 Scarica e installa le skills appropriate in base al progetto.
 
-**Skills comuni** (sempre installate): start-task, review, sync-task
+**Skills comuni** (sempre installate): start-task, review
 **Skills SDD** (sempre installate): sdd, sdd-spec, sdd-plan, sdd-dev
 **Shared skills** (sempre installate): clickup, github-ops, render-template
 

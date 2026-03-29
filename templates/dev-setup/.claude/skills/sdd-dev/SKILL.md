@@ -74,8 +74,9 @@ Per ogni step del piano, nell'ordine concordato:
    ```
    Step <N>/<totale>: <descrizione>
    ```
+2. **Leggi la documentazione** se necessario: utilizza MCP Context7 per recuperare documentazione aggiornata di librerie e framework
 
-2. **Implementa** secondo la metodologia scelta:
+3. **Implementa** secondo la metodologia scelta:
 
    **Se TDD**:
    - **Red** — Scrivi il test che descrive il comportamento atteso
@@ -111,7 +112,7 @@ Per ogni step del piano, nell'ordine concordato:
    - Implementa direttamente seguendo la spec
    - Scrivi i test dopo l'implementazione (se la strategia di test della spec lo richiede)
 
-3. **Verifica** — Dopo ogni step, esegui test e linter:
+4. **Verifica** — Dopo ogni step, esegui test e linter:
    - **Test**:
      - Se esiste `package.json` con script `test`: `npm test`
      - Se esiste `pytest.ini` o `pyproject.toml` con `[tool.pytest]`: `pytest`
@@ -126,7 +127,7 @@ Per ogni step del piano, nell'ordine concordato:
      - Se esiste `analysis_options.yaml`: `dart analyze`
      - Se esiste `Cargo.toml`: `cargo clippy`
 
-4. **Aggiorna** il task breakdown:
+5. **Aggiorna** il task breakdown:
    ```
    [x] 1. <Step 1> — completato
    [x] 2. <Step 2> — completato

@@ -7,7 +7,7 @@
   "shared_agents": ["clickup.md"],
   "shared_skills": ["clickup", "github-ops", "render-template"],
   "template_agents": ["review.md"],
-  "template_skills": ["start-task", "sync-task", "review", "tdd", "bdd", "sdd", "sdd-discovery", "sdd-spec", "sdd-plan", "sdd-dev"],
+  "template_skills": ["start-task", "review", "tdd", "bdd", "sdd", "sdd-discovery", "sdd-spec", "sdd-plan", "sdd-dev"],
   "profiles": ["web-frontend.md", "backend-node.md", "mobile.md"],
   "required_files": [
     "CLAUDE.md",
