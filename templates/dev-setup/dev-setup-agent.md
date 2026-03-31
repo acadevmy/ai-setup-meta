@@ -444,11 +444,12 @@ claude mcp add context7 -s project -- npx -y @upstash/context7-mcp@latest
 
 #### 6.3 — Figma (solo se frontend o mobile rilevato, o stack web-frontend/mobile/fullstack)
 
-Se frontend o mobile rilevato, chiedi allo sviluppatore: "Vuoi configurare il MCP Figma? Serve il Personal Access Token di Figma."
-Se risponde si', chiedi il token e poi:
+Se frontend o mobile rilevato, chiedi allo sviluppatore: "Vuoi configurare il MCP Figma? L'autenticazione avviene via OAuth nel browser."
+Se risponde si':
 ```bash
-claude mcp add figma -s project -e FIGMA_ACCESS_TOKEN="<token>" -- npx -y @figma/mcp-server
+claude mcp add figma -s project --type url https://mcp.figma.com/mcp
 ```
+Al primo utilizzo, Figma chiedera' l'autorizzazione via browser (come ClickUp).
 
 ---
 

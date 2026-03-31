@@ -307,11 +307,8 @@ cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
       "url": "https://mcp.clickup.com/mcp"
     },
     "figma": {
-      "command": "npx",
-      "args": ["-y", "@figma/mcp-server"],
-      "env": {
-        "FIGMA_ACCESS_TOKEN": "${FIGMA_ACCESS_TOKEN}"
-      }
+      "type": "url",
+      "url": "https://mcp.figma.com/mcp"
     },
     "context7": {
       "command": "npx",

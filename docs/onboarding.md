@@ -48,16 +48,9 @@ Non condividere mai token o credenziali con altri membri del team.
    apre il browser per l'autenticazione OAuth con il tuo account ClickUp.
    Funziona anche per utenti guest.
 
-4. **Figma** (opzionale) — genera il tuo token personale:
-   | Servizio | Dove generarlo |
-   |---|---|
-   | Figma | [figma.com/developers/api](https://www.figma.com/developers/api#access-tokens) |
-
-   Configura la variabile d'ambiente nel tuo `~/.zshrc` (o `~/.bashrc`):
-   ```bash
-   export FIGMA_ACCESS_TOKEN="figd_il_tuo_token"
-   ```
-   Poi ricarica il terminale: `source ~/.zshrc`
+4. **Figma** (opzionale) — nessun token da generare manualmente:
+   Il server MCP remoto di Figma usa autenticazione OAuth via browser.
+   Al primo utilizzo, verra' aperta una finestra del browser per autorizzare l'accesso.
 
 5. **Context7** — nessuna configurazione necessaria:
    Gia' incluso nel `mcp.json.example`, funziona senza token.
