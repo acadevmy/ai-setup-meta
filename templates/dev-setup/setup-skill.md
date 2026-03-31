@@ -102,7 +102,29 @@ Cerca nell'ordine:
 - `package.json` contiene `react-native` o `expo` → **si**
 - Altrimenti → **no**
 
-**Mostra il riepilogo della detection allo sviluppatore** in questo formato:
+#### Multi-progetto rilevato?
+
+**Fase 1 — Monorepo tool**:
+- `nx.json` presente → **si** (Nx)
+- `turbo.json` presente → **si** (Turborepo)
+- `pnpm-workspace.yaml` presente → **si** (pnpm workspace)
+- `lerna.json` presente → **si** (Lerna)
+- Root `package.json` contiene campo `workspaces` → **si** (Yarn/npm workspaces)
+
+Se trovato, enumera i sub-project dalla configurazione del tool (es. `workspaces` in package.json, `projects` in nx.json, `packages` in pnpm-workspace.yaml).
+
+**Fase 2 — Detection strutturale** (solo se Fase 1 non ha trovato nulla):
+- Cerca nelle directory di primo livello file indicatori di progetto: `package.json`, `pubspec.yaml`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`
+- Se **2 o piu'** directory contengono almeno un indicatore → **si** (multi-progetto)
+- Ignora directory comuni non-progetto: `node_modules`, `.git`, `.claude`, `dist`, `build`, `coverage`, `.github`, `.husky`
+
+**Se multi-progetto rilevato** (da Fase 1 o Fase 2):
+1. Per ogni sub-project trovato, esegui la auto-detection stack (Linguaggio, Test runner, Linter, Tool di validazione, Frontend rilevato?, Mobile rilevato?) nella directory del sub-project
+2. Mostra il riepilogo allo sviluppatore e chiedi conferma prima di procedere
+
+**Mostra il riepilogo della detection allo sviluppatore.**
+
+Per progetto singolo:
 ```
 Stack rilevato:
   Linguaggi:   node
@@ -111,6 +133,17 @@ Stack rilevato:
   Validazione:  Zod
   Frontend:     si
   Mobile:       no
+```
+
+Per multi-progetto:
+```
+Stack rilevato:
+  Multi-progetto: si (Nx)
+  Sub-project:
+    apps/web/  — node, frontend: si, test: npm test, lint: npm run lint
+    apps/api/  — node, frontend: no, test: npm test, lint: npm run lint
+
+Confermi questi sub-project? (si/no)
 ```
 
 ---
@@ -142,7 +175,13 @@ Questi file richiedono adattamento. Leggili dal plugin:
 Leggi `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`
 
 **AGENTS template** (verra' processato al Passo 5):
+
+Per progetto singolo:
 Leggi `${CLAUDE_SKILL_DIR}/templates/AGENTS.template.md`
+
+Per multi-progetto (o stack fullstack):
+Leggi `${CLAUDE_SKILL_DIR}/templates/AGENTS.workspace-template.md`
+Leggi `${CLAUDE_SKILL_DIR}/templates/AGENTS.project-template.md`
 
 **Profilo stack** (solo GREENFIELD, verra' applicato al Passo 8.5):
 Leggi il profilo selezionato da `${CLAUDE_SKILL_DIR}/templates/profiles/`:
@@ -164,8 +203,14 @@ Leggi `${CLAUDE_SKILL_DIR}/templates/settings.json` e scrivilo in `.claude/setti
 Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
 
 **REGISTRY.md**:
+
+Per progetto singolo:
 Se `REGISTRY.md` **non** esiste (o lo sviluppatore conferma la sovrascrittura):
 Leggi `${CLAUDE_SKILL_DIR}/templates/REGISTRY.md` e scrivilo in `REGISTRY.md`.
+
+Per multi-progetto:
+Genera un `REGISTRY.md` per ogni sub-project confermato. Non generare REGISTRY.md alla root.
+Leggi `${CLAUDE_SKILL_DIR}/templates/REGISTRY.md` e scrivilo in `<sub-project-path>/REGISTRY.md`.
 
 **.gitignore**:
 Se `.gitignore` **non** esiste:
@@ -188,8 +233,11 @@ Parti dal contenuto letto da `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`.
 #### Per modalita' EXISTING:
 
 1. Se il frontend **non** e' stato rilevato → rimuovi l'intera Sezione VI (da `## VI.` fino a prima di `## VII.` o `## VIII.`)
+   - **Multi-progetto**: mantieni Sezione VI se **qualsiasi** sub-project ha frontend rilevato
 2. Se il mobile **non** e' stato rilevato → rimuovi l'intera Sezione VII (da `## VII.` fino a prima di `## VIII.`)
+   - **Multi-progetto**: mantieni Sezione VII se **qualsiasi** sub-project ha mobile rilevato
 3. Se il linguaggio rilevato **non** include `node` → aggiungi questa nota subito dopo la riga `## I. Principi fondamentali`:
+   - **Multi-progetto**: aggiungi la nota solo se **nessun** sub-project usa `node`
 
 ```
 > **Nota**: Le regole specifiche a TypeScript/Zod si applicano ai progetti TypeScript.
@@ -213,10 +261,12 @@ Scrivi il risultato in `CONSTITUTION.md` nella root del progetto.
 
 ### Passo 5 — Genera AGENTS.md
 
+#### 5A — Progetto singolo (non multi-progetto)
+
 Leggi il contenuto da `${CLAUDE_SKILL_DIR}/templates/AGENTS.template.md` e sostituisci i placeholder.
 Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
 
-#### Valori placeholder per modalita' EXISTING:
+**Valori placeholder per modalita' EXISTING:**
 
 - `{{STACK_DESCRIPTION}}` → descrizione compatta dello stack rilevato. Formato: `Stack rilevato: linguaggi[, test: comando_test][, linter: comando_lint][, validazione: tool]`
   - Esempio: `Stack rilevato: **node**, test: npm test, linter: npm run lint, validazione: Zod`
@@ -225,7 +275,7 @@ Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
 - `{{TEST_COMMAND}}` → il comando test rilevato (es. `npm test`, `pytest`, `non rilevato`)
 - `{{LINT_COMMAND}}` → il comando linter rilevato (es. `npm run lint`, `ruff check .`, `non rilevato`)
 
-#### Valori placeholder per modalita' GREENFIELD:
+**Valori placeholder per modalita' GREENFIELD:**
 
 In base allo stack scelto nel Passo 2b:
 
@@ -235,15 +285,37 @@ In base allo stack scelto nel Passo 2b:
 | Backend Node | `**Backend Node**: Node.js 20+, NestJS 10+, Zod + class-validator, Jest + Supertest, Prisma` | `npm test` | `npm run lint` |
 | Mobile (Flutter) | `**Mobile**: Flutter 3.24+ (BLoC/Riverpod)` | `flutter test` | `dart analyze` |
 | Mobile (React Native) | `**Mobile**: React Native con Expo (Zustand/Jotai)` | `npm test` | `npm run lint` |
-| Full-stack | `**Full-stack**: Web Frontend (Next.js/Angular/React) + Backend Node (NestJS)` | `npm test` | `npm run lint` |
 
-#### Per modalita' UPDATE:
-
-Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
+**Per modalita' UPDATE:** Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
 
 **Conflict detection**: Se `AGENTS.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
 
 Scrivi il risultato in `AGENTS.md` nella root del progetto.
+
+#### 5B — Multi-progetto (o stack fullstack)
+
+Genera **due livelli** di AGENTS.md: uno alla root e uno per ogni sub-project.
+
+**Root AGENTS.md** — usa `${CLAUDE_SKILL_DIR}/templates/AGENTS.workspace-template.md`:
+- `{{WORKSPACE_STRUCTURE}}` → genera una tabella con i sub-project confermati:
+  ```
+  | Progetto | Path | Stack | Istruzioni |
+  |---|---|---|---|
+  | Web Frontend | `apps/web/` | Next.js 14+, React 18+ | [`apps/web/AGENTS.md`](apps/web/AGENTS.md) |
+  | Backend API | `apps/api/` | Node.js 20+, NestJS 10+ | [`apps/api/AGENTS.md`](apps/api/AGENTS.md) |
+  ```
+- Scrivi il risultato in `AGENTS.md` nella root
+
+**AGENTS.md per sub-project** — usa `${CLAUDE_SKILL_DIR}/templates/AGENTS.project-template.md`:
+
+Per ogni sub-project confermato, sostituisci i placeholder:
+- `{{PROJECT_NAME}}` → nome descrittivo del sub-project (es. "Web Frontend", "Backend API")
+- `{{STACK_DESCRIPTION}}` → stack rilevato del sub-project (stessi criteri del punto 5A)
+- `{{TEST_COMMAND}}` → test runner rilevato nel sub-project
+- `{{LINT_COMMAND}}` → linter rilevato nel sub-project
+- `{{ROOT_AGENTS_REL_PATH}}` → path relativo alla root (es. `../../AGENTS.md`)
+
+Scrivi il risultato in `<sub-project-path>/AGENTS.md`.
 
 ---
 
@@ -263,6 +335,8 @@ altro contenuto: tutte le istruzioni devono restare in `AGENTS.md` come single s
 **Conflict detection**: Se `CLAUDE.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
 
 Scrivi il risultato in `CLAUDE.md` nella root del progetto.
+
+**Multi-progetto**: genera `CLAUDE.md` anche in ogni sub-project confermato, con lo stesso contenuto (`@AGENTS.md`). Il CLAUDE.md del sub-project puntera' all'AGENTS.md locale del sub-project.
 
 ---
 
@@ -287,9 +361,9 @@ Se non esiste o non contiene context7:
 claude mcp add context7 -s project -- npx -y @upstash/context7-mcp@latest
 ```
 
-#### 6.3 — Figma (solo se frontend rilevato o stack web-frontend/fullstack)
+#### 6.3 — Figma (solo se frontend o mobile rilevato, o stack web-frontend/mobile/fullstack)
 
-Se frontend rilevato, chiedi allo sviluppatore: "Vuoi configurare il MCP Figma? Serve il Personal Access Token di Figma."
+Se frontend o mobile rilevato, chiedi allo sviluppatore: "Vuoi configurare il MCP Figma? Serve il Personal Access Token di Figma."
 Se risponde si', chiedi il token e poi:
 ```bash
 claude mcp add figma -s project -e FIGMA_ACCESS_TOKEN="<token>" -- npx -y @figma/mcp-server
@@ -471,10 +545,12 @@ Leggi il file profilo da `${CLAUDE_SKILL_DIR}/templates/profiles/` (gia' letto a
 3. **TypeScript**: Se il profilo contiene una configurazione TypeScript, crea `tsconfig.json`
 4. **Jest**: Se il profilo contiene una configurazione Jest, crea `jest.config.ts`
 
-Per lo stack **fullstack**:
+Per lo stack **fullstack** (multi-progetto):
 - Crea la struttura `apps/web/` e `apps/api/`
 - Applica il profilo web-frontend in `apps/web/`
 - Applica il profilo backend-node in `apps/api/`
+- Genera `AGENTS.md`, `CLAUDE.md` e `REGISTRY.md` per ogni sub-project (come descritto nei Passi 5B e 5b)
+- Alla root usa il workspace template (come descritto nel Passo 5B)
 
 #### 8.6 — CI/CD workflow
 
@@ -622,6 +698,38 @@ Prossimi passi:
   1. Copia .env.example in .env e compila le variabili
   2. Verifica MCP: claude mcp list
   3. Usa /dev-setup:start-task (rapido) o /dev-setup:sdd (spec-driven) per iniziare!
+```
+
+**Per MULTI-PROGETTO (EXISTING):**
+```
+Setup completato! (Multi-progetto rilevato: <tool>)
+
+File alla root:
+  - CLAUDE.md             — entry point per Claude Code
+  - AGENTS.md             — regole generali + mappa workspace
+  - CONSTITUTION.md       — regole di governance
+  - .claude/settings.json — permessi progetto
+
+Sub-project configurati:
+  <sub-project-path>/:
+    - AGENTS.md           — stack: <stack>
+    - CLAUDE.md           — entry point locale
+    - REGISTRY.md         — registro feature
+
+Skills disponibili (fornite dal plugin):
+  - /dev-setup:start-task  — flow rapido (branch → TDD/BDD → review → PR)
+  - /dev-setup:sdd         — flow spec-driven (spec → approvazione → sviluppo)
+  - /dev-setup:tdd         — Test-Driven Development
+  - /dev-setup:bdd         — Behavior-Driven Development
+  - /dev-setup:review      — Code review con CONSTITUTION
+
+NON modificato (tooling esistente rispettato):
+  - Git hooks, ESLint, Prettier, CI/CD, .gitignore
+
+Prossimi passi:
+  1. Compila CLICKUP_SETUP_LIST_ID nel file .env
+  2. Verifica MCP: claude mcp list
+  3. Usa /dev-setup:start-task o /dev-setup:sdd per iniziare un task ClickUp
 ```
 
 ---

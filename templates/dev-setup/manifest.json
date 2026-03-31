@@ -12,6 +12,8 @@
   "required_files": [
     "CLAUDE.md",
     "AGENTS.template.md",
+    "AGENTS.workspace-template.md",
+    "AGENTS.project-template.md",
     "REGISTRY.md",
     "CONSTITUTION.md",
     ".env.example",
