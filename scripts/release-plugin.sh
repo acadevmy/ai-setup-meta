@@ -80,7 +80,8 @@ TEMPLATE_DIR="$ROOT_DIR/templates/$TEMPLATE_NAME"
 # ── Calcola nuova versione ───────────────────────────────────────────────────
 step "Calcolo nuova versione"
 
-CURRENT_VERSION=$(grep -oP 'TEMPLATE_VERSION=\K.*' "$TEMPLATE_DIR/.env.example" 2>/dev/null || echo "1.0.0")
+CURRENT_VERSION=$(sed -n 's/^TEMPLATE_VERSION=//p' "$TEMPLATE_DIR/.env.example" 2>/dev/null || echo "1.0.0")
+[ -z "$CURRENT_VERSION" ] && CURRENT_VERSION="1.0.0"
 
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
