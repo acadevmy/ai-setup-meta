@@ -114,6 +114,15 @@ sed -i.bak "s/^TEMPLATE_VERSION=.*/TEMPLATE_VERSION=$NEW_VERSION/" "$TEMPLATE_DI
 rm -f "$TEMPLATE_DIR/.env.example.bak"
 ok ".env.example aggiornato"
 
+MARKETPLACE_FILE="$ROOT_DIR/.claude-plugin/marketplace.json"
+if [ -f "$MARKETPLACE_FILE" ]; then
+  TMPFILE=$(mktemp)
+  jq --arg name "$TEMPLATE_NAME" --arg ver "$NEW_VERSION" \
+    '(.plugins[] | select(.name == $name)).version = $ver' \
+    "$MARKETPLACE_FILE" > "$TMPFILE" && mv "$TMPFILE" "$MARKETPLACE_FILE"
+  ok "marketplace.json aggiornato a v$NEW_VERSION"
+fi
+
 # ── Build plugin ─────────────────────────────────────────────────────────────
 step "Build plugin"
 
