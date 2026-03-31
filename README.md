@@ -64,8 +64,7 @@ ai-setup-meta/
 │   │   └── clickup.md
 │   └── skills/
 │       ├── clickup/
-│       ├── github-ops/
-│       └── render-template/
+│       └── github-ops/
 ├── templates/                   # Sorgente dei template per dominio
 │   └── dev-setup/
 │       ├── manifest.json               # Dipendenze da shared/ e file specifici
@@ -153,8 +152,6 @@ bash scripts/release-plugin.sh patch dev-setup
 |---|---|
 | `/dev-setup:clickup` | Operazioni ClickUp via MCP |
 | `/dev-setup:github-ops` | Branch, PR, merge operations |
-| `/dev-setup:render-template` | Renderizzazione template con variabili |
-| `/dev-setup:sync-task` | Sincronizza contesto task ClickUp |
 
 ### Agents
 

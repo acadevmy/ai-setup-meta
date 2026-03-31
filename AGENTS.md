@@ -18,7 +18,7 @@ deve migliorare la qualita', la coerenza o l'automazione dei template.
 ai-base-setup/
 ├── shared/                 # Asset comuni DA DISTRIBUIRE (non usati dal meta-repo)
 │   ├── agents/             # Agent riutilizzabili (es. clickup.md)
-│   └── skills/             # Skill riutilizzabili (es. clickup, github-ops, render-template)
+│   └── skills/             # Skill riutilizzabili (es. clickup, github-ops)
 │
 ├── templates/              # Template per dominio
 │   └── <dominio>/          # Es. dev-setup, pm-setup
@@ -153,7 +153,6 @@ Comandi che invocano script sh sottostanti per operazioni di build/release/valid
 |---|---|
 | `clickup` | Documentazione di riferimento per operazioni ClickUp |
 | `github-ops` | Operazioni GitHub (branch, PR, merge) |
-| `render-template` | Renderizzazione file da template con variabili |
 
 ## Checklist pre-PR
 

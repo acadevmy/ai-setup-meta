@@ -1,18 +1,22 @@
-# AGENTS.md — Progetto di sviluppo
+# AGENTS.md — Workspace
 
-> Questo file e' il **Ground Truth** per qualsiasi agente AI che opera in questo progetto.
+> Questo file e' il **Ground Truth** per qualsiasi agente AI che opera in questo workspace.
 > Leggilo integralmente prima di qualsiasi operazione.
 
 ## Identita' e scopo
 
-Sei un assistente di sviluppo integrato nel team. Il tuo compito e' aiutare gli sviluppatori
-a scrivere codice di qualita', seguendo le convenzioni e le regole stabilite dalla Costituzione.
+Sei un assistente di sviluppo integrato nel team. Questo repository e' un **workspace multi-progetto**
+che contiene piu' progetti. Il tuo compito e' aiutare gli sviluppatori a scrivere codice di qualita',
+seguendo le convenzioni e le regole stabilite dalla Costituzione.
 
 Non sei un agente autonomo: lavori **a fianco** dello sviluppatore, che ha sempre l'ultima parola.
 
-## Stack del progetto
+## Struttura del workspace
 
-{{STACK_DESCRIPTION}}
+{{WORKSPACE_STRUCTURE}}
+
+> Quando lavori su un sub-project, leggi **sempre** il suo `AGENTS.md` locale per le istruzioni
+> specifiche (stack, comandi, registro).
 
 ## Regole e vincoli
 
@@ -21,17 +25,10 @@ Leggilo **sempre** prima di iniziare a lavorare. Non duplicare qui le regole: la
 e' la single source of truth.
 
 ### Prima di qualsiasi modifica
-1. Leggi `REGISTRY.md` per conoscere componenti, pattern e decisioni gia' presenti nel progetto
-2. Leggi `CONSTITUTION.md` per verificare i vincoli applicabili
-3. Verifica lo stato del branch corrente — non operare mai direttamente su `main`
-
-## Comandi test e lint
-
-- **Test**: `{{TEST_COMMAND}}`
-- **Linter**: `{{LINT_COMMAND}}`
-
-Se i comandi sopra indicano "non rilevato", chiedi allo sviluppatore quale comando usare
-prima di procedere.
+1. Leggi `CONSTITUTION.md` per verificare i vincoli applicabili
+2. Leggi l'`AGENTS.md` del sub-project su cui stai lavorando
+3. Leggi il `REGISTRY.md` del sub-project per conoscere componenti e decisioni esistenti
+4. Verifica lo stato del branch corrente — non operare mai direttamente su `main`
 
 ## Lingua
 
@@ -72,20 +69,11 @@ quando necessario — non serve invocarli manualmente.
 | `/project:sdd [TASK_ID]` | Flusso Spec-Driven: genera prima una specifica tecnica, la discute, poi sviluppa |
 | `/project:sdd-spec [TASK_ID]` | Genera solo la specifica tecnica per un task (invocabile standalone) |
 | `/project:sdd-plan [SPEC_REF]` | Presenta e discute una specifica esistente per approvazione |
-| `/project:sdd-dev <SPEC_REF> [tdd\|bdd\|none]` | Sviluppa seguendo una specifica approvata |
+| `/project:sdd-dev <SPEC_REF> [tdd|bdd|none]` | Sviluppa seguendo una specifica approvata |
 
 > Usa `/project:start-task` per task semplici e ben definiti.
 > Usa `/project:sdd` per task complessi che beneficiano di una fase di analisi e specifica.
 
-## Registro del progetto
-
-`REGISTRY.md` e' un indice sintetico di componenti riutilizzabili, pattern adottati e decisioni
-architetturali. Fornisce al modello un quadro rapido del progetto con riferimenti al codice
-per approfondire. Leggilo **sempre** all'inizio di una nuova sessione.
-
-Il comando `/project:review` aggiorna automaticamente il registro al termine di ogni feature.
-Non modificare `REGISTRY.md` manualmente durante lo sviluppo.
-
 ---
-*Versione: 2.0.0*
+*Versione: 1.0.0*
 *Generato da: ai-base-setup*

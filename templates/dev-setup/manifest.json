@@ -5,12 +5,11 @@
   "agent": "dev-setup-agent.md",
   "setup_skill": "setup-skill.md",
   "shared_agents": ["clickup.md"],
-  "shared_skills": ["clickup", "github-ops", "render-template"],
+  "shared_skills": ["clickup", "github-ops"],
   "template_agents": ["review.md"],
   "template_skills": ["start-task", "review", "tdd", "bdd", "sdd", "sdd-discovery", "sdd-spec", "sdd-plan", "sdd-dev"],
   "profiles": ["web-frontend.md", "backend-node.md", "mobile.md"],
   "required_files": [
-    "CLAUDE.md",
     "AGENTS.template.md",
     "AGENTS.workspace-template.md",
     "AGENTS.project-template.md",

@@ -239,7 +239,7 @@ Questi file vengono copiati esattamente come ricevuti. Prima di ogni download, v
 ```bash
 mkdir -p .claude/skills .claude/agents
 mkdir -p .claude/skills/{start-task,tdd,bdd,review,setup,sdd,sdd-spec,sdd-plan,sdd-dev}
-mkdir -p .claude/skills/{clickup,github-ops,render-template}
+mkdir -p .claude/skills/{clickup,github-ops}
 ```
 
 **settings.json**:
@@ -269,7 +269,7 @@ Scarica e installa le skills appropriate in base al progetto.
 
 **Skills comuni** (sempre installate): start-task, review
 **Skills SDD** (sempre installate): sdd, sdd-spec, sdd-plan, sdd-dev
-**Shared skills** (sempre installate): clickup, github-ops, render-template
+**Shared skills** (sempre installate): clickup, github-ops
 
 **Skills di metodologia** (in base al tipo di progetto):
 - Se **frontend rilevato** (o stack Web Frontend / Mobile / Full-stack) → installa `bdd`

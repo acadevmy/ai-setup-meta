@@ -20,19 +20,8 @@ errors=0
 echo "Verifico file referenziati dal setup..."
 echo ""
 
-# File sempre richiesti
-COMMON_FILES=(
-  "dist/setup.md"
-)
-
-for file in "${COMMON_FILES[@]}"; do
-  if [ -f "${REPO_ROOT}/${file}" ]; then
-    printf '%b\n' "${GREEN}OK${NC}  ${file}"
-  else
-    printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
-    errors=$((errors + 1))
-  fi
-done
+# dist/ e' generato dal build (/project:build-plugin) — non validato qui
+# Eseguire il build e la sua validazione separatamente prima della release
 
 # Per ogni template con manifest.json
 for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
@@ -54,14 +43,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
       errors=$((errors + 1))
     fi
 
-    # Copia in dist
-    file="dist/agents/$AGENT"
-    if [ -f "${REPO_ROOT}/${file}" ]; then
-      printf '%b\n' "${GREEN}OK${NC}  ${file}"
-    else
-      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
-      errors=$((errors + 1))
-    fi
+    # dist/ agent copy validata dal build, non qui
   fi
 
   # Shared agents
