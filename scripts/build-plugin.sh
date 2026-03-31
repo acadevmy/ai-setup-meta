@@ -307,7 +307,7 @@ cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
       "url": "https://mcp.clickup.com/mcp"
     },
     "figma": {
-      "type": "url",
+      "type": "http",
       "url": "https://mcp.figma.com/mcp"
     },
     "context7": {
