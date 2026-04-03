@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Avvia un ciclo TDD (Red-Green-Refactor) per sviluppo backend (logica, API, servizi)
+description: Start a TDD cycle (Red-Green-Refactor) for backend development (logic, APIs, services)
 model: opus
 user-invocable: true
 disable-model-invocation: false
@@ -8,43 +8,43 @@ disable-model-invocation: false
 
 # /project:tdd
 
-Avvia un ciclo TDD classico per la feature o il bugfix descritto dall'utente.
-Questa metodologia è pensata per lo sviluppo **backend**: logica di business, API, servizi, data layer.
+Start a classic TDD cycle for the feature or bugfix described by the user.
+This methodology is designed for **backend** development: business logic, APIs, services, data layer.
 
-## Procedura
+## Procedure
 
-1. **Red** — Scrivi il test che descrive il comportamento atteso
-   - Usa la struttura `describe` / `it` con nomi descrittivi
-   - Testa un singolo comportamento per test case
-   - Il test deve fallire per la ragione giusta
+1. **Red** — Write the test describing the expected behavior
+   - Use `describe` / `it` structure with descriptive names
+   - Test a single behavior per test case
+   - The test must fail for the right reason
 
-2. **Green** — Implementa il minimo codice necessario
-   - Solo il codice sufficiente a far passare il test
-   - Niente ottimizzazioni premature
+2. **Green** — Implement the minimum necessary code
+   - Only enough code to make the test pass
+   - No premature optimizations
 
-3. **Refactor** — Migliora il codice mantenendo i test verdi
-   - Elimina duplicazione
-   - Migliora i nomi
-   - Applica le regole della CONSTITUTION.md
+3. **Refactor** — Improve the code while keeping tests green
+   - Eliminate duplication
+   - Improve names
+   - Apply CONSTITUTION.md rules
 
-4. **Ripeti** — Passa al prossimo comportamento
-   - Un ciclo Red-Green-Refactor per ogni comportamento
-   - Procedi dal caso più semplice al più complesso
+4. **Repeat** — Move on to the next behavior
+   - One Red-Green-Refactor cycle per behavior
+   - Proceed from the simplest case to the most complex
 
-5. **Verifica finale**
-   - Esegui i test del progetto:
-     - Se esiste `package.json` con script `test`: `npm test`
-     - Se esiste `pytest.ini` o `pyproject.toml` con `[tool.pytest]`: `pytest`
-     - Se esiste `go.mod`: `go test ./...`
-     - Se esiste `pubspec.yaml`: `flutter test` (per package Dart backend)
-     - Se esiste `Cargo.toml`: `cargo test`
-     - Altrimenti: chiedi allo sviluppatore quale comando usare
-   - Esegui il linter del progetto (se configurato):
-     - Se esiste `package.json` con script `lint`: `npm run lint`
-     - Se esiste configurazione ruff: `ruff check .`
-     - Se esiste `.golangci.yml`: `golangci-lint run`
-     - Se esiste `analysis_options.yaml`: `dart analyze`
-     - Se esiste `Cargo.toml`: `cargo clippy`
+5. **Final verification**
+   - Run the project tests:
+     - If `package.json` exists with a `test` script: `npm test`
+     - If `pytest.ini` or `pyproject.toml` with `[tool.pytest]` exists: `pytest`
+     - If `go.mod` exists: `go test ./...`
+     - If `pubspec.yaml` exists: `flutter test` (for Dart backend packages)
+     - If `Cargo.toml` exists: `cargo test`
+     - Otherwise: ask the developer which command to use
+   - Run the project linter (if configured):
+     - If `package.json` exists with a `lint` script: `npm run lint`
+     - If ruff configuration exists: `ruff check .`
+     - If `.golangci.yml` exists: `golangci-lint run`
+     - If `analysis_options.yaml` exists: `dart analyze`
+     - If `Cargo.toml` exists: `cargo clippy`
 
-## Input atteso
-Descrizione della feature o del bug da risolvere: $ARGUMENTS
+## Expected input
+Description of the feature or bug to fix: $ARGUMENTS

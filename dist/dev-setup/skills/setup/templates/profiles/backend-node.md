@@ -1,11 +1,11 @@
-# Profilo: Backend Node.js / NestJS
+# Profile: Backend Node.js / NestJS
 
 Stack: **Node.js 20+**, **NestJS 10+**
 Validation: Zod + class-validator (NestJS pipes)
 Testing: Jest + Supertest
-ORM: Prisma (preferito) o TypeORM
+ORM: Prisma (preferred) or TypeORM
 
-## Dipendenze obbligatorie
+## Required dependencies
 
 ```json
 {
@@ -37,7 +37,7 @@ ORM: Prisma (preferito) o TypeORM
 }
 ```
 
-## Configurazione ESLint
+## ESLint configuration
 
 ```json
 {
@@ -59,7 +59,7 @@ ORM: Prisma (preferito) o TypeORM
 }
 ```
 
-## Configurazione TypeScript
+## TypeScript configuration
 
 ```json
 {
@@ -81,7 +81,7 @@ ORM: Prisma (preferito) o TypeORM
 }
 ```
 
-## Configurazione Jest
+## Jest configuration
 
 ```typescript
 // jest.config.ts
@@ -100,7 +100,7 @@ export default {
 };
 ```
 
-## Struttura cartelle NestJS (obbligatoria)
+## NestJS folder structure (mandatory)
 
 ```
 src/
@@ -126,16 +126,16 @@ src/
 └── main.ts
 ```
 
-## Comandi slash aggiuntivi
+## Additional slash commands
 
-- `/project:new-module` — scaffolda modulo NestJS completo (CRUD) con test
-- `/project:new-dto` — crea DTO con Zod schema e class-validator
-- `/project:api-review` — review dell'API design del controller corrente
+- `/project:new-module` — scaffolds a complete NestJS module (CRUD) with tests
+- `/project:new-dto` — creates a DTO with Zod schema and class-validator
+- `/project:api-review` — reviews the API design of the current controller
 
-## Regole specifiche
+## Specific rules
 
-- Ogni endpoint valida l'input con un DTO che usa sia Zod che class-validator
-- I service non importano mai direttamente dal controller
-- I repository sono l'unico layer che conosce il ORM/database
-- Usare `Logger` di NestJS — mai `console.log`
-- Eccezioni: usare `HttpException` o le eccezioni built-in NestJS
+- Every endpoint validates input with a DTO that uses both Zod and class-validator
+- Services never import directly from the controller
+- Repositories are the only layer that knows the ORM/database
+- Use NestJS `Logger` — never `console.log`
+- Exceptions: use `HttpException` or NestJS built-in exceptions

@@ -1,6 +1,6 @@
 ---
 name: review
-description: Esegue code review del branch corrente verificando conformita' CONSTITUTION e aggiornando REGISTRY
+description: Performs code review of the current branch verifying CONSTITUTION compliance and updating REGISTRY
 model: sonnet
 user-invocable: true
 disable-model-invocation: false
@@ -8,61 +8,61 @@ disable-model-invocation: false
 
 # /project:review
 
-Esegui una code review del codice modificato nel branch corrente tramite il Review Agent.
+Perform a code review of the modified code in the current branch via the Review Agent.
 
-## Procedura
+## Procedure
 
-### 1. Lancia il Review Agent
+### 1. Launch the Review Agent
 
-Lancia l'agent `review` con:
+Launch the `review` agent with:
 - BASE_BRANCH: `main`
 - CONSTITUTION_PATH: `./CONSTITUTION.md`
 - REGISTRY_PATH: `./REGISTRY.md`
-- TASK_ID: estratto dal nome del branch corrente (es. `feat/DE-123-desc` → `DE-123`), se presente
+- TASK_ID: extracted from the current branch name (e.g. `feat/DE-123-desc` → `DE-123`), if present
 
-### 2. Analizza il risultato
+### 2. Analyze the result
 
-Parsa l'output `---REVIEW-RESULT---` restituito dall'agent.
+Parse the `---REVIEW-RESULT---` output returned by the agent.
 
-**Se STATUS = fail**:
-- Mostra tutte le VIOLATIONS con file, riga e regola violata
-- Mostra i WARNINGS come suggerimenti
-- Informa lo sviluppatore che la review non e' passata
-- Fermati — il codice va corretto prima di procedere
+**If STATUS = fail**:
+- Show all VIOLATIONS with file, line and violated rule
+- Show WARNINGS as suggestions
+- Inform the developer that the review did not pass
+- Stop — the code must be fixed before proceeding
 
-**Se STATUS = pass-with-warnings**:
-- Mostra i WARNINGS come suggerimenti di miglioramento
-- Procedi con il passo successivo
+**If STATUS = pass-with-warnings**:
+- Show WARNINGS as improvement suggestions
+- Proceed to the next step
 
-**Se STATUS = pass**:
-- Conferma che il codice e' conforme
-- Procedi con il passo successivo
+**If STATUS = pass**:
+- Confirm that the code is compliant
+- Proceed to the next step
 
-### 3. Applica aggiornamenti REGISTRY
+### 3. Apply REGISTRY updates
 
-Se l'agent ha restituito REGISTRY_UPDATES non vuoto:
+If the agent returned non-empty REGISTRY_UPDATES:
 
-1. Leggi `REGISTRY.md` corrente
-2. Per ogni entry con ACTION: `add`:
-   - Aggiungi il blocco ENTRY nella SECTION indicata
-   - Rimuovi eventuali placeholder `_Nessun(a|o) ... registrat(a|o)._` dalla sezione
-3. Per ogni entry con ACTION: `update`:
-   - Trova l'entry esistente nella sezione e aggiorna i campi modificati
-4. Committa l'aggiornamento: `docs(registry): update REGISTRY.md`
+1. Read the current `REGISTRY.md`
+2. For each entry with ACTION: `add`:
+   - Add the ENTRY block in the indicated SECTION
+   - Remove any placeholder `_No ... registered._` from the section
+3. For each entry with ACTION: `update`:
+   - Find the existing entry in the section and update the modified fields
+4. Commit the update: `docs(registry): update REGISTRY.md`
 
-### 4. Report finale
+### 4. Final report
 
-Mostra un riepilogo:
+Show a summary:
 ```
 Review: <STATUS>
-Violazioni: <numero>
-Warning: <numero>
-REGISTRY aggiornato: <si/no>
+Violations: <count>
+Warnings: <count>
+REGISTRY updated: <yes/no>
 
-<SUMMARY dall'agent>
+<SUMMARY from agent>
 ```
 
-## Output atteso
-- Report di conformita' alla CONSTITUTION
-- `REGISTRY.md` aggiornato con le nuove entry (se presenti)
-- Commit `docs(registry): update REGISTRY.md` (se modifiche al registry)
+## Expected output
+- CONSTITUTION compliance report
+- `REGISTRY.md` updated with new entries (if any)
+- Commit `docs(registry): update REGISTRY.md` (if registry changes)

@@ -1,11 +1,11 @@
-# Profilo: Web Frontend
+# Profile: Web Frontend
 
 Stack: **Next.js 14+**, **Angular 17+**, **React 18+**
 UI: ShadCN/UI + Tailwind CSS
 Validation: Zod
 Testing: Jest + Testing Library
 
-## Dipendenze obbligatorie
+## Required dependencies
 
 ```json
 {
@@ -37,7 +37,7 @@ Testing: Jest + Testing Library
 }
 ```
 
-## Configurazione ESLint (estende la base)
+## ESLint configuration (extends base)
 
 ```json
 {
@@ -57,7 +57,7 @@ Testing: Jest + Testing Library
 }
 ```
 
-## Configurazione TypeScript
+## TypeScript configuration
 
 ```json
 {
@@ -79,7 +79,7 @@ Testing: Jest + Testing Library
 }
 ```
 
-## Configurazione Jest
+## Jest configuration
 
 ```typescript
 // jest.config.ts
@@ -97,15 +97,15 @@ export default {
 };
 ```
 
-## Comandi slash aggiuntivi
+## Additional slash commands
 
-- `/project:new-component` — scaffolda componente ShadCN/Tailwind con test
-- `/project:new-page` — scaffolda pagina Next.js con layout e metadata
-- `/project:review-a11y` — review accessibilità componente corrente
+- `/project:new-component` — scaffolds a ShadCN/Tailwind component with tests
+- `/project:new-page` — scaffolds a Next.js page with layout and metadata
+- `/project:review-a11y` — reviews accessibility of the current component
 
-## Regole specifiche (in aggiunta alla Costituzione)
+## Specific rules (in addition to the Constitution)
 
-- Usare `'use client'` solo quando necessario — preferire Server Components
-- Le chiamate API avvengono in Server Components o Route Handlers, non nel client
-- Ogni form usa `react-hook-form` + Zod resolver
-- Nessun `useEffect` per fetch — usare `async/await` in Server Components o SWR/TanStack Query
+- Use `'use client'` only when necessary — prefer Server Components
+- API calls happen in Server Components or Route Handlers, not on the client
+- Every form uses `react-hook-form` + Zod resolver
+- No `useEffect` for fetching — use `async/await` in Server Components or SWR/TanStack Query

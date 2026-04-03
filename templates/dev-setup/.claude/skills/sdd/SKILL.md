@@ -1,6 +1,6 @@
 ---
 name: sdd
-description: Avvia il flusso Spec-Driven Development completo (spec, approvazione, sviluppo, review, PR)
+description: Starts the complete Spec-Driven Development flow (spec, approval, development, review, PR)
 model: opus
 user-invocable: true
 disable-model-invocation: true
@@ -8,187 +8,187 @@ disable-model-invocation: true
 
 # /project:sdd
 
-Avvia il flusso Spec-Driven Development (SDD) completo per un task ClickUp.
-A differenza di `/project:start-task` che va direttamente allo sviluppo, questo flusso
-produce prima una **specifica tecnica** e un **piano di implementazione**, li discute
-con lo sviluppatore, e solo dopo l'approvazione procede con lo sviluppo.
+Starts the complete Spec-Driven Development (SDD) flow for a ClickUp task.
+Unlike `/project:start-task` which goes directly to development, this flow
+first produces a **technical specification** and an **implementation plan**, discusses them
+with the developer, and only after approval proceeds with development.
 
-**Uso**: `/project:sdd [TASK_ID]`
-- Con `TASK_ID` (es. `DE-123`): recupera direttamente quel task da ClickUp
-- Senza argomenti: mostra i task disponibili in SPRINT e chiede quale prendere
+**Usage**: `/project:sdd [TASK_ID]`
+- With `TASK_ID` (e.g. `DE-123`): retrieves that task directly from ClickUp
+- Without arguments: shows available tasks in SPRINT and asks which one to pick
 
-## Flusso completo
+## Complete flow
 
-### 1. Selezione del task
+### 1. Task selection
 
-**Se e' stato fornito un TASK_ID** (argomento `$ARGUMENTS`):
-- Lancia l'agent `clickup` con:
+**If a TASK_ID was provided** (argument `$ARGUMENTS`):
+- Launch the `clickup` agent with:
   - INTENT: `read`
-  - PARAMS: `task_id: <TASK_ID fornito>`
-- Se l'agent restituisce STATUS: error, informa lo sviluppatore e fermati
+  - PARAMS: `task_id: <provided TASK_ID>`
+- If the agent returns STATUS: error, inform the developer and stop
 
-**Se NON e' stato fornito un TASK_ID**:
-- Leggi `CLICKUP_SETUP_LIST_ID` dal file `.env` nella root del progetto
-- Se la variabile non e' configurata, informa lo sviluppatore di compilare `.env` e fermati
-- Lancia l'agent `clickup` con:
+**If a TASK_ID was NOT provided**:
+- Read `CLICKUP_SETUP_LIST_ID` from the `.env` file in the project root
+- If the variable is not configured, inform the developer to fill in `.env` and stop
+- Launch the `clickup` agent with:
   - INTENT: `filter`
   - PARAMS: `list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`
-- Se l'agent restituisce STATUS: error, informa lo sviluppatore e fermati
-- Chiedi allo sviluppatore quanti task vuole visualizzare (default: 5)
-- Dai risultati, prendi i primi N task ordinati per priorita' (1 = urgent, ..., 4 = low)
-- Presentali allo sviluppatore:
+- If the agent returns STATUS: error, inform the developer and stop
+- Ask the developer how many tasks they want to view (default: 5)
+- From the results, take the first N tasks sorted by priority (1 = urgent, ..., 4 = low)
+- Present them to the developer:
   ```
-  Task disponibili (SPRINT):
-  1. [DE-123] Titolo task 1 (Priorita': Urgent)
-  2. [DE-124] Titolo task 2 (Priorita': Alta)
-  3. [DE-125] Titolo task 3 (Priorita': Normale)
+  Available tasks (SPRINT):
+  1. [DE-123] Task title 1 (Priority: Urgent)
+  2. [DE-124] Task title 2 (Priority: High)
+  3. [DE-125] Task title 3 (Priority: Normal)
   ...
   ```
-- Chiedi allo sviluppatore quale task vuole prendere in carico
-- Lancia l'agent `clickup` con INTENT: `read` per recuperare il contenuto completo del task scelto
+- Ask the developer which task they want to take on
+- Launch the `clickup` agent with INTENT: `read` to retrieve the full content of the chosen task
 
-Dall'output dell'agent, estrai:
-- `custom_id` (es. DE-123)
-- `name` (titolo)
-- `description` (descrizione — riportata integralmente dall'agent)
+From the agent output, extract:
+- `custom_id` (e.g. DE-123)
+- `name` (title)
+- `description` (description — reported in full by the agent)
 - `priority`
-- `task_id` (per aggiornamenti successivi)
-- `url` (link al task)
+- `task_id` (for subsequent updates)
+- `url` (link to the task)
 
-### 2. Crea il branch di lavoro
+### 2. Create the working branch
 
-Determina il tipo di branch dal titolo/descrizione del task:
+Determine the branch type from the task title/description:
 - Feature → `feat/`
 - Bug → `fix/`
-- Manutenzione → `chore/`
+- Maintenance → `chore/`
 
-Crea il branch con il customId:
+Create the branch with the customId:
 ```bash
 git checkout main
 git pull origin main
-git checkout -b <tipo>/<customId>-<descrizione-breve>
+git checkout -b <type>/<customId>-<short-description>
 ```
 
-Esempio: `feat/DE-123-add-user-auth`
+Example: `feat/DE-123-add-user-auth`
 
-### 3. Aggiorna lo stato del task
+### 3. Update the task status
 
-Lancia l'agent `clickup` con:
+Launch the `clickup` agent with:
 - INTENT: `update`
 - PARAMS: `task_id: <task_id>, status: IN PROGRESS`
 
-### 4. Mostra il brief
+### 4. Show the brief
 
-Presenta un riepilogo:
+Present a summary:
 ```
-Task:     DE-123 — Titolo del task
-Priorita': Alta
+Task:     DE-123 — Task title
+Priority: High
 Branch:   feat/DE-123-add-user-auth
-Stato:    IN PROGRESS
+Status:   IN PROGRESS
 
-Descrizione:
-<contenuto della descrizione del task — come restituito dall'agent>
+Description:
+<task description content — as returned by the agent>
 ```
 
-### 5. Discovery — Intervista strutturata
+### 5. Discovery — Structured interview
 
-Invoca `/project:sdd-discovery` passando il contesto del task (custom_id, name, description, priority, url).
+Invoke `/project:sdd-discovery` passing the task context (custom_id, name, description, priority, url).
 
-La skill condurra' un'intervista interattiva con lo sviluppatore per raccogliere
-requisiti completi, edge cases, vincoli e preferenze. Al termine produrra' un
-**Discovery Summary** strutturato che verra' usato come input per la generazione della spec.
+The skill will conduct an interactive interview with the developer to gather
+complete requirements, edge cases, constraints and preferences. At the end it will produce a
+structured **Discovery Summary** that will be used as input for spec generation.
 
-Attendi il completamento della discovery prima di procedere.
+Wait for the discovery to complete before proceeding.
 
-### 6. Genera la specifica tecnica
+### 6. Generate the technical specification
 
-Invoca `/project:sdd-spec` passando il contesto del task (custom_id, name, description, url, branch) e il Discovery Summary prodotto allo step precedente.
+Invoke `/project:sdd-spec` passing the task context (custom_id, name, description, url, branch) and the Discovery Summary produced in the previous step.
 
-La spec verra' generata in `.specs/<customId>-<slug>.md` con status `draft`.
+The spec will be generated in `.specs/<customId>-<slug>.md` with status `draft`.
 
-### 7. Revisione e approvazione della spec
+### 7. Spec review and approval
 
-Invoca `/project:sdd-plan` per presentare la spec allo sviluppatore.
+Invoke `/project:sdd-plan` to present the spec to the developer.
 
-Questo e' un **checkpoint di supervisione**: il flusso si ferma finche' lo sviluppatore
-non approva esplicitamente la spec. Lo sviluppatore puo':
-- Discutere e commentare la soluzione proposta
-- Richiedere modifiche alla spec
-- Approvare e procedere
+This is a **supervision checkpoint**: the flow stops until the developer
+explicitly approves the spec. The developer can:
+- Discuss and comment on the proposed solution
+- Request changes to the spec
+- Approve and proceed
 
-### 8. Scelta della metodologia di sviluppo
+### 8. Choose the development methodology
 
-Dopo l'approvazione della spec, chiedi allo sviluppatore:
+After spec approval, ask the developer:
 ```
-Metodologia di sviluppo:
-1. TDD (Red-Green-Refactor) — consigliato per backend, logica di business, API, servizi
-2. BDD (Given/When/Then) — consigliato per frontend, componenti UI, flussi utente
-3. Nessuna — sviluppo diretto senza ciclo test-first
+Development methodology:
+1. TDD (Red-Green-Refactor) — recommended for backend, business logic, APIs, services
+2. BDD (Given/When/Then) — recommended for frontend, UI components, user flows
+3. None — direct development without test-first cycle
 ```
 
-### 9. Sviluppo
+### 9. Development
 
-Invoca `/project:sdd-dev` passando il path della spec e la metodologia scelta.
+Invoke `/project:sdd-dev` passing the spec path and the chosen methodology.
 
-Lo sviluppo seguira' il piano di implementazione definito nella spec approvata.
+Development will follow the implementation plan defined in the approved spec.
 
-### 10. Chiusura — Qualita', review e PR
+### 10. Closure — Quality, review and PR
 
-Quando lo sviluppo e' completato:
+When development is completed:
 
-1. **Commit** con Conventional Commits (includi il customId):
+1. **Commit** with Conventional Commits (include the customId):
    ```
    feat(auth): add refresh token rotation [DE-123]
    ```
 
-2. **Simplify** — Esegui la skill `simplify` per rivedere il codice modificato:
-   - Cerca opportunita' di riuso di codice esistente
-   - Migliora qualita' e efficienza
-   - Correggi eventuali problemi trovati
-   - Se ci sono modifiche, committale: `refactor(<scope>): simplify implementation`
+2. **Simplify** — Run the `simplify` skill to review the modified code:
+   - Look for opportunities to reuse existing code
+   - Improve quality and efficiency
+   - Fix any issues found
+   - If there are changes, commit them: `refactor(<scope>): simplify implementation`
 
-3. **Review** — Esegui `/project:review` per:
-   - Verificare conformita' alla CONSTITUTION.md (tramite Review Agent)
-   - Verificare qualita' del codice
-   - Aggiornare automaticamente `REGISTRY.md` con le nuove entry
+3. **Review** — Run `/project:review` to:
+   - Verify CONSTITUTION.md compliance (via the Review Agent)
+   - Verify code quality
+   - Automatically update `REGISTRY.md` with new entries
 
-4. **Riepilogo** — Mostra allo sviluppatore un riepilogo completo:
+4. **Summary** — Show the developer a complete summary:
    ```
-   Riepilogo implementazione: DE-123 — Titolo del task
+   Implementation summary: DE-123 — Task title
 
    Spec: .specs/DE-123-<slug>.md
-   Metodologia: <tdd/bdd/nessuna>
-   File creati: <lista>
-   File modificati: <lista>
-   Test: <passanti/falliti>
-   Review: <esito>
-   REGISTRY: <aggiornato/invariato>
+   Methodology: <tdd/bdd/none>
+   Files created: <list>
+   Files modified: <list>
+   Tests: <passing/failing>
+   Review: <result>
+   REGISTRY: <updated/unchanged>
    ```
 
-5. **Attendi OK** — Lo sviluppatore deve confermare che la soluzione e' completa e corretta.
-   Se lo sviluppatore richiede modifiche, applica le correzioni e torna al punto 1 di questo step.
+5. **Wait for OK** — The developer must confirm that the solution is complete and correct.
+   If the developer requests changes, apply corrections and return to step 1 of this section.
 
-6. **Push** del branch:
+6. **Push** the branch:
    ```bash
    git push -u origin <branch-name>
    ```
 
-7. **Apri PR** con `gh pr create`:
-   - Titolo: segue Conventional Commits con customId (es. `feat(auth): add refresh token rotation [DE-123]`)
-   - Body: include sezioni Cosa / Perche' / Come testare + link al task ClickUp + link alla spec
+7. **Open PR** with `gh pr create`:
+   - Title: follows Conventional Commits with customId (e.g. `feat(auth): add refresh token rotation [DE-123]`)
+   - Body: includes What / Why / How to test sections + link to ClickUp task + link to spec
 
-8. **Aggiorna stato** — Lancia l'agent `clickup` con:
+8. **Update status** — Launch the `clickup` agent with:
    - INTENT: `update`
    - PARAMS: `task_id: <task_id>, status: CODE REVIEW`
-   - Se lo stato `CODE REVIEW` non e' disponibile, usa `IN REVIEW`
+   - If the `CODE REVIEW` status is not available, use `IN REVIEW`
 
-9. **Aggiorna spec** — Cambia lo status della spec da `approved` a `implemented` nel file `.specs/<customId>-<slug>.md`
+9. **Update spec** — Change the spec status from `approved` to `implemented` in the `.specs/<customId>-<slug>.md` file
 
-## Output atteso
-- Branch creato con customId nel nome
-- Spec tecnica in `.specs/` (status: implemented)
-- Codice implementato seguendo la spec approvata
-- Codice ottimizzato (simplify) e conforme alla CONSTITUTION (review)
-- `REGISTRY.md` aggiornato con le nuove entry
-- Task spostato: SPRINT → IN PROGRESS → CODE REVIEW
-- PR aperta su GitHub con riferimento al task ClickUp e alla spec
+## Expected output
+- Branch created with customId in the name
+- Technical spec in `.specs/` (status: implemented)
+- Code implemented following the approved spec
+- Code optimized (simplify) and CONSTITUTION-compliant (review)
+- `REGISTRY.md` updated with new entries
+- Task moved: SPRINT → IN PROGRESS → CODE REVIEW
+- PR opened on GitHub with reference to the ClickUp task and spec

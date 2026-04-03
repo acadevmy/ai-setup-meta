@@ -1,6 +1,6 @@
 ---
 name: sdd-plan
-description: Presenta la specifica tecnica allo sviluppatore per discussione, iterazione e approvazione
+description: Presents the technical spec to the developer for discussion, iteration and approval
 model: sonnet
 user-invocable: true
 disable-model-invocation: false
@@ -8,83 +8,83 @@ disable-model-invocation: false
 
 # /project:sdd-plan
 
-Presenta una specifica tecnica allo sviluppatore per revisione, discussione e approvazione.
-Lo sviluppatore puo' commentare, richiedere modifiche o approvare la spec.
+Present a technical specification to the developer for review, discussion and approval.
+The developer can comment, request changes or approve the spec.
 
-**Uso**: `/project:sdd-plan [SPEC_REF]`
-- Con path (es. `.specs/DE-123-add-auth.md`): apre quella spec
-- Con customId (es. `DE-123`): cerca la spec corrispondente in `.specs/`
-- Senza argomenti: elenca le spec disponibili e chiede quale aprire
+**Usage**: `/project:sdd-plan [SPEC_REF]`
+- With path (e.g. `.specs/DE-123-add-auth.md`): opens that spec
+- With customId (e.g. `DE-123`): searches for the corresponding spec in `.specs/`
+- Without arguments: lists available specs and asks which one to open
 
-## Procedura
+## Procedure
 
-### 1. Localizza la spec
+### 1. Locate the spec
 
-**Se `$ARGUMENTS` contiene un path**:
-- Leggi il file al path indicato
-- Se il file non esiste, informa lo sviluppatore e fermati
+**If `$ARGUMENTS` contains a path**:
+- Read the file at the indicated path
+- If the file does not exist, inform the developer and stop
 
-**Se `$ARGUMENTS` contiene un customId**:
-- Cerca in `.specs/` un file che inizi con il customId (es. `DE-123-*.md`)
-- Se trovato, leggi il file
-- Se non trovato, informa lo sviluppatore e fermati
+**If `$ARGUMENTS` contains a customId**:
+- Search in `.specs/` for a file starting with the customId (e.g. `DE-123-*.md`)
+- If found, read the file
+- If not found, inform the developer and stop
 
-**Se `$ARGUMENTS` e' vuoto**:
-- Elenca tutti i file `.md` in `.specs/`
-- Se non ci sono spec, informa lo sviluppatore e fermati
-- Se ce n'e' una sola, aprila direttamente
-- Se ce ne sono piu' di una, presentale come lista numerata e chiedi quale aprire
+**If `$ARGUMENTS` is empty**:
+- List all `.md` files in `.specs/`
+- If there are no specs, inform the developer and stop
+- If there is only one, open it directly
+- If there are multiple, present them as a numbered list and ask which one to open
 
-### 2. Presenta la spec
+### 2. Present the spec
 
-Mostra la spec completa allo sviluppatore con formattazione chiara.
-Evidenzia lo status corrente (draft/approved/implemented).
+Show the complete spec to the developer with clear formatting.
+Highlight the current status (draft/approved/implemented).
 
-### 3. Discussione e iterazione
+### 3. Discussion and iteration
 
-Chiedi allo sviluppatore come vuole procedere:
+Ask the developer how they want to proceed:
 
 ```
-Come vuoi procedere?
-1. Approva — la spec e' pronta, procedi con lo sviluppo
-2. Modifica — indica cosa cambiare
-3. Rigenera — rigenera la spec da zero (invochera' sdd-spec)
+How do you want to proceed?
+1. Approve — the spec is ready, proceed with development
+2. Modify — indicate what to change
+3. Regenerate — regenerate the spec from scratch (will invoke sdd-spec)
 ```
 
-**Se lo sviluppatore sceglie "Approva"**:
-- Aggiorna il file spec: cambia `Status: draft` in `Status: approved`
-- Aggiorna il campo `Approved:` con la data odierna (formato YYYY-MM-DD)
-- Conferma l'approvazione:
+**If the developer chooses "Approve"**:
+- Update the spec file: change `Status: draft` to `Status: approved`
+- Update the `Approved:` field with today's date (YYYY-MM-DD format)
+- Confirm the approval:
   ```
-  Spec approvata: .specs/<filename>
+  Spec approved: .specs/<filename>
   Status: approved
-  Approved: <data>
+  Approved: <date>
   ```
 
-**Se lo sviluppatore sceglie "Modifica"**:
-- Raccogli il feedback dello sviluppatore
-- Applica le modifiche richieste al file spec
-- Ri-presenta la spec aggiornata
-- Torna al punto 3 (loop di discussione)
+**If the developer chooses "Modify"**:
+- Gather the developer's feedback
+- Apply the requested changes to the spec file
+- Re-present the updated spec
+- Return to step 3 (discussion loop)
 
-**Se lo sviluppatore sceglie "Rigenera"**:
-- Informa lo sviluppatore di invocare `/project:sdd-spec` con il task ID per rigenerare
-- Se invocata dall'orchestratore, l'orchestratore gestira' la rigenerazione
+**If the developer chooses "Regenerate"**:
+- Inform the developer to invoke `/project:sdd-spec` with the task ID to regenerate
+- If invoked by the orchestrator, the orchestrator will handle the regeneration
 
-**Se lo sviluppatore vuole discutere aspetti specifici**:
-- Rispondi alle domande e ai dubbi
-- Suggerisci alternative quando richiesto
-- Dopo la discussione, torna al punto 3
+**If the developer wants to discuss specific aspects**:
+- Answer questions and address concerns
+- Suggest alternatives when requested
+- After the discussion, return to step 3
 
-### 4. Conferma finale
+### 4. Final confirmation
 
-Al termine, conferma lo stato della spec e il path del file:
+At the end, confirm the spec status and file path:
 ```
 Spec: .specs/<filename>
-Status: <status aggiornato>
+Status: <updated status>
 ```
 
-## Output atteso
-- Spec presentata e discussa con lo sviluppatore
-- File spec aggiornato con le modifiche concordate
-- Status aggiornato a `approved` (se approvata) con data di approvazione
+## Expected output
+- Spec presented and discussed with the developer
+- Spec file updated with agreed changes
+- Status updated to `approved` (if approved) with approval date

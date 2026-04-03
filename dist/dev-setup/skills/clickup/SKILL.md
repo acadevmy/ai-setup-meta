@@ -1,81 +1,81 @@
 ---
 name: clickup
-description: Documentazione di riferimento per operazioni ClickUp tramite MCP (stati, workflow, CRUD task)
+description: Reference documentation for ClickUp operations via MCP (statuses, workflow, task CRUD)
 user-invocable: false
 disable-model-invocation: false
 ---
 
 # Skill: ClickUp Operations
 
-Operazioni ClickUp tramite MCP. Usare per leggere task, aggiornare stati,
-creare notifiche al team.
+ClickUp operations via MCP. Use for reading tasks, updating statuses,
+and creating team notifications.
 
-## Pre-condizioni
-- MCP ClickUp configurato via OAuth: `claude mcp add clickup https://mcp.clickup.com/mcp`
-- Ogni sviluppatore si autentica con il proprio account ClickUp (supporta anche guest)
-- Ogni operazione lavora su una specifica `list_id` — non serve un `TEAM_ID` globale
+## Prerequisites
+- ClickUp MCP configured via OAuth: `claude mcp add clickup https://mcp.clickup.com/mcp`
+- Each developer authenticates with their own ClickUp account (guest accounts supported)
+- Each operation works on a specific `list_id` — no global `TEAM_ID` required
 
-## Stati del workflow
+## Workflow statuses
 
 ```
 SPRINT  →  IN PROGRESS  →  IN REVIEW / CODE REVIEW  →  DONE
 ```
 
-| Stato | Significato |
+| Status | Meaning |
 |---|---|
-| SPRINT | Task pianificato nello sprint corrente, pronto per essere preso |
-| IN PROGRESS | Sviluppo in corso |
-| IN REVIEW / CODE REVIEW | PR aperta, in attesa di review |
-| DONE | Completato e mergiato |
+| SPRINT | Task planned in the current sprint, ready to be picked up |
+| IN PROGRESS | Development in progress |
+| IN REVIEW / CODE REVIEW | PR opened, awaiting review |
+| DONE | Completed and merged |
 
-## Operazioni disponibili
+## Available operations
 
-### Recuperare il prossimo task da lavorare
+### Get the next task to work on
 ```
-Usa il MCP ClickUp per recuperare i task con:
-  - Filtro stato: SPRINT
-  - Ordinamento: per priorità (1 = urgent, 2 = high, 3 = normal, 4 = low)
-  - Prendi il primo task con priorità più alta
+Use the ClickUp MCP to retrieve tasks with:
+  - Status filter: SPRINT
+  - Sort by: priority (1 = urgent, 2 = high, 3 = normal, 4 = low)
+  - Pick the first task with the highest priority
 
-Il task restituito contiene il campo `custom_id` (es. DE-123) che va usato
-nel nome del branch.
-```
-
-### Leggere un task
-```
-Usa il MCP ClickUp per recuperare i dettagli di un task dato il suo ID.
-Output: titolo, descrizione, stato, assegnatari, custom fields, custom_id
+The returned task contains the `custom_id` field (e.g. DE-123) which should
+be used in the branch name.
 ```
 
-### Aggiornare lo stato di un task
+### Read a task
 ```
-Usa il MCP ClickUp per aggiornare lo stato.
-Input: task ID, nuovo stato
-
-Transizioni valide:
-  SPRINT       → IN PROGRESS        (quando si inizia a lavorare)
-  IN PROGRESS  → IN REVIEW          (quando la PR è aperta)
-  IN PROGRESS  → CODE REVIEW        (alternativa a IN REVIEW)
-  IN REVIEW    → DONE               (dopo merge)
-  CODE REVIEW  → DONE               (dopo merge)
+Use the ClickUp MCP to retrieve task details given its ID.
+Output: title, description, status, assignees, custom fields, custom_id
 ```
 
-### Creare un task
+### Update task status
 ```
-Usa il MCP ClickUp per creare un nuovo task.
-Campi obbligatori:
-  - list_id: ID lista di destinazione
-  - name: titolo del task
-  - description: descrizione (markdown supportato)
-Campi opzionali:
-  - assignees: lista di user ID
+Use the ClickUp MCP to update the status.
+Input: task ID, new status
+
+Valid transitions:
+  SPRINT       → IN PROGRESS        (when starting work)
+  IN PROGRESS  → IN REVIEW          (when the PR is opened)
+  IN PROGRESS  → CODE REVIEW        (alternative to IN REVIEW)
+  IN REVIEW    → DONE               (after merge)
+  CODE REVIEW  → DONE               (after merge)
+```
+
+### Create a task
+```
+Use the ClickUp MCP to create a new task.
+Required fields:
+  - list_id: destination list ID
+  - name: task title
+  - description: description (markdown supported)
+Optional fields:
+  - assignees: list of user IDs
   - priority: 1 (urgent) / 2 (high) / 3 (normal) / 4 (low)
-  - due_date: timestamp Unix
+  - due_date: Unix timestamp
 ```
 
-## Casi d'uso tipici nel meta-repo
+## Typical use cases in the meta-repo
 
-**Release notification**: dopo `/project:release`, creare un task per ogni
-sviluppatore con le istruzioni di aggiornamento.
+**Release notification**: after `/project:release`, create a task for each
+developer with update instructions.
 
-**Setup tracking**: tracciare l'adozione del nuovo template da parte del team.
+**Setup tracking**: track the adoption of the new template by the team.

@@ -1,6 +1,6 @@
 ---
 name: bdd
-description: Avvia un ciclo BDD (Given/When/Then) per sviluppo frontend (componenti, pagine, flussi utente)
+description: Start a BDD cycle (Given/When/Then) for frontend development (components, pages, user flows)
 model: opus
 user-invocable: true
 disable-model-invocation: false
@@ -8,48 +8,48 @@ disable-model-invocation: false
 
 # /project:bdd
 
-Avvia un ciclo BDD per la feature o il bugfix descritto dall'utente.
-Questa metodologia è pensata per lo sviluppo **frontend**: componenti UI, pagine, flussi utente.
+Start a BDD cycle for the feature or bugfix described by the user.
+This methodology is designed for **frontend** development: UI components, pages, user flows.
 
-## Procedura
+## Procedure
 
-1. **Specifica** — Definisci gli scenari in linguaggio naturale
-   - Scrivi uno o più scenari usando il formato Gherkin:
+1. **Specification** — Define scenarios in natural language
+   - Write one or more scenarios using the Gherkin format:
      ```gherkin
-     Feature: <nome della feature>
+     Feature: <feature name>
 
-       Scenario: <descrizione del comportamento>
-         Given <stato iniziale>
-         When <azione dell'utente>
-         Then <risultato atteso>
+       Scenario: <behavior description>
+         Given <initial state>
+         When <user action>
+         Then <expected result>
      ```
-   - Usa `And` per aggiungere passi aggiuntivi
-   - Usa `Scenario Outline` con `Examples` per varianti parametriche
-   - Presenta gli scenari allo sviluppatore per conferma prima di procedere
+   - Use `And` to add additional steps
+   - Use `Scenario Outline` with `Examples` for parametric variants
+   - Present the scenarios to the developer for confirmation before proceeding
 
-2. **Implementa i test** — Traduci gli scenari in test eseguibili
-   - Ogni `Given` prepara lo stato iniziale (render del componente, mock dei dati)
-   - Ogni `When` simula l'azione utente (click, input, navigazione)
-   - Ogni `Then` verifica il risultato visibile all'utente
-   - Mantieni i nomi dei test allineati agli scenari Gherkin
+2. **Implement tests** — Translate scenarios into executable tests
+   - Each `Given` prepares the initial state (component render, data mocks)
+   - Each `When` simulates the user action (click, input, navigation)
+   - Each `Then` verifies the result visible to the user
+   - Keep test names aligned with the Gherkin scenarios
 
-3. **Implementa il codice** — Sviluppa il minimo necessario
-   - Implementa componenti e logica per far passare gli scenari
-   - Concentrati sul comportamento visibile all'utente, non sui dettagli implementativi
+3. **Implement code** — Develop the minimum necessary
+   - Implement components and logic to make the scenarios pass
+   - Focus on user-visible behavior, not implementation details
 
-4. **Refactor** — Migliora il codice mantenendo gli scenari verdi
-   - Estrai componenti riutilizzabili
-   - Migliora i nomi
-   - Applica le regole della CONSTITUTION.md
+4. **Refactor** — Improve the code while keeping scenarios green
+   - Extract reusable components
+   - Improve names
+   - Apply CONSTITUTION.md rules
 
-5. **Verifica finale**
-   - Esegui i test del progetto:
-     - Se esiste `package.json` con script `test`: `npm test`
-     - Se esiste `pubspec.yaml`: `flutter test`
-     - Altrimenti: chiedi allo sviluppatore quale comando usare
-   - Esegui il linter del progetto (se configurato):
-     - Se esiste `package.json` con script `lint`: `npm run lint`
-     - Se esiste `analysis_options.yaml`: `dart analyze`
+5. **Final verification**
+   - Run the project tests:
+     - If `package.json` exists with a `test` script: `npm test`
+     - If `pubspec.yaml` exists: `flutter test`
+     - Otherwise: ask the developer which command to use
+   - Run the project linter (if configured):
+     - If `package.json` exists with a `lint` script: `npm run lint`
+     - If `analysis_options.yaml` exists: `dart analyze`
 
-## Input atteso
-Descrizione della feature o del bug da risolvere: $ARGUMENTS
+## Expected input
+Description of the feature or bug to fix: $ARGUMENTS

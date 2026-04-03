@@ -1,6 +1,6 @@
 ---
 name: sdd-dev
-description: Esegue lo sviluppo seguendo la specifica tecnica approvata, con supporto TDD/BDD o sviluppo diretto
+description: Executes development following the approved technical spec, with TDD/BDD or direct development support
 model: opus
 user-invocable: true
 disable-model-invocation: false
@@ -8,158 +8,158 @@ disable-model-invocation: false
 
 # /project:sdd-dev
 
-Esegue lo sviluppo di una feature seguendo la specifica tecnica approvata.
-Supporta tre modalita': TDD (backend), BDD (frontend), o sviluppo diretto.
+Executes feature development following the approved technical spec.
+Supports three modes: TDD (backend), BDD (frontend), or direct development.
 
-**Uso**: `/project:sdd-dev <SPEC_REF> [METHODOLOGY]`
-- `SPEC_REF`: path della spec (es. `.specs/DE-123-add-auth.md`) o customId (es. `DE-123`)
-- `METHODOLOGY` (opzionale): `tdd`, `bdd`, o `none` (default: chiede allo sviluppatore)
+**Usage**: `/project:sdd-dev <SPEC_REF> [METHODOLOGY]`
+- `SPEC_REF`: spec path (e.g. `.specs/DE-123-add-auth.md`) or customId (e.g. `DE-123`)
+- `METHODOLOGY` (optional): `tdd`, `bdd`, or `none` (default: asks the developer)
 
-Esempio: `/project:sdd-dev DE-123 tdd`
+Example: `/project:sdd-dev DE-123 tdd`
 
-## Procedura
+## Procedure
 
-### 1. Carica la spec
+### 1. Load the spec
 
-**Se `$ARGUMENTS` contiene un path**:
-- Leggi il file al path indicato
+**If `$ARGUMENTS` contains a path**:
+- Read the file at the indicated path
 
-**Se `$ARGUMENTS` contiene un customId**:
-- Cerca in `.specs/` un file che inizi con il customId (es. `DE-123-*.md`)
+**If `$ARGUMENTS` contains a customId**:
+- Search in `.specs/` for a file starting with the customId (e.g. `DE-123-*.md`)
 
-Se il file non esiste, informa lo sviluppatore e fermati.
+If the file does not exist, inform the developer and stop.
 
-**Verifica status**: Se lo status della spec non e' `approved`, avvisa lo sviluppatore:
+**Verify status**: If the spec status is not `approved`, warn the developer:
 ```
-Attenzione: la spec non e' ancora approvata (status: <status>).
-Vuoi procedere comunque con lo sviluppo?
+Warning: the spec is not yet approved (status: <status>).
+Do you want to proceed with development anyway?
 ```
-Se lo sviluppatore non conferma, fermati.
+If the developer does not confirm, stop.
 
-### 2. Determina la metodologia
+### 2. Determine the methodology
 
-Se la metodologia non e' stata specificata in `$ARGUMENTS`, chiedi allo sviluppatore:
+If the methodology was not specified in `$ARGUMENTS`, ask the developer:
 ```
-Metodologia di sviluppo:
-1. TDD (Red-Green-Refactor) — consigliato per backend, logica di business, API, servizi
-2. BDD (Given/When/Then) — consigliato per frontend, componenti UI, flussi utente
-3. Nessuna — sviluppo diretto senza ciclo test-first
+Development methodology:
+1. TDD (Red-Green-Refactor) — recommended for backend, business logic, APIs, services
+2. BDD (Given/When/Then) — recommended for frontend, UI components, user flows
+3. None — direct development without test-first cycle
 ```
 
-### 3. Crea il task breakdown
+### 3. Create the task breakdown
 
-Parsa la sezione "Piano di implementazione" dalla spec.
-Per ogni step del piano, crea un task interno con:
-- Numero progressivo
-- Descrizione dello step
-- File coinvolti
+Parse the "Implementation plan" section from the spec.
+For each step in the plan, create an internal task with:
+- Sequential number
+- Step description
+- Involved files
 
-Presenta il breakdown allo sviluppatore:
+Present the breakdown to the developer:
 ```
-Task breakdown da spec:
-[ ] 1. <Step 1> — <file coinvolti>
-[ ] 2. <Step 2> — <file coinvolti>
+Task breakdown from spec:
+[ ] 1. <Step 1> — <involved files>
+[ ] 2. <Step 2> — <involved files>
 ...
 
-Vuoi procedere o modificare l'ordine?
+Do you want to proceed or change the order?
 ```
 
-Attendi conferma prima di iniziare.
+Wait for confirmation before starting.
 
-### 4. Esegui lo sviluppo
+### 4. Execute development
 
-Per ogni step del piano, nell'ordine concordato:
+For each step in the plan, in the agreed order:
 
-1. **Annuncia** lo step corrente:
+1. **Announce** the current step:
    ```
-   Step <N>/<totale>: <descrizione>
+   Step <N>/<total>: <description>
    ```
-2. **Leggi la documentazione** se necessario: utilizza MCP Context7 per recuperare documentazione aggiornata di librerie e framework
+2. **Read documentation** if needed: use MCP Context7 to retrieve up-to-date documentation for libraries and frameworks
 
-3. **Implementa** secondo la metodologia scelta:
+3. **Implement** according to the chosen methodology:
 
-   **Se TDD**:
-   - **Red** — Scrivi il test che descrive il comportamento atteso
-     - Usa la struttura `describe` / `it` con nomi descrittivi
-     - Testa un singolo comportamento per test case
-     - Il test deve fallire per la ragione giusta
-   - **Green** — Implementa il minimo codice necessario per far passare il test
-     - Solo il codice sufficiente a far passare il test
-     - Niente ottimizzazioni premature
-   - **Refactor** — Migliora il codice mantenendo i test verdi
-     - Elimina duplicazione
-     - Migliora i nomi
-     - Applica le regole della CONSTITUTION.md
+   **If TDD**:
+   - **Red** — Write the test describing the expected behavior
+     - Use `describe` / `it` structure with descriptive names
+     - Test a single behavior per test case
+     - The test must fail for the right reason
+   - **Green** — Implement the minimum code necessary to make the test pass
+     - Only enough code to make the test pass
+     - No premature optimizations
+   - **Refactor** — Improve the code while keeping tests green
+     - Eliminate duplication
+     - Improve names
+     - Apply CONSTITUTION.md rules
 
-   **Se BDD**:
-   - **Specifica** — Definisci gli scenari in formato Gherkin:
+   **If BDD**:
+   - **Specification** — Define scenarios in Gherkin format:
      ```gherkin
-     Feature: <nome della feature>
+     Feature: <feature name>
 
-       Scenario: <descrizione del comportamento>
-         Given <stato iniziale>
-         When <azione dell'utente>
-         Then <risultato atteso>
+       Scenario: <behavior description>
+         Given <initial state>
+         When <user action>
+         Then <expected result>
      ```
-   - **Test** — Traduci gli scenari in test eseguibili
-     - Ogni `Given` prepara lo stato iniziale
-     - Ogni `When` simula l'azione utente
-     - Ogni `Then` verifica il risultato visibile
-   - **Implementa** — Sviluppa il minimo necessario per far passare gli scenari
-   - **Refactor** — Migliora il codice applicando la CONSTITUTION.md
+   - **Test** — Translate scenarios into executable tests
+     - Each `Given` prepares the initial state
+     - Each `When` simulates the user action
+     - Each `Then` verifies the visible result
+   - **Implement** — Develop the minimum necessary to make scenarios pass
+   - **Refactor** — Improve the code applying CONSTITUTION.md
 
-   **Se nessuna metodologia**:
-   - Implementa direttamente seguendo la spec
-   - Scrivi i test dopo l'implementazione (se la strategia di test della spec lo richiede)
+   **If no methodology**:
+   - Implement directly following the spec
+   - Write tests after implementation (if the spec's test strategy requires it)
 
-4. **Verifica** — Dopo ogni step, esegui test e linter:
-   - **Test**:
-     - Se esiste `package.json` con script `test`: `npm test`
-     - Se esiste `pytest.ini` o `pyproject.toml` con `[tool.pytest]`: `pytest`
-     - Se esiste `go.mod`: `go test ./...`
-     - Se esiste `pubspec.yaml`: `flutter test`
-     - Se esiste `Cargo.toml`: `cargo test`
-     - Altrimenti: chiedi allo sviluppatore quale comando usare
+4. **Verify** — After each step, run tests and linter:
+   - **Tests**:
+     - If `package.json` exists with a `test` script: `npm test`
+     - If `pytest.ini` or `pyproject.toml` with `[tool.pytest]` exists: `pytest`
+     - If `go.mod` exists: `go test ./...`
+     - If `pubspec.yaml` exists: `flutter test`
+     - If `Cargo.toml` exists: `cargo test`
+     - Otherwise: ask the developer which command to use
    - **Linter**:
-     - Se esiste `package.json` con script `lint`: `npm run lint`
-     - Se esiste configurazione ruff: `ruff check .`
-     - Se esiste `.golangci.yml`: `golangci-lint run`
-     - Se esiste `analysis_options.yaml`: `dart analyze`
-     - Se esiste `Cargo.toml`: `cargo clippy`
+     - If `package.json` exists with a `lint` script: `npm run lint`
+     - If ruff configuration exists: `ruff check .`
+     - If `.golangci.yml` exists: `golangci-lint run`
+     - If `analysis_options.yaml` exists: `dart analyze`
+     - If `Cargo.toml` exists: `cargo clippy`
 
-5. **Aggiorna** il task breakdown:
+5. **Update** the task breakdown:
    ```
-   [x] 1. <Step 1> — completato
-   [x] 2. <Step 2> — completato
-   [ ] 3. <Step 3> — in corso
+   [x] 1. <Step 1> — completed
+   [x] 2. <Step 2> — completed
+   [ ] 3. <Step 3> — in progress
    ...
    ```
 
 ### 5. Simplify
 
-A completamento di tutti gli step, esegui la skill `simplify` per:
-- Cercare opportunita' di riuso di codice esistente
-- Migliorare qualita' e efficienza
-- Correggere eventuali problemi trovati
-- Se ci sono modifiche, committale: `refactor(<scope>): simplify implementation`
+After all steps are completed, run the `simplify` skill to:
+- Look for opportunities to reuse existing code
+- Improve quality and efficiency
+- Fix any issues found
+- If there are changes, commit them: `refactor(<scope>): simplify implementation`
 
-### 6. Riepilogo
+### 6. Summary
 
-Presenta un riepilogo di quanto implementato:
+Present a summary of what was implemented:
 ```
-Sviluppo completato per spec: <customId> — <titolo>
+Development completed for spec: <customId> — <title>
 
-Step completati: <N>/<totale>
-Metodologia: <tdd/bdd/nessuna>
-File creati: <lista>
-File modificati: <lista>
-Test: <esito>
-Linter: <esito>
+Steps completed: <N>/<total>
+Methodology: <tdd/bdd/none>
+Files created: <list>
+Files modified: <list>
+Tests: <result>
+Linter: <result>
 ```
 
-## Output atteso
-- Codice implementato seguendo la spec approvata
-- Test eseguiti e passanti
-- Linter eseguito senza errori
-- Codice ottimizzato via simplify
-- Riepilogo dello sviluppo completato
+## Expected output
+- Code implemented following the approved spec
+- Tests executed and passing
+- Linter executed without errors
+- Code optimized via simplify
+- Summary of completed development

@@ -1,62 +1,62 @@
-# REGISTRY.md — Indice strutturato del progetto
+# REGISTRY.md — Structured project index
 
-> Registro sintetico di componenti riutilizzabili, pattern adottati e decisioni architetturali.
-> Claude Code lo legge all'inizio di ogni sessione per contesto immediato.
-> Aggiornato automaticamente da `/project:review`.
+> Concise registry of reusable components, adopted patterns, and architectural decisions.
+> Claude Code reads this at the start of each session for immediate context.
+> Automatically updated by `/project:review`.
 
-## Convenzioni
+## Conventions
 
-**Entry standard (componente/servizio/feature):**
+**Standard entry (component/service/feature):**
 
 ```
 ### <scope>/<slug>
 - **Files**: `path/file1.ts`, `path/file2.ts`
-- **Depends on**: altri entry o "nessuno"
-- **API**: `METHOD /path` (solo se espone endpoint)
-- **Summary**: una riga di descrizione
+- **Depends on**: other entries or "none"
+- **API**: `METHOD /path` (only if it exposes an endpoint)
+- **Summary**: one-line description
 ```
 
-**Entry pattern:**
+**Pattern entry:**
 
 ```
-### <nome-pattern>
-- **Dove**: `path/esempio.ts` (implementazione di riferimento)
-- **Summary**: cosa fa e quando usarlo
+### <pattern-name>
+- **Where**: `path/example.ts` (reference implementation)
+- **Summary**: what it does and when to use it
 ```
 
-**Entry decisione architetturale (ADR):**
+**Architectural decision entry (ADR):**
 
 ```
-### ADR: <titolo>
+### ADR: <title>
 - **Status**: accepted | superseded | deprecated
-- **Decision**: cosa si e' deciso e perche'
-- **Consequences**: impatto noto
+- **Decision**: what was decided and why
+- **Consequences**: known impact
 ```
 
-**Regole:**
-- `scope` = modulo o dominio (es. `auth`, `cart`, `ui`)
-- `slug` = nome breve in inglese (es. `refresh-token-rotation`)
-- Non duplicare: aggiorna l'entry esistente se evolve
-- Rimuovere entry solo quando il codice viene eliminato
+**Rules:**
+- `scope` = module or domain (e.g. `auth`, `cart`, `ui`)
+- `slug` = short name in English (e.g. `refresh-token-rotation`)
+- No duplicates: update the existing entry if it evolves
+- Remove entries only when the code is deleted
 
 ---
 
-## Feature
+## Features
 
-_Nessuna feature registrata._
+_No features registered._
 
-## Servizi e utility
+## Services and utilities
 
-_Nessun servizio registrato._
+_No services registered._
 
-## Componenti UI
+## UI Components
 
-_Nessun componente registrato._
+_No components registered._
 
-## Pattern e convenzioni
+## Patterns and conventions
 
-_Nessun pattern registrato._
+_No patterns registered._
 
-## Decisioni architetturali
+## Architectural decisions
 
-_Nessuna decisione registrata._
+_No decisions registered._

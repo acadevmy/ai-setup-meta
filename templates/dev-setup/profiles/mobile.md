@@ -1,14 +1,14 @@
-# Profilo: Mobile
+# Profile: Mobile
 
-Stack: **Flutter 3.24+** (Dart 3.4+) e **React Native** con **Expo** (SDK 51+)
-State: Riverpod (preferito) / BLoC (Flutter) — Zustand/Jotai (React Native)
+Stack: **Flutter 3.24+** (Dart 3.4+) and **React Native** with **Expo** (SDK 51+)
+State: Riverpod (preferred) / BLoC (Flutter) — Zustand/Jotai (React Native)
 Testing: flutter_test (Flutter) — Jest + React Native Testing Library (RN)
 
 ---
 
 ## Flutter
 
-### Struttura progetto (obbligatoria)
+### Project structure (mandatory)
 
 ```
 lib/
@@ -19,10 +19,10 @@ lib/
 │       │   └── repositories/
 │       ├── domain/
 │       │   ├── entities/
-│       │   ├── repositories/  # interfacce
+│       │   ├── repositories/  # interfaces
 │       │   └── usecases/
 │       └── presentation/
-│           ├── bloc/          # o riverpod notifiers
+│           ├── bloc/          # or riverpod notifiers
 │           ├── pages/
 │           └── widgets/
 ├── core/
@@ -32,38 +32,38 @@ lib/
 └── main.dart
 ```
 
-### Regole Flutter
+### Flutter rules
 
-> Le regole complete sono nella **CONSTITUTION.md** (sezione VII, regole 22-31).
-> Qui il riepilogo operativo per il profilo mobile.
+> Complete rules are in the **CONSTITUTION.md** (section VII, rules 22-31).
+> Here is the operational summary for the mobile profile.
 
-- Widget solo UI: nessuna logica di business, nessuna chiamata HTTP
-- Preferire `StatelessWidget` a helper function per UI riutilizzabile
-- Usare `const` constructor su ogni widget che lo consente
-- Separazione layer: `presentation -> domain -> data` con dependency rule (dipendenze solo verso l'interno)
-- Il layer Domain non importa framework esterni (no Flutter, no Dio)
-- Organizzazione feature-first: ogni feature contiene i layer necessari, evitare cartelle generiche "shared" non governate
-- Usare `freezed` per model immutabili e union types
-- Usare `json_serializable` per serializzazione — mai parsing manuale
-- `dynamic` vietato — usare `Object` e narrowing con pattern matching
-- Usare `sealed class` per union types (Result, State, Event) con exhaustive switch
-- Riverpod: preferire code generation con `@riverpod` e `AsyncNotifier` per stato async/mutazioni
-- Riverpod: `ref.watch()` in `build()`, `ref.read()` solo nei callback
-- Evitare `setState` per stato applicativo condiviso; usare provider scoped
-- Ottimizzare rebuild con `const`, key corrette, widget piccoli e specializzati
-- `ListView.builder` per liste lunghe — mai `ListView(children: [...])` con molti elementi
-- Ogni chiamata di rete passa per un `Repository` che implementa un'interfaccia domain
-- Repository restituiscono `Result<T>` (sealed) — mai eccezioni attraverso i layer
-- Error handling: eccezioni tipizzate per dominio, `AsyncValue` per errori in UI
-- Linting: `strict-casts: true`, `strict-raw-types: true`, zero warning in CI
-- Import: sempre `package:`, mai relativi (`../`)
-- Test: unit test per ogni UseCase/Notifier + widget test per screen + golden test per regressione visiva
+- Widgets are UI only: no business logic, no HTTP calls
+- Prefer `StatelessWidget` over helper functions for reusable UI
+- Use `const` constructor on every widget that allows it
+- Layer separation: `presentation -> domain -> data` with dependency rule (dependencies point only inward)
+- The Domain layer does not import external frameworks (no Flutter, no Dio)
+- Feature-first organization: each feature contains its required layers, avoid ungoverned generic "shared" folders
+- Use `freezed` for immutable models and union types
+- Use `json_serializable` for serialization — never manual parsing
+- `dynamic` is forbidden — use `Object` and narrowing with pattern matching
+- Use `sealed class` for union types (Result, State, Event) with exhaustive switch
+- Riverpod: prefer code generation with `@riverpod` and `AsyncNotifier` for async state/mutations
+- Riverpod: `ref.watch()` in `build()`, `ref.read()` only in callbacks
+- Avoid `setState` for shared application state; use scoped providers
+- Optimize rebuilds with `const`, correct keys, small and specialized widgets
+- `ListView.builder` for long lists — never `ListView(children: [...])` with many elements
+- Every network call goes through a `Repository` that implements a domain interface
+- Repositories return `Result<T>` (sealed) — never throw exceptions across layers
+- Error handling: domain-typed exceptions, `AsyncValue` for errors in UI
+- Linting: `strict-casts: true`, `strict-raw-types: true`, zero warnings in CI
+- Imports: always `package:`, never relative (`../`)
+- Testing: unit test for every UseCase/Notifier + widget test for screens + golden test for visual regression
 
-### Dipendenze Flutter (pubspec.yaml)
+### Flutter dependencies (pubspec.yaml)
 
 ```yaml
 dependencies:
-  flutter_riverpod: ^2.5.0   # alternativa: flutter_bloc ^8.1.0
+  flutter_riverpod: ^2.5.0   # alternative: flutter_bloc ^8.1.0
   riverpod_annotation: ^2.3.0
   freezed_annotation: ^2.4.0
   json_annotation: ^4.9.0
@@ -77,7 +77,7 @@ dev_dependencies:
   riverpod_generator: ^2.4.0
   custom_lint: ^0.6.0
   riverpod_lint: ^2.3.0
-  bloc_test: ^9.1.0       # se si usa BLoC
+  bloc_test: ^9.1.0       # if using BLoC
   freezed: ^2.5.0
   json_serializable: ^6.8.0
   build_runner: ^2.4.0
@@ -85,9 +85,9 @@ dev_dependencies:
   mocktail: ^1.0.0
 ```
 
-### Configurazione linting Flutter (analysis_options.yaml)
+### Flutter linting configuration (analysis_options.yaml)
 
-> Configurazione completa nella **CONSTITUTION.md** (regola 29).
+> Complete configuration in the **CONSTITUTION.md** (rule 29).
 
 ```yaml
 include: package:flutter_lints/flutter.yaml
@@ -116,42 +116,42 @@ linter:
     always_use_package_imports: true
 ```
 
-### Flusso completo Flutter (ad-hoc)
+### Complete Flutter workflow (ad-hoc)
 
 1. **Bootstrap**
    - `flutter create <app_name>`
-   - aggiungere dipendenze (`flutter_riverpod`, `freezed_annotation`, `json_annotation`, `dio`, ecc.)
+   - add dependencies (`flutter_riverpod`, `freezed_annotation`, `json_annotation`, `dio`, etc.)
 2. **Codegen setup**
-   - aggiungere `build_runner`, `freezed`, `json_serializable`, `riverpod_generator`
-   - aggiungere `part '*.g.dart'` / `part '*.freezed.dart'` nei file modello/provider
-3. **Architettura**
-   - creare feature con layer `presentation/application/domain/data`
-   - mantenere i datasource nel layer `data` e non in UI
-4. **Stato e mutazioni**
-   - usare `@riverpod` + `AsyncNotifier` per fetch/mutazioni
-   - usare `AsyncValue` in UI per `loading/data/error`
-5. **Qualita'**
+   - add `build_runner`, `freezed`, `json_serializable`, `riverpod_generator`
+   - add `part '*.g.dart'` / `part '*.freezed.dart'` in model/provider files
+3. **Architecture**
+   - create features with `presentation/application/domain/data` layers
+   - keep datasources in the `data` layer, not in UI
+4. **State and mutations**
+   - use `@riverpod` + `AsyncNotifier` for fetch/mutations
+   - use `AsyncValue` in UI for `loading/data/error`
+5. **Quality**
    - `dart format .`
    - `dart analyze`
    - `flutter test`
    - `dart run build_runner build --delete-conflicting-outputs`
 6. **Performance**
-   - validare rebuild e frame pacing con Flutter DevTools (`flutter run --profile`)
-   - introdurre `ref.select` dove servono subscription granulari
+   - validate rebuilds and frame pacing with Flutter DevTools (`flutter run --profile`)
+   - introduce `ref.select` where granular subscriptions are needed
 
-### Validazione dati in Flutter
+### Data validation in Flutter
 
-- Per Flutter **non usare Zod**.
-- Usare:
-  - `freezed` per contratti dati immutabili e union state
-  - `json_serializable` per serializzazione tipizzata
-  - validazione input a livello domain/use-case (oggetti valore, guard clauses)
+- For Flutter **do not use Zod**.
+- Use:
+  - `freezed` for immutable data contracts and union states
+  - `json_serializable` for typed serialization
+  - input validation at the domain/use-case level (value objects, guard clauses)
 
 ---
 
 ## React Native (Expo)
 
-### Struttura progetto
+### Project structure
 
 ```
 src/
@@ -170,7 +170,7 @@ src/
     └── (tabs)/
 ```
 
-### Dipendenze React Native
+### React Native dependencies
 
 ```json
 {
@@ -194,16 +194,16 @@ src/
 }
 ```
 
-### Regole React Native
+### React Native rules
 
-- Expo managed workflow — migrare a bare solo se documentato e approvato
-- Usare Expo Router per la navigazione
-- Ogni screen ha un test con `@testing-library/react-native`
-- La logica di rete vive in hook personalizzati o TanStack Query — mai nei componenti
+- Expo managed workflow — migrate to bare only if documented and approved
+- Use Expo Router for navigation
+- Every screen has a test with `@testing-library/react-native`
+- Network logic lives in custom hooks or TanStack Query — never in components
 
 ---
 
-## Comandi slash aggiuntivi (entrambi i framework)
+## Additional slash commands (both frameworks)
 
-- `/project:new-screen` — scaffolda schermata con test (Flutter o RN)
-- `/project:new-feature` — scaffolda feature completa con struttura layer
+- `/project:new-screen` — scaffolds a screen with tests (Flutter or RN)
+- `/project:new-feature` — scaffolds a complete feature with layer structure
