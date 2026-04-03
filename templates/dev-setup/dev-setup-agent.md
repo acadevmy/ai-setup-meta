@@ -99,7 +99,8 @@ Cerca nell'ordine:
 #### Tool di validazione
 1. `package.json` con: `zod` → **Zod**, `joi` → **Joi**, `yup` → **Yup**, `class-validator` → **class-validator**
 2. `pyproject.toml` o `requirements.txt` con `pydantic` → **Pydantic**
-3. Nessuno trovato → `non rilevato`
+3. `pubspec.yaml` con: `freezed` → **Freezed**, `json_serializable` → **json_serializable**, `built_value` → **built_value**
+4. Nessuno trovato → `non rilevato`
 
 #### Frontend rilevato?
 - `package.json` contiene `next`, `react`, `@angular/core`, `vue`, `nuxt`, o `svelte` → **si**
@@ -314,22 +315,59 @@ Parti dal contenuto scaricato in `.claude/.setup-tmp/CONSTITUTION_SOURCE.md`.
 
 #### Per modalita' EXISTING:
 
-1. Se il frontend **non** e' stato rilevato → rimuovi l'intera Sezione VI (da `## VI.` fino a prima di `## VII.` o `## VIII.`)
-   - **Multi-progetto**: mantieni Sezione VI se **qualsiasi** sub-project ha frontend rilevato
-2. Se il mobile **non** e' stato rilevato → rimuovi l'intera Sezione VII (da `## VII.` fino a prima di `## VIII.`)
-   - **Multi-progetto**: mantieni Sezione VII se **qualsiasi** sub-project ha mobile rilevato
-3. Se il linguaggio rilevato **non** include `node` → aggiungi questa nota subito dopo la riga `## I. Principi fondamentali`:
-   - **Multi-progetto**: aggiungi la nota solo se **nessun** sub-project usa `node`
+Applica le seguenti regole di rimozione/adattamento in base allo stack rilevato:
 
-```
-> **Nota**: Le regole specifiche a TypeScript/Zod si applicano ai progetti TypeScript.
-> Per altri linguaggi, applicare il principio equivalente (validazione schema-first
-> con lo strumento appropriato del proprio stack, strict typing nativo del linguaggio).
-```
+**Regola A — Sezione VI (Frontend web)**:
+- Se il frontend **non** e' stato rilevato → rimuovi l'intera Sezione VI (da `## VI.` fino a prima di `## VII.`)
+- **Multi-progetto**: mantieni Sezione VI se **qualsiasi** sub-project ha frontend rilevato
+
+**Regola B — Sezione VII (Mobile)**:
+- Se il mobile **non** e' stato rilevato → rimuovi l'intera Sezione VII (da `## VII.` fino a prima di `## VIII.`)
+- **Multi-progetto**: mantieni Sezione VII se **qualsiasi** sub-project ha mobile rilevato
+- Se mobile e' rilevato come **solo Flutter** (nessun React Native) → rimuovi solo la regola 32 (React Native)
+- Se mobile e' rilevato come **solo React Native** (nessun Flutter) → rimuovi le regole 22-31 (Flutter/Dart) e mantieni solo la regola 32
+
+**Regola C — Sezioni I-V (TypeScript-specifiche)**:
+- Se il linguaggio rilevato include `node` → mantieni le sezioni I-V integralmente
+- Se il linguaggio rilevato **non** include `node` ma include `flutter` → rimuovi le regole TypeScript-specifiche:
+  - Regola 1 (Schema-first con Zod): rimuovi interamente — la validazione dati Flutter e' coperta dalla regola 25 (freezed/json_serializable)
+  - Regola 2 (TypeScript strict — zero `any`): rimuovi interamente — la type safety Dart e' coperta dalla regola 24
+  - Regola 17 (Validazione input con Zod): sostituisci il riferimento a Zod con:
+    ```
+    Ogni input esterno e' potenzialmente malevolo. Validare sempre con gli strumenti
+    tipizzati del proprio stack (freezed + json_serializable per Flutter/Dart),
+    sanitizzare prima di usare in query o template string.
+    ```
+  - Regola 18 (Dependency audit): sostituisci `npm audit` con `dart pub outdated` e `flutter pub deps`
+  - Mantieni intatte le regole 3-5 (gestione errori, funzioni pure, no magic number) — sono universali
+  - Mantieni intatte le regole 6-8 (architettura, DI, nomi) — sono universali
+- Se il linguaggio rilevato **non** include ne' `node` ne' `flutter` → aggiungi questa nota subito dopo `## I. Principi fondamentali`:
+  - **Multi-progetto**: aggiungi la nota solo se **nessun** sub-project usa `node` o `flutter`
+  ```
+  > **Nota**: Le regole specifiche a TypeScript/Zod e Flutter/Dart si applicano
+  > ai rispettivi stack. Per altri linguaggi, applicare il principio equivalente
+  > (validazione schema-first, strict typing nativo del linguaggio).
+  ```
+
+**Riepilogo decisionale rapido**:
+
+| Stack rilevato | Sez. I-V (TS) | Sez. VI (Frontend) | Sez. VII (Mobile) |
+|---|---|---|---|
+| Solo Node/TS | Mantieni | Dipende da frontend | Rimuovi |
+| Solo Flutter | Adatta (rimuovi regole 1,2; adatta 17,18) | Rimuovi | Mantieni (solo Flutter) |
+| Solo React Native | Adatta (mantieni regole TS se RN usa TS) | Rimuovi | Mantieni (solo RN) |
+| Node + Flutter (multi) | Mantieni | Dipende | Mantieni |
+| Altro linguaggio | Nota generica | Rimuovi | Rimuovi |
+
+**Rinumerazione**: dopo la rimozione di regole, rinumera le regole rimanenti in modo sequenziale per evitare buchi nella numerazione.
 
 #### Per modalita' GREENFIELD:
 
-Copia il file verbatim (nessuna modifica).
+Applica le stesse regole di rimozione basandoti sullo stack scelto nel Passo 2b:
+- **Web Frontend** o **Backend Node**: rimuovi Sezione VII (Mobile)
+- **Mobile (Flutter)**: rimuovi Sezione VI (Frontend web), rimuovi regola 32 (RN), adatta regole TS-specifiche (Regola C)
+- **Mobile (React Native)**: rimuovi Sezione VI (Frontend web), rimuovi regole 22-31 (Flutter), mantieni regole TS (RN usa TypeScript)
+- **Full-stack**: mantieni tutto
 
 #### Per modalita' UPDATE:
 
