@@ -25,6 +25,11 @@ is the single source of truth.
 2. Read `CONSTITUTION.md` to verify applicable constraints
 3. Check the current branch status — never work directly on `main`
 
+### Before implementing
+When the task involves a library, framework, or external API, **always** query Context7
+to retrieve up-to-date documentation before writing code. Do not rely solely on training
+data — APIs and configurations change across versions.
+
 ## Test and lint commands
 
 - **Test**: `{{TEST_COMMAND}}`

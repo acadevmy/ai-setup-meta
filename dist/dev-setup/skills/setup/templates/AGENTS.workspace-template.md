@@ -30,6 +30,11 @@ is the single source of truth.
 3. Read the sub-project's `REGISTRY.md` to learn about existing components and decisions
 4. Check the current branch status — never work directly on `main`
 
+### Before implementing
+When the task involves a library, framework, or external API, **always** query Context7
+to retrieve up-to-date documentation before writing code. Do not rely solely on training
+data — APIs and configurations change across versions.
+
 ## Language
 
 | Context | Language |
