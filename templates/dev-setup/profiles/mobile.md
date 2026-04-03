@@ -34,16 +34,30 @@ lib/
 
 ### Regole Flutter
 
+> Le regole complete sono nella **CONSTITUTION.md** (sezione VII, regole 22-31).
+> Qui il riepilogo operativo per il profilo mobile.
+
 - Widget solo UI: nessuna logica di business, nessuna chiamata HTTP
-- Separazione layer: `presentation -> application -> domain -> data` con repository come gateway ai datasource
+- Preferire `StatelessWidget` a helper function per UI riutilizzabile
+- Usare `const` constructor su ogni widget che lo consente
+- Separazione layer: `presentation -> domain -> data` con dependency rule (dipendenze solo verso l'interno)
+- Il layer Domain non importa framework esterni (no Flutter, no Dio)
 - Organizzazione feature-first: ogni feature contiene i layer necessari, evitare cartelle generiche "shared" non governate
 - Usare `freezed` per model immutabili e union types
 - Usare `json_serializable` per serializzazione — mai parsing manuale
+- `dynamic` vietato — usare `Object` e narrowing con pattern matching
+- Usare `sealed class` per union types (Result, State, Event) con exhaustive switch
 - Riverpod: preferire code generation con `@riverpod` e `AsyncNotifier` per stato async/mutazioni
-- Evitare `setState` per stato applicativo condiviso; usare provider scoped e `ref.watch/ref.read/ref.listen/ref.select`
+- Riverpod: `ref.watch()` in `build()`, `ref.read()` solo nei callback
+- Evitare `setState` per stato applicativo condiviso; usare provider scoped
 - Ottimizzare rebuild con `const`, key corrette, widget piccoli e specializzati
-- Ogni chiamata di rete passa per un `Repository` che implementa un'interfaccia `domain`
-- Test: minimo unit test per ogni UseCase/Notifier + widget test per screen critiche
+- `ListView.builder` per liste lunghe — mai `ListView(children: [...])` con molti elementi
+- Ogni chiamata di rete passa per un `Repository` che implementa un'interfaccia domain
+- Repository restituiscono `Result<T>` (sealed) — mai eccezioni attraverso i layer
+- Error handling: eccezioni tipizzate per dominio, `AsyncValue` per errori in UI
+- Linting: `strict-casts: true`, `strict-raw-types: true`, zero warning in CI
+- Import: sempre `package:`, mai relativi (`../`)
+- Test: unit test per ogni UseCase/Notifier + widget test per screen + golden test per regressione visiva
 
 ### Dipendenze Flutter (pubspec.yaml)
 
@@ -73,17 +87,33 @@ dev_dependencies:
 
 ### Configurazione linting Flutter (analysis_options.yaml)
 
+> Configurazione completa nella **CONSTITUTION.md** (regola 29).
+
 ```yaml
 include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true
+  errors:
+    missing_return: error
+    must_be_immutable: error
+
 linter:
   rules:
+    avoid_dynamic_calls: true
     avoid_print: true
     prefer_const_constructors: true
     prefer_const_literals_to_create_immutables: true
     prefer_final_fields: true
+    prefer_final_locals: true
     unnecessary_this: true
     use_key_in_widget_constructors: true
     always_declare_return_types: true
+    unawaited_futures: true
+    cancel_subscriptions: true
+    always_use_package_imports: true
 ```
 
 ### Flusso completo Flutter (ad-hoc)
