@@ -315,7 +315,8 @@ Parti dal contenuto scaricato in `.claude/.setup-tmp/CONSTITUTION_SOURCE.md`.
 
 #### Per modalita' EXISTING:
 
-Applica le seguenti regole di rimozione/adattamento in base allo stack rilevato:
+Applica le seguenti regole di rimozione/adattamento in base allo stack rilevato.
+Le regole si applicano nell'ordine A → B → C → D → E. La rinumerazione (regola E) avviene per ultima.
 
 **Regola A — Sezione VI (Frontend web)**:
 - Se il frontend **non** e' stato rilevato → rimuovi l'intera Sezione VI (da `## VI.` fino a prima di `## VII.`)
@@ -332,6 +333,8 @@ Applica le seguenti regole di rimozione/adattamento in base allo stack rilevato:
 - Se il linguaggio rilevato **non** include `node` ma include `flutter` → rimuovi le regole TypeScript-specifiche:
   - Regola 1 (Schema-first con Zod): rimuovi interamente — la validazione dati Flutter e' coperta dalla regola 25 (freezed/json_serializable)
   - Regola 2 (TypeScript strict — zero `any`): rimuovi interamente — la type safety Dart e' coperta dalla regola 24
+  - Regola 7 (Dependency Injection): sostituisci `DI (nativo NestJS, o manuale per progetti Node puri)` con `DI tramite service locator (get_it) o injection nativa del framework`
+  - Regola 14 (Pull Request): sostituisci `ESLint` con `l'analisi statica (dart analyze)`
   - Regola 17 (Validazione input con Zod): sostituisci il riferimento a Zod con:
     ```
     Ogni input esterno e' potenzialmente malevolo. Validare sempre con gli strumenti
@@ -340,33 +343,85 @@ Applica le seguenti regole di rimozione/adattamento in base allo stack rilevato:
     ```
   - Regola 18 (Dependency audit): sostituisci `npm audit` con `dart pub outdated` e `flutter pub deps`
   - Mantieni intatte le regole 3-5 (gestione errori, funzioni pure, no magic number) — sono universali
-  - Mantieni intatte le regole 6-8 (architettura, DI, nomi) — sono universali
-- Se il linguaggio rilevato **non** include ne' `node` ne' `flutter` → aggiungi questa nota subito dopo `## I. Principi fondamentali`:
-  - **Multi-progetto**: aggiungi la nota solo se **nessun** sub-project usa `node` o `flutter`
+  - Mantieni intatte le regole 6, 8 (separazione layer, nomi) — sono universali
+- Se il linguaggio rilevato **non** include ne' `node` ne' `flutter` → adatta i riferimenti tool-specifici:
+  - Regola 1 (Schema-first con Zod): sostituisci `Zod` con `lo strumento di validazione schema del proprio stack` e rimuovi l'esempio TypeScript. Mantieni il principio
+  - Regola 2 (TypeScript strict): sostituisci con il principio generico:
+    ```
+    ### N. Strict typing — zero tipi non sicuri
+    Il typing strict del linguaggio e' obbligatorio. Evitare tipi generici non sicuri
+    (any, dynamic, Object senza narrowing, void*, interface{}).
+    ```
+  - Regola 7 (Dependency Injection): sostituisci il riferimento NestJS con `DI tramite il pattern idiomatico del linguaggio`
+  - Regola 14 (Pull Request): sostituisci `ESLint` con `il linter configurato`
+  - Regola 17 (Validazione input): sostituisci il riferimento Zod con `lo strumento di validazione del proprio stack`
+  - Regola 18 (Dependency audit): sostituisci `npm audit` con il comando appropriato (`govulncheck` per Go, `pip audit` per Python, `cargo audit` per Rust)
+  - Aggiungi questa nota subito dopo `## I. Principi fondamentali`:
+    - **Multi-progetto**: aggiungi la nota solo se **nessun** sub-project usa `node` o `flutter`
+    ```
+    > **Nota**: Questo progetto non usa TypeScript ne' Flutter/Dart.
+    > Le regole sono state adattate ai principi universali. Applicare gli strumenti
+    > idiomatici del proprio stack per validazione, typing e dependency audit.
+    ```
+
+**Regola D — Sezione III Testing (adattamento per stack)**:
+Quando il frontend **non** e' rilevato (Regola A applicata):
+- Regola 9 (Metodologia di test): rimuovi la sottosezione `#### Frontend (componenti, pagine, flussi utente) — BDD` e i relativi punti 1-4 BDD. Mantieni solo la sottosezione `#### Backend`
+- Regola 10 (Copertura minima): rimuovi la riga `UI components | 70% (con Testing Library)` dalla tabella
+- Regola 11 (Struttura dei test): rimuovi la sottosezione `#### Frontend — BDD` con l'esempio Gherkin. Mantieni solo la sottosezione `#### Backend — TDD`
+
+Quando il frontend **e'** rilevato ma il backend **non** e' rilevato:
+- Regola 9: rimuovi la sottosezione `#### Backend (logica, API, servizi) — TDD`. Mantieni solo la sottosezione `#### Frontend`
+- Regola 11: rimuovi la sottosezione `#### Backend — TDD`. Mantieni solo la sottosezione `#### Frontend — BDD`
+
+Quando il linguaggio e' `flutter` (senza `node`):
+- Regola 9: mantieni entrambe le sottosezioni (Flutter usa TDD per UseCase + BDD per widget/screen)
+- Regola 10: sostituisci la riga `UI components | 70% (con Testing Library)` con `Widget / Screen | 70% (con flutter_test + WidgetTester)`
+- Regola 11: sostituisci l'esempio TypeScript nella sottosezione Backend TDD con un esempio Dart:
+  ```dart
+  group('CreateUserUseCase', () {
+    test('dovrebbe creare un utente con email valida', () async { ... });
+    test('dovrebbe restituire Failure se email non valida', () async { ... });
+    test('dovrebbe restituire Failure se email gia\' esistente', () async { ... });
+  });
   ```
-  > **Nota**: Le regole specifiche a TypeScript/Zod e Flutter/Dart si applicano
-  > ai rispettivi stack. Per altri linguaggi, applicare il principio equivalente
-  > (validazione schema-first, strict typing nativo del linguaggio).
+  Sostituisci l'esempio Gherkin nella sottosezione Frontend BDD con un widget test:
+  ```dart
+  testWidgets('Login con credenziali valide', (tester) async {
+    // Given: l'utente e' nella pagina di login
+    await tester.pumpWidget(const LoginScreen());
+    // When: inserisce email e password validi e preme "Accedi"
+    await tester.enterText(find.byKey(Key('email')), 'test@example.com');
+    await tester.enterText(find.byKey(Key('password')), 'password123');
+    await tester.tap(find.text('Accedi'));
+    await tester.pumpAndSettle();
+    // Then: viene reindirizzato alla dashboard
+    expect(find.byType(DashboardScreen), findsOneWidget);
+  });
   ```
+
+**Regola E — Rinumerazione**:
+Dopo tutte le rimozioni e adattamenti (regole A-D), rinumera le regole rimanenti in modo sequenziale (1, 2, 3, ...) per evitare buchi nella numerazione.
 
 **Riepilogo decisionale rapido**:
 
-| Stack rilevato | Sez. I-V (TS) | Sez. VI (Frontend) | Sez. VII (Mobile) |
-|---|---|---|---|
-| Solo Node/TS | Mantieni | Dipende da frontend | Rimuovi |
-| Solo Flutter | Adatta (rimuovi regole 1,2; adatta 17,18) | Rimuovi | Mantieni (solo Flutter) |
-| Solo React Native | Adatta (mantieni regole TS se RN usa TS) | Rimuovi | Mantieni (solo RN) |
-| Node + Flutter (multi) | Mantieni | Dipende | Mantieni |
-| Altro linguaggio | Nota generica | Rimuovi | Rimuovi |
-
-**Rinumerazione**: dopo la rimozione di regole, rinumera le regole rimanenti in modo sequenziale per evitare buchi nella numerazione.
+| Stack rilevato | Sez. I-V | Sez. III (Test) | Sez. VI (Frontend) | Sez. VII (Mobile) |
+|---|---|---|---|---|
+| Solo Node/TS backend | Mantieni | Solo TDD | Rimuovi | Rimuovi |
+| Solo Node/TS frontend | Mantieni | Solo BDD | Mantieni | Rimuovi |
+| Solo Node/TS fullstack | Mantieni | TDD + BDD | Mantieni | Rimuovi |
+| Solo Flutter | Adatta (C) | Adatta Dart (D) | Rimuovi | Solo Flutter |
+| Solo React Native | Mantieni TS | TDD + BDD | Rimuovi | Solo RN |
+| Node + Flutter (multi) | Mantieni | TDD + BDD | Dipende | Mantieni |
+| Altro linguaggio | Adatta generico (C) | Dipende da stack | Rimuovi | Rimuovi |
 
 #### Per modalita' GREENFIELD:
 
-Applica le stesse regole di rimozione basandoti sullo stack scelto nel Passo 2b:
-- **Web Frontend** o **Backend Node**: rimuovi Sezione VII (Mobile)
-- **Mobile (Flutter)**: rimuovi Sezione VI (Frontend web), rimuovi regola 32 (RN), adatta regole TS-specifiche (Regola C)
-- **Mobile (React Native)**: rimuovi Sezione VI (Frontend web), rimuovi regole 22-31 (Flutter), mantieni regole TS (RN usa TypeScript)
+Applica le stesse regole di adattamento (A-E) basandoti sullo stack scelto nel Passo 2b:
+- **Web Frontend**: rimuovi Sez. VII, mantieni Sez. VI, Sez. III solo BDD
+- **Backend Node**: rimuovi Sez. VI e VII, Sez. III solo TDD
+- **Mobile (Flutter)**: rimuovi Sez. VI, rimuovi regola 32 (RN), adatta regole TS (C), adatta test (D)
+- **Mobile (React Native)**: rimuovi Sez. VI, rimuovi regole 22-31 (Flutter), mantieni regole TS (RN usa TypeScript)
 - **Full-stack**: mantieni tutto
 
 #### Per modalita' UPDATE:
