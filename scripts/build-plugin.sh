@@ -200,7 +200,6 @@ cat > "$DIST_DIR/.claude-plugin/plugin.json" << PLUGINJSON
   },
   "skills": "./skills",
   "agents": $AGENTS_JSON,
-  "hooks": "./hooks/hooks.json",
   "mcpServers": "./.mcp.json",
   "userConfig": {
     "CLICKUP_SETUP_LIST_ID": {
