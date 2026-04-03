@@ -88,9 +88,10 @@ Cerca nell'ordine:
 7. Nessuno trovato → `non rilevato`
 
 #### Tool di validazione
-1. `package.json` con: `zod` → **Zod**, `joi` → **Joi**, `yup` → **Yup**, `class-validator` → **class-validator**
-2. `pyproject.toml` o `requirements.txt` con `pydantic` → **Pydantic**
-3. Nessuno trovato → `non rilevato`
+1. `pubspec.yaml` presente → **freezed + json_serializable** (modelli immutabili e serializzazione schema-driven, no Zod)
+2. `package.json` con: `zod` → **Zod**, `joi` → **Joi**, `yup` → **Yup**, `class-validator` → **class-validator**
+3. `pyproject.toml` o `requirements.txt` con `pydantic` → **Pydantic**
+4. Nessuno trovato → `non rilevato`
 
 #### Frontend rilevato?
 - `package.json` contiene `next`, `react`, `@angular/core`, `vue`, `nuxt`, o `svelte` → **si**
@@ -101,6 +102,11 @@ Cerca nell'ordine:
 - `pubspec.yaml` presente → **si**
 - `package.json` contiene `react-native` o `expo` → **si**
 - Altrimenti → **no**
+
+#### Framework mobile rilevato?
+- `pubspec.yaml` presente → **flutter**
+- altrimenti, `package.json` contiene `react-native` o `expo` → **react-native**
+- altrimenti → `non rilevato`
 
 #### Multi-progetto rilevato?
 
@@ -540,6 +546,16 @@ Crea **`.eslintrc.base.json`**:
 #### 8.5 — Applica profilo stack
 
 Leggi il file profilo da `${CLAUDE_SKILL_DIR}/templates/profiles/` (gia' letto al Passo 3.1) e applica le configurazioni che contiene:
+
+Se stack mobile = **Flutter** (rilevato da `pubspec.yaml` o selezionato in GREENFIELD), applica percorso ad-hoc Flutter:
+
+1. **Dipendenze Flutter**: aggiorna `pubspec.yaml` con i pacchetti del profilo (`freezed_annotation`, `json_annotation`, `riverpod`/`flutter_bloc`, `dio`, ecc.)
+2. **Dev dependencies Flutter**: includi `build_runner`, `freezed`, `json_serializable`, `flutter_lints`, `riverpod_generator` (se Riverpod codegen)
+3. **Linting Flutter**: crea/aggiorna `analysis_options.yaml` includendo `package:flutter_lints/flutter.yaml`
+4. **Code generation**: esegui `dart run build_runner build --delete-conflicting-outputs`
+5. **Quality gate**: esegui `dart format .`, `dart analyze`, `flutter test`
+
+Se stack mobile = **React Native (Expo)**, applica percorso Node:
 
 1. **Dipendenze**: Estrai il blocco JSON delle dipendenze dal profilo e installale con `npm install`
 2. **ESLint**: Se il profilo contiene una configurazione ESLint, crea `.eslintrc.json` con quel contenuto

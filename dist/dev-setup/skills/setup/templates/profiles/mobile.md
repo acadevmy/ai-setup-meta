@@ -1,7 +1,7 @@
 # Profilo: Mobile
 
 Stack: **Flutter 3.24+** (Dart 3.4+) e **React Native** con **Expo** (SDK 51+)
-State: BLoC/Riverpod (Flutter) — Zustand/Jotai (React Native)
+State: Riverpod (preferito) / BLoC (Flutter) — Zustand/Jotai (React Native)
 Testing: flutter_test (Flutter) — Jest + React Native Testing Library (RN)
 
 ---
@@ -35,25 +35,35 @@ lib/
 ### Regole Flutter
 
 - Widget solo UI: nessuna logica di business, nessuna chiamata HTTP
+- Separazione layer: `presentation -> application -> domain -> data` con repository come gateway ai datasource
+- Organizzazione feature-first: ogni feature contiene i layer necessari, evitare cartelle generiche "shared" non governate
 - Usare `freezed` per model immutabili e union types
 - Usare `json_serializable` per serializzazione — mai parsing manuale
+- Riverpod: preferire code generation con `@riverpod` e `AsyncNotifier` per stato async/mutazioni
+- Evitare `setState` per stato applicativo condiviso; usare provider scoped e `ref.watch/ref.read/ref.listen/ref.select`
+- Ottimizzare rebuild con `const`, key corrette, widget piccoli e specializzati
 - Ogni chiamata di rete passa per un `Repository` che implementa un'interfaccia `domain`
-- Test: minimo unit test per ogni UseCase e BLoC/Notifier
+- Test: minimo unit test per ogni UseCase/Notifier + widget test per screen critiche
 
 ### Dipendenze Flutter (pubspec.yaml)
 
 ```yaml
 dependencies:
-  flutter_bloc: ^8.1.0    # oppure riverpod ^2.5.0
+  flutter_riverpod: ^2.5.0   # alternativa: flutter_bloc ^8.1.0
+  riverpod_annotation: ^2.3.0
   freezed_annotation: ^2.4.0
   json_annotation: ^4.9.0
   dio: ^5.4.0
-  get_it: ^7.7.0           # dependency injection
+  go_router: ^14.0.0
+  get_it: ^7.7.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  bloc_test: ^9.1.0
+  riverpod_generator: ^2.4.0
+  custom_lint: ^0.6.0
+  riverpod_lint: ^2.3.0
+  bloc_test: ^9.1.0       # se si usa BLoC
   freezed: ^2.5.0
   json_serializable: ^6.8.0
   build_runner: ^2.4.0
@@ -69,11 +79,43 @@ linter:
   rules:
     avoid_print: true
     prefer_const_constructors: true
+    prefer_const_literals_to_create_immutables: true
     prefer_final_fields: true
     unnecessary_this: true
     use_key_in_widget_constructors: true
     always_declare_return_types: true
 ```
+
+### Flusso completo Flutter (ad-hoc)
+
+1. **Bootstrap**
+   - `flutter create <app_name>`
+   - aggiungere dipendenze (`flutter_riverpod`, `freezed_annotation`, `json_annotation`, `dio`, ecc.)
+2. **Codegen setup**
+   - aggiungere `build_runner`, `freezed`, `json_serializable`, `riverpod_generator`
+   - aggiungere `part '*.g.dart'` / `part '*.freezed.dart'` nei file modello/provider
+3. **Architettura**
+   - creare feature con layer `presentation/application/domain/data`
+   - mantenere i datasource nel layer `data` e non in UI
+4. **Stato e mutazioni**
+   - usare `@riverpod` + `AsyncNotifier` per fetch/mutazioni
+   - usare `AsyncValue` in UI per `loading/data/error`
+5. **Qualita'**
+   - `dart format .`
+   - `dart analyze`
+   - `flutter test`
+   - `dart run build_runner build --delete-conflicting-outputs`
+6. **Performance**
+   - validare rebuild e frame pacing con Flutter DevTools (`flutter run --profile`)
+   - introdurre `ref.select` dove servono subscription granulari
+
+### Validazione dati in Flutter
+
+- Per Flutter **non usare Zod**.
+- Usare:
+  - `freezed` per contratti dati immutabili e union state
+  - `json_serializable` per serializzazione tipizzata
+  - validazione input a livello domain/use-case (oggetti valore, guard clauses)
 
 ---
 
