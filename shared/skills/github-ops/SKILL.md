@@ -1,6 +1,7 @@
 ---
 name: github-ops
 description: Documentazione di riferimento per operazioni Git e GitHub (branch, PR, tag, release)
+model: haiku
 user-invocable: false
 disable-model-invocation: false
 ---
