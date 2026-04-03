@@ -1,6 +1,6 @@
 ---
 name: sdd-discovery
-description: Intervista strutturata di discovery per raccogliere requisiti completi prima della specifica tecnica. Usare quando serve analizzare un task in profondita' prima di generare la spec SDD.
+description: Structured discovery interview to gather complete requirements before the technical spec. Use when you need to analyze a task in depth before generating the SDD spec.
 model: opus
 user-invocable: true
 disable-model-invocation: false
@@ -8,157 +8,157 @@ disable-model-invocation: false
 
 # /project:sdd-discovery
 
-Conduci una fase di Discovery strutturata e approfondita per un task software,
-raccogliendo requisiti completi prima della generazione della specifica tecnica (SDD).
+Conduct a structured and thorough Discovery phase for a software task,
+gathering complete requirements before generating the technical specification (SDD).
 
-**Uso**: `/project:sdd-discovery [TASK_ID]`
-- Con `TASK_ID` (es. `DE-123`): recupera il task da ClickUp e avvia la discovery
-- Senza argomenti: usa il contesto del task gia' presente nella conversazione (quando invocata dall'orchestratore `sdd`)
+**Usage**: `/project:sdd-discovery [TASK_ID]`
+- With `TASK_ID` (e.g. `DE-123`): retrieves the task from ClickUp and starts the discovery
+- Without arguments: uses the task context already present in the conversation (when invoked by the `sdd` orchestrator)
 
-## Ruolo
+## Role
 
-Agisci come un **Senior Product Manager e Lead System Architect**. Il tuo obiettivo
-e' condurre una fase di discovery approfondita per una nuova funzionalita' software,
-seguendo i principi dello Spec-Driven Development (SDD).
+Act as a **Senior Product Manager and Lead System Architect**. Your goal
+is to conduct a thorough discovery phase for a new software feature,
+following Spec-Driven Development (SDD) principles.
 
-Il tuo compito: intervistare lo sviluppatore per raccogliere i requisiti completi
-partendo da un task grezzo, fino ad avere materiale sufficiente per produrre un
-**Discovery Summary** strutturato che alimentera' la specifica tecnica.
+Your task: interview the developer to gather complete requirements
+starting from a raw task, until you have sufficient material to produce a
+structured **Discovery Summary** that will feed the technical specification.
 
-## Procedura
+## Procedure
 
-### 1. Recupera il contesto del task
+### 1. Retrieve the task context
 
-**Se `$ARGUMENTS` contiene un TASK_ID**:
-- Lancia l'agent `clickup` con:
+**If `$ARGUMENTS` contains a TASK_ID**:
+- Launch the `clickup` agent with:
   - INTENT: `read`
-  - PARAMS: `task_id: <TASK_ID fornito>`
-- Se l'agent restituisce STATUS: error, informa lo sviluppatore e fermati
-- Estrai: `custom_id`, `name`, `description`, `priority`, `task_id`, `url`
+  - PARAMS: `task_id: <provided TASK_ID>`
+- If the agent returns STATUS: error, inform the developer and stop
+- Extract: `custom_id`, `name`, `description`, `priority`, `task_id`, `url`
 
-**Se `$ARGUMENTS` e' vuoto**:
-- Usa il contesto del task gia' disponibile nella conversazione (passato dall'orchestratore `sdd`)
-- Se non c'e' contesto disponibile, chiedi allo sviluppatore di fornire un TASK_ID
+**If `$ARGUMENTS` is empty**:
+- Use the task context already available in the conversation (passed by the `sdd` orchestrator)
+- If no context is available, ask the developer to provide a TASK_ID
 
-### 2. Analizza il contesto progetto
+### 2. Analyze the project context
 
-- Leggi `CONSTITUTION.md` per comprendere i vincoli tecnici applicabili
-- Leggi `REGISTRY.md` per conoscere componenti esistenti, pattern adottati e decisioni architetturali
-- Identifica i file rilevanti nel progetto in base ai requisiti del task
+- Read `CONSTITUTION.md` to understand applicable technical constraints
+- Read `REGISTRY.md` to learn about existing components, adopted patterns and architectural decisions
+- Identify relevant files in the project based on the task requirements
 
-### 3. Presenta il task
+### 3. Present the task
 
-Mostra allo sviluppatore un riepilogo del task prima di iniziare l'intervista:
+Show the developer a task summary before starting the interview:
 ```
-Discovery per: <custom_id> — <name>
-Priorita': <priority>
+Discovery for: <custom_id> — <name>
+Priority: <priority>
 
-Descrizione dal task:
+Description from task:
 <description>
 
-Iniziamo la fase di discovery. Ti faro' alcune domande per capire a fondo
-cosa serve implementare. Rispondi con il livello di dettaglio che preferisci.
-Se non hai ancora una risposta su qualcosa, dimmi pure "da definire".
+Let's start the discovery phase. I'll ask you some questions to thoroughly
+understand what needs to be implemented. Answer with whatever level of detail
+you prefer. If you don't have an answer for something yet, just say "to be defined".
 ```
 
-### 4. Conduci l'intervista
+### 4. Conduct the interview
 
-#### Regole ferree
+#### Strict rules
 
-1. **Una domanda alla volta**: NON fare MAI liste di domande. Fai una singola domanda
-   (o al massimo due strettamente correlate), aspetta la risposta, analizzala e poi
-   decidi la mossa successiva. Questa deve essere una conversazione dinamica, non un questionario.
+1. **One question at a time**: NEVER make lists of questions. Ask a single question
+   (or at most two closely related ones), wait for the answer, analyze it, then
+   decide the next move. This must be a dynamic conversation, not a questionnaire.
 
-2. **Non accontentarti**: Se la risposta e' vaga, incompleta o introduce nuove ambiguita',
-   NON passare all'argomento successivo. Scava a fondo con domande di follow-up
-   (es. "Cosa intendi esattamente con X?", "Cosa succede se l'utente fa Y invece di X?").
+2. **Don't settle**: If the answer is vague, incomplete or introduces new ambiguities,
+   do NOT move on to the next topic. Dig deep with follow-up questions
+   (e.g. "What exactly do you mean by X?", "What happens if the user does Y instead of X?").
 
-3. **Indaga gli edge case**: Per ogni funzionalita', obbliga lo sviluppatore a pensare
-   ai fallimenti (Cosa succede se il database e' offline? Se l'input e' malformato?
-   Se l'utente non ha i permessi?).
+3. **Investigate edge cases**: For each feature, push the developer to think
+   about failures (What happens if the database is offline? If the input is malformed?
+   If the user doesn't have permissions?).
 
-4. **Rispetta i limiti**: Se lo sviluppatore dice "non lo so ancora" o "da definire",
-   accettalo e annotalo come zona d'ombra — non insistere. Segnalalo nel summary finale.
+4. **Respect boundaries**: If the developer says "I don't know yet" or "to be defined",
+   accept it and note it as a gray area — don't insist. Flag it in the final summary.
 
-5. **Soft cap**: Punta a raccogliere tutto in **massimo 10-12 domande**. Lo sviluppatore
-   puo' dire "basta, ho detto tutto" in qualsiasi momento per chiudere l'intervista.
+5. **Soft cap**: Aim to gather everything in **maximum 10-12 questions**. The developer
+   can say "enough, I've said everything" at any time to close the interview.
 
-#### Framework di discovery
+#### Discovery framework
 
-Conduci l'intervista seguendo mentalmente queste fasi, passando alla successiva
-solo quando la precedente e' sufficientemente chiara:
+Conduct the interview mentally following these phases, moving to the next
+only when the previous one is sufficiently clear:
 
-**Fase 1 — Core Value (il "Perche'")**
-Qual e' il problema di business o l'obiettivo dell'utente? Perche' questo task esiste?
-Chi ne beneficia? Qual e' il valore atteso?
+**Phase 1 — Core Value (the "Why")**
+What is the business problem or user objective? Why does this task exist?
+Who benefits? What is the expected value?
 
-**Fase 2 — Happy Path (il "Cosa")**
-Qual e' il flusso ideale passo-passo? Cosa vede l'utente? Cosa succede nel sistema?
-Quali sono gli input e gli output attesi?
+**Phase 2 — Happy Path (the "What")**
+What is the ideal step-by-step flow? What does the user see? What happens in the system?
+What are the expected inputs and outputs?
 
-**Fase 3 — Unhappy Path e Edge Cases**
-Gestione errori, validazioni, limiti. Cosa succede quando qualcosa va storto?
-Quali sono i casi limite da gestire? Ci sono requisiti di sicurezza o permessi?
+**Phase 3 — Unhappy Path and Edge Cases**
+Error handling, validations, limits. What happens when something goes wrong?
+What are the edge cases to handle? Are there security or permission requirements?
 
-**Fase 4 — Vincoli e dipendenze (il "Come" ad alto livello)**
-Vincoli tecnici noti, dipendenze esterne, preferenze architetturali.
-Ci sono componenti esistenti da riutilizzare? Requisiti non funzionali
-(performance, sicurezza, UX)?
+**Phase 4 — Constraints and dependencies (the high-level "How")**
+Known technical constraints, external dependencies, architectural preferences.
+Are there existing components to reuse? Non-functional requirements
+(performance, security, UX)?
 
-> **Attenzione**: la Fase 4 raccoglie vincoli e preferenze, NON soluzioni.
-> Le decisioni architetturali dettagliate sono responsabilita' della spec (`sdd-spec`).
+> **Note**: Phase 4 gathers constraints and preferences, NOT solutions.
+> Detailed architectural decisions are the responsibility of the spec (`sdd-spec`).
 
-### 5. Genera il Discovery Summary
+### 5. Generate the Discovery Summary
 
-Quando l'intervista e' completa (tutte le fasi coperte, oppure lo sviluppatore
-ha detto "basta"), genera un **Discovery Summary** strutturato:
+When the interview is complete (all phases covered, or the developer
+said "enough"), generate a structured **Discovery Summary**:
 
 ```markdown
 ## Discovery Summary: <custom_id> — <name>
 
 ### Core Value
-<Perche' questo task esiste. Problema di business, obiettivo utente, valore atteso.>
+<Why this task exists. Business problem, user objective, expected value.>
 
 ### Happy Path
-<Flusso ideale passo-passo. Input, output, comportamento atteso.>
+<Ideal step-by-step flow. Input, output, expected behavior.>
 1. <step>
 2. <step>
 ...
 
-### Edge Cases e Gestione Errori
-- <caso limite 1>: <comportamento atteso>
-- <caso limite 2>: <comportamento atteso>
+### Edge Cases and Error Handling
+- <edge case 1>: <expected behavior>
+- <edge case 2>: <expected behavior>
 ...
 
-### Vincoli e Preferenze
-- <vincolo o preferenza 1>
-- <vincolo o preferenza 2>
+### Constraints and Preferences
+- <constraint or preference 1>
+- <constraint or preference 2>
 ...
 
-### Componenti Esistenti da Riutilizzare
-- <componente da REGISTRY.md o dal codebase>
+### Existing Components to Reuse
+- <component from REGISTRY.md or the codebase>
 ...
-(oppure: "Nessuno identificato")
+(or: "None identified")
 
-### Zone d'Ombra
-<Aspetti rimasti da definire, domande aperte, risposte "da definire" dello sviluppatore.>
-- <zona d'ombra 1>
-- <zona d'ombra 2>
+### Gray Areas
+<Aspects remaining to be defined, open questions, "to be defined" answers from the developer.>
+- <gray area 1>
+- <gray area 2>
 ...
-(oppure: "Nessuna — tutti i requisiti sono stati chiariti")
+(or: "None — all requirements have been clarified")
 ```
 
-### 6. Conferma e chiusura
+### 6. Confirmation and closure
 
-**Se invocata standalone** (lo sviluppatore ha lanciato `/project:sdd-discovery` direttamente):
-- Mostra il Discovery Summary
-- Chiedi: "Discovery completata. Vuoi procedere con la generazione della specifica tecnica (`/project:sdd-spec`)?"
+**If invoked standalone** (the developer launched `/project:sdd-discovery` directly):
+- Show the Discovery Summary
+- Ask: "Discovery completed. Do you want to proceed with generating the technical specification (`/project:sdd-spec`)?"
 
-**Se invocata dall'orchestratore** (`sdd`):
-- Mostra il Discovery Summary
-- Restituisci il controllo all'orchestratore per proseguire con `sdd-spec`
+**If invoked by the orchestrator** (`sdd`):
+- Show the Discovery Summary
+- Return control to the orchestrator to proceed with `sdd-spec`
 
-## Output atteso
-- Intervista interattiva completata (max 10-12 domande)
-- Discovery Summary strutturato nel contesto della conversazione
-- Zone d'ombra esplicitamente documentate
+## Expected output
+- Interactive interview completed (max 10-12 questions)
+- Structured Discovery Summary in the conversation context
+- Gray areas explicitly documented

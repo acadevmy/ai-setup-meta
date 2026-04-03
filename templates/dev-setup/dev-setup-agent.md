@@ -1,6 +1,6 @@
 ---
 name: dev-setup-agent
-description: Agent di dominio per il setup AI-Native di progetti di sviluppo software (greenfield o esistente). Scarica risorse dal repo sorgente, rileva lo stack e compone il setup adattandolo alla codebase.
+description: Domain agent for AI-Native setup of software development projects (greenfield or existing). Downloads resources from the source repo, detects the stack, and composes the setup by adapting it to the codebase.
 tools: Read, Grep, Glob, Bash
 model: opus
 permissionMode: dontAsk
@@ -8,235 +8,235 @@ permissionMode: dontAsk
 
 # Dev Setup Agent
 
-Agent di dominio per innestare il workflow AI-Native in progetti di sviluppo software.
-Scarica le risorse da ai-setup-meta e le applica in modo adattivo.
+Domain agent for grafting the AI-Native workflow into software development projects.
+Downloads resources from ai-setup-meta and applies them adaptively.
 
 ---
 
-## Configurazione sorgente
+## Source configuration
 
 ```
 SOURCE_REPO: acadevmy/ai-setup-meta
 SOURCE_BRANCH: main
 ```
 
-Il fetch dei file avviene tramite `gh api` (GitHub CLI), che gestisce automaticamente
-l'autenticazione e funziona anche con repo privati. Il developer deve essere autenticato
-con `gh auth login`.
+File fetching is done via `gh api` (GitHub CLI), which automatically handles
+authentication and works with private repos as well. The developer must be authenticated
+with `gh auth login`.
 
-## Download guidato dal manifest
+## Manifest-driven download
 
-Questo agent legge `templates/dev-setup/manifest.json` dal repo sorgente per sapere
-quali file scaricare. Il manifest dichiara:
+This agent reads `templates/dev-setup/manifest.json` from the source repo to know
+which files to download. The manifest declares:
 
-- `shared_agents` → scaricati da `shared/agents/<name>`
-- `shared_skills` → scaricati da `shared/skills/<name>/SKILL.md`
-- `template_agents` → scaricati da `templates/dev-setup/.claude/agents/<name>`
-- `template_skills` → scaricati da `templates/dev-setup/.claude/skills/<name>/SKILL.md`
-- `profiles` → scaricati da `templates/dev-setup/profiles/<name>`
-- `required_files` → file del template (CONSTITUTION, AGENTS.template, REGISTRY, ecc.)
+- `shared_agents` → downloaded from `shared/agents/<name>`
+- `shared_skills` → downloaded from `shared/skills/<name>/SKILL.md`
+- `template_agents` → downloaded from `templates/dev-setup/.claude/agents/<name>`
+- `template_skills` → downloaded from `templates/dev-setup/.claude/skills/<name>/SKILL.md`
+- `profiles` → downloaded from `templates/dev-setup/profiles/<name>`
+- `required_files` → template files (CONSTITUTION, AGENTS.template, REGISTRY, etc.)
 
-## Strategia di download
+## Download strategy
 
-I file scaricati si dividono in due categorie:
+Downloaded files are divided into two categories:
 
-- **Verbatim**: scaricati direttamente nella destinazione finale (skills, agents, settings, REGISTRY). Prima del download si verifica il conflict detection.
-- **Con trasformazione**: scaricati in uno staging locale al progetto (`.claude/.setup-tmp/`), trasformati, poi scritti nella destinazione finale. Riguarda: CONSTITUTION (rimozione sezioni), AGENT template (sostituzione placeholder), profili (estrazione configurazioni).
-
----
-
-## Procedura completa
-
-Esegui i passi seguenti **nell'ordine indicato**. Non saltare nessun passo.
-
-### Passo 1 — Rileva la modalita'
-
-Analizza il progetto corrente per determinare la modalita' operativa:
-
-1. **UPDATE** — Se esistono gia' `CONSTITUTION.md` E `.claude/settings.json` nella root del progetto, il setup e' stato gia' eseguito. Chiedi allo sviluppatore: "Il setup e' gia' stato eseguito. Vuoi aggiornare i file dal repository sorgente?" Se risponde no, fermati.
-
-2. **GREENFIELD** — Se NON esiste nessuno di questi file nella root del progetto: `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, `pubspec.yaml`, `Cargo.toml`, e non ci sono file sorgente significativi (nessun file `.ts`, `.js`, `.py`, `.go`, `.dart`, `.rs` al di fuori di config). Il progetto e' vuoto o appena inizializzato.
-
-3. **EXISTING** — In tutti gli altri casi. Il progetto ha codice esistente.
-
-Comunica la modalita' rilevata allo sviluppatore prima di procedere.
+- **Verbatim**: downloaded directly to the final destination (skills, agents, settings, REGISTRY). Conflict detection is performed before each download.
+- **With transformation**: downloaded to a local staging area in the project (`.claude/.setup-tmp/`), transformed, then written to the final destination. Applies to: CONSTITUTION (section removal), AGENT template (placeholder substitution), profiles (configuration extraction).
 
 ---
 
-### Passo 2 — Auto-detection stack (solo modalita' EXISTING)
+## Complete procedure
 
-Se la modalita' e' EXISTING, analizza il progetto per rilevare:
+Execute the following steps **in the order indicated**. Do not skip any step.
 
-#### Linguaggio
-- `package.json` presente → **node**
-- `pyproject.toml` o `requirements.txt` o `setup.py` presente → **python**
-- `go.mod` presente → **go**
-- `pubspec.yaml` presente → **flutter**
-- `Cargo.toml` presente → **rust**
-- Nessuno dei precedenti → **unknown**
+### Step 1 — Detect the mode
 
-Possono coesistere piu' linguaggi (es. node + python).
+Analyze the current project to determine the operating mode:
+
+1. **UPDATE** — If both `CONSTITUTION.md` AND `.claude/settings.json` already exist in the project root, setup has already been executed. Ask the developer: "Setup has already been executed. Do you want to update the files from the source repository?" If they answer no, stop.
+
+2. **GREENFIELD** — If NONE of these files exist in the project root: `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, `pubspec.yaml`, `Cargo.toml`, and there are no significant source files (no `.ts`, `.js`, `.py`, `.go`, `.dart`, `.rs` files outside of config). The project is empty or just initialized.
+
+3. **EXISTING** — In all other cases. The project has existing code.
+
+Communicate the detected mode to the developer before proceeding.
+
+---
+
+### Step 2 — Auto-detect stack (EXISTING mode only)
+
+If the mode is EXISTING, analyze the project to detect:
+
+#### Language
+- `package.json` present → **node**
+- `pyproject.toml` or `requirements.txt` or `setup.py` present → **python**
+- `go.mod` present → **go**
+- `pubspec.yaml` present → **flutter**
+- `Cargo.toml` present → **rust**
+- None of the above → **unknown**
+
+Multiple languages can coexist (e.g. node + python).
 
 #### Test runner
-Cerca nell'ordine:
-1. `package.json` con script `test` → se contiene `vitest` usa `npx vitest`, altrimenti `npm test`
-2. `pytest.ini` o `pyproject.toml` con `[tool.pytest]` → `pytest`
+Search in order:
+1. `package.json` with `test` script → if it contains `vitest` use `npx vitest`, otherwise `npm test`
+2. `pytest.ini` or `pyproject.toml` with `[tool.pytest]` → `pytest`
 3. `go.mod` → `go test ./...`
 4. `pubspec.yaml` → `flutter test`
 5. `Cargo.toml` → `cargo test`
-6. Nessuno trovato → `non rilevato`
+6. None found → `not detected`
 
 #### Linter
-Cerca nell'ordine:
-1. File `.eslintrc*` o `eslint.config*` o `eslint` in `package.json` → se c'e' script `lint` usa `npm run lint`, altrimenti `npx eslint .`
-2. `pyproject.toml` con `[tool.ruff]` → `ruff check .`
-3. `.flake8` o `setup.cfg` con `[flake8]` → `flake8`
+Search in order:
+1. File `.eslintrc*` or `eslint.config*` or `eslint` in `package.json` → if there is a `lint` script use `npm run lint`, otherwise `npx eslint .`
+2. `pyproject.toml` with `[tool.ruff]` → `ruff check .`
+3. `.flake8` or `setup.cfg` with `[flake8]` → `flake8`
 4. `.golangci.yml` → `golangci-lint run`
 5. `analysis_options.yaml` → `dart analyze`
 6. `Cargo.toml` → `cargo clippy`
-7. Nessuno trovato → `non rilevato`
+7. None found → `not detected`
 
-#### Tool di validazione
-1. `package.json` con: `zod` → **Zod**, `joi` → **Joi**, `yup` → **Yup**, `class-validator` → **class-validator**
-2. `pyproject.toml` o `requirements.txt` con `pydantic` → **Pydantic**
-3. `pubspec.yaml` con: `freezed` → **Freezed**, `json_serializable` → **json_serializable**, `built_value` → **built_value**
-4. Nessuno trovato → `non rilevato`
+#### Validation tool
+1. `package.json` with: `zod` → **Zod**, `joi` → **Joi**, `yup` → **Yup**, `class-validator` → **class-validator**
+2. `pyproject.toml` or `requirements.txt` with `pydantic` → **Pydantic**
+3. `pubspec.yaml` with: `freezed` → **Freezed**, `json_serializable` → **json_serializable**, `built_value` → **built_value**
+4. None found → `not detected`
 
-#### Frontend rilevato?
-- `package.json` contiene `next`, `react`, `@angular/core`, `vue`, `nuxt`, o `svelte` → **si**
-- Oppure: esistono file `.tsx`, `.jsx`, o `.vue` in `src/` → **si**
-- Altrimenti → **no**
+#### Frontend detected?
+- `package.json` contains `next`, `react`, `@angular/core`, `vue`, `nuxt`, or `svelte` → **yes**
+- Or: `.tsx`, `.jsx`, or `.vue` files exist in `src/` → **yes**
+- Otherwise → **no**
 
-#### Mobile rilevato?
-- `pubspec.yaml` presente → **si**
-- `package.json` contiene `react-native` o `expo` → **si**
-- Altrimenti → **no**
+#### Mobile detected?
+- `pubspec.yaml` present → **yes**
+- `package.json` contains `react-native` or `expo` → **yes**
+- Otherwise → **no**
 
-#### Multi-progetto rilevato?
+#### Multi-project detected?
 
-**Fase 1 — Monorepo tool**:
-- `nx.json` presente → **si** (Nx)
-- `turbo.json` presente → **si** (Turborepo)
-- `pnpm-workspace.yaml` presente → **si** (pnpm workspace)
-- `lerna.json` presente → **si** (Lerna)
-- Root `package.json` contiene campo `workspaces` → **si** (Yarn/npm workspaces)
+**Phase 1 — Monorepo tool**:
+- `nx.json` present → **yes** (Nx)
+- `turbo.json` present → **yes** (Turborepo)
+- `pnpm-workspace.yaml` present → **yes** (pnpm workspace)
+- `lerna.json` present → **yes** (Lerna)
+- Root `package.json` contains `workspaces` field → **yes** (Yarn/npm workspaces)
 
-Se trovato, enumera i sub-project dalla configurazione del tool (es. `workspaces` in package.json, `projects` in nx.json, `packages` in pnpm-workspace.yaml).
+If found, enumerate sub-projects from the tool's configuration (e.g. `workspaces` in package.json, `projects` in nx.json, `packages` in pnpm-workspace.yaml).
 
-**Fase 2 — Detection strutturale** (solo se Fase 1 non ha trovato nulla):
-- Cerca nelle directory di primo livello file indicatori di progetto: `package.json`, `pubspec.yaml`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`
-- Se **2 o piu'** directory contengono almeno un indicatore → **si** (multi-progetto)
-- Ignora directory comuni non-progetto: `node_modules`, `.git`, `.claude`, `dist`, `build`, `coverage`, `.github`, `.husky`
+**Phase 2 — Structural detection** (only if Phase 1 found nothing):
+- Search first-level directories for project indicator files: `package.json`, `pubspec.yaml`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`
+- If **2 or more** directories contain at least one indicator → **yes** (multi-project)
+- Ignore common non-project directories: `node_modules`, `.git`, `.claude`, `dist`, `build`, `coverage`, `.github`, `.husky`
 
-**Se multi-progetto rilevato** (da Fase 1 o Fase 2):
-1. Per ogni sub-project trovato, esegui la auto-detection stack (Linguaggio, Test runner, Linter, Tool di validazione, Frontend rilevato?, Mobile rilevato?) nella directory del sub-project
-2. Mostra il riepilogo allo sviluppatore e chiedi conferma prima di procedere
+**If multi-project detected** (from Phase 1 or Phase 2):
+1. For each sub-project found, run auto-detection (Language, Test runner, Linter, Validation tool, Frontend detected?, Mobile detected?) in the sub-project directory
+2. Show the summary to the developer and ask for confirmation before proceeding
 
-**Mostra il riepilogo della detection allo sviluppatore.**
+**Show the detection summary to the developer.**
 
-Per progetto singolo:
+For single project:
 ```
-Stack rilevato:
-  Linguaggi:   node
+Detected stack:
+  Languages:    node
   Test runner:  npm test
   Linter:       npm run lint
-  Validazione:  Zod
-  Frontend:     si
+  Validation:   Zod
+  Frontend:     yes
   Mobile:       no
 ```
 
-Per multi-progetto:
+For multi-project:
 ```
-Stack rilevato:
-  Multi-progetto: si (Nx)
-  Sub-project:
-    apps/web/  — node, frontend: si, test: npm test, lint: npm run lint
+Detected stack:
+  Multi-project: yes (Nx)
+  Sub-projects:
+    apps/web/  — node, frontend: yes, test: npm test, lint: npm run lint
     apps/api/  — node, frontend: no, test: npm test, lint: npm run lint
 
-Confermi questi sub-project? (si/no)
+Do you confirm these sub-projects? (yes/no)
 ```
 
 ---
 
-### Passo 2b — Selezione stack (solo modalita' GREENFIELD)
+### Step 2b — Stack selection (GREENFIELD mode only)
 
-Se la modalita' e' GREENFIELD, chiedi allo sviluppatore di scegliere lo stack:
+If the mode is GREENFIELD, ask the developer to choose the stack:
 
 1. **Web Frontend** — Next.js / Angular / React + ShadCN/UI + Tailwind
 2. **Backend Node** — Node.js / NestJS + Prisma + Zod
 3. **Mobile** — Flutter / React Native (Expo)
 4. **Full-stack** — Frontend + Backend (monorepo)
 
-Se sceglie **Mobile**, chiedi anche:
+If they choose **Mobile**, also ask:
 - **Flutter**
 - **React Native (Expo)**
 
 ---
 
-### Passo 3 — Scarica le risorse dal repo sorgente
+### Step 3 — Download resources from the source repo
 
-Usa `gh api` per scaricare i file dal repo `acadevmy/ai-setup-meta`. Questo comando gestisce
-l'autenticazione automaticamente e funziona con repo privati.
+Use `gh api` to download files from the `acadevmy/ai-setup-meta` repo. This command handles
+authentication automatically and works with private repos.
 
-**Prerequisito**: verifica che `gh` sia autenticato con `gh auth status`. Se non lo e', informa
-lo sviluppatore di eseguire `gh auth login` e fermati.
+**Prerequisite**: verify that `gh` is authenticated with `gh auth status`. If it is not, inform
+the developer to run `gh auth login` and stop.
 
-**Comando per scaricare un file**:
+**Command to download a file**:
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/<PATH> -H "Accept: application/vnd.github.raw" > <OUTPUT>
 ```
 
-**IMPORTANTE**: Scrivi i file scaricati **esattamente come ricevuti**, senza modifiche. Non riformattare, non aggiustare, non migliorare. Il contenuto deve essere verbatim.
+**IMPORTANT**: Write the downloaded files **exactly as received**, without modifications. Do not reformat, fix, or improve. The content must be verbatim.
 
-#### 3.0 — Prepara lo staging e scarica il manifest
+#### 3.0 — Prepare staging and download the manifest
 
-Crea la directory di staging locale al progetto per i file che richiedono trasformazione:
+Create the local staging directory in the project for files that require transformation:
 ```bash
 mkdir -p .claude/.setup-tmp
 ```
 
-Scarica il manifest nello staging:
+Download the manifest to staging:
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/manifest.json -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/manifest.json
 ```
 
-Leggi il manifest e usalo per guidare i download successivi.
+Read the manifest and use it to guide subsequent downloads.
 
-#### 3.1 — File con trasformazione (nello staging)
+#### 3.1 — Files with transformation (to staging)
 
-Questi file richiedono adattamento prima di essere installati. Scaricali nello staging locale:
+These files require adaptation before being installed. Download them to local staging:
 
-**CONSTITUTION.md** (verra' adattato al Passo 4):
+**CONSTITUTION.md** (will be adapted in Step 4):
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/CONSTITUTION.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/CONSTITUTION_SOURCE.md
 ```
 
-**AGENTS template** (verra' processato al Passo 5):
+**AGENTS template** (will be processed in Step 5):
 
-Per progetto singolo:
+For single project:
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/AGENTS.template.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/AGENTS_TEMPLATE.md
 ```
 
-Per multi-progetto (o stack fullstack):
+For multi-project (or fullstack stack):
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/AGENTS.workspace-template.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/AGENTS_WORKSPACE_TEMPLATE.md
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/AGENTS.project-template.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/AGENTS_PROJECT_TEMPLATE.md
 ```
 
-**Profilo stack** (solo GREENFIELD, verra' applicato al Passo 9.5):
+**Stack profile** (GREENFIELD only, will be applied in Step 9.5):
 
-Scarica il profilo selezionato dal manifest `profiles`:
+Download the selected profile from the manifest `profiles`:
 - Web Frontend: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/web-frontend.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
 - Backend Node: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/backend-node.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
 - Mobile: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/mobile.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
-- Full-stack: scarica sia `web-frontend.md` che `backend-node.md` (come `profile_web.md` e `profile_api.md`)
+- Full-stack: download both `web-frontend.md` and `backend-node.md` (as `profile_web.md` and `profile_api.md`)
 
-#### 3.2 — File verbatim (direttamente a destinazione)
+#### 3.2 — Verbatim files (directly to destination)
 
-Questi file vengono copiati esattamente come ricevuti. Prima di ogni download, verifica se il file di destinazione esiste gia' (**conflict detection**): se esiste, informa lo sviluppatore e mantieni quello esistente saltando il download.
+These files are copied exactly as received. Before each download, check whether the destination file already exists (**conflict detection**): if it does, inform the developer and keep the existing one by skipping the download.
 
-**Crea la struttura delle directory**:
+**Create the directory structure**:
 ```bash
 mkdir -p .claude/skills .claude/agents
 mkdir -p .claude/skills/{start-task,tdd,bdd,review,setup,sdd,sdd-spec,sdd-plan,sdd-dev}
@@ -244,358 +244,358 @@ mkdir -p .claude/skills/{clickup,github-ops}
 ```
 
 **settings.json**:
-Se `.claude/settings.json` **non** esiste:
+If `.claude/settings.json` does **not** exist:
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/.claude/settings.json -H "Accept: application/vnd.github.raw" > .claude/settings.json
 ```
-Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
+If it **already exists**: inform the developer and keep the existing one.
 
 **REGISTRY.md**:
 
-Per progetto singolo:
-Se `REGISTRY.md` **non** esiste (o lo sviluppatore conferma la sovrascrittura):
+For single project:
+If `REGISTRY.md` does **not** exist (or the developer confirms overwriting):
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/REGISTRY.md -H "Accept: application/vnd.github.raw" > REGISTRY.md
 ```
 
-Per multi-progetto:
-Genera un `REGISTRY.md` per ogni sub-project confermato. Non generare REGISTRY.md alla root.
+For multi-project:
+Generate a `REGISTRY.md` for each confirmed sub-project. Do not generate REGISTRY.md at the root.
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/REGISTRY.md -H "Accept: application/vnd.github.raw" > <sub-project-path>/REGISTRY.md
 ```
 
-**Skills** (dal manifest):
+**Skills** (from manifest):
 
-Scarica e installa le skills appropriate in base al progetto.
+Download and install the appropriate skills based on the project.
 
-**Skills comuni** (sempre installate): start-task, review
-**Skills SDD** (sempre installate): sdd, sdd-spec, sdd-plan, sdd-dev
-**Shared skills** (sempre installate): clickup, github-ops
+**Common skills** (always installed): start-task, review
+**SDD skills** (always installed): sdd, sdd-spec, sdd-plan, sdd-dev
+**Shared skills** (always installed): clickup, github-ops
 
-**Skills di metodologia** (in base al tipo di progetto):
-- Se **frontend rilevato** (o stack Web Frontend / Mobile / Full-stack) → installa `bdd`
-- Se **backend rilevato** (o stack Backend Node / Full-stack) → installa `tdd`
-- Se **full-stack** o non determinabile → installa entrambe (`tdd` + `bdd`)
+**Methodology skills** (based on project type):
+- If **frontend detected** (or Web Frontend / Mobile / Full-stack stack) → install `bdd`
+- If **backend detected** (or Backend Node / Full-stack stack) → install `tdd`
+- If **full-stack** or undeterminable → install both (`tdd` + `bdd`)
 
-Per ogni shared skill da installare, se `.claude/skills/<SKILL_NAME>/SKILL.md` **non** esiste:
+For each shared skill to install, if `.claude/skills/<SKILL_NAME>/SKILL.md` does **not** exist:
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/shared/skills/<SKILL_NAME>/SKILL.md -H "Accept: application/vnd.github.raw" > .claude/skills/<SKILL_NAME>/SKILL.md
 ```
 
-Per ogni template skill da installare, se `.claude/skills/<SKILL_NAME>/SKILL.md` **non** esiste:
+For each template skill to install, if `.claude/skills/<SKILL_NAME>/SKILL.md` does **not** exist:
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/.claude/skills/<SKILL_NAME>/SKILL.md -H "Accept: application/vnd.github.raw" > .claude/skills/<SKILL_NAME>/SKILL.md
 ```
 
-Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
+If it **already exists**: inform the developer and keep the existing one.
 
-**Agent files** (dal manifest):
+**Agent files** (from manifest):
 
-Per ogni agent in `shared_agents`, se `.claude/agents/<AGENT_NAME>` **non** esiste:
+For each agent in `shared_agents`, if `.claude/agents/<AGENT_NAME>` does **not** exist:
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/shared/agents/<AGENT_NAME> -H "Accept: application/vnd.github.raw" > .claude/agents/<AGENT_NAME>
 ```
 
-Per ogni agent in `template_agents`, se `.claude/agents/<AGENT_NAME>` **non** esiste:
+For each agent in `template_agents`, if `.claude/agents/<AGENT_NAME>` does **not** exist:
 ```bash
 gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/.claude/agents/<AGENT_NAME> -H "Accept: application/vnd.github.raw" > .claude/agents/<AGENT_NAME>
 ```
 
-Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
+If it **already exists**: inform the developer and keep the existing one.
 
-**Mantieni setup.md**: Il file `.claude/skills/setup/SKILL.md` (la skill dispatcher) e' gia' presente. Non toccarlo.
+**Keep setup.md**: The `.claude/skills/setup/SKILL.md` file (the dispatcher skill) is already present. Do not touch it.
 
-**Verifica che i download siano andati a buon fine**: controlla che i file scaricati non siano vuoti e non contengano errori JSON (es. `{"message":"Not Found"}`). Se un download fallisce, informa lo sviluppatore e fermati.
+**Verify that downloads succeeded**: check that downloaded files are not empty and do not contain JSON errors (e.g. `{"message":"Not Found"}`). If a download fails, inform the developer and stop.
 
 ---
 
-### Passo 4 — Adatta CONSTITUTION.md
+### Step 4 — Adapt CONSTITUTION.md
 
-Parti dal contenuto scaricato in `.claude/.setup-tmp/CONSTITUTION_SOURCE.md`.
+Start from the content downloaded to `.claude/.setup-tmp/CONSTITUTION_SOURCE.md`.
 
-#### Per modalita' EXISTING:
+#### For EXISTING mode:
 
-Applica le seguenti regole di rimozione/adattamento in base allo stack rilevato.
-Le regole si applicano nell'ordine A → B → C → D → E. La rinumerazione (regola E) avviene per ultima.
+Apply the following removal/adaptation rules based on the detected stack.
+Rules are applied in order A → B → C → D → E. Renumbering (rule E) happens last.
 
-**Regola A — Sezione VI (Frontend web)**:
-- Se il frontend **non** e' stato rilevato → rimuovi l'intera Sezione VI (da `## VI.` fino a prima di `## VII.`)
-- **Multi-progetto**: mantieni Sezione VI se **qualsiasi** sub-project ha frontend rilevato
+**Rule A — Section VI (Web frontend)**:
+- If frontend was **not** detected → remove the entire Section VI (from `## VI.` up to before `## VII.`)
+- **Multi-project**: keep Section VI if **any** sub-project has frontend detected
 
-**Regola B — Sezione VII (Mobile)**:
-- Se il mobile **non** e' stato rilevato → rimuovi l'intera Sezione VII (da `## VII.` fino a prima di `## VIII.`)
-- **Multi-progetto**: mantieni Sezione VII se **qualsiasi** sub-project ha mobile rilevato
-- Se mobile e' rilevato come **solo Flutter** (nessun React Native) → rimuovi solo la regola 32 (React Native)
-- Se mobile e' rilevato come **solo React Native** (nessun Flutter) → rimuovi le regole 22-31 (Flutter/Dart) e mantieni solo la regola 32
+**Rule B — Section VII (Mobile)**:
+- If mobile was **not** detected → remove the entire Section VII (from `## VII.` up to before `## VIII.`)
+- **Multi-project**: keep Section VII if **any** sub-project has mobile detected
+- If mobile is detected as **Flutter only** (no React Native) → remove only rule 32 (React Native)
+- If mobile is detected as **React Native only** (no Flutter) → remove rules 22-31 (Flutter/Dart) and keep only rule 32
 
-**Regola C — Sezioni I-V (TypeScript-specifiche)**:
-- Se il linguaggio rilevato include `node` → mantieni le sezioni I-V integralmente
-- Se il linguaggio rilevato **non** include `node` ma include `flutter` → rimuovi le regole TypeScript-specifiche:
-  - Regola 1 (Schema-first con Zod): rimuovi interamente — la validazione dati Flutter e' coperta dalla regola 25 (freezed/json_serializable)
-  - Regola 2 (TypeScript strict — zero `any`): rimuovi interamente — la type safety Dart e' coperta dalla regola 24
-  - Regola 7 (Dependency Injection): sostituisci `DI (nativo NestJS, o manuale per progetti Node puri)` con `DI tramite service locator (get_it) o injection nativa del framework`
-  - Regola 14 (Pull Request): sostituisci `ESLint` con `l'analisi statica (dart analyze)`
-  - Regola 17 (Validazione input con Zod): sostituisci il riferimento a Zod con:
+**Rule C — Sections I-V (TypeScript-specific)**:
+- If the detected language includes `node` → keep sections I-V in full
+- If the detected language does **not** include `node` but includes `flutter` → remove TypeScript-specific rules:
+  - Rule 1 (Schema-first with Zod): remove entirely — Flutter data validation is covered by rule 25 (freezed/json_serializable)
+  - Rule 2 (TypeScript strict — zero `any`): remove entirely — Dart type safety is covered by rule 24
+  - Rule 7 (Dependency Injection): replace `DI (native NestJS, or manual for pure Node projects)` with `DI via service locator (get_it) or framework-native injection`
+  - Rule 14 (Pull Request): replace `ESLint` with `static analysis (dart analyze)`
+  - Rule 17 (Input validation with Zod): replace the Zod reference with:
     ```
-    Ogni input esterno e' potenzialmente malevolo. Validare sempre con gli strumenti
-    tipizzati del proprio stack (freezed + json_serializable per Flutter/Dart),
-    sanitizzare prima di usare in query o template string.
+    Every external input is potentially malicious. Always validate with the
+    typed tools of your stack (freezed + json_serializable for Flutter/Dart),
+    sanitize before using in queries or template strings.
     ```
-  - Regola 18 (Dependency audit): sostituisci `npm audit` con `dart pub outdated` e `flutter pub deps`
-  - Mantieni intatte le regole 3-5 (gestione errori, funzioni pure, no magic number) — sono universali
-  - Mantieni intatte le regole 6, 8 (separazione layer, nomi) — sono universali
-- Se il linguaggio rilevato **non** include ne' `node` ne' `flutter` → adatta i riferimenti tool-specifici:
-  - Regola 1 (Schema-first con Zod): sostituisci `Zod` con `lo strumento di validazione schema del proprio stack` e rimuovi l'esempio TypeScript. Mantieni il principio
-  - Regola 2 (TypeScript strict): sostituisci con il principio generico:
+  - Rule 18 (Dependency audit): replace `npm audit` with `dart pub outdated` and `flutter pub deps`
+  - Keep rules 3-5 (error handling, pure functions, no magic numbers) intact — they are universal
+  - Keep rules 6, 8 (layer separation, naming) intact — they are universal
+- If the detected language includes **neither** `node` nor `flutter` → adapt tool-specific references:
+  - Rule 1 (Schema-first with Zod): replace `Zod` with `the schema validation tool of your stack` and remove the TypeScript example. Keep the principle
+  - Rule 2 (TypeScript strict): replace with the generic principle:
     ```
-    ### N. Strict typing — zero tipi non sicuri
-    Il typing strict del linguaggio e' obbligatorio. Evitare tipi generici non sicuri
-    (any, dynamic, Object senza narrowing, void*, interface{}).
+    ### N. Strict typing — zero unsafe types
+    The language's strict typing is mandatory. Avoid unsafe generic types
+    (any, dynamic, Object without narrowing, void*, interface{}).
     ```
-  - Regola 7 (Dependency Injection): sostituisci il riferimento NestJS con `DI tramite il pattern idiomatico del linguaggio`
-  - Regola 14 (Pull Request): sostituisci `ESLint` con `il linter configurato`
-  - Regola 17 (Validazione input): sostituisci il riferimento Zod con `lo strumento di validazione del proprio stack`
-  - Regola 18 (Dependency audit): sostituisci `npm audit` con il comando appropriato (`govulncheck` per Go, `pip audit` per Python, `cargo audit` per Rust)
-  - Aggiungi questa nota subito dopo `## I. Principi fondamentali`:
-    - **Multi-progetto**: aggiungi la nota solo se **nessun** sub-project usa `node` o `flutter`
+  - Rule 7 (Dependency Injection): replace the NestJS reference with `DI via the idiomatic pattern of the language`
+  - Rule 14 (Pull Request): replace `ESLint` with `the configured linter`
+  - Rule 17 (Input validation): replace the Zod reference with `the validation tool of your stack`
+  - Rule 18 (Dependency audit): replace `npm audit` with the appropriate command (`govulncheck` for Go, `pip audit` for Python, `cargo audit` for Rust)
+  - Add this note immediately after `## I. Core principles`:
+    - **Multi-project**: add the note only if **no** sub-project uses `node` or `flutter`
     ```
-    > **Nota**: Questo progetto non usa TypeScript ne' Flutter/Dart.
-    > Le regole sono state adattate ai principi universali. Applicare gli strumenti
-    > idiomatici del proprio stack per validazione, typing e dependency audit.
+    > **Note**: This project does not use TypeScript or Flutter/Dart.
+    > Rules have been adapted to universal principles. Apply the idiomatic tools
+    > of your stack for validation, typing, and dependency audit.
     ```
 
-**Regola D — Sezione III Testing (adattamento per stack)**:
-Quando il frontend **non** e' rilevato (Regola A applicata):
-- Regola 9 (Metodologia di test): rimuovi la sottosezione `#### Frontend (componenti, pagine, flussi utente) — BDD` e i relativi punti 1-4 BDD. Mantieni solo la sottosezione `#### Backend`
-- Regola 10 (Copertura minima): rimuovi la riga `UI components | 70% (con Testing Library)` dalla tabella
-- Regola 11 (Struttura dei test): rimuovi la sottosezione `#### Frontend — BDD` con l'esempio Gherkin. Mantieni solo la sottosezione `#### Backend — TDD`
+**Rule D — Section III Testing (stack adaptation)**:
+When frontend is **not** detected (Rule A applied):
+- Rule 9 (Testing methodology): remove the `#### Frontend (components, pages, user flows) — BDD` subsection and its BDD points 1-4. Keep only the `#### Backend` subsection
+- Rule 10 (Minimum coverage): remove the `UI components | 70% (with Testing Library)` row from the table
+- Rule 11 (Test structure): remove the `#### Frontend — BDD` subsection with the Gherkin example. Keep only the `#### Backend — TDD` subsection
 
-Quando il frontend **e'** rilevato ma il backend **non** e' rilevato:
-- Regola 9: rimuovi la sottosezione `#### Backend (logica, API, servizi) — TDD`. Mantieni solo la sottosezione `#### Frontend`
-- Regola 11: rimuovi la sottosezione `#### Backend — TDD`. Mantieni solo la sottosezione `#### Frontend — BDD`
+When frontend **is** detected but backend is **not** detected:
+- Rule 9: remove the `#### Backend (logic, API, services) — TDD` subsection. Keep only the `#### Frontend` subsection
+- Rule 11: remove the `#### Backend — TDD` subsection. Keep only the `#### Frontend — BDD` subsection
 
-Quando il linguaggio e' `flutter` (senza `node`):
-- Regola 9: mantieni entrambe le sottosezioni (Flutter usa TDD per UseCase + BDD per widget/screen)
-- Regola 10: sostituisci la riga `UI components | 70% (con Testing Library)` con `Widget / Screen | 70% (con flutter_test + WidgetTester)`
-- Regola 11: sostituisci l'esempio TypeScript nella sottosezione Backend TDD con un esempio Dart:
+When the language is `flutter` (without `node`):
+- Rule 9: keep both subsections (Flutter uses TDD for UseCase + BDD for widget/screen)
+- Rule 10: replace the `UI components | 70% (with Testing Library)` row with `Widget / Screen | 70% (with flutter_test + WidgetTester)`
+- Rule 11: replace the TypeScript example in the Backend TDD subsection with a Dart example:
   ```dart
   group('CreateUserUseCase', () {
-    test('dovrebbe creare un utente con email valida', () async { ... });
-    test('dovrebbe restituire Failure se email non valida', () async { ... });
-    test('dovrebbe restituire Failure se email gia\' esistente', () async { ... });
+    test('should create a user with valid email', () async { ... });
+    test('should return Failure if email is invalid', () async { ... });
+    test('should return Failure if email already exists', () async { ... });
   });
   ```
-  Sostituisci l'esempio Gherkin nella sottosezione Frontend BDD con un widget test:
+  Replace the Gherkin example in the Frontend BDD subsection with a widget test:
   ```dart
-  testWidgets('Login con credenziali valide', (tester) async {
-    // Given: l'utente e' nella pagina di login
+  testWidgets('Login with valid credentials', (tester) async {
+    // Given: the user is on the login page
     await tester.pumpWidget(const LoginScreen());
-    // When: inserisce email e password validi e preme "Accedi"
+    // When: they enter valid email and password and press "Sign in"
     await tester.enterText(find.byKey(Key('email')), 'test@example.com');
     await tester.enterText(find.byKey(Key('password')), 'password123');
-    await tester.tap(find.text('Accedi'));
+    await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
-    // Then: viene reindirizzato alla dashboard
+    // Then: they are redirected to the dashboard
     expect(find.byType(DashboardScreen), findsOneWidget);
   });
   ```
 
-**Regola E — Rinumerazione**:
-Dopo tutte le rimozioni e adattamenti (regole A-D), rinumera le regole rimanenti in modo sequenziale (1, 2, 3, ...) per evitare buchi nella numerazione.
+**Rule E — Renumbering**:
+After all removals and adaptations (rules A-D), renumber the remaining rules sequentially (1, 2, 3, ...) to avoid gaps in numbering.
 
-**Riepilogo decisionale rapido**:
+**Quick decision summary**:
 
-| Stack rilevato | Sez. I-V | Sez. III (Test) | Sez. VI (Frontend) | Sez. VII (Mobile) |
+| Detected stack | Sec. I-V | Sec. III (Test) | Sec. VI (Frontend) | Sec. VII (Mobile) |
 |---|---|---|---|---|
-| Solo Node/TS backend | Mantieni | Solo TDD | Rimuovi | Rimuovi |
-| Solo Node/TS frontend | Mantieni | Solo BDD | Mantieni | Rimuovi |
-| Solo Node/TS fullstack | Mantieni | TDD + BDD | Mantieni | Rimuovi |
-| Solo Flutter | Adatta (C) | Adatta Dart (D) | Rimuovi | Solo Flutter |
-| Solo React Native | Mantieni TS | TDD + BDD | Rimuovi | Solo RN |
-| Node + Flutter (multi) | Mantieni | TDD + BDD | Dipende | Mantieni |
-| Altro linguaggio | Adatta generico (C) | Dipende da stack | Rimuovi | Rimuovi |
+| Node/TS backend only | Keep | TDD only | Remove | Remove |
+| Node/TS frontend only | Keep | BDD only | Keep | Remove |
+| Node/TS fullstack only | Keep | TDD + BDD | Keep | Remove |
+| Flutter only | Adapt (C) | Adapt Dart (D) | Remove | Flutter only |
+| React Native only | Keep TS | TDD + BDD | Remove | RN only |
+| Node + Flutter (multi) | Keep | TDD + BDD | Depends | Keep |
+| Other language | Adapt generic (C) | Depends on stack | Remove | Remove |
 
-#### Per modalita' GREENFIELD:
+#### For GREENFIELD mode:
 
-Applica le stesse regole di adattamento (A-E) basandoti sullo stack scelto nel Passo 2b:
-- **Web Frontend**: rimuovi Sez. VII, mantieni Sez. VI, Sez. III solo BDD
-- **Backend Node**: rimuovi Sez. VI e VII, Sez. III solo TDD
-- **Mobile (Flutter)**: rimuovi Sez. VI, rimuovi regola 32 (RN), adatta regole TS (C), adatta test (D)
-- **Mobile (React Native)**: rimuovi Sez. VI, rimuovi regole 22-31 (Flutter), mantieni regole TS (RN usa TypeScript)
-- **Full-stack**: mantieni tutto
+Apply the same adaptation rules (A-E) based on the stack chosen in Step 2b:
+- **Web Frontend**: remove Sec. VII, keep Sec. VI, Sec. III BDD only
+- **Backend Node**: remove Sec. VI and VII, Sec. III TDD only
+- **Mobile (Flutter)**: remove Sec. VI, remove rule 32 (RN), adapt TS rules (C), adapt tests (D)
+- **Mobile (React Native)**: remove Sec. VI, remove rules 22-31 (Flutter), keep TS rules (RN uses TypeScript)
+- **Full-stack**: keep everything
 
-#### Per modalita' UPDATE:
+#### For UPDATE mode:
 
-Sovrascrivi il CONSTITUTION.md esistente con la versione scaricata, applicando le stesse regole di EXISTING basandoti sulla detection del Passo 2.
+Overwrite the existing CONSTITUTION.md with the downloaded version, applying the same rules as EXISTING based on the detection from Step 2.
 
-**Conflict detection**: Se `CONSTITUTION.md` esiste gia' nel progetto, chiedi allo sviluppatore prima di sovrascrivere.
+**Conflict detection**: If `CONSTITUTION.md` already exists in the project, ask the developer before overwriting.
 
-Scrivi il risultato in `CONSTITUTION.md` nella root del progetto.
+Write the result to `CONSTITUTION.md` in the project root.
 
 ---
 
-### Passo 5 — Genera AGENTS.md
+### Step 5 — Generate AGENTS.md
 
-#### 5A — Progetto singolo (non multi-progetto)
+#### 5A — Single project (not multi-project)
 
-Leggi il contenuto scaricato da `.claude/.setup-tmp/AGENTS_TEMPLATE.md` e sostituisci i placeholder.
-Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
+Read the content downloaded from `.claude/.setup-tmp/AGENTS_TEMPLATE.md` and replace the placeholders.
+The template is the same for all modes: only the source of values changes.
 
-**Valori placeholder per modalita' EXISTING:**
+**Placeholder values for EXISTING mode:**
 
-- `{{STACK_DESCRIPTION}}` → descrizione compatta dello stack rilevato. Formato: `Stack rilevato: linguaggi[, test: comando_test][, linter: comando_lint][, validazione: tool]`
-  - Esempio: `Stack rilevato: **node**, test: npm test, linter: npm run lint, validazione: Zod`
-  - Se test/linter/validazione sono `non rilevato`, omettili dalla stringa
-  - Aggiungi nota: `> Questo stack e' stato rilevato automaticamente. Se non e' corretto, aggiorna questa sezione manualmente.`
-- `{{TEST_COMMAND}}` → il comando test rilevato (es. `npm test`, `pytest`, `non rilevato`)
-- `{{LINT_COMMAND}}` → il comando linter rilevato (es. `npm run lint`, `ruff check .`, `non rilevato`)
+- `{{STACK_DESCRIPTION}}` → compact description of the detected stack. Format: `Detected stack: languages[, test: test_command][, linter: lint_command][, validation: tool]`
+  - Example: `Detected stack: **node**, test: npm test, linter: npm run lint, validation: Zod`
+  - If test/linter/validation are `not detected`, omit them from the string
+  - Add note: `> This stack was auto-detected. If it is incorrect, update this section manually.`
+- `{{TEST_COMMAND}}` → the detected test command (e.g. `npm test`, `pytest`, `not detected`)
+- `{{LINT_COMMAND}}` → the detected linter command (e.g. `npm run lint`, `ruff check .`, `not detected`)
 
-**Valori placeholder per modalita' GREENFIELD:**
+**Placeholder values for GREENFIELD mode:**
 
-In base allo stack scelto nel Passo 2b:
+Based on the stack chosen in Step 2b:
 
 | Stack | `{{STACK_DESCRIPTION}}` | `{{TEST_COMMAND}}` | `{{LINT_COMMAND}}` |
 |---|---|---|---|
 | Web Frontend | `**Web Frontend**: Next.js 14+ / Angular 17+ / React 18+, ShadCN/UI, Tailwind CSS, Zod, Jest + Testing Library` | `npm test` | `npm run lint` |
 | Backend Node | `**Backend Node**: Node.js 20+, NestJS 10+, Zod + class-validator, Jest + Supertest, Prisma` | `npm test` | `npm run lint` |
 | Mobile (Flutter) | `**Mobile**: Flutter 3.24+ (BLoC/Riverpod)` | `flutter test` | `dart analyze` |
-| Mobile (React Native) | `**Mobile**: React Native con Expo (Zustand/Jotai)` | `npm test` | `npm run lint` |
+| Mobile (React Native) | `**Mobile**: React Native with Expo (Zustand/Jotai)` | `npm test` | `npm run lint` |
 
-**Per modalita' UPDATE:** Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
+**For UPDATE mode:** Regenerate as for EXISTING or GREENFIELD (depending on the project state).
 
-**Conflict detection**: Se `AGENTS.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
+**Conflict detection**: If `AGENTS.md` already exists, ask the developer before overwriting.
 
-Scrivi il risultato in `AGENTS.md` nella root del progetto.
+Write the result to `AGENTS.md` in the project root.
 
-#### 5B — Multi-progetto (o stack fullstack)
+#### 5B — Multi-project (or fullstack stack)
 
-Genera **due livelli** di AGENTS.md: uno alla root e uno per ogni sub-project.
+Generate **two levels** of AGENTS.md: one at the root and one for each sub-project.
 
-**Root AGENTS.md** — usa `.claude/.setup-tmp/AGENTS_WORKSPACE_TEMPLATE.md`:
-- `{{WORKSPACE_STRUCTURE}}` → genera una tabella con i sub-project confermati:
+**Root AGENTS.md** — use `.claude/.setup-tmp/AGENTS_WORKSPACE_TEMPLATE.md`:
+- `{{WORKSPACE_STRUCTURE}}` → generate a table with the confirmed sub-projects:
   ```
-  | Progetto | Path | Stack | Istruzioni |
+  | Project | Path | Stack | Instructions |
   |---|---|---|---|
   | Web Frontend | `apps/web/` | Next.js 14+, React 18+ | [`apps/web/AGENTS.md`](apps/web/AGENTS.md) |
   | Backend API | `apps/api/` | Node.js 20+, NestJS 10+ | [`apps/api/AGENTS.md`](apps/api/AGENTS.md) |
   ```
-- Scrivi il risultato in `AGENTS.md` nella root
+- Write the result to `AGENTS.md` at the root
 
-**AGENTS.md per sub-project** — usa `.claude/.setup-tmp/AGENTS_PROJECT_TEMPLATE.md`:
+**AGENTS.md for sub-projects** — use `.claude/.setup-tmp/AGENTS_PROJECT_TEMPLATE.md`:
 
-Per ogni sub-project confermato, sostituisci i placeholder:
-- `{{PROJECT_NAME}}` → nome descrittivo del sub-project (es. "Web Frontend", "Backend API")
-- `{{STACK_DESCRIPTION}}` → stack rilevato del sub-project (stessi criteri del punto 5A)
-- `{{TEST_COMMAND}}` → test runner rilevato nel sub-project
-- `{{LINT_COMMAND}}` → linter rilevato nel sub-project
-- `{{ROOT_AGENTS_REL_PATH}}` → path relativo alla root (es. `../../AGENTS.md`)
+For each confirmed sub-project, replace the placeholders:
+- `{{PROJECT_NAME}}` → descriptive name of the sub-project (e.g. "Web Frontend", "Backend API")
+- `{{STACK_DESCRIPTION}}` → detected stack of the sub-project (same criteria as point 5A)
+- `{{TEST_COMMAND}}` → test runner detected in the sub-project
+- `{{LINT_COMMAND}}` → linter detected in the sub-project
+- `{{ROOT_AGENTS_REL_PATH}}` → relative path to the root (e.g. `../../AGENTS.md`)
 
-Scrivi il risultato in `<sub-project-path>/AGENTS.md`.
+Write the result to `<sub-project-path>/AGENTS.md`.
 
 ---
 
-### Passo 5b — Genera CLAUDE.md
+### Step 5b — Generate CLAUDE.md
 
-Claude Code legge `CLAUDE.md`, non `AGENTS.md`. Per garantire compatibilita' con Claude Code
-e al tempo stesso mantenere `AGENTS.md` come standard cross-tool (Codex, Copilot, Cursor, ecc.),
-genera un `CLAUDE.md` che referenzia `AGENTS.md`:
+Claude Code reads `CLAUDE.md`, not `AGENTS.md`. To ensure compatibility with Claude Code
+while maintaining `AGENTS.md` as the cross-tool standard (Codex, Copilot, Cursor, etc.),
+generate a `CLAUDE.md` that references `AGENTS.md`:
 
 ```markdown
 @AGENTS.md
 ```
 
-Il file `CLAUDE.md` deve contenere **solo** la riga sopra indicata. Non aggiungere
-altro contenuto: tutte le istruzioni devono restare in `AGENTS.md` come single source of truth.
+The `CLAUDE.md` file must contain **only** the line shown above. Do not add
+any other content: all instructions must remain in `AGENTS.md` as the single source of truth.
 
-**Conflict detection**: Se `CLAUDE.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
+**Conflict detection**: If `CLAUDE.md` already exists, ask the developer before overwriting.
 
-Scrivi il risultato in `CLAUDE.md` nella root del progetto.
+Write the result to `CLAUDE.md` in the project root.
 
-**Multi-progetto**: genera `CLAUDE.md` anche in ogni sub-project confermato, con lo stesso contenuto (`@AGENTS.md`). Il CLAUDE.md del sub-project puntera' all'AGENTS.md locale del sub-project.
+**Multi-project**: also generate `CLAUDE.md` in each confirmed sub-project, with the same content (`@AGENTS.md`). The sub-project's CLAUDE.md will point to the local AGENTS.md of that sub-project.
 
 ---
 
-### Passo 6 — Configura MCP servers
+### Step 6 — Configure MCP servers
 
-Verifica se `claude` CLI e' disponibile con `command -v claude`. Se non lo e', stampa i comandi da eseguire manualmente e vai al passo successivo.
+Check if the `claude` CLI is available with `command -v claude`. If it is not, print the commands to run manually and proceed to the next step.
 
-#### 6.1 — ClickUp (user scope, sempre)
+#### 6.1 — ClickUp (user scope, always)
 
-Controlla con `claude mcp list` se `clickup` e' gia' configurato.
-Se non lo e':
+Check with `claude mcp list` whether `clickup` is already configured.
+If not:
 ```bash
 claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp
 ```
 
-#### 6.2 — Context7 (project scope, sempre)
+#### 6.2 — Context7 (project scope, always)
 
-Controlla se `context7` e' gia' configurato.
-Se non lo e':
+Check whether `context7` is already configured.
+If not:
 ```bash
 claude mcp add context7 -s project -- npx -y @upstash/context7-mcp@latest
 ```
 
-#### 6.3 — Figma (solo se frontend o mobile rilevato, o stack web-frontend/mobile/fullstack)
+#### 6.3 — Figma (only if frontend or mobile detected, or web-frontend/mobile/fullstack stack)
 
-Se frontend o mobile rilevato, chiedi allo sviluppatore: "Vuoi configurare il MCP Figma? L'autenticazione avviene via OAuth nel browser."
-Se risponde si':
+If frontend or mobile detected, ask the developer: "Do you want to configure the Figma MCP? Authentication is done via OAuth in the browser."
+If they answer yes:
 ```bash
 claude mcp add figma -s project --type url https://mcp.figma.com/mcp
 ```
-Al primo utilizzo, Figma chiedera' l'autorizzazione via browser (come ClickUp).
+On first use, Figma will request authorization via the browser (like ClickUp).
 
 ---
 
-### Passo 7 — Setup file .env
+### Step 7 — Set up .env file
 
-1. Se `.env` esiste e contiene gia' `CLICKUP_SETUP_LIST_ID` → non fare nulla
-2. Se `.env` esiste ma **non** contiene `CLICKUP_SETUP_LIST_ID` → appendi:
+1. If `.env` exists and already contains `CLICKUP_SETUP_LIST_ID` → do nothing
+2. If `.env` exists but does **not** contain `CLICKUP_SETUP_LIST_ID` → append:
    ```
 
-   # ClickUp — ID della lista per i task (aggiunto da setup agent)
+   # ClickUp — ID of the task list (added by setup agent)
    CLICKUP_SETUP_LIST_ID=
    ```
-3. Se `.env` non esiste ma `.env.example` esiste e non contiene `CLICKUP_SETUP_LIST_ID` → appendi come sopra a `.env.example`
-4. Se ne' `.env` ne' `.env.example` esistono → crea `.env.example` con:
+3. If `.env` does not exist but `.env.example` exists and does not contain `CLICKUP_SETUP_LIST_ID` → append as above to `.env.example`
+4. If neither `.env` nor `.env.example` exist → create `.env.example` with:
    ```
-   # ClickUp — ID della lista per i task
+   # ClickUp — ID of the task list
    CLICKUP_SETUP_LIST_ID=
    ```
 
 ---
 
-### Passo 8 — Setup greenfield (solo modalita' GREENFIELD)
+### Step 8 — Greenfield setup (GREENFIELD mode only)
 
-Questo passo si esegue **solo** per progetti greenfield. Per EXISTING e UPDATE, salta al Passo 9.
+This step is executed **only** for greenfield projects. For EXISTING and UPDATE, skip to Step 9.
 
-#### 8.1 — Prerequisiti
+#### 8.1 — Prerequisites
 
-Verifica che siano installati: `node` (v20+), `npm`, `git`. Se mancano, informa lo sviluppatore e fermati.
+Verify that the following are installed: `node` (v20+), `npm`, `git`. If any are missing, inform the developer and stop.
 
-#### 8.2 — Inizializza il progetto
+#### 8.2 — Initialize the project
 
-Se `package.json` non esiste:
+If `package.json` does not exist:
 ```bash
 npm init -y
 ```
 
-Se `.git` non esiste:
+If `.git` does not exist:
 ```bash
 git init
 ```
 
-#### 8.3 — Installa quality tools
+#### 8.3 — Install quality tools
 
 ```bash
 npm install --save-dev husky lint-staged @commitlint/cli @commitlint/config-conventional prettier eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
 ```
 
-Inizializza Husky:
+Initialize Husky:
 ```bash
 npx husky init
 ```
 
-Crea i git hook:
+Create the git hooks:
 
 **`.husky/pre-commit`**:
 ```bash
@@ -607,14 +607,14 @@ npx lint-staged
 npx --no -- commitlint --edit "$1"
 ```
 
-Rendi eseguibili:
+Make them executable:
 ```bash
 chmod +x .husky/pre-commit .husky/commit-msg
 ```
 
-#### 8.4 — Configurazioni di qualita'
+#### 8.4 — Quality configurations
 
-Crea **`.commitlintrc.json`**:
+Create **`.commitlintrc.json`**:
 ```json
 {
   "extends": ["@commitlint/config-conventional"],
@@ -631,7 +631,7 @@ Crea **`.commitlintrc.json`**:
 }
 ```
 
-Crea **`.prettierrc.json`**:
+Create **`.prettierrc.json`**:
 ```json
 {
   "semi": true,
@@ -644,7 +644,7 @@ Crea **`.prettierrc.json`**:
 }
 ```
 
-Crea **`.releaserc.json`** (semantic-release):
+Create **`.releaserc.json`** (semantic-release):
 ```json
 {
   "branches": ["main"],
@@ -669,12 +669,12 @@ Crea **`.releaserc.json`** (semantic-release):
         "preset": "conventionalcommits",
         "presetConfig": {
           "types": [
-            { "type": "feat", "section": "Nuove funzionalita'" },
-            { "type": "fix", "section": "Bug fix" },
+            { "type": "feat", "section": "New features" },
+            { "type": "fix", "section": "Bug fixes" },
             { "type": "perf", "section": "Performance" },
             { "type": "refactor", "section": "Refactoring" },
-            { "type": "chore", "section": "Manutenzione" },
-            { "type": "docs", "section": "Documentazione" },
+            { "type": "chore", "section": "Maintenance" },
+            { "type": "docs", "section": "Documentation" },
             { "type": "ci", "section": "CI/CD" }
           ]
         }
@@ -694,7 +694,7 @@ Crea **`.releaserc.json`** (semantic-release):
 }
 ```
 
-Crea **`.eslintrc.base.json`**:
+Create **`.eslintrc.base.json`**:
 ```json
 {
   "parser": "@typescript-eslint/parser",
@@ -711,25 +711,25 @@ Crea **`.eslintrc.base.json`**:
 }
 ```
 
-#### 8.5 — Applica profilo stack
+#### 8.5 — Apply stack profile
 
-Leggi il file profilo scaricato (`.claude/.setup-tmp/profile.md`) e applica le configurazioni che contiene:
+Read the downloaded profile file (`.claude/.setup-tmp/profile.md`) and apply the configurations it contains:
 
-1. **Dipendenze**: Estrai il blocco JSON delle dipendenze dal profilo e installale con `npm install`
-2. **ESLint**: Se il profilo contiene una configurazione ESLint, crea `.eslintrc.json` con quel contenuto
-3. **TypeScript**: Se il profilo contiene una configurazione TypeScript, crea `tsconfig.json`
-4. **Jest**: Se il profilo contiene una configurazione Jest, crea `jest.config.ts`
+1. **Dependencies**: Extract the JSON dependencies block from the profile and install them with `npm install`
+2. **ESLint**: If the profile contains an ESLint configuration, create `.eslintrc.json` with that content
+3. **TypeScript**: If the profile contains a TypeScript configuration, create `tsconfig.json`
+4. **Jest**: If the profile contains a Jest configuration, create `jest.config.ts`
 
-Per lo stack **fullstack** (multi-progetto):
-- Crea la struttura `apps/web/` e `apps/api/`
-- Applica il profilo web-frontend in `apps/web/`
-- Applica il profilo backend-node in `apps/api/`
-- Genera `AGENTS.md`, `CLAUDE.md` e `REGISTRY.md` per ogni sub-project (come descritto nei Passi 5B e 5b)
-- Alla root usa il workspace template (come descritto nel Passo 5B)
+For the **fullstack** stack (multi-project):
+- Create the `apps/web/` and `apps/api/` structure
+- Apply the web-frontend profile in `apps/web/`
+- Apply the backend-node profile in `apps/api/`
+- Generate `AGENTS.md`, `CLAUDE.md` and `REGISTRY.md` for each sub-project (as described in Steps 5B and 5b)
+- At the root use the workspace template (as described in Step 5B)
 
 #### 8.6 — CI/CD workflow
 
-Crea **`.github/workflows/release.yml`** (GitHub Actions + semantic-release):
+Create **`.github/workflows/release.yml`** (GitHub Actions + semantic-release):
 ```yaml
 name: Release
 
@@ -764,11 +764,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-> **Nota**: Se lo sviluppatore usa GitLab CI o altro, adatta il workflow al provider CI/CD del progetto mantenendo gli stessi step (checkout, setup, install, semantic-release).
+> **Note**: If the developer uses GitLab CI or another provider, adapt the workflow to the project's CI/CD provider while keeping the same steps (checkout, setup, install, semantic-release).
 
 #### 8.7 — .gitignore
 
-Se `.gitignore` non esiste, crealo con:
+If `.gitignore` does not exist, create it with:
 ```
 # Dependencies
 node_modules/
@@ -806,101 +806,101 @@ npm-debug.log*
 
 ---
 
-### Passo 9 — Pulizia
+### Step 9 — Cleanup
 
-Rimuovi la directory di staging:
+Remove the staging directory:
 ```bash
 rm -rf .claude/.setup-tmp
 ```
 
 ---
 
-### Passo 10 — Riepilogo
+### Step 10 — Summary
 
-Mostra un riepilogo allo sviluppatore in questo formato:
+Show a summary to the developer in this format:
 
-**Per EXISTING:**
+**For EXISTING:**
 ```
-Setup completato!
+Setup complete!
 
-File installati:
-  - CLAUDE.md             — entry point per Claude Code (importa AGENTS.md)
-  - AGENTS.md             — istruzioni per agenti AI (standard cross-tool)
-  - CONSTITUTION.md       — regole di governance
-  - REGISTRY.md           — registro feature e servizi
+Installed files:
+  - CLAUDE.md             — entry point for Claude Code (imports AGENTS.md)
+  - AGENTS.md             — instructions for AI agents (cross-tool standard)
+  - CONSTITUTION.md       — governance rules
+  - REGISTRY.md           — feature and service registry
   - .claude/              — settings + skills + agents
 
-Stack rilevato:
-  - Linguaggi:   <linguaggi>
+Detected stack:
+  - Languages:    <languages>
   - Test runner:  <test_command>
   - Linter:       <lint_command>
-  - Validazione:  <validation_tool>
+  - Validation:   <validation_tool>
 
-NON modificato (tooling esistente rispettato):
+NOT modified (existing tooling respected):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
 
-Prossimi passi:
-  1. Compila CLICKUP_SETUP_LIST_ID nel file .env
-  2. Verifica MCP: claude mcp list
-  3. Usa /project:start-task o /project:sdd per iniziare un task ClickUp
+Next steps:
+  1. Fill in CLICKUP_SETUP_LIST_ID in the .env file
+  2. Verify MCP: claude mcp list
+  3. Use /project:start-task or /project:sdd to start a ClickUp task
 ```
 
-**Per GREENFIELD:**
+**For GREENFIELD:**
 ```
-Setup completato!
+Setup complete!
 
-Configurazione del progetto:
-  - CLAUDE.md             — entry point per Claude Code (importa AGENTS.md)
-  - AGENTS.md             — istruzioni per agenti AI (standard cross-tool)
-  - CONSTITUTION.md       — regole di governance
-  - REGISTRY.md           — registro feature e servizi
+Project configuration:
+  - CLAUDE.md             — entry point for Claude Code (imports AGENTS.md)
+  - AGENTS.md             — instructions for AI agents (cross-tool standard)
+  - CONSTITUTION.md       — governance rules
+  - REGISTRY.md           — feature and service registry
   - .claude/              — settings + skills + agents
   - .husky/               — git hooks (lint + commit)
-  - .eslintrc.base.json   — ESLint base
-  - .eslintrc.json        — ESLint profilo <stack>
+  - .eslintrc.base.json   — base ESLint
+  - .eslintrc.json        — ESLint <stack> profile
   - .prettierrc.json      — Prettier
   - .commitlintrc.json    — Conventional Commits
   - .releaserc.json       — semantic-release
   - .github/workflows/    — CI/CD (semantic-release)
-  - .env.example          — variabili d'ambiente
+  - .env.example          — environment variables
 
-Prossimi passi:
-  1. Copia .env.example in .env e compila le variabili
-  2. Verifica MCP: claude mcp list
-  3. Usa /project:start-task (rapido) o /project:sdd (spec-driven) per iniziare!
+Next steps:
+  1. Copy .env.example to .env and fill in the variables
+  2. Verify MCP: claude mcp list
+  3. Use /project:start-task (quick) or /project:sdd (spec-driven) to get started!
 ```
 
-**Per MULTI-PROGETTO (EXISTING):**
+**For MULTI-PROJECT (EXISTING):**
 ```
-Setup completato! (Multi-progetto rilevato: <tool>)
+Setup complete! (Multi-project detected: <tool>)
 
-File alla root:
-  - CLAUDE.md             — entry point per Claude Code
-  - AGENTS.md             — regole generali + mappa workspace
-  - CONSTITUTION.md       — regole di governance
+Root files:
+  - CLAUDE.md             — entry point for Claude Code
+  - AGENTS.md             — general rules + workspace map
+  - CONSTITUTION.md       — governance rules
   - .claude/              — settings + skills + agents
 
-Sub-project configurati:
+Configured sub-projects:
   <sub-project-path>/:
     - AGENTS.md           — stack: <stack>
-    - CLAUDE.md           — entry point locale
-    - REGISTRY.md         — registro feature
+    - CLAUDE.md           — local entry point
+    - REGISTRY.md         — feature registry
 
-NON modificato (tooling esistente rispettato):
+NOT modified (existing tooling respected):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
 
-Prossimi passi:
-  1. Compila CLICKUP_SETUP_LIST_ID nel file .env
-  2. Verifica MCP: claude mcp list
-  3. Usa /project:start-task o /project:sdd per iniziare un task ClickUp
+Next steps:
+  1. Fill in CLICKUP_SETUP_LIST_ID in the .env file
+  2. Verify MCP: claude mcp list
+  3. Use /project:start-task or /project:sdd to start a ClickUp task
 ```
 
 ---
 
-## Note importanti
+## Important notes
 
-- **Verbatim**: skills, agents e settings.json devono essere copiati esattamente come scaricati. Non generare il contenuto di questi file — scaricalo e copialo.
-- **Conflict detection**: Chiedi sempre prima di sovrascrivere file esistenti.
-- **Tooling esistente**: In modalita' EXISTING, non installare ne' modificare: git hooks, linter, formatter, CI/CD, .gitignore, dipendenze. Innesta solo il workflow AI.
-- **Errori di download**: Se `gh api` restituisce un errore (es. 404, 401) o un file vuoto, informa lo sviluppatore e fermati. Non procedere con contenuto parziale.
-- **Autenticazione**: Lo sviluppatore deve essere autenticato con `gh auth login`. Se `gh auth status` fallisce, fermati e chiedi di autenticarsi.
+- **Verbatim**: skills, agents, and settings.json must be copied exactly as downloaded. Do not generate the content of these files — download and copy it.
+- **Conflict detection**: Always ask before overwriting existing files.
+- **Existing tooling**: In EXISTING mode, do not install or modify: git hooks, linter, formatter, CI/CD, .gitignore, dependencies. Only graft the AI workflow.
+- **Download errors**: If `gh api` returns an error (e.g. 404, 401) or an empty file, inform the developer and stop. Do not proceed with partial content.
+- **Authentication**: The developer must be authenticated with `gh auth login`. If `gh auth status` fails, stop and ask them to authenticate.

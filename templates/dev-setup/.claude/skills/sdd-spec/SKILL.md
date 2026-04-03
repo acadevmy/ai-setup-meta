@@ -1,6 +1,6 @@
 ---
 name: sdd-spec
-description: Genera una specifica tecnica e un piano di implementazione per un task ClickUp seguendo l'approccio Spec-Driven Development
+description: Generates a technical specification and implementation plan for a ClickUp task following the Spec-Driven Development approach
 model: opus
 user-invocable: true
 disable-model-invocation: false
@@ -8,129 +8,129 @@ disable-model-invocation: false
 
 # /project:sdd-spec
 
-Genera una specifica tecnica completa e un piano di implementazione per un task.
-Questa skill analizza il task, il contesto del progetto e produce un documento spec strutturato
-nella directory `.specs/`.
+Generates a complete technical specification and implementation plan for a task.
+This skill analyzes the task, the project context and produces a structured spec document
+in the `.specs/` directory.
 
-**Uso**: `/project:sdd-spec [TASK_ID]`
-- Con `TASK_ID` (es. `DE-123`): recupera il task da ClickUp e genera la spec
-- Senza argomenti: usa il contesto gia' presente nella conversazione (quando invocata dall'orchestratore `sdd`)
+**Usage**: `/project:sdd-spec [TASK_ID]`
+- With `TASK_ID` (e.g. `DE-123`): retrieves the task from ClickUp and generates the spec
+- Without arguments: uses the context already present in the conversation (when invoked by the `sdd` orchestrator)
 
-## Procedura
+## Procedure
 
-### 1. Recupera il contesto del task
+### 1. Retrieve the task context
 
-**Se `$ARGUMENTS` contiene un TASK_ID**:
-- Lancia l'agent `clickup` con:
+**If `$ARGUMENTS` contains a TASK_ID**:
+- Launch the `clickup` agent with:
   - INTENT: `read`
-  - PARAMS: `task_id: <TASK_ID fornito>`
-- Se l'agent restituisce STATUS: error, informa lo sviluppatore e fermati
-- Estrai: `custom_id`, `name`, `description`, `priority`, `task_id`, `url`
+  - PARAMS: `task_id: <provided TASK_ID>`
+- If the agent returns STATUS: error, inform the developer and stop
+- Extract: `custom_id`, `name`, `description`, `priority`, `task_id`, `url`
 
-**Se `$ARGUMENTS` e' vuoto**:
-- Usa il contesto del task gia' disponibile nella conversazione (passato dall'orchestratore)
-- Se non c'e' contesto disponibile, chiedi allo sviluppatore di fornire un TASK_ID
+**If `$ARGUMENTS` is empty**:
+- Use the task context already available in the conversation (passed by the orchestrator)
+- If no context is available, ask the developer to provide a TASK_ID
 
-### 2. Analizza il progetto
+### 2. Analyze the project
 
-- Leggi `CONSTITUTION.md` per comprendere i vincoli tecnici applicabili
-- Leggi `REGISTRY.md` per conoscere componenti esistenti, pattern adottati e decisioni architetturali
-- Identifica i file rilevanti nel progetto in base ai requisiti del task
-- Controlla `.specs/` per verificare che non esista gia' una spec per lo stesso task
+- Read `CONSTITUTION.md` to understand applicable technical constraints
+- Read `REGISTRY.md` to learn about existing components, adopted patterns and architectural decisions
+- Identify relevant files in the project based on the task requirements
+- Check `.specs/` to verify a spec doesn't already exist for the same task
 
-### 3. Discovery (condizionale)
+### 3. Discovery (conditional)
 
-**Se e' presente un Discovery Summary nel contesto della conversazione** (passato dall'orchestratore `sdd` o da un'invocazione precedente di `/project:sdd-discovery`):
-- Usa il Discovery Summary come base per la generazione della spec
-- Non ripetere l'intervista
+**If a Discovery Summary is present in the conversation context** (passed by the `sdd` orchestrator or from a previous invocation of `/project:sdd-discovery`):
+- Use the Discovery Summary as the base for spec generation
+- Do not repeat the interview
 
-**Se NON e' presente un Discovery Summary**:
-- Invoca `/project:sdd-discovery` passando il contesto del task
-- Attendi il completamento della discovery prima di procedere alla generazione
+**If a Discovery Summary is NOT present**:
+- Invoke `/project:sdd-discovery` passing the task context
+- Wait for the discovery to complete before proceeding to generation
 
-Non procedere alla generazione finche' non e' disponibile un Discovery Summary.
+Do not proceed with generation until a Discovery Summary is available.
 
-### 4. Crea la directory specs
+### 4. Create the specs directory
 
-Se `.specs/` non esiste nella root del progetto:
+If `.specs/` does not exist in the project root:
 ```bash
 mkdir -p .specs
 ```
 
-### 5. Genera il documento spec
+### 5. Generate the spec document
 
-Crea il file `.specs/<customId>-<slug>.md` dove `<slug>` e' una versione breve e kebab-case del titolo del task.
+Create the file `.specs/<customId>-<slug>.md` where `<slug>` is a short kebab-case version of the task title.
 
-Il documento deve seguire questo formato:
+The document must follow this format:
 
 ```markdown
-# Spec: <Titolo Task> [<customId>]
+# Spec: <Task Title> [<customId>]
 
 > Status: draft
-> Task: <URL del task ClickUp>
-> Branch: <nome del branch, se gia' creato>
-> Created: <data odierna YYYY-MM-DD>
+> Task: <ClickUp task URL>
+> Branch: <branch name, if already created>
+> Created: <today's date YYYY-MM-DD>
 > Approved: pending
 
-## Contesto
-<Perche' questo task esiste. Background e motivazione estratti dalla description
-del task ClickUp e dall'intervista con lo sviluppatore.>
+## Context
+<Why this task exists. Background and motivation extracted from the
+ClickUp task description and the developer interview.>
 
-## Requisiti
-<Requisiti estratti dalla description del task ClickUp, strutturati come bullet points.
-Ogni requisito deve essere verificabile.>
+## Requirements
+<Requirements extracted from the ClickUp task description, structured as bullet points.
+Each requirement must be verifiable.>
 
-- REQ-1: <requisito>
-- REQ-2: <requisito>
+- REQ-1: <requirement>
+- REQ-2: <requirement>
 - ...
 
-## Decisioni tecniche
-<Decisioni architetturali e tecniche prese per questa implementazione.
-Includi: approccio scelto, pattern da usare, librerie, motivazioni.
-Fai riferimento ai pattern gia' presenti in REGISTRY.md dove applicabile.>
+## Technical decisions
+<Architectural and technical decisions made for this implementation.
+Include: chosen approach, patterns to use, libraries, motivations.
+Reference patterns already present in REGISTRY.md where applicable.>
 
-## Impatto
-- **File da creare**: <lista dei nuovi file con path relativo>
-- **File da modificare**: <lista dei file esistenti da modificare con path relativo>
-- **Dipendenze**: <nuove dipendenze da installare, oppure "nessuna">
+## Impact
+- **Files to create**: <list of new files with relative path>
+- **Files to modify**: <list of existing files to modify with relative path>
+- **Dependencies**: <new dependencies to install, or "none">
 
-## Piano di implementazione
-<Sequenza ordinata di step per implementare la soluzione.
-Ogni step deve essere atomico e verificabile.>
+## Implementation plan
+<Ordered sequence of steps to implement the solution.
+Each step must be atomic and verifiable.>
 
-1. <Step 1> — <descrizione dettagliata>
-2. <Step 2> — <descrizione dettagliata>
+1. <Step 1> — <detailed description>
+2. <Step 2> — <detailed description>
 ...
 
-## Strategia di test
-<Approccio di testing consigliato (TDD/BDD/nessuno) con motivazione.
-Elenco dei test case principali da implementare.>
+## Test strategy
+<Recommended testing approach (TDD/BDD/none) with rationale.
+List of main test cases to implement.>
 
-- Test 1: <descrizione>
-- Test 2: <descrizione>
+- Test 1: <description>
+- Test 2: <description>
 - ...
 
-## Note
-<Rischi, domande aperte, considerazioni aggiuntive, riferimenti utili.>
+## Notes
+<Risks, open questions, additional considerations, useful references.>
 ```
 
-**Linee guida per la generazione**:
-- I requisiti devono essere estratti fedelmente dalla description del task ClickUp
-- Le decisioni tecniche devono rispettare la CONSTITUTION.md
-- Il piano di implementazione deve essere ordinato per dipendenze (prima le basi, poi le feature)
-- Riutilizza componenti e pattern gia' presenti in REGISTRY.md
-- I test case devono coprire i requisiti elencati
+**Guidelines for generation**:
+- Requirements must be faithfully extracted from the ClickUp task description
+- Technical decisions must comply with CONSTITUTION.md
+- The implementation plan must be ordered by dependencies (foundations first, then features)
+- Reuse components and patterns already present in REGISTRY.md
+- Test cases must cover the listed requirements
 
-### 6. Mostra la spec
+### 6. Show the spec
 
-Presenta la spec completa allo sviluppatore e conferma il path del file:
+Present the complete spec to the developer and confirm the file path:
 ```
-Spec generata: .specs/<customId>-<slug>.md
+Spec generated: .specs/<customId>-<slug>.md
 Status: draft
 
-<contenuto della spec>
+<spec content>
 ```
 
-## Output atteso
-- File spec creato in `.specs/<customId>-<slug>.md` con status `draft`
-- Spec mostrata integralmente allo sviluppatore
+## Expected output
+- Spec file created in `.specs/<customId>-<slug>.md` with status `draft`
+- Spec shown in full to the developer

@@ -1,6 +1,6 @@
 ---
 name: start-task
-description: Prende un task ClickUp e avvia il flusso di sviluppo completo (branch, TDD, review, PR)
+description: Takes a ClickUp task and starts the complete development flow (branch, TDD, review, PR)
 model: opus
 user-invocable: true
 disable-model-invocation: true
@@ -8,113 +8,113 @@ disable-model-invocation: true
 
 # /project:start-task
 
-Prende un task specifico o il prossimo task dalla lista ClickUp e avvia il flusso di sviluppo.
+Takes a specific task or the next task from the ClickUp list and starts the development flow.
 
-**Uso**: `/project:start-task [TASK_ID]`
-- Con `TASK_ID` (es. `DE-123`): recupera direttamente quel task da ClickUp
-- Senza argomenti: cerca il prossimo task nella lista ClickUp
+**Usage**: `/project:start-task [TASK_ID]`
+- With `TASK_ID` (e.g. `DE-123`): retrieves that task directly from ClickUp
+- Without arguments: looks for the next task in the ClickUp list
 
-## Flusso completo
+## Complete flow
 
-### 1. Recupera il task tramite ClickUp Agent
+### 1. Retrieve the task via ClickUp Agent
 
-**Se e' stato fornito un TASK_ID** (argomento `$ARGUMENTS`):
-- Lancia l'agent `clickup` con:
+**If a TASK_ID was provided** (argument `$ARGUMENTS`):
+- Launch the `clickup` agent with:
   - INTENT: `read`
-  - PARAMS: `task_id: <TASK_ID fornito>`
-- Se l'agent restituisce STATUS: error, informa lo sviluppatore e fermati
+  - PARAMS: `task_id: <provided TASK_ID>`
+- If the agent returns STATUS: error, inform the developer and stop
 
-**Se NON e' stato fornito un TASK_ID**:
-- Leggi `CLICKUP_SETUP_LIST_ID` dal file `.env` nella root del progetto
-- Se la variabile non e' configurata, informa lo sviluppatore di compilare `.env` e fermati
-- Lancia l'agent `clickup` con:
+**If a TASK_ID was NOT provided**:
+- Read `CLICKUP_SETUP_LIST_ID` from the `.env` file in the project root
+- If the variable is not configured, inform the developer to fill in `.env` and stop
+- Launch the `clickup` agent with:
   - INTENT: `next-task`
   - PARAMS: `list_id: <CLICKUP_SETUP_LIST_ID>`
-- Se l'agent restituisce STATUS: error (nessun task in SPRINT), informa lo sviluppatore e fermati
+- If the agent returns STATUS: error (no tasks in SPRINT), inform the developer and stop
 
-Dall'output dell'agent, estrai:
-- `custom_id` (es. DE-123)
-- `name` (titolo)
-- `description` (descrizione/brief — riportata integralmente dall'agent)
+From the agent output, extract:
+- `custom_id` (e.g. DE-123)
+- `name` (title)
+- `description` (description/brief — reported in full by the agent)
 - `priority`
-- `task_id` (per aggiornamenti successivi)
+- `task_id` (for subsequent updates)
 
-### 2. Crea il branch di lavoro
-Determina il tipo di branch dal titolo/descrizione del task:
+### 2. Create the working branch
+Determine the branch type from the task title/description:
 - Feature → `feat/`
 - Bug → `fix/`
-- Manutenzione → `chore/`
+- Maintenance → `chore/`
 
-Crea il branch con il customId:
+Create the branch with the customId:
 ```bash
 git checkout main
 git pull origin main
-git checkout -b <tipo>/<customId>-<descrizione-breve>
+git checkout -b <type>/<customId>-<short-description>
 ```
 
-Esempio: `feat/DE-123-add-user-auth`
+Example: `feat/DE-123-add-user-auth`
 
-### 3. Aggiorna lo stato del task
+### 3. Update the task status
 
-Lancia l'agent `clickup` con:
+Launch the `clickup` agent with:
 - INTENT: `update`
 - PARAMS: `task_id: <task_id>, status: IN PROGRESS`
 
-### 4. Mostra il brief allo sviluppatore
-Presenta un riepilogo:
+### 4. Show the brief to the developer
+Present a summary:
 ```
-Task:     DE-123 — Titolo del task
-Priorita': Alta
+Task:     DE-123 — Task title
+Priority: High
 Branch:   feat/DE-123-add-user-auth
-Stato:    IN PROGRESS
+Status:   IN PROGRESS
 
-Descrizione:
-<contenuto della descrizione del task — come restituito dall'agent>
+Description:
+<task description content — as returned by the agent>
 ```
 
-### 5. Avvia lo sviluppo
-Procedi con il flusso TDD (regola 9 della Costituzione):
-1. Analizza i requisiti dal brief
-2. Scrivi i test che descrivono il comportamento atteso
-3. Verifica che falliscano (red)
-4. Implementa il minimo codice per farli passare (green)
+### 5. Start development
+Proceed with the TDD flow (Constitution rule 9):
+1. Analyze requirements from the brief
+2. Write tests describing the expected behavior
+3. Verify they fail (red)
+4. Implement the minimum code to make them pass (green)
 5. Refactoring (refactor)
 
-### 6. Al termine — Qualita', review e PR
-Quando lo sviluppo e' completato:
+### 6. On completion — Quality, review and PR
+When development is completed:
 
-1. **Commit** con Conventional Commits (includi il customId):
+1. **Commit** with Conventional Commits (include the customId):
    ```
    feat(auth): add refresh token rotation [DE-123]
    ```
 
-2. **Simplify** — Esegui la skill `simplify` per rivedere il codice modificato:
-   - Cerca opportunita' di riuso di codice esistente
-   - Migliora qualita' e efficienza
-   - Correggi eventuali problemi trovati
-   - Se ci sono modifiche, committale: `refactor(<scope>): simplify implementation`
+2. **Simplify** — Run the `simplify` skill to review the modified code:
+   - Look for opportunities to reuse existing code
+   - Improve quality and efficiency
+   - Fix any issues found
+   - If there are changes, commit them: `refactor(<scope>): simplify implementation`
 
-3. **Review** — Esegui `/project:review` per:
-   - Verificare conformita' alla CONSTITUTION.md (tramite Review Agent)
-   - Verificare qualita' del codice
-   - Aggiornare automaticamente `REGISTRY.md` con le nuove entry
+3. **Review** — Run `/project:review` to:
+   - Verify CONSTITUTION.md compliance (via the Review Agent)
+   - Verify code quality
+   - Automatically update `REGISTRY.md` with new entries
 
-4. **Push** del branch:
+4. **Push** the branch:
    ```bash
    git push -u origin <branch-name>
    ```
 
-5. **Apri PR** con `gh pr create`:
-   - Titolo: segue Conventional Commits con customId
-   - Body: include sezioni Cosa / Perche' / Come testare + link al task ClickUp
+5. **Open PR** with `gh pr create`:
+   - Title: follows Conventional Commits with customId
+   - Body: includes What / Why / How to test sections + link to ClickUp task
 
-6. **Aggiorna stato** — Lancia l'agent `clickup` con:
+6. **Update status** — Launch the `clickup` agent with:
    - INTENT: `update`
    - PARAMS: `task_id: <task_id>, status: IN REVIEW`
 
-## Output atteso
-- Branch creato con customId nel nome
-- Codice ottimizzato (simplify) e conforme alla CONSTITUTION (review)
-- `REGISTRY.md` aggiornato con le nuove entry
-- Task spostato: SPRINT → IN PROGRESS → IN REVIEW
-- PR aperta su GitHub con riferimento al task ClickUp
+## Expected output
+- Branch created with customId in the name
+- Code optimized (simplify) and CONSTITUTION-compliant (review)
+- `REGISTRY.md` updated with new entries
+- Task moved: SPRINT → IN PROGRESS → IN REVIEW
+- PR opened on GitHub with reference to the ClickUp task

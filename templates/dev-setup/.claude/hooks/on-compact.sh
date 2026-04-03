@@ -1,9 +1,9 @@
 #!/bin/bash
-# SessionStart hook (compact): re-inietta contesto critico dopo compaction
-# Quando il contesto viene compattato, Claude perde informazioni. Questo hook
-# re-inietta i reminder piu' importanti e il contenuto di REGISTRY.md.
+# SessionStart hook (compact): re-injects critical context after compaction
+# When the context is compacted, Claude loses information. This hook
+# re-injects the most important reminders and the REGISTRY.md content.
 
-# Leggi info dal progetto se disponibili
+# Read project info if available
 PROJECT_NAME=""
 if [ -f "package.json" ]; then
   PROJECT_NAME=$(jq -r '.name // empty' package.json 2>/dev/null)
@@ -14,26 +14,26 @@ if [ -f ".env.local" ]; then
   STACK_PROFILE=$(grep "^STACK_PROFILE=" .env.local 2>/dev/null | cut -d= -f2)
 fi
 
-# Re-inietta REGISTRY.md se esiste
+# Re-inject REGISTRY.md if it exists
 REGISTRY_CONTENT=""
 if [ -f "REGISTRY.md" ]; then
   REGISTRY_CONTENT=$(cat REGISTRY.md)
 fi
 
-# Output su stdout — viene aggiunto al contesto di Claude
+# Output to stdout — gets added to Claude's context
 cat <<EOF
 [Context re-injected after compaction]
-- Progetto: ${PROJECT_NAME:-"(vedi package.json)"}
-- Stack: ${STACK_PROFILE:-"(vedi .env.local)"}
-- Segui SEMPRE la CONSTITUTION.md prima di ogni azione
-- Usa Conventional Commits per i messaggi di commit
-- Non modificare file protetti (.env, lock files)
+- Project: ${PROJECT_NAME:-"(see package.json)"}
+- Stack: ${STACK_PROFILE:-"(see .env.local)"}
+- ALWAYS follow CONSTITUTION.md before any action
+- Use Conventional Commits for commit messages
+- Do not modify protected files (.env, lock files)
 EOF
 
 if [ -n "$REGISTRY_CONTENT" ]; then
   cat <<EOF
 
-[REGISTRY.md — contesto progetto]
+[REGISTRY.md — project context]
 $REGISTRY_CONTENT
 EOF
 fi
