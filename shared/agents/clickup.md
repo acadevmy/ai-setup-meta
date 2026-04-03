@@ -2,7 +2,7 @@
 name: clickup
 description: Gestisce tutte le operazioni ClickUp (read, update, create, filter task) in isolamento. Usare quando serve interagire con ClickUp per leggere task, aggiornare stati, creare task o filtrare liste.
 tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments
-model: sonnet
+model: haiku
 permissionMode: dontAsk
 ---
 
