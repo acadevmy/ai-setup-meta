@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "mcp__clickup__*",
+      "mcp__figma__*"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(git push*)",
+      "Bash(npm publish*)"
+    ]
+  }
+}

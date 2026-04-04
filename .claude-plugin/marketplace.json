@@ -10,8 +10,14 @@
     {
       "name": "dev-setup",
       "source": "./dist/dev-setup",
-      "version": "1.2.0",
+      "version": "",
       "description": "Setup AI-native per progetti di sviluppo software"
+    },
+    {
+      "name": "pm-setup",
+      "source": "./dist/pm-setup",
+      "version": "1.0.0",
+      "description": "Setup AI-native per Project Manager: creazione task ClickUp da requisiti"
     }
   ]
 }
