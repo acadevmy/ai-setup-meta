@@ -40,6 +40,7 @@ e' la singola fonte di verita'.
 | MCP | Quando usarlo |
 |---|---|
 | **ClickUp** | Creare task, leggere gerarchia workspace, aggiornare descrizioni |
+| **Google Drive** | Cercare e leggere trascrizioni Google Meet |
 | **Figma** | Recuperare contesto design, componenti, specifiche (futuro) |
 
 ## Agent disponibili
@@ -54,12 +55,14 @@ e' la singola fonte di verita'.
 |---|---|
 | `/project:pm-flow [PATH_DOCUMENTO]` | Flusso completo: dal documento ai task su ClickUp |
 | `/project:pm-intake [PATH_DOCUMENTO]` | Parsing di un documento → Discovery Brief |
+| `/project:pm-transcript` | Recupera e analizza trascrizioni Google Meet da Drive |
 | `/project:pm-structure` | Genera gerarchia Epic/Story/Task da un brief |
 | `/project:pm-refine` | Valida qualita' INVEST e arricchisce Acceptance Criteria |
 | `/project:pm-review` | Revisione e approvazione con il PM |
 | `/project:pm-publish` | Pubblica i task approvati su ClickUp |
 
 > Usa `/project:pm-flow` per il flusso completo guidato.
+> Usa `/project:pm-transcript` per analizzare trascrizioni di meeting.
 > Usa le skill singole quando vuoi eseguire solo una fase specifica.
 
 ## Gestione progetto ClickUp

@@ -6,6 +6,7 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "mcp__clickup__*",
+      "mcp__gdrive__*",
       "mcp__figma__*"
     ],
     "deny": [
