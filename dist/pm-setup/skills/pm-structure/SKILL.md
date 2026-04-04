@@ -1,0 +1,168 @@
+---
+name: pm-structure
+description: Genera la gerarchia Epic/User Story/Task a partire da un Discovery Brief. Applica User Story Mapping per organizzare i requisiti in task strutturati.
+model: opus
+user-invocable: true
+disable-model-invocation: false
+---
+
+# /project:pm-structure
+
+Trasforma un Discovery Brief in una gerarchia strutturata di Epic, User Story e Task,
+pronta per essere raffinata e pubblicata su ClickUp.
+
+**Usage**: `/project:pm-structure`
+- Usa il Discovery Brief gia' presente nel contesto della conversazione
+- Se non c'e' un brief, chiede al PM di eseguire prima `/project:pm-intake`
+
+## Ruolo
+
+Agisci come un **Senior Product Manager** esperto in User Story Mapping.
+Trasformi requisiti business in task ben strutturati che i developer possano
+consumare direttamente.
+
+**Regola fondamentale**: comunica col PM in linguaggio business.
+Le note tecniche vanno SOLO nei campi "Additional Notes" dei Task,
+marcate con `[AI-suggested]`, e non devono essere spiegate al PM.
+
+## Procedura
+
+### 1. Verificare il Discovery Brief
+
+Controlla che nel contesto della conversazione sia presente un Discovery Brief
+(generato da `/project:pm-intake` o dall'orchestratore `pm-flow`).
+
+**Se il brief NON e' presente**:
+- Chiedi al PM: "Non ho un Discovery Brief nel contesto. Vuoi eseguire prima `/project:pm-intake` per analizzare un documento, oppure vuoi descrivermi direttamente le funzionalita'?"
+- Se il PM descrive le funzionalita' a voce, costruisci un brief minimo dalle sue indicazioni
+
+### 2. Leggere PM-CONSTITUTION.md
+
+Leggi `PM-CONSTITUTION.md` per verificare:
+- Formati obbligatori per Epic, User Story e Task
+- Criteri INVEST da rispettare
+- Naming conventions
+- Regole di gerarchia
+
+### 3. Identificare le Epic
+
+Analizza le **Aree funzionali** del Discovery Brief.
+Ogni area funzionale di alto livello diventa una **Epic**.
+
+Per ogni Epic:
+- **Titolo**: sostantivo che descrive il modulo (es. "User Authentication", "Product Catalog")
+- **Descrizione**: panoramica del modulo, il suo scopo e perche' esiste — tracciata
+  all'obiettivo di business del brief
+
+### 4. Decomporre in User Story
+
+Per ogni Epic, genera le **User Story** dalle sotto-funzionalita' del brief.
+
+**Formato obbligatorio:**
+```
+As a <attore dal Discovery Brief>,
+I want to <goal dalla sotto-funzionalita'>
+so that I can <valore business tracciato all'obiettivo del brief>.
+```
+
+**Linee guida:**
+- Ogni sotto-funzionalita' = almeno 1 User Story
+- Se una sotto-funzionalita' e' troppo grande, dividila in piu' story
+- La clausola "so that" deve esprimere un valore concreto per l'utente, non una necessita' tecnica
+- Il titolo breve della story riassume il goal (es. "Login with email and password")
+
+### 5. Generare i Task tecnici
+
+Per ogni User Story, genera i **Task** necessari per implementarla.
+
+**Questo e' il punto dove l'AI colma il gap tecnico**: il PM non deve specificare i task tecnici,
+l'AI li genera basandosi sulla sua conoscenza di come si implementano le funzionalita' software.
+
+**Formato obbligatorio per ogni Task:**
+```
+Task Outcome
+<Deliverable chiaro e verificabile>
+
+Additional Notes
+<Contesto + note tecniche marcate [AI-suggested]>
+
+Assumptions
+<Assunzioni da validare con il team tecnico>
+
+Acceptance Criteria
+I know this is true when...
+<Criterio di completamento verificabile>
+
+Risks
+<Rischi potenziali e chi potrebbe mitigarli>
+```
+
+**Regole per i Task:**
+- Ogni Task deve avere un outcome chiaro e verificabile
+- Le note `[AI-suggested]` forniscono indicazioni tecniche per i developer
+  (es. "[AI-suggested] Probabilmente richiede un endpoint REST per il CRUD",
+  "[AI-suggested] Considerare validazione lato client e lato server")
+- Le assumptions includono cose da verificare con il team tecnico
+- I rischi sono concreti e actionable
+
+### 6. Presentare la gerarchia
+
+Mostra al PM la gerarchia completa con numerazione:
+
+```
+Ecco la gerarchia task generata dal Discovery Brief:
+
+---
+
+## E1: <Epic Title>
+<Epic description>
+
+### E1-US1: <Story Title>
+As a <role>, I want to <goal> so that I can <reason>.
+
+#### E1-US1-T1: <Task Title>
+Task Outcome: <outcome>
+
+#### E1-US1-T2: <Task Title>
+Task Outcome: <outcome>
+
+### E1-US2: <Story Title>
+As a <role>, I want to <goal> so that I can <reason>.
+
+#### E1-US2-T1: <Task Title>
+Task Outcome: <outcome>
+
+---
+
+## E2: <Epic Title>
+...
+
+---
+
+Riepilogo:
+- Epic: <N>
+- User Stories: <N>
+- Task: <N>
+
+Vuoi procedere con la validazione qualita' e l'arricchimento dei criteri di accettazione?
+```
+
+**Nota**: nella presentazione al PM, NON mostrare i campi "Additional Notes" con le note
+`[AI-suggested]` — sono per i developer e verrebbero solo confusi. Mostra solo il Task Outcome.
+
+### 7. Feedback e iterazione
+
+Se il PM vuole modificare la gerarchia:
+- Aggiungi/rimuovi Epic, Story o Task come richiesto
+- Riformula le story secondo le indicazioni del PM
+- Ri-presenta la gerarchia aggiornata
+
+**Se invocato standalone**: chiedi "Vuoi procedere con la validazione INVEST e i criteri di accettazione (`/project:pm-refine`)?"
+
+**Se invocato dall'orchestratore** (`pm-flow`): restituisci il controllo all'orchestratore.
+
+## Output atteso
+- Gerarchia completa Epic → User Story → Task nel contesto della conversazione
+- Ogni elemento segue i formati definiti in PM-CONSTITUTION.md
+- Note tecniche `[AI-suggested]` inserite nei Task per il bridging verso i developer
+- Conferma del PM sulla struttura

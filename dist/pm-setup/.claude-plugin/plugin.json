@@ -1,0 +1,14 @@
+{
+  "name": "pm-setup",
+  "version": "1.0.0",
+  "description": "Setup AI-native per Project Manager: creazione task ClickUp da requisiti",
+  "author": {
+    "name": "Acadevmy"
+  },
+  "skills": "./skills",
+  "agents": [
+    "./agents/clickup.md"
+  ],
+  "mcpServers": "./.mcp.json",
+  "userConfig": {}
+}
