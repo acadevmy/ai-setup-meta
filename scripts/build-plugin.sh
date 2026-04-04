@@ -483,6 +483,13 @@ if [ "$GEMINI_SUPPORT" = "true" ]; then
     fi
   done
 
+  # Copia il README Gemini se presente
+  GEMINI_README="$TEMPLATE_DIR/GEMINI-README.md"
+  if [ -f "$GEMINI_README" ]; then
+    cp "$GEMINI_README" "$GEMINI_DIR/README.md"
+    ok "README.md copiato per Gemini"
+  fi
+
   # Genera .mcp.json Gemini-compatibile
   # Gemini CLI non supporta "type: url/http" direttamente — usa mcp-remote come bridge
   if [ -f "$DIST_DIR/.mcp.json" ]; then
