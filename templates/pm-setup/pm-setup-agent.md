@@ -167,14 +167,18 @@ claude mcp add clickup --transport url https://mcp.clickup.com/mcp -s user
 
 Ask the PM if they want to configure Google Drive to analyze meeting transcriptions.
 
-If yes:
+If yes, the PM must first set up Google Cloud OAuth credentials:
+1. Create a Google Cloud project and enable Drive, Docs, Calendar APIs
+2. Configure OAuth consent screen
+3. Create Desktop App OAuth credentials
+4. Download JSON and rename to `gcp-oauth.keys.json`
+
+Then configure the MCP:
 ```bash
-npx -y @anthropic-ai/mcp-server-google-drive auth
-claude mcp add gdrive -- npx -y @anthropic-ai/mcp-server-google-drive -s user
+claude mcp add gdrive -e GOOGLE_DRIVE_OAUTH_CREDENTIALS=/path/to/gcp-oauth.keys.json -- npx @piotr-agier/google-drive-mcp -s user
 ```
 
-> Note: if `@anthropic-ai/mcp-server-google-drive` is not available,
-> try `@modelcontextprotocol/server-gdrive` or `@a-bonus/google-docs-mcp`.
+The browser will open for OAuth authorization on first use.
 
 #### 5.3 Figma (optional)
 

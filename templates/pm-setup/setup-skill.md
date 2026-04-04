@@ -121,19 +121,26 @@ Informa il PM: "Ho configurato il server MCP ClickUp. Al primo utilizzo ti verra
 
 Chiedi al PM: "Vuoi configurare Google Drive per poter analizzare le trascrizioni dei meeting direttamente?"
 
-Se si':
+Se si', il PM deve prima configurare le credenziali OAuth Google:
+
+1. **Prerequisiti OAuth** — il PM (o l'admin IT) deve:
+   - Creare un progetto Google Cloud e abilitare le API: Drive, Docs, Calendar
+   - Configurare la schermata di consenso OAuth
+   - Creare credenziali OAuth di tipo "Desktop App"
+   - Scaricare il file JSON e rinominarlo `gcp-oauth.keys.json`
+
+2. **Configurazione MCP**:
+
 ```bash
-npx -y @anthropic-ai/mcp-server-google-drive auth
-claude mcp add gdrive -- npx -y @anthropic-ai/mcp-server-google-drive -s user
+claude mcp add gdrive -e GOOGLE_DRIVE_OAUTH_CREDENTIALS=/path/to/gcp-oauth.keys.json -- npx @piotr-agier/google-drive-mcp -s user
 ```
 
-Informa il PM: "Ho configurato Google Drive. Al primo utilizzo ti verra' chiesto di autorizzare l'accesso al tuo account Google."
+3. Al primo utilizzo, il browser si aprira' per autorizzare l'accesso al Google Drive del PM.
 
-> **Nota**: il pacchetto npm potrebbe variare. Se `@anthropic-ai/mcp-server-google-drive`
-> non e' disponibile, alternative valide sono:
-> - `@modelcontextprotocol/server-gdrive`
-> - `@a-bonus/google-docs-mcp`
-> Verifica quale e' disponibile con `npx -y <pacchetto> --help`
+Informa il PM: "Ho configurato Google Drive. Al primo utilizzo ti verra' chiesto di autorizzare l'accesso al tuo account Google tramite il browser."
+
+> **Tool esposti dal MCP**: `gdrive_search` (cercare file), `gdrive_read_file` (leggere contenuto).
+> Questi sono i tool usati dalla skill `/project:pm-transcript`.
 
 #### 4.3 Figma (opzionale)
 
