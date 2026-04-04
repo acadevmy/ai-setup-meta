@@ -85,6 +85,309 @@ fi
 CURSOR_SUPPORT=$(jq -r '.cursor_support // false' "$MANIFEST")
 if [ "$CURSOR_SUPPORT" = "true" ]; then
   bash "$BUILDERS_DIR/build-cursor.sh"
+# ── Copia agents ──────────────────────────────────────────────────────────────
+step "Copia agents"
+
+for AGENT in $(jq -r '.shared_agents[]' "$MANIFEST"); do
+  SRC="$ROOT_DIR/shared/agents/$AGENT"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$DIST_DIR/agents/$AGENT"
+    ok "Shared agent: $AGENT"
+  else
+    warn "Shared agent non trovato: $AGENT"
+  fi
+done
+
+for AGENT in $(jq -r '.template_agents[]' "$MANIFEST"); do
+  SRC="$TEMPLATE_DIR/.claude/agents/$AGENT"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$DIST_DIR/agents/$AGENT"
+    ok "Template agent: $AGENT"
+  else
+    warn "Template agent non trovato: $AGENT"
+  fi
+done
+
+# ── Genera plugin.json (dopo la copia agents per costruire l'array) ───────────
+step "Generazione plugin.json"
+
+# Costruisci array agents dai file copiati
+AGENTS_JSON=$(find "$DIST_DIR/agents" -name "*.md" -exec basename {} \; | sort | \
+  sed 's|^|"./agents/|;s|$|"|' | paste -sd',' - | sed 's/^/[/;s/$/]/')
+
+# Genera userConfig in base al template
+if [ "$NAME" = "dev-setup" ]; then
+  USER_CONFIG='{
+    "CLICKUP_SETUP_LIST_ID": {
+      "title": "ClickUp Sprint List ID",
+      "description": "ID della lista ClickUp per i task di sprint (trovalo nell'\''URL: app.clickup.com/.../li/<ID>)",
+      "type": "string",
+      "sensitive": false,
+      "required": false
+    }
+  }'
+else
+  USER_CONFIG='{}'
+fi
+
+# Costruisci plugin.json
+jq -n \
+  --arg name "$NAME" \
+  --arg version "$VERSION" \
+  --arg description "$DESCRIPTION" \
+  --arg author "$AUTHOR" \
+  --argjson agents "$AGENTS_JSON" \
+  --argjson userConfig "$USER_CONFIG" \
+  '{
+    name: $name,
+    version: $version,
+    description: $description,
+    author: { name: $author },
+    skills: "./skills",
+    agents: $agents,
+    mcpServers: "./.mcp.json",
+    userConfig: $userConfig
+  }' > "$DIST_DIR/.claude-plugin/plugin.json"
+
+ok "plugin.json generato"
+
+# ── Copia hooks ───────────────────────────────────────────────────────────────
+step "Generazione hooks"
+
+# Copia hook scripts (se esistono)
+HOOKS_SRC="$TEMPLATE_DIR/.claude/hooks"
+HAS_HOOKS=false
+
+if [ -d "$HOOKS_SRC" ]; then
+  for SCRIPT in "$HOOKS_SRC"/*.sh; do
+    [ -f "$SCRIPT" ] || continue
+    cp "$SCRIPT" "$DIST_DIR/hooks/scripts/"
+    chmod +x "$DIST_DIR/hooks/scripts/$(basename "$SCRIPT")"
+    ok "Hook script: $(basename "$SCRIPT")"
+    HAS_HOOKS=true
+  done
+fi
+
+# Genera hooks.json con path reindirizzati a $CLAUDE_PLUGIN_ROOT
+# Legge le hooks dal settings.json e riscrive i path dei command
+SETTINGS_HOOKS=$(jq '.hooks // {}' "$SETTINGS_SRC" 2>/dev/null)
+
+if [ "$SETTINGS_HOOKS" != "{}" ] && [ -n "$SETTINGS_HOOKS" ]; then
+  # Trasforma i path: $CLAUDE_PROJECT_DIR/.claude/hooks/ → ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/
+  echo "$SETTINGS_HOOKS" | \
+    jq 'walk(if type == "string" and test("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/") then
+      gsub("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/"; "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/")
+    else . end)' | \
+    jq '{hooks: .}' > "$DIST_DIR/hooks/hooks.json"
+  ok "hooks.json generato con path plugin"
+elif [ "$HAS_HOOKS" = true ]; then
+  # Hook scripts presenti ma nessuna config in settings.json — genera fallback
+  cat > "$DIST_DIR/hooks/hooks.json" << 'HOOKSJSON'
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/protect-files.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-compact.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Verifica che il lavoro richiesto dall'utente sia completo. Se ci sono test pertinenti alle modifiche fatte, sono stati eseguiti e passano? Se il lavoro non e' completo o i test falliscono, rispondi con {\"ok\": false, \"reason\": \"descrizione di cosa manca\"}. Se tutto e' a posto, rispondi con {\"ok\": true}."
+          }
+        ]
+      }
+    ]
+  }
+}
+HOOKSJSON
+  ok "hooks.json generato (fallback)"
+else
+  # Nessun hook — template senza hooks (es. pm-setup)
+  echo '{"hooks": {}}' > "$DIST_DIR/hooks/hooks.json"
+  ok "hooks.json generato (vuoto — template senza hooks)"
+fi
+
+# ── Genera .mcp.json ─────────────────────────────────────────────────────────
+step "Generazione .mcp.json"
+
+# Genera .mcp.json in base al template
+if [ "$NAME" = "dev-setup" ]; then
+  cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
+{
+  "mcpServers": {
+    "clickup": {
+      "type": "url",
+      "url": "https://mcp.clickup.com/mcp"
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    }
+  }
+}
+MCPJSON
+  ok ".mcp.json generato (clickup, figma, context7)"
+else
+  cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
+{
+  "mcpServers": {
+    "clickup": {
+      "type": "url",
+      "url": "https://mcp.clickup.com/mcp"
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    }
+  }
+}
+MCPJSON
+  ok ".mcp.json generato (clickup, figma)"
+fi
+
+# ── Aggiorna marketplace.json ─────────────────────────────────────────────────
+step "Aggiornamento marketplace.json"
+
+MARKETPLACE="$ROOT_DIR/.claude-plugin/marketplace.json"
+mkdir -p "$ROOT_DIR/.claude-plugin"
+
+if [ -f "$MARKETPLACE" ]; then
+  # Aggiorna la versione del plugin esistente o aggiungilo
+  EXISTING=$(jq -r --arg name "$NAME" '.plugins[] | select(.name == $name) | .name' "$MARKETPLACE" 2>/dev/null || echo "")
+  if [ -n "$EXISTING" ]; then
+    jq --arg name "$NAME" --arg ver "$VERSION" --arg desc "$DESCRIPTION" \
+      '(.plugins[] | select(.name == $name)) |= (.version = $ver | .description = $desc)' \
+      "$MARKETPLACE" > "${MARKETPLACE}.tmp" && mv "${MARKETPLACE}.tmp" "$MARKETPLACE"
+    ok "Plugin aggiornato in marketplace.json"
+  else
+    jq --arg name "$NAME" --arg ver "$VERSION" --arg desc "$DESCRIPTION" --arg src "./dist/$NAME" \
+      '.plugins += [{"name": $name, "source": $src, "version": $ver, "description": $desc}]' \
+      "$MARKETPLACE" > "${MARKETPLACE}.tmp" && mv "${MARKETPLACE}.tmp" "$MARKETPLACE"
+    ok "Plugin aggiunto a marketplace.json"
+  fi
+else
+  cat > "$MARKETPLACE" << MKJSON
+{
+  "name": "acadevmy",
+  "owner": {
+    "name": "Acadevmy"
+  },
+  "metadata": {
+    "description": "Plugin AI-native per workflow di sviluppo"
+  },
+  "plugins": [
+    {
+      "name": "$NAME",
+      "source": "./dist/$NAME",
+      "version": "$VERSION",
+      "description": "$DESCRIPTION"
+    }
+  ]
+}
+MKJSON
+  ok "marketplace.json creato"
+fi
+
+# ── Genera output Gemini (se gemini_support nel manifest) ────────────────────
+GEMINI_SUPPORT=$(jq -r '.gemini_support // false' "$MANIFEST")
+
+if [ "$GEMINI_SUPPORT" = "true" ]; then
+  step "Generazione output Gemini CLI"
+
+  GEMINI_DIR="$DIST_DIR/gemini"
+  mkdir -p "$GEMINI_DIR"
+
+  # Genera GEMINI.md combinando AGENTS.template + skill instructions
+  {
+    # Header
+    echo "# Gemini System Instructions — $DESCRIPTION"
+    echo ""
+    echo "> Generato automaticamente da ai-base-setup. Non modificare direttamente."
+    echo ""
+
+    # Includi AGENTS.template.md se presente nei templates bundled
+    AGENTS_TPL="$DIST_DIR/skills/setup/templates/AGENTS.template.md"
+    if [ -f "$AGENTS_TPL" ]; then
+      echo "---"
+      echo ""
+      cat "$AGENTS_TPL"
+      echo ""
+    fi
+
+    # Includi ogni skill come sezione
+    echo "---"
+    echo ""
+    echo "# Skill disponibili"
+    echo ""
+
+    for SKILL_DIR in "$DIST_DIR/skills"/*/; do
+      SKILL_FILE="$SKILL_DIR/SKILL.md"
+      [ -f "$SKILL_FILE" ] || continue
+
+      SKILL_NAME=$(basename "$SKILL_DIR")
+      # Salta la setup skill (non serve in Gemini, e' per il bootstrap)
+      [ "$SKILL_NAME" = "setup" ] && continue
+
+      echo "---"
+      echo ""
+      # Rimuovi il frontmatter YAML (tra i due ---) e scrivi il contenuto
+      sed -n '/^---$/,/^---$/!p' "$SKILL_FILE"
+      echo ""
+    done
+  } > "$GEMINI_DIR/GEMINI.md"
+
+  ok "GEMINI.md generato con $(find "$DIST_DIR/skills" -name "SKILL.md" ! -path "*/setup/*" | wc -l | tr -d ' ') skill inline"
+
+  # Copia la governance (PM-CONSTITUTION o CONSTITUTION)
+  for GOV_FILE in "PM-CONSTITUTION.md" "CONSTITUTION.md"; do
+    GOV_SRC="$DIST_DIR/skills/setup/templates/$GOV_FILE"
+    if [ -f "$GOV_SRC" ]; then
+      cp "$GOV_SRC" "$GEMINI_DIR/$GOV_FILE"
+      ok "Governance: $GOV_FILE copiata per Gemini"
+      break
+    fi
+  done
+
+  # Genera settings.json Gemini-compatibile (solo MCP)
+  if [ -f "$DIST_DIR/.mcp.json" ]; then
+    cp "$DIST_DIR/.mcp.json" "$GEMINI_DIR/.mcp.json"
+    ok "MCP config copiata per Gemini"
+  fi
 fi
 
 # ── Riepilogo ─────────────────────────────────────────────────────────────────
