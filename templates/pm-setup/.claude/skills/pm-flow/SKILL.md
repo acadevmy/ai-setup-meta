@@ -37,17 +37,35 @@ All'inizio del flusso, devi identificare il progetto e la lista ClickUp di desti
    - Chiedi al PM di scegliere la lista di destinazione
    - Salva in memoria l'associazione `progetto → list_id` per le sessioni future
 
-### 2. Fase INTAKE — Analisi del documento
+### 2. Fase INTAKE — Analisi dell'input
 
-Invoca la skill `pm-intake`:
+Chiedi al PM quale tipo di input vuole utilizzare:
+
+```
+Da dove vuoi partire?
+1. Documento di requisiti (file locale)
+2. Trascrizione Google Meet (da Google Drive)
+3. Descrivi tu le funzionalita'
+```
+
+**Se il PM sceglie "Documento"** (o `$ARGUMENTS` contiene un path):
+- Invoca la skill `pm-intake`
 - Se `$ARGUMENTS` contiene un path, passalo a pm-intake
-- Se non c'e' un path, pm-intake chiedera' al PM
 
-**Output atteso**: Discovery Brief confermato dal PM.
+**Se il PM sceglie "Trascrizione"**:
+- Invoca la skill `pm-transcript`
+- pm-transcript mostrera' le trascrizioni disponibili su Google Drive
+- Il PM sceglie quale analizzare
+- pm-transcript genera un Discovery Brief compatibile
+
+**Se il PM sceglie "Descrivi"**:
+- Invoca `pm-intake` senza argomenti — avviera' la mini-intervista
+
+**Output atteso**: Discovery Brief confermato dal PM (identico formato per tutti e 3 i casi).
 
 Mostra al PM:
 ```
-Fase 1/5 completata: Analisi del documento
+Fase 1/5 completata: Analisi dell'input
 
 Il Discovery Brief e' pronto. Procediamo con la generazione della gerarchia task.
 Vuoi continuare o fermarti qui?
