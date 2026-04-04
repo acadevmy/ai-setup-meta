@@ -1,0 +1,131 @@
+---
+name: pm-review
+description: Presenta la gerarchia completa Epic/Story/Task al PM per revisione e approvazione. Loop di iterazione fino ad approvazione.
+model: sonnet
+user-invocable: true
+disable-model-invocation: false
+---
+
+# /project:pm-review
+
+Presenta la gerarchia completa di Epic, User Story e Task al PM per la revisione finale
+e l'approvazione. Supporta un loop di iterazione fino a quando il PM non e' soddisfatto.
+
+**Usage**: `/project:pm-review`
+- Usa la gerarchia gia' presente nel contesto della conversazione (da pm-refine o pm-structure)
+- Se non c'e' una gerarchia, chiede al PM di eseguire prima le fasi precedenti
+
+## Procedura
+
+### 1. Verificare la gerarchia
+
+Controlla che nel contesto della conversazione sia presente una gerarchia
+Epic/Story/Task raffinata (da `/project:pm-refine`) o almeno strutturata (da `/project:pm-structure`).
+
+**Se la gerarchia NON e' presente**:
+- Chiedi al PM: "Non ho una gerarchia di task nel contesto. Vuoi partire dall'analisi di un documento (`/project:pm-intake`)?"
+- Non procedere finche' non c'e' una gerarchia
+
+### 2. Presentare la gerarchia completa
+
+Mostra al PM la gerarchia con tutti i dettagli rilevanti per la revisione:
+
+```
+Ecco la gerarchia completa pronta per la revisione:
+
+═══════════════════════════════════════════════════
+
+## E1: <Epic Title>
+<Epic description>
+
+### E1-US1: <Story Title>
+As a <role>, I want to <goal> so that I can <reason>.
+
+Acceptance Criteria:
+  Scenario: <scenario>
+  Given <state>
+  When <action>
+  Then <outcome>
+
+  Priorita': <1-4>
+  Tag: <needs-sdd | straightforward>
+
+  Task:
+  - E1-US1-T1: <task title> — <task outcome>
+  - E1-US1-T2: <task title> — <task outcome>
+
+### E1-US2: <Story Title>
+...
+
+═══════════════════════════════════════════════════
+
+## E2: <Epic Title>
+...
+
+═══════════════════════════════════════════════════
+
+Riepilogo:
+- Epic: <N> | User Stories: <N> | Task: <N>
+- Dipendenze: <N>
+```
+
+**Nota**: NON mostrare i campi "Additional Notes" con le note `[AI-suggested]`.
+Sono destinate ai developer e confonderebbero il PM.
+
+### 3. Chiedere come procedere
+
+```
+Come vuoi procedere?
+1. Approva tutto — i task sono pronti per essere pubblicati su ClickUp
+2. Approva con eccezioni — escludi elementi specifici dalla pubblicazione
+3. Modifica — dimmi cosa cambiare
+4. Rigenera — torna all'analisi del documento e rigenera la gerarchia
+```
+
+### 4. Gestire la scelta
+
+**Se il PM sceglie "Approva tutto"**:
+- Segna la gerarchia come approvata
+- Se il PM lo desidera, salva in `.pm-specs/<data>-<slug>.md` per tracciabilita'
+- Conferma:
+  ```
+  Gerarchia approvata! Pronta per la pubblicazione su ClickUp.
+  ```
+
+**Se il PM sceglie "Approva con eccezioni"**:
+- Chiedi quali elementi escludere
+- Segna gli elementi esclusi
+- Conferma gli elementi approvati
+
+**Se il PM sceglie "Modifica"**:
+- Raccogli il feedback del PM
+- Applica le modifiche richieste
+- Ri-presenta la gerarchia aggiornata (torna al punto 2)
+
+**Se il PM sceglie "Rigenera"**:
+- Informa che la gerarchia verra' rigenerata
+- Se invocato standalone: suggerisci di eseguire `/project:pm-intake` con il documento
+- Se invocato dall'orchestratore: restituisci il controllo per tornare a pm-intake
+
+### 5. Salvataggio opzionale
+
+Dopo l'approvazione, chiedi al PM:
+```
+Vuoi salvare questa gerarchia in un file per riferimento futuro?
+```
+
+Se si':
+- Crea la directory `.pm-specs/` se non esiste
+- Salva in `.pm-specs/<YYYY-MM-DD>-<slug>.md` con il contenuto completo della gerarchia
+  (incluse le note `[AI-suggested]` nel file salvato — saranno utili ai developer)
+
+### 6. Chiusura
+
+**Se invocato standalone**: chiedi "Vuoi procedere con la pubblicazione su ClickUp (`/project:pm-publish`)?"
+
+**Se invocato dall'orchestratore** (`pm-flow`): restituisci il controllo all'orchestratore.
+
+## Output atteso
+- Gerarchia presentata al PM con formattazione chiara
+- Approvazione ottenuta (con eventuali esclusioni)
+- File `.pm-specs/` salvato (se richiesto)
