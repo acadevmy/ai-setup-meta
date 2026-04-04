@@ -262,6 +262,29 @@ if [ "$NAME" = "dev-setup" ]; then
 }
 MCPJSON
   ok ".mcp.json generato (clickup, figma, context7)"
+elif [ "$NAME" = "pm-setup" ]; then
+  cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
+{
+  "mcpServers": {
+    "clickup": {
+      "type": "url",
+      "url": "https://mcp.clickup.com/mcp"
+    },
+    "gdrive": {
+      "command": "npx",
+      "args": ["@piotr-agier/google-drive-mcp"],
+      "env": {
+        "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "${GOOGLE_DRIVE_OAUTH_CREDENTIALS}"
+      }
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    }
+  }
+}
+MCPJSON
+  ok ".mcp.json generato (clickup, gdrive, figma)"
 else
   cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
 {
