@@ -44,14 +44,13 @@ Usa il MCP Google Drive per cercare i file di trascrizione recenti.
 Le trascrizioni Google Meet sono salvate come Google Docs con nome
 che inizia per **"Transcript"** oppure **"Trascrizione"** (in base alla lingua).
 
-Cerca con `mcp__gdrive__search_drive`:
-- Query: file con titolo che contiene "Transcript" o "Trascrizione"
-- Tipo: Google Docs (`mimeType = 'application/vnd.google-apps.document'`)
-- Ordine: per data di modifica, piu' recenti prima
-- Limite: ultimi 20 risultati
+Usa `mcp__gdrive__gdrive_search` con una query per cercare i file di trascrizione:
+- Query: `title contains 'Transcript' or title contains 'Trascrizione'`
+- I risultati includeranno nome file, ID e data di modifica
 
-> **Nota**: se il tool MCP ha un nome diverso (es. `mcp__gdrive__search`,
-> `mcp__gdrive__list_files`), adatta la chiamata al tool disponibile.
+> **Nota**: il tool esposto dal MCP Google Drive (`@piotr-agier/google-drive-mcp`)
+> si chiama `gdrive_search`. Se il MCP e' configurato con un nome diverso da `gdrive`,
+> adatta il prefisso (es. `mcp__google_drive__gdrive_search`).
 > L'obiettivo e' cercare file Google Docs con "Transcript" nel titolo.
 
 ### 2. Mostrare le trascrizioni al PM
@@ -85,10 +84,11 @@ per analizzarla come documento.
 
 Usa il MCP Google Drive per leggere il contenuto del documento scelto.
 
-Usa `mcp__gdrive__read_file` (o il tool equivalente) con l'ID del file selezionato.
+Usa `mcp__gdrive__gdrive_read_file` con il `file_id` del documento selezionato.
+Il tool converte automaticamente i Google Docs in testo leggibile.
 
-> **Nota**: se il tool restituisce il contenuto in formato HTML o Markdown,
-> va bene lo stesso — il parsing nella fase successiva gestisce entrambi.
+> **Nota**: il contenuto puo' arrivare in formato testo, HTML o Markdown — 
+> il parsing nella fase successiva gestisce tutti i formati.
 
 ### 4. Parsing della trascrizione
 
