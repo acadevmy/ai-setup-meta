@@ -163,7 +163,20 @@ Create `CLAUDE.md` with content:
 claude mcp add clickup --transport url https://mcp.clickup.com/mcp -s user
 ```
 
-#### 5.2 Figma (optional)
+#### 5.2 Google Drive (recommended)
+
+Ask the PM if they want to configure Google Drive to analyze meeting transcriptions.
+
+If yes:
+```bash
+npx -y @anthropic-ai/mcp-server-google-drive auth
+claude mcp add gdrive -- npx -y @anthropic-ai/mcp-server-google-drive -s user
+```
+
+> Note: if `@anthropic-ai/mcp-server-google-drive` is not available,
+> try `@modelcontextprotocol/server-gdrive` or `@a-bonus/google-docs-mcp`.
+
+#### 5.3 Figma (optional)
 
 Ask the PM if they want to configure Figma for design analysis.
 
@@ -197,11 +210,13 @@ Files installed:
 
 MCPs configured:
 - ClickUp: yes
+- Google Drive: <yes/no>
 - Figma: <yes/no>
 
 Available commands:
 - /project:pm-flow [PATH]   — full flow: document → ClickUp tasks
 - /project:pm-intake [PATH] — parse document → Discovery Brief
+- /project:pm-transcript     — analyze Google Meet transcriptions
 - /project:pm-structure      — brief → Epic/Story/Task hierarchy
 - /project:pm-refine         — INVEST validation + Acceptance Criteria
 - /project:pm-review         — review and approval

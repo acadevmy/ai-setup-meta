@@ -117,7 +117,25 @@ claude mcp add clickup --transport url https://mcp.clickup.com/mcp -s user
 
 Informa il PM: "Ho configurato il server MCP ClickUp. Al primo utilizzo ti verra' chiesto di autorizzare l'accesso."
 
-#### 4.2 Figma (opzionale)
+#### 4.2 Google Drive (consigliato)
+
+Chiedi al PM: "Vuoi configurare Google Drive per poter analizzare le trascrizioni dei meeting direttamente?"
+
+Se si':
+```bash
+npx -y @anthropic-ai/mcp-server-google-drive auth
+claude mcp add gdrive -- npx -y @anthropic-ai/mcp-server-google-drive -s user
+```
+
+Informa il PM: "Ho configurato Google Drive. Al primo utilizzo ti verra' chiesto di autorizzare l'accesso al tuo account Google."
+
+> **Nota**: il pacchetto npm potrebbe variare. Se `@anthropic-ai/mcp-server-google-drive`
+> non e' disponibile, alternative valide sono:
+> - `@modelcontextprotocol/server-gdrive`
+> - `@a-bonus/google-docs-mcp`
+> Verifica quale e' disponibile con `npx -y <pacchetto> --help`
+
+#### 4.3 Figma (opzionale)
 
 Chiedi al PM: "Vuoi configurare anche Figma per poter analizzare i design in futuro?"
 
@@ -144,15 +162,19 @@ File installati:
 
 MCP configurati:
 - ClickUp: <si/no>
+- Google Drive: <si/no>
 - Figma: <si/no>
 
 Comandi disponibili:
-- /project:pm-flow [PATH]  — flusso completo: documento → task ClickUp
+- /project:pm-flow [PATH]   — flusso completo: documento → task ClickUp
 - /project:pm-intake [PATH] — analisi documento → Discovery Brief
-- /project:pm-structure     — brief → gerarchia Epic/Story/Task
-- /project:pm-refine        — validazione INVEST + Acceptance Criteria
-- /project:pm-review        — revisione e approvazione
-- /project:pm-publish       — pubblicazione su ClickUp
+- /project:pm-transcript     — analisi trascrizioni Google Meet
+- /project:pm-structure      — brief → gerarchia Epic/Story/Task
+- /project:pm-refine         — validazione INVEST + Acceptance Criteria
+- /project:pm-review         — revisione e approvazione
+- /project:pm-publish        — pubblicazione su ClickUp
 
-Per iniziare: esegui /project:pm-flow con il path di un documento di requisiti.
+Per iniziare:
+- Con un documento: esegui /project:pm-flow con il path del file
+- Con un meeting: esegui /project:pm-transcript per scegliere una trascrizione
 ```
