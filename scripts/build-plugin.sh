@@ -459,10 +459,23 @@ if [ "$GEMINI_SUPPORT" = "true" ]; then
     fi
   done
 
-  # Genera settings.json Gemini-compatibile (solo MCP)
+  # Genera .mcp.json Gemini-compatibile
+  # Gemini CLI non supporta "type: url/http" direttamente — usa mcp-remote come bridge
   if [ -f "$DIST_DIR/.mcp.json" ]; then
-    cp "$DIST_DIR/.mcp.json" "$GEMINI_DIR/.mcp.json"
-    ok "MCP config copiata per Gemini"
+    jq '
+      .mcpServers |= with_entries(
+        if .value.type == "url" or .value.type == "http" then
+          .value = {
+            trust: true,
+            command: "npx",
+            args: ["-y", "mcp-remote", .value.url]
+          }
+        else
+          .
+        end
+      )
+    ' "$DIST_DIR/.mcp.json" > "$GEMINI_DIR/.mcp.json"
+    ok "MCP config generata per Gemini (mcp-remote bridge)"
   fi
 fi
 
