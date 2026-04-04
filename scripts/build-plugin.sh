@@ -348,14 +348,69 @@ fi
 
 # ── Genera output Gemini (se gemini_support nel manifest) ────────────────────
 GEMINI_SUPPORT=$(jq -r '.gemini_support // false' "$MANIFEST")
-if [ "$GEMINI_SUPPORT" = "true" ]; then
-  bash "$BUILDERS_DIR/build-gemini.sh"
-fi
 
-# ── 3. Build Codex CLI (se abilitato) ────────────────────────────────────────
-CODEX_SUPPORT=$(jq -r '.codex_support // false' "$MANIFEST")
-if [ "$CODEX_SUPPORT" = "true" ]; then
-  bash "$BUILDERS_DIR/build-codex.sh"
+if [ "$GEMINI_SUPPORT" = "true" ]; then
+  step "Generazione output Gemini CLI"
+
+  GEMINI_DIR="$DIST_DIR/gemini"
+  mkdir -p "$GEMINI_DIR"
+
+  # Genera GEMINI.md combinando AGENTS.template + skill instructions
+  {
+    # Header
+    echo "# Gemini System Instructions — $DESCRIPTION"
+    echo ""
+    echo "> Generato automaticamente da ai-base-setup. Non modificare direttamente."
+    echo ""
+
+    # Includi AGENTS.template.md se presente nei templates bundled
+    AGENTS_TPL="$DIST_DIR/skills/setup/templates/AGENTS.template.md"
+    if [ -f "$AGENTS_TPL" ]; then
+      echo "---"
+      echo ""
+      cat "$AGENTS_TPL"
+      echo ""
+    fi
+
+    # Includi ogni skill come sezione
+    echo "---"
+    echo ""
+    echo "# Skill disponibili"
+    echo ""
+
+    for SKILL_DIR in "$DIST_DIR/skills"/*/; do
+      SKILL_FILE="$SKILL_DIR/SKILL.md"
+      [ -f "$SKILL_FILE" ] || continue
+
+      SKILL_NAME=$(basename "$SKILL_DIR")
+      # Salta la setup skill (non serve in Gemini, e' per il bootstrap)
+      [ "$SKILL_NAME" = "setup" ] && continue
+
+      echo "---"
+      echo ""
+      # Rimuovi il frontmatter YAML (tra i due ---) e scrivi il contenuto
+      sed -n '/^---$/,/^---$/!p' "$SKILL_FILE"
+      echo ""
+    done
+  } > "$GEMINI_DIR/GEMINI.md"
+
+  ok "GEMINI.md generato con $(find "$DIST_DIR/skills" -name "SKILL.md" ! -path "*/setup/*" | wc -l | tr -d ' ') skill inline"
+
+  # Copia la governance (PM-CONSTITUTION o CONSTITUTION)
+  for GOV_FILE in "PM-CONSTITUTION.md" "CONSTITUTION.md"; do
+    GOV_SRC="$DIST_DIR/skills/setup/templates/$GOV_FILE"
+    if [ -f "$GOV_SRC" ]; then
+      cp "$GOV_SRC" "$GEMINI_DIR/$GOV_FILE"
+      ok "Governance: $GOV_FILE copiata per Gemini"
+      break
+    fi
+  done
+
+  # Genera settings.json Gemini-compatibile (solo MCP)
+  if [ -f "$DIST_DIR/.mcp.json" ]; then
+    cp "$DIST_DIR/.mcp.json" "$GEMINI_DIR/.mcp.json"
+    ok "MCP config copiata per Gemini"
+  fi
 fi
 
 # ── Riepilogo ─────────────────────────────────────────────────────────────────
