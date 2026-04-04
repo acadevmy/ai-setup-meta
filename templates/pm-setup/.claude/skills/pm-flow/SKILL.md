@@ -45,10 +45,11 @@ Chiedi al PM quale tipo di input vuole utilizzare:
 Da dove vuoi partire?
 1. Documento di requisiti (file locale)
 2. Trascrizione Google Meet (da Google Drive)
-3. Descrivi tu le funzionalita'
+3. Design Figma (URL Figma)
+4. Descrivi tu le funzionalita'
 ```
 
-**Se il PM sceglie "Documento"** (o `$ARGUMENTS` contiene un path):
+**Se il PM sceglie "Documento"** (o `$ARGUMENTS` contiene un path a un file):
 - Invoca la skill `pm-intake`
 - Se `$ARGUMENTS` contiene un path, passalo a pm-intake
 
@@ -58,10 +59,15 @@ Da dove vuoi partire?
 - Il PM sceglie quale analizzare
 - pm-transcript genera un Discovery Brief compatibile
 
+**Se il PM sceglie "Design Figma"** (o `$ARGUMENTS` contiene un URL figma.com):
+- Invoca la skill `pm-figma`
+- Se `$ARGUMENTS` contiene un URL Figma, passalo a pm-figma
+- pm-figma analizza il design e genera un Discovery Brief compatibile
+
 **Se il PM sceglie "Descrivi"**:
 - Invoca `pm-intake` senza argomenti — avviera' la mini-intervista
 
-**Output atteso**: Discovery Brief confermato dal PM (identico formato per tutti e 3 i casi).
+**Output atteso**: Discovery Brief confermato dal PM (identico formato per tutti e 4 i casi).
 
 Mostra al PM:
 ```
