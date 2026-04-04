@@ -176,6 +176,7 @@ Comandi disponibili:
 - /project:pm-flow [PATH]   — flusso completo: documento → task ClickUp
 - /project:pm-intake [PATH] — analisi documento → Discovery Brief
 - /project:pm-transcript     — analisi trascrizioni Google Meet
+- /project:pm-figma <URL>    — analisi design Figma → task
 - /project:pm-structure      — brief → gerarchia Epic/Story/Task
 - /project:pm-refine         — validazione INVEST + Acceptance Criteria
 - /project:pm-review         — revisione e approvazione

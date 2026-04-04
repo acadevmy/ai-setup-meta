@@ -221,6 +221,7 @@ Available commands:
 - /project:pm-flow [PATH]   — full flow: document → ClickUp tasks
 - /project:pm-intake [PATH] — parse document → Discovery Brief
 - /project:pm-transcript     — analyze Google Meet transcriptions
+- /project:pm-figma <URL>    — analyze Figma design → tasks
 - /project:pm-structure      — brief → Epic/Story/Task hierarchy
 - /project:pm-refine         — INVEST validation + Acceptance Criteria
 - /project:pm-review         — review and approval

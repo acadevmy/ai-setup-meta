@@ -125,6 +125,7 @@ Dovresti vedere `clickup` (e `gdrive`, `figma` se configurati) nella lista dei s
 | `Esegui pm-flow` | Flusso completo: documento → task ClickUp |
 | `Esegui pm-intake con <path>` | Analisi documento → Discovery Brief |
 | `Esegui pm-transcript` | Analisi trascrizioni Google Meet da Drive |
+| `Esegui pm-figma con <URL>` | Analisi design Figma → task per riprodurre il layout |
 | `Esegui pm-structure` | Brief → gerarchia Epic/Story/Task |
 | `Esegui pm-refine` | Validazione INVEST + Acceptance Criteria |
 | `Esegui pm-review` | Revisione e approvazione |
@@ -146,6 +147,13 @@ Analizza il documento requisiti.md e crea i task su ClickUp per il progetto Alph
 
 ```
 Cerca le trascrizioni dei meeting recenti e analizza l'ultima per creare i task
+```
+
+### Da un design Figma
+
+```
+Analizza questo design Figma e crea i task per riprodurre il layout:
+https://www.figma.com/design/abc123/My-Project?node-id=1-2
 ```
 
 ### Senza documenti (intervista guidata)
