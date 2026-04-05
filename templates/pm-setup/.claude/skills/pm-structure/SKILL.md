@@ -50,7 +50,8 @@ Analizza le **Aree funzionali** del Discovery Brief.
 Ogni area funzionale di alto livello diventa una **Epic**.
 
 Per ogni Epic:
-- **Titolo**: sostantivo che descrive il modulo (es. "User Authentication", "Product Catalog")
+- **Titolo**: sostantivo breve e descrittivo, massimo 3-4 parole
+  (es. "User Management", "Product Catalog", "Order Processing")
 - **Descrizione**: panoramica del modulo, il suo scopo e perche' esiste — tracciata
   all'obiettivo di business del brief
 
@@ -69,7 +70,8 @@ so that I can <valore business tracciato all'obiettivo del brief>.
 - Ogni sotto-funzionalita' = almeno 1 User Story
 - Se una sotto-funzionalita' e' troppo grande, dividila in piu' story
 - La clausola "so that" deve esprimere un valore concreto per l'utente, non una necessita' tecnica
-- Il titolo breve della story riassume il goal (es. "Login with email and password")
+- **Il titolo deve avere il prefisso `[Nome Epic]`** seguito dal nome della funzionalita'
+  (es. per l'Epic "User Management": `[User Management] Login with email and password`)
 
 ### 5. Generare i Task tecnici
 
@@ -98,6 +100,7 @@ Risks
 ```
 
 **Regole per i Task:**
+- **Il titolo deve avere il prefisso `[Nome Epic]`** (es. `[User Management] Implement auth endpoint`)
 - Ogni Task deve avere un outcome chiaro e verificabile
 - Le note `[AI-suggested]` forniscono indicazioni tecniche per i developer
   (es. "[AI-suggested] Probabilmente richiede un endpoint REST per il CRUD",
@@ -114,22 +117,22 @@ Ecco la gerarchia task generata dal Discovery Brief:
 
 ---
 
-## E1: <Epic Title>
+## E1: User Management
 <Epic description>
 
-### E1-US1: <Story Title>
+### E1-US1: [User Management] Login with email and password
 As a <role>, I want to <goal> so that I can <reason>.
 
-#### E1-US1-T1: <Task Title>
+#### E1-US1-T1: [User Management] Implement auth endpoint
 Task Outcome: <outcome>
 
-#### E1-US1-T2: <Task Title>
+#### E1-US1-T2: [User Management] Create login form
 Task Outcome: <outcome>
 
-### E1-US2: <Story Title>
+### E1-US2: [User Management] Password reset
 As a <role>, I want to <goal> so that I can <reason>.
 
-#### E1-US2-T1: <Task Title>
+#### E1-US2-T1: [User Management] Reset flow backend
 Task Outcome: <outcome>
 
 ---

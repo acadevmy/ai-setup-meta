@@ -87,9 +87,8 @@ Per ogni **Task** nella gerarchia:
 1. **Priorita' suggerita**: assegna una priorita' (1=urgent, 2=high, 3=normal, 4=low)
    basata sull'impatto business e sulle dipendenze
 
-2. **Tag suggeriti**:
-   - `needs-sdd`: per story complesse che richiedono il flusso Spec-Driven Development
-   - `straightforward`: per task semplici che possono essere implementati direttamente
+2. **Tag**: usa solo tag gia' esistenti nello space ClickUp.
+   Non suggerire tag nuovi — se nessun tag esistente e' appropriato, non assegnare tag.
 
 3. **Dipendenze**: identifica quali task devono essere completati prima di altri
    (es. "E1-US1-T1 blocca E1-US1-T2")
