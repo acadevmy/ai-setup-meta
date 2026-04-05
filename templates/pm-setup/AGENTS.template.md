@@ -30,10 +30,10 @@ e' la singola fonte di verita'.
 
 | Contesto | Lingua |
 |---|---|
-| Titoli e descrizioni task | Inglese |
-| Acceptance Criteria | Inglese |
+| Titoli e descrizioni task | Italiano |
+| Acceptance Criteria | Italiano |
 | Comunicazione con il PM | Italiano |
-| Note tecniche [AI-suggested] | Inglese |
+| Note tecniche [AI-suggested] | Italiano |
 
 ## MCP disponibili
 
