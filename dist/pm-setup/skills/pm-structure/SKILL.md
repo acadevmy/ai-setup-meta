@@ -75,7 +75,12 @@ so that I can <valore business tracciato all'obiettivo del brief>.
 
 ### 5. Generare i Task tecnici
 
-Per ogni User Story, genera i **Task** necessari per implementarla.
+Per ogni Epic, genera i **Task** tecnici necessari come sotto-task diretti dell'Epic
+(allo stesso livello delle User Story, NON come sotto-task delle User Story).
+
+**IMPORTANTE**: la gerarchia ha massimo 1 livello di annidamento.
+Tutti i sotto-task (User Story e Task) sono figli diretti dell'Epic.
+Non creare mai Epic → User Story → Task (3 livelli).
 
 **Questo e' il punto dove l'AI colma il gap tecnico**: il PM non deve specificare i task tecnici,
 l'AI li genera basandosi sulla sua conoscenza di come si implementano le funzionalita' software.
@@ -123,16 +128,16 @@ Ecco la gerarchia task generata dal Discovery Brief:
 ### E1-US1: [User Management] Login with email and password
 As a <role>, I want to <goal> so that I can <reason>.
 
-#### E1-US1-T1: [User Management] Implement auth endpoint
-Task Outcome: <outcome>
-
-#### E1-US1-T2: [User Management] Create login form
-Task Outcome: <outcome>
-
 ### E1-US2: [User Management] Password reset
 As a <role>, I want to <goal> so that I can <reason>.
 
-#### E1-US2-T1: [User Management] Reset flow backend
+### E1-T1: [User Management] Implement auth endpoint
+Task Outcome: <outcome>
+
+### E1-T2: [User Management] Create login form
+Task Outcome: <outcome>
+
+### E1-T3: [User Management] Reset flow backend
 Task Outcome: <outcome>
 
 ---
@@ -165,7 +170,7 @@ Se il PM vuole modificare la gerarchia:
 **Se invocato dall'orchestratore** (`pm-flow`): restituisci il controllo all'orchestratore.
 
 ## Output atteso
-- Gerarchia completa Epic → User Story → Task nel contesto della conversazione
+- Gerarchia a 1 livello: Epic → sotto-task (User Story e Task allo stesso livello)
 - Ogni elemento segue i formati definiti in PM-CONSTITUTION.md
 - Note tecniche `[AI-suggested]` inserite nei Task per il bridging verso i developer
 - Conferma del PM sulla struttura

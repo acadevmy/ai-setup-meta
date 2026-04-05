@@ -81,10 +81,27 @@ Ogni User Story deve soddisfare i criteri INVEST:
 
 ## III. Gerarchia e relazioni
 
-1. Ogni **User Story** deve appartenere a un'**Epic** (relazione padre-figlio su ClickUp)
-2. Ogni **Task** deve appartenere a una **User Story** (relazione padre-figlio)
-3. Non sono ammessi elementi orfani (story senza epic, task senza story)
-4. Le dipendenze tra task devono essere dichiarate esplicitamente su ClickUp
+1. La gerarchia ha **massimo 1 livello di annidamento**: Epic → sotto-task
+2. I sotto-task di un'Epic possono essere **User Story** o **Task**, mai entrambi annidati
+3. **Mai creare** la struttura Epic → User Story → Task (3 livelli)
+4. Non sono ammessi elementi orfani (sotto-task senza epic)
+5. Le dipendenze tra task devono essere dichiarate esplicitamente su ClickUp
+
+**Struttura corretta:**
+```
+Epic
+├── User Story (sotto-task diretto dell'Epic)
+├── User Story
+├── Task (sotto-task diretto dell'Epic)
+└── Task
+```
+
+**Struttura VIETATA:**
+```
+Epic
+└── User Story
+    └── Task    ← MAI! Massimo 1 livello
+```
 
 ---
 
@@ -138,10 +155,6 @@ Queste note:
 1. Usare **solo tag gia' esistenti** nello space ClickUp — non creare mai tag nuovi
 2. Prima di assegnare un tag, verificare quali tag sono disponibili nello space
 3. Se nessun tag esistente e' appropriato, non assegnare tag piuttosto che crearne uno nuovo
-
-## VIII. Tracciabilita'
-
-1. La descrizione deve iniziare con il marker `<!-- pm-setup:v1.0 -->` per la tracciabilita'
 
 ---
 
