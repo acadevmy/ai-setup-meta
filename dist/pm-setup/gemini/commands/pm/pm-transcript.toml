@@ -41,7 +41,7 @@ e scegli di configurare Google Drive quando richiesto.
 
 ### 1. Cercare le trascrizioni disponibili
 
-Usa il MCP Google Drive per cercare i file di trascrizione recenti.
+Usa il MCP Google Drive per cercare i file di trascrizione recenti (massimo 10gg indietro da oggi).
 
 Le trascrizioni Google Meet sono salvate come Google Docs con nome
 che inizia per **"Transcript"** oppure **"Trascrizione"** (in base alla lingua).
