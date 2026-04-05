@@ -13,7 +13,7 @@
 Una Epic rappresenta un modulo o una funzionalita' nel suo complesso.
 
 **Formato obbligatorio:**
-- **Titolo**: sostantivo che descrive il modulo/funzionalita' (es. "User Authentication", "Product Catalog")
+- **Titolo**: sostantivo che descrive il modulo/funzionalita' (es. "Gestione utenti", "Catalogo prodotti")
 - **Descrizione**: panoramica ad alto livello che spiega COSA fa il modulo e PERCHE' esiste
 - Ogni Epic deve contenere almeno una User Story
 
@@ -116,8 +116,8 @@ Epic
 ### Regole di naming
 
 1. **Epic**: titolo breve e descrittivo, massimo 3-4 parole. Deve identificare
-   immediatamente il modulo o l'area funzionale (es. "User Management", "Product Catalog",
-   "Order Processing").
+   immediatamente il modulo o l'area funzionale (es. "Gestione utenti", "Catalogo prodotti",
+   "Gestione ordini").
 
 2. **Prefisso obbligatorio per sotto-task**: ogni User Story e Task figlio di un'Epic
    deve avere come prefisso il nome dell'Epic tra parentesi quadre.
