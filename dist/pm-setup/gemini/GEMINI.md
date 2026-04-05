@@ -1311,9 +1311,12 @@ Usa `mcp__gdrive__gdrive_search` con una query per cercare i file di trascrizion
 - Query: `title contains 'Transcript' or title contains 'Trascrizione'`
 - I risultati includeranno nome file, ID e data di modifica
 
-> **Nota**: il tool esposto dal MCP Google Drive (`@piotr-agier/google-drive-mcp`)
-> si chiama `gdrive_search`. Se il MCP e' configurato con un nome diverso da `gdrive`,
-> adatta il prefisso (es. `mcp__google_drive__gdrive_search`).
+> **Nota sulla compatibilita' multi-piattaforma**:
+> - **Claude Code**: il MCP Google Drive (`@piotr-agier/google-drive-mcp`) espone
+>   `gdrive_search` e `gdrive_read_file`. Prefisso: `mcp__gdrive__`.
+> - **Gemini CLI**: l'estensione Google Workspace (`gemini-cli-extensions/workspace`)
+>   espone tool con nomi diversi (es. `drive_search`). Adatta i nomi dei tool
+>   a quelli disponibili nel contesto corrente.
 > L'obiettivo e' cercare file Google Docs con "Transcript" nel titolo.
 
 ### 2. Mostrare le trascrizioni al PM
@@ -1347,7 +1350,10 @@ per analizzarla come documento.
 
 Usa il MCP Google Drive per leggere il contenuto del documento scelto.
 
-Usa `mcp__gdrive__gdrive_read_file` con il `file_id` del documento selezionato.
+Usa il tool di lettura file del MCP Google Drive con il `file_id` del documento selezionato:
+- **Claude Code**: `mcp__gdrive__gdrive_read_file`
+- **Gemini CLI**: il tool equivalente esposto dall'estensione Google Workspace
+
 Il tool converte automaticamente i Google Docs in testo leggibile.
 
 > **Nota**: il contenuto puo' arrivare in formato testo, HTML o Markdown — 
