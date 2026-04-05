@@ -14,8 +14,21 @@ Una Epic rappresenta un modulo o una funzionalita' nel suo complesso.
 
 **Formato obbligatorio:**
 - **Titolo**: sostantivo che descrive il modulo/funzionalita' (es. "Gestione utenti", "Catalogo prodotti")
-- **Descrizione**: panoramica ad alto livello che spiega COSA fa il modulo e PERCHE' esiste
-- Ogni Epic deve contenere almeno una User Story
+- **Descrizione** (segue il template ClickUp — titoli in inglese, contenuto in italiano):
+```
+Introduction
+<Panoramica del modulo: cosa fa e perche' esiste, in italiano>
+
+Product requirement
+<Requisiti di prodotto: funzionalita' richieste, in italiano>
+
+Technical requirement
+<Requisiti tecnici: vincoli, integrazioni, prestazioni, in italiano>
+
+Design requirement
+<Requisiti di design: UX, UI, accessibilita', in italiano>
+```
+- Ogni Epic deve contenere almeno una User Story o un Task
 
 ### 2. User Story (tipo custom ClickUp: "User Story")
 

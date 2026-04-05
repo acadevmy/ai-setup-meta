@@ -63,8 +63,23 @@ Per ogni Epic nella gerarchia approvata:
 
 2. **Attendi qualche secondo** — ClickUp applica un template automatico al tipo di task
 
-3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`:
-   - `markdown_description`: descrizione ad alto livello della Epic
+3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`.
+   La descrizione deve seguire il formato del template ClickUp (titoli in inglese,
+   contenuto in italiano):
+   - `markdown_description`:
+     ```markdown
+     Introduction
+     <Panoramica del modulo: cosa fa e perche' esiste, in italiano>
+
+     Product requirement
+     <Requisiti di prodotto: funzionalita' richieste, in italiano>
+
+     Technical requirement
+     <Requisiti tecnici: vincoli, integrazioni, prestazioni, in italiano>
+
+     Design requirement
+     <Requisiti di design: UX, UI, accessibilita', in italiano>
+     ```
 
 4. **Salva il `task_id`** restituito — servira' come `parent` per i sotto-task
 
