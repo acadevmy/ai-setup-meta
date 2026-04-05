@@ -40,27 +40,24 @@ La mappa `progetto → list_id` e' nella memoria del modello.
    - **Salva in memoria** l'associazione `progetto → list_id` per le sessioni future
 4. **Conferma con il PM**: "Pubblichero' i task nella lista `<nome lista>` (`<list_id>`). Confermi?"
 
-### 3. Verificare i tag
+### 3. Recuperare i tag disponibili
 
-Prima di creare i task, verifica che i tag necessari esistano nello space ClickUp.
-I tag richiesti sono:
-- `pm-created`
-- `needs-sdd`
-- `straightforward`
+Prima di creare i task, recupera la lista dei tag esistenti nello space ClickUp.
 
-> **Nota**: se i tag non esistono, ClickUp li ignora silenziosamente.
-> Procedere comunque — i tag verranno creati automaticamente al primo utilizzo
-> oppure il PM potra' crearli manualmente nello space.
+**Non creare mai tag nuovi.** Usa solo tag gia' presenti nello space.
+
+Se nessun tag esistente e' appropriato per un task, non assegnare tag
+piuttosto che crearne uno nuovo.
 
 ### 4. Creare le Epic
 
 Per ogni Epic nella gerarchia approvata:
 
 1. **Crea il task** con `mcp__clickup__clickup_create_task`:
-   - `name`: titolo della Epic
+   - `name`: titolo breve della Epic (es. "User Management")
    - `list_id`: il list_id risolto al punto 2
    - `task_type`: `"Epic"`
-   - `tags`: `["pm-created"]`
+   - `tags`: solo tag gia' esistenti nello space (recuperati al punto 3), se appropriati
    - `priority`: la priorita' assegnata in pm-refine (se presente)
 
 2. **Attendi 1 secondo** — ClickUp applica un template al tipo custom "Epic"
@@ -80,11 +77,11 @@ Per ogni Epic nella gerarchia approvata:
 Per ogni User Story nella gerarchia approvata:
 
 1. **Crea il task** con `mcp__clickup__clickup_create_task`:
-   - `name`: titolo breve della story (es. "Login with email and password")
+   - `name`: prefisso `[Nome Epic]` + nome funzionalita' (es. "[User Management] Login with email and password")
    - `list_id`: il list_id risolto al punto 2
    - `task_type`: `"User Story"`
    - `parent`: il `task_id` della Epic padre
-   - `tags`: `["pm-created"]` + tag aggiuntivi da pm-refine (`needs-sdd` o `straightforward`)
+   - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
 
 2. **Attendi 1 secondo** — ClickUp applica un template al tipo custom "User Story"
@@ -115,10 +112,10 @@ Per ogni User Story nella gerarchia approvata:
 Per ogni Task nella gerarchia approvata:
 
 1. **Crea il task** con `mcp__clickup__clickup_create_task`:
-   - `name`: titolo del task (verbo + deliverable)
+   - `name`: prefisso `[Nome Epic]` + verbo + deliverable (es. "[User Management] Implement auth endpoint")
    - `list_id`: il list_id risolto al punto 2
    - `parent`: il `task_id` della User Story padre
-   - `tags`: `["pm-created"]`
+   - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
    - `markdown_description`: inserisci subito (nessun template custom da attendere)
      ```markdown
@@ -179,7 +176,7 @@ Riepilogo:
 - User Story create: <N>
 - Task creati: <N>
 - Dipendenze impostate: <N>
-- Tag applicati: pm-created, needs-sdd, straightforward
+- Tag applicati: <tag dallo space utilizzati, se presenti>
 
 Tutti i task sono pronti per essere assegnati e pianificati nello sprint!
 ```
