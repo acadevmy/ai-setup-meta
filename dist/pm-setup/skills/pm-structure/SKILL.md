@@ -51,7 +51,7 @@ Ogni area funzionale di alto livello diventa una **Epic**.
 
 Per ogni Epic:
 - **Titolo**: sostantivo breve e descrittivo, massimo 3-4 parole
-  (es. "User Management", "Product Catalog", "Order Processing")
+  (es. "Gestione utenti", "Catalogo prodotti", "Gestione ordini")
 - **Descrizione**: panoramica del modulo, il suo scopo e perche' esiste — tracciata
   all'obiettivo di business del brief
 
@@ -61,9 +61,9 @@ Per ogni Epic, genera le **User Story** dalle sotto-funzionalita' del brief.
 
 **Formato obbligatorio:**
 ```
-As a <attore dal Discovery Brief>,
-I want to <goal dalla sotto-funzionalita'>
-so that I can <valore business tracciato all'obiettivo del brief>.
+Come <attore dal Discovery Brief>,
+voglio <obiettivo dalla sotto-funzionalita'>
+in modo da <valore business tracciato all'obiettivo del brief>.
 ```
 
 **Linee guida:**
@@ -71,7 +71,7 @@ so that I can <valore business tracciato all'obiettivo del brief>.
 - Se una sotto-funzionalita' e' troppo grande, dividila in piu' story
 - La clausola "so that" deve esprimere un valore concreto per l'utente, non una necessita' tecnica
 - **Il titolo deve avere il prefisso `[Nome Epic]`** seguito dal nome della funzionalita'
-  (es. per l'Epic "User Management": `[User Management] Login with email and password`)
+  (es. per l'Epic "Gestione utenti": `[Gestione utenti] Login con email e password`)
 
 ### 5. Generare i Task tecnici
 
@@ -87,25 +87,25 @@ l'AI li genera basandosi sulla sua conoscenza di come si implementano le funzion
 
 **Formato obbligatorio per ogni Task:**
 ```
-Task Outcome
+Risultato atteso
 <Deliverable chiaro e verificabile>
 
-Additional Notes
+Note aggiuntive
 <Contesto + note tecniche marcate [AI-suggested]>
 
-Assumptions
+Assunzioni
 <Assunzioni da validare con il team tecnico>
 
-Acceptance Criteria
-I know this is true when...
+Criteri di accettazione
+Il task e' completato quando...
 <Criterio di completamento verificabile>
 
-Risks
+Rischi
 <Rischi potenziali e chi potrebbe mitigarli>
 ```
 
 **Regole per i Task:**
-- **Il titolo deve avere il prefisso `[Nome Epic]`** (es. `[User Management] Implement auth endpoint`)
+- **Il titolo deve avere il prefisso `[Nome Epic]`** (es. `[Gestione utenti] Implementare endpoint autenticazione`)
 - Ogni Task deve avere un outcome chiaro e verificabile
 - Le note `[AI-suggested]` forniscono indicazioni tecniche per i developer
   (es. "[AI-suggested] Probabilmente richiede un endpoint REST per il CRUD",
@@ -122,23 +122,23 @@ Ecco la gerarchia task generata dal Discovery Brief:
 
 ---
 
-## E1: User Management
-<Epic description>
+## E1: Gestione utenti
+<Descrizione Epic>
 
-### E1-US1: [User Management] Login with email and password
-As a <role>, I want to <goal> so that I can <reason>.
+### E1-US1: [Gestione utenti] Login con email e password
+Come <ruolo>, voglio <obiettivo> in modo da <motivazione>.
 
-### E1-US2: [User Management] Password reset
-As a <role>, I want to <goal> so that I can <reason>.
+### E1-US2: [Gestione utenti] Reset password
+Come <ruolo>, voglio <obiettivo> in modo da <motivazione>.
 
-### E1-T1: [User Management] Implement auth endpoint
-Task Outcome: <outcome>
+### E1-T1: [Gestione utenti] Implementare endpoint autenticazione
+Risultato atteso: <outcome>
 
-### E1-T2: [User Management] Create login form
-Task Outcome: <outcome>
+### E1-T2: [Gestione utenti] Creare form di login
+Risultato atteso: <outcome>
 
-### E1-T3: [User Management] Reset flow backend
-Task Outcome: <outcome>
+### E1-T3: [Gestione utenti] Implementare flusso reset password
+Risultato atteso: <outcome>
 
 ---
 
@@ -156,7 +156,7 @@ Vuoi procedere con la validazione qualita' e l'arricchimento dei criteri di acce
 ```
 
 **Nota**: nella presentazione al PM, NON mostrare i campi "Additional Notes" con le note
-`[AI-suggested]` — sono per i developer e verrebbero solo confusi. Mostra solo il Task Outcome.
+`[AI-suggested]` — sono per i developer e verrebbero solo confusi. Mostra solo il Risultato atteso.
 
 ### 7. Feedback e iterazione
 
