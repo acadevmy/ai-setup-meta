@@ -355,7 +355,7 @@ if [ "$GEMINI_SUPPORT" = "true" ]; then
   GEMINI_DIR="$DIST_DIR/gemini"
   mkdir -p "$GEMINI_DIR"
 
-  # Genera GEMINI.md combinando AGENTS.template + skill instructions
+  # Genera GEMINI.md — solo istruzioni generali (le skill sono nei comandi .toml)
   {
     # Header
     echo "# Gemini System Instructions — $DESCRIPTION"
@@ -371,30 +371,9 @@ if [ "$GEMINI_SUPPORT" = "true" ]; then
       cat "$AGENTS_TPL"
       echo ""
     fi
-
-    # Includi ogni skill come sezione
-    echo "---"
-    echo ""
-    echo "# Skill disponibili"
-    echo ""
-
-    for SKILL_DIR in "$DIST_DIR/skills"/*/; do
-      SKILL_FILE="$SKILL_DIR/SKILL.md"
-      [ -f "$SKILL_FILE" ] || continue
-
-      SKILL_NAME=$(basename "$SKILL_DIR")
-      # Salta la setup skill (non serve in Gemini, e' per il bootstrap)
-      [ "$SKILL_NAME" = "setup" ] && continue
-
-      echo "---"
-      echo ""
-      # Rimuovi il frontmatter YAML (tra i due ---) e scrivi il contenuto
-      sed -n '/^---$/,/^---$/!p' "$SKILL_FILE"
-      echo ""
-    done
   } > "$GEMINI_DIR/GEMINI.md"
 
-  ok "GEMINI.md generato con $(find "$DIST_DIR/skills" -name "SKILL.md" ! -path "*/setup/*" | wc -l | tr -d ' ') skill inline"
+  ok "GEMINI.md generato (istruzioni generali — skill nei comandi .toml)"
 
   # Copia la governance (PM-CONSTITUTION o CONSTITUTION)
   for GOV_FILE in "PM-CONSTITUTION.md" "CONSTITUTION.md"; do
