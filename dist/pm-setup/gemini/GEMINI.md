@@ -765,14 +765,14 @@ Per ogni **User Story** nella gerarchia approvata:
    - `markdown_description`:
      ```markdown
      ## User Story
-     As a <role>, I want to <goal> so that I can <reason>.
+     Come <ruolo>, voglio <obiettivo> in modo da <motivazione>.
 
-     ## Acceptance Criteria
-     Scenario: <scenario description>
-     Given <initial state>
-     When <user action>
-     Then <expected outcome>
-     And <continuation>
+     ## Criteri di accettazione
+     Scenario: <descrizione scenario>
+     Dato <stato iniziale>
+     Quando <azione utente>
+     Allora <risultato atteso>
+     E <continuazione>
      ```
 
 Per ogni **Task** nella gerarchia approvata:
@@ -785,21 +785,21 @@ Per ogni **Task** nella gerarchia approvata:
    - `priority`: la priorita' assegnata in pm-refine
    - `markdown_description`: inserisci subito (nessun template custom da attendere)
      ```markdown
-     ## Task Outcome
+     ## Risultato atteso
      <deliverable chiaro e verificabile>
 
-     ## Additional Notes
+     ## Note aggiuntive
      <contesto>
      - [AI-suggested] <nota tecnica per i developer>
 
-     ## Assumptions
+     ## Assunzioni
      - <assunzione da validare>
 
-     ## Acceptance Criteria
-     I know this is true when...
+     ## Criteri di accettazione
+     Il task e' completato quando...
      <criterio di completamento>
 
-     ## Risks
+     ## Rischi
      - <rischio e possibile mitigazione>
      ```
 
@@ -928,10 +928,10 @@ Per ogni **User Story**, genera scenari Gherkin usando l'approccio **Example Map
 **Formato:**
 ```
 Scenario: <descrizione dello scenario>
-Given <stato iniziale>
-When <azione dell'utente>
-Then <risultato atteso>
-And <continuazione, se necessario>
+Dato <stato iniziale>
+Quando <azione dell'utente>
+Allora <risultato atteso>
+E <continuazione, se necessario>
 ```
 
 **Linee guida:**
@@ -1183,7 +1183,7 @@ Ogni area funzionale di alto livello diventa una **Epic**.
 
 Per ogni Epic:
 - **Titolo**: sostantivo breve e descrittivo, massimo 3-4 parole
-  (es. "User Management", "Product Catalog", "Order Processing")
+  (es. "Gestione utenti", "Catalogo prodotti", "Gestione ordini")
 - **Descrizione**: panoramica del modulo, il suo scopo e perche' esiste — tracciata
   all'obiettivo di business del brief
 
@@ -1193,9 +1193,9 @@ Per ogni Epic, genera le **User Story** dalle sotto-funzionalita' del brief.
 
 **Formato obbligatorio:**
 ```
-As a <attore dal Discovery Brief>,
-I want to <goal dalla sotto-funzionalita'>
-so that I can <valore business tracciato all'obiettivo del brief>.
+Come <attore dal Discovery Brief>,
+voglio <obiettivo dalla sotto-funzionalita'>
+in modo da <valore business tracciato all'obiettivo del brief>.
 ```
 
 **Linee guida:**
@@ -1203,7 +1203,7 @@ so that I can <valore business tracciato all'obiettivo del brief>.
 - Se una sotto-funzionalita' e' troppo grande, dividila in piu' story
 - La clausola "so that" deve esprimere un valore concreto per l'utente, non una necessita' tecnica
 - **Il titolo deve avere il prefisso `[Nome Epic]`** seguito dal nome della funzionalita'
-  (es. per l'Epic "User Management": `[User Management] Login with email and password`)
+  (es. per l'Epic "Gestione utenti": `[Gestione utenti] Login con email e password`)
 
 ### 5. Generare i Task tecnici
 
@@ -1219,25 +1219,25 @@ l'AI li genera basandosi sulla sua conoscenza di come si implementano le funzion
 
 **Formato obbligatorio per ogni Task:**
 ```
-Task Outcome
+Risultato atteso
 <Deliverable chiaro e verificabile>
 
-Additional Notes
+Note aggiuntive
 <Contesto + note tecniche marcate [AI-suggested]>
 
-Assumptions
+Assunzioni
 <Assunzioni da validare con il team tecnico>
 
-Acceptance Criteria
-I know this is true when...
+Criteri di accettazione
+Il task e' completato quando...
 <Criterio di completamento verificabile>
 
-Risks
+Rischi
 <Rischi potenziali e chi potrebbe mitigarli>
 ```
 
 **Regole per i Task:**
-- **Il titolo deve avere il prefisso `[Nome Epic]`** (es. `[User Management] Implement auth endpoint`)
+- **Il titolo deve avere il prefisso `[Nome Epic]`** (es. `[Gestione utenti] Implementare endpoint autenticazione`)
 - Ogni Task deve avere un outcome chiaro e verificabile
 - Le note `[AI-suggested]` forniscono indicazioni tecniche per i developer
   (es. "[AI-suggested] Probabilmente richiede un endpoint REST per il CRUD",

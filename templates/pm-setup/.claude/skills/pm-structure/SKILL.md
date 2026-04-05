@@ -171,7 +171,7 @@ Vuoi procedere con la validazione qualita' e l'arricchimento dei criteri di acce
 ```
 
 **Nota**: nella presentazione al PM, NON mostrare i campi "Additional Notes" con le note
-`[AI-suggested]` — sono per i developer e verrebbero solo confusi. Mostra solo il Task Outcome.
+`[AI-suggested]` — sono per i developer e verrebbero solo confusi. Mostra solo il Risultato atteso.
 
 ### 7. Feedback e iterazione
 
