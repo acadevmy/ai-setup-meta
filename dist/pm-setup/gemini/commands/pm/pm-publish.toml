@@ -61,7 +61,7 @@ Per ogni Epic nella gerarchia approvata:
    - `tags`: solo tag gia' esistenti nello space (recuperati al punto 3), se appropriati
    - `priority`: la priorita' assegnata in pm-refine (se presente)
 
-2. **Attendi 1 secondo** — ClickUp applica un template al tipo custom "Epic"
+2. **Attendi qualche secondo** — ClickUp applica un template automatico al tipo di task
 
 3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`:
    - `markdown_description`: descrizione ad alto livello della Epic
@@ -83,52 +83,65 @@ Per ogni **User Story** nella gerarchia approvata:
    - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
 
-2. **Attendi 1 secondo** — ClickUp applica un template al tipo custom "User Story"
+2. **Attendi qualche secondo** — ClickUp applica un template automatico al tipo di task
 
-3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`:
+3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`.
+   La descrizione deve seguire il formato del template ClickUp (titoli sezione in inglese,
+   contenuto in italiano):
    - `markdown_description`:
      ```markdown
-     ## User Story
-     Come <ruolo>, voglio <obiettivo> in modo da <motivazione>.
+     User Story
+     As a <ruolo in italiano>, I want to <obiettivo in italiano>
+     so that I can <motivazione in italiano>.
 
-     ## Criteri di accettazione
-     Scenario: <descrizione scenario>
-     Dato <stato iniziale>
-     Quando <azione utente>
-     Allora <risultato atteso>
-     E <continuazione>
+
+     Acceptance Criteria
+     Scenarios
+     [Descrizione scenario in italiano]
+     Given <stato iniziale in italiano>
+     When <azione utente in italiano>
+     Then <risultato atteso in italiano>
+     And <continuazione in italiano>
      ```
 
 Per ogni **Task** nella gerarchia approvata:
 
 1. **Crea il task** con `mcp__clickup__clickup_create_task`:
-   - `name`: prefisso `[Nome Epic]` + verbo + deliverable (es. "[User Management] Implement auth endpoint")
+   - `name`: prefisso `[Nome Epic]` + verbo + deliverable (es. "[Gestione utenti] Implementare endpoint autenticazione")
    - `list_id`: il list_id risolto al punto 2
    - `parent`: il `task_id` della **Epic padre** (sempre l'Epic, mai una US)
    - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
-   - `markdown_description`: inserisci subito (nessun template custom da attendere)
-     ```markdown
-     ## Risultato atteso
-     <deliverable chiaro e verificabile>
 
-     ## Note aggiuntive
-     <contesto>
+2. **Attendi qualche secondo** — ClickUp applica un template automatico al tipo di task
+
+3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`.
+   La descrizione deve seguire il formato del template ClickUp (titoli sezione in inglese,
+   contenuto in italiano):
+   - `markdown_description`:
+     ```markdown
+     Task Outcome
+     <deliverable chiaro e verificabile, in italiano>
+
+     Additional Notes
+     <contesto in italiano>
      - [AI-suggested] <nota tecnica per i developer>
 
-     ## Assunzioni
-     - <assunzione da validare>
+     Assumptions
+     <assunzione da validare, in italiano>
 
-     ## Criteri di accettazione
-     Il task e' completato quando...
-     <criterio di completamento>
+     Acceptance Criteria
+     I know this is true when...
+     <criterio di completamento, in italiano>
 
-     ## Rischi
-     - <rischio e possibile mitigazione>
+     Risks
+     <rischio e possibile mitigazione, in italiano>
      ```
 
-> **Nota**: i Task usano il tipo standard di ClickUp (nessun `task_type`).
-> La descrizione viene inserita direttamente nella creazione, senza delay.
+> **IMPORTANTE**: per TUTTI i tipi di task (Epic, User Story, Task), il flusso e' sempre:
+> 1. Crea il task
+> 2. Attendi qualche secondo (le automazioni ClickUp applicano il template)
+> 3. Aggiorna la descrizione
 > Tutti i sotto-task (US e Task) sono figli diretti dell'Epic — mai annidati tra loro.
 
 ### 7. Impostare le dipendenze

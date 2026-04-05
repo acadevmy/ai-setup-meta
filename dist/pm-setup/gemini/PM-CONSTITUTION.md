@@ -21,20 +21,21 @@ Una Epic rappresenta un modulo o una funzionalita' nel suo complesso.
 
 Una User Story descrive una funzionalita' dal punto di vista dell'utente.
 
-**Formato obbligatorio:**
+**Formato obbligatorio (segue il template ClickUp — titoli in inglese, contenuto in italiano):**
 ```
-Come <ruolo utente>,
-voglio <obiettivo da raggiungere>
-in modo da <motivazione dell'obiettivo>.
-```
+User Story
+As a <ruolo utente, in italiano>,
+I want to <obiettivo da raggiungere, in italiano>
+so that I can <motivazione dell'obiettivo, in italiano>.
 
-**Criteri di accettazione obbligatori (formato Gherkin):**
-```
-Scenario: <descrizione dello scenario>
-Dato <lo stato iniziale dello scenario>
-Quando <l'azione specifica dell'utente>
-Allora <il risultato dell'azione>
-E <continuazione di uno dei tre precedenti>
+
+Acceptance Criteria
+Scenarios
+[Descrizione dello scenario, in italiano]
+Given <lo stato iniziale dello scenario, in italiano>
+When <l'azione specifica dell'utente, in italiano>
+Then <il risultato dell'azione, in italiano>
+And <continuazione, in italiano>
 ```
 
 Ogni User Story deve avere almeno uno scenario Gherkin.
@@ -43,23 +44,23 @@ Ogni User Story deve avere almeno uno scenario Gherkin.
 
 Un Task descrive un'unita' di lavoro tecnica o operativa.
 
-**Formato obbligatorio:**
+**Formato obbligatorio (segue il template ClickUp — titoli in inglese, contenuto in italiano):**
 ```
-Risultato atteso
-<Descrivi chiaramente il risultato>
+Task Outcome
+<Descrivi chiaramente il risultato, in italiano>
 
-Note aggiuntive
-<Elenca le note a supporto del task>
+Additional Notes
+<Elenca le note a supporto del task, in italiano>
 
-Assunzioni
-<Elenca le assunzioni da validare>
+Assumptions
+<Elenca le assunzioni da validare, in italiano>
 
-Criteri di accettazione
-Il task e' completato quando...
-<Descrivi cosa si vedra' a task completato>
+Acceptance Criteria
+I know this is true when...
+<Descrivi cosa si vedra' a task completato, in italiano>
 
-Rischi
-<Rischi potenziali e chi potrebbe mitigarli>
+Risks
+<Rischi potenziali e chi potrebbe mitigarli, in italiano>
 ```
 
 ---
