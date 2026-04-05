@@ -7,24 +7,26 @@ Guida per configurare il workflow AI-Native per Project Manager su **Gemini CLI*
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) installato
 - [Node.js](https://nodejs.org/) 18+ (per i server MCP)
 - Account ClickUp con accesso al workspace del team
-- (Opzionale) Credenziali Google Cloud per Google Drive
+- (Consigliato) Account Google per accedere alle trascrizioni dei meeting
 
 ## Installazione
 
-### 1. Copia i file nella directory del progetto
+### 1. Scarica e installa i file
 
-Copia i file dalla cartella `gemini/` nella root del tuo progetto (o nella tua home se vuoi un setup globale):
+Esegui questi comandi nella directory dove vuoi usare il setup
+(la tua home `~` per un setup globale, o la root di un progetto specifico):
 
 ```bash
-# Nella root del progetto
-cp gemini/GEMINI.md .gemini/GEMINI.md
-cp gemini/PM-CONSTITUTION.md ./PM-CONSTITUTION.md
-```
-
-Se la directory `.gemini/` non esiste:
-```bash
+# Crea la directory di configurazione Gemini
 mkdir -p .gemini
+
+# Scarica i file dal repository
+curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/GEMINI.md" -o .gemini/GEMINI.md
+curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/PM-CONSTITUTION.md" -o PM-CONSTITUTION.md
 ```
+
+In alternativa, puoi scaricare i file dalla [pagina release](https://github.com/acadevmy/ai-setup-meta/releases)
+e copiarli manualmente.
 
 ### 2. Configura i server MCP
 
@@ -160,8 +162,12 @@ progetto/
 
 ## Aggiornamento
 
-Per aggiornare il setup, scarica la nuova versione dei file `GEMINI.md` e `PM-CONSTITUTION.md`
-e sostituiscili nella directory del progetto.
+Per aggiornare il setup, riesegui i comandi di download del punto 1:
+
+```bash
+curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/GEMINI.md" -o .gemini/GEMINI.md
+curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/PM-CONSTITUTION.md" -o PM-CONSTITUTION.md
+```
 
 ---
 *Generato da: ai-base-setup v1.0.0*
