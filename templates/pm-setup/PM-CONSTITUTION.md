@@ -171,10 +171,6 @@ Queste note:
 2. Prima di assegnare un tag, verificare quali tag sono disponibili nello space
 3. Se nessun tag esistente e' appropriato, non assegnare tag piuttosto che crearne uno nuovo
 
-## VIII. Tracciabilita'
-
-1. La descrizione deve iniziare con il marker `<!-- pm-setup:v1.0 -->` per la tracciabilita'
-
 ---
 
 *Versione: 1.0.0*

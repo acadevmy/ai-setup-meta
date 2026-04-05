@@ -740,24 +740,22 @@ Per ogni Epic nella gerarchia approvata:
 2. **Attendi 1 secondo** — ClickUp applica un template al tipo custom "Epic"
 
 3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`:
-   - `markdown_description`:
-     ```markdown
-     <!-- pm-setup:v1.0 -->
+   - `markdown_description`: descrizione ad alto livello della Epic
 
-     <Descrizione ad alto livello della Epic>
-     ```
+4. **Salva il `task_id`** restituito — servira' come `parent` per i sotto-task
 
-4. **Salva il `task_id`** restituito — servira' come `parent` per le User Story
+### 5. Creare i sotto-task (User Story e Task)
 
-### 5. Creare le User Story
+La gerarchia ha **massimo 1 livello di annidamento**: tutti i sotto-task
+sono figli diretti dell'Epic. Non creare mai sotto-task di sotto-task.
 
-Per ogni User Story nella gerarchia approvata:
+Per ogni **User Story** nella gerarchia approvata:
 
 1. **Crea il task** con `mcp__clickup__clickup_create_task`:
    - `name`: prefisso `[Nome Epic]` + nome funzionalita' (es. "[User Management] Login with email and password")
    - `list_id`: il list_id risolto al punto 2
    - `task_type`: `"User Story"`
-   - `parent`: il `task_id` della Epic padre
+   - `parent`: il `task_id` della **Epic padre** (sempre l'Epic, mai un'altra US)
    - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
 
@@ -766,8 +764,6 @@ Per ogni User Story nella gerarchia approvata:
 3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`:
    - `markdown_description`:
      ```markdown
-     <!-- pm-setup:v1.0 -->
-
      ## User Story
      As a <role>, I want to <goal> so that I can <reason>.
 
@@ -777,27 +773,18 @@ Per ogni User Story nella gerarchia approvata:
      When <user action>
      Then <expected outcome>
      And <continuation>
-
-     Scenario: <additional scenario>
-     ...
      ```
 
-4. **Salva il `task_id`** restituito — servira' come `parent` per i Task
-
-### 6. Creare i Task
-
-Per ogni Task nella gerarchia approvata:
+Per ogni **Task** nella gerarchia approvata:
 
 1. **Crea il task** con `mcp__clickup__clickup_create_task`:
    - `name`: prefisso `[Nome Epic]` + verbo + deliverable (es. "[User Management] Implement auth endpoint")
    - `list_id`: il list_id risolto al punto 2
-   - `parent`: il `task_id` della User Story padre
+   - `parent`: il `task_id` della **Epic padre** (sempre l'Epic, mai una US)
    - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
    - `markdown_description`: inserisci subito (nessun template custom da attendere)
      ```markdown
-     <!-- pm-setup:v1.0 -->
-
      ## Task Outcome
      <deliverable chiaro e verificabile>
 
@@ -818,6 +805,7 @@ Per ogni Task nella gerarchia approvata:
 
 > **Nota**: i Task usano il tipo standard di ClickUp (nessun `task_type`).
 > La descrizione viene inserita direttamente nella creazione, senza delay.
+> Tutti i sotto-task (US e Task) sono figli diretti dell'Epic — mai annidati tra loro.
 
 ### 7. Impostare le dipendenze
 
@@ -870,9 +858,8 @@ Se la creazione di un task fallisce:
 - Suggerisci al PM come risolvere (es. "Verifica che la lista esista e che tu abbia i permessi")
 
 ## Output atteso
-- Task creati su ClickUp con gerarchia corretta (Epic → Story → Task)
+- Task creati su ClickUp con gerarchia a 1 livello (Epic → sotto-task)
 - Tipi custom applicati (Epic, User Story)
-- Descrizioni formattate con marker `<!-- pm-setup:v1.0 -->`
 - Tag e dipendenze impostati
 - Report finale con URL di tutti i task creati
 
@@ -1220,7 +1207,12 @@ so that I can <valore business tracciato all'obiettivo del brief>.
 
 ### 5. Generare i Task tecnici
 
-Per ogni User Story, genera i **Task** necessari per implementarla.
+Per ogni Epic, genera i **Task** tecnici necessari come sotto-task diretti dell'Epic
+(allo stesso livello delle User Story, NON come sotto-task delle User Story).
+
+**IMPORTANTE**: la gerarchia ha massimo 1 livello di annidamento.
+Tutti i sotto-task (User Story e Task) sono figli diretti dell'Epic.
+Non creare mai Epic → User Story → Task (3 livelli).
 
 **Questo e' il punto dove l'AI colma il gap tecnico**: il PM non deve specificare i task tecnici,
 l'AI li genera basandosi sulla sua conoscenza di come si implementano le funzionalita' software.
