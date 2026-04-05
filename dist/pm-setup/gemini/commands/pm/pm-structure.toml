@@ -53,8 +53,11 @@ Ogni area funzionale di alto livello diventa una **Epic**.
 Per ogni Epic:
 - **Titolo**: sostantivo breve e descrittivo, massimo 3-4 parole
   (es. "Gestione utenti", "Catalogo prodotti", "Gestione ordini")
-- **Descrizione**: panoramica del modulo, il suo scopo e perche' esiste — tracciata
-  all'obiettivo di business del brief
+- **Descrizione** (formato template ClickUp — titoli in inglese, contenuto in italiano):
+  - **Introduction**: panoramica del modulo, cosa fa e perche' esiste
+  - **Product requirement**: requisiti di prodotto — funzionalita' richieste
+  - **Technical requirement**: requisiti tecnici — vincoli, integrazioni, prestazioni
+  - **Design requirement**: requisiti di design — UX, UI, accessibilita'
 
 ### 4. Decomporre in User Story
 
