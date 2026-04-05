@@ -44,22 +44,32 @@ Apri (o crea) il file `.gemini/settings.json` e aggiungi i server MCP:
 
 Al primo utilizzo di ClickUp, Gemini ti chiedera' di autorizzare l'accesso al tuo workspace.
 
-### 3. (Opzionale) Configura Google Drive
+### 3. (Consigliato) Installa l'estensione Google Workspace
 
-Se vuoi analizzare le trascrizioni dei meeting Google Meet direttamente dal Drive:
+L'estensione Google Workspace permette di accedere a Google Drive, Docs, Calendar e Gmail
+direttamente da Gemini CLI. L'autenticazione avviene automaticamente via browser.
 
-#### 3.1 Crea le credenziali OAuth
+```bash
+gemini extensions install https://github.com/gemini-cli-extensions/workspace
+```
 
-1. Vai su [Google Cloud Console](https://console.cloud.google.com/)
-2. Crea un nuovo progetto (o usa uno esistente)
-3. Abilita le API: **Google Drive**, **Google Docs**, **Google Calendar**
-4. Vai su "Credenziali" → "Crea credenziali" → "ID client OAuth"
-5. Tipo applicazione: **App desktop**
-6. Scarica il file JSON e salvalo come `gcp-oauth.keys.json`
+Quando richiesto, conferma con `Y`. Al primo utilizzo, il browser si aprira'
+per autorizzare l'accesso al tuo account Google.
 
-#### 3.2 Aggiungi il server MCP
+> **Nota**: l'estensione gira localmente sulla tua macchina e comunica
+> direttamente con le API Google usando le tue credenziali OAuth.
+> Nessuna API key o configurazione manuale necessaria.
 
-Aggiungi questa voce nel tuo `.gemini/settings.json`:
+Per verificare che l'estensione sia installata:
+```
+gemini /mcp list
+```
+
+Dovresti vedere `google-workspace` nella lista dei server attivi.
+
+### 4. (Opzionale) Configura Figma
+
+Per analizzare i design da Figma, aggiungi il server MCP nel tuo `.gemini/settings.json`:
 
 ```json
 {
@@ -69,30 +79,6 @@ Aggiungi questa voce nel tuo `.gemini/settings.json`:
       "command": "npx",
       "args": ["-y", "mcp-remote", "https://mcp.clickup.com/mcp"]
     },
-    "gdrive": {
-      "command": "npx",
-      "args": ["@piotr-agier/google-drive-mcp"],
-      "env": {
-        "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "/path/to/gcp-oauth.keys.json"
-      }
-    }
-  }
-}
-```
-
-Sostituisci `/path/to/gcp-oauth.keys.json` con il path reale del file scaricato.
-
-Al primo utilizzo, il browser si aprira' per autorizzare l'accesso al tuo Google Drive.
-
-### 4. (Opzionale) Configura Figma
-
-Per analizzare i design da Figma in futuro:
-
-```json
-{
-  "mcpServers": {
-    "clickup": { "..." },
-    "gdrive": { "..." },
     "figma": {
       "trust": true,
       "command": "npx",
@@ -110,13 +96,13 @@ Avvia Gemini CLI nella directory del progetto:
 gemini
 ```
 
-Verifica che i server MCP siano connessi:
+Verifica che i server MCP e le estensioni siano connessi:
 
 ```
 /mcp
 ```
 
-Dovresti vedere `clickup` (e `gdrive`, `figma` se configurati) nella lista dei server attivi.
+Dovresti vedere `clickup` (e `google-workspace`, `figma` se configurati) nella lista dei server attivi.
 
 ## Comandi disponibili
 
