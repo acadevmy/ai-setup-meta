@@ -23,18 +23,18 @@ Una User Story descrive una funzionalita' dal punto di vista dell'utente.
 
 **Formato obbligatorio:**
 ```
-As a <user role>,
-I want to <goal to be accomplished>
-so that I can <reason of the goal>.
+Come <ruolo utente>,
+voglio <obiettivo da raggiungere>
+in modo da <motivazione dell'obiettivo>.
 ```
 
-**Acceptance Criteria obbligatori (formato Gherkin):**
+**Criteri di accettazione obbligatori (formato Gherkin):**
 ```
-Scenario: <scenario description>
-Given <the beginning state of the scenario>
-When <specific action that the user makes>
-Then <the outcome of the action in "When">
-And <used to continue any of three previous statements>
+Scenario: <descrizione dello scenario>
+Dato <lo stato iniziale dello scenario>
+Quando <l'azione specifica dell'utente>
+Allora <il risultato dell'azione>
+E <continuazione di uno dei tre precedenti>
 ```
 
 Ogni User Story deve avere almeno uno scenario Gherkin.
@@ -45,21 +45,21 @@ Un Task descrive un'unita' di lavoro tecnica o operativa.
 
 **Formato obbligatorio:**
 ```
-Task Outcome
-<State the outcome clearly>
+Risultato atteso
+<Descrivi chiaramente il risultato>
 
-Additional Notes
-<List any notes that support the initial task>
+Note aggiuntive
+<Elenca le note a supporto del task>
 
-Assumptions
-<List assumptions that require validation>
+Assunzioni
+<Elenca le assunzioni da validare>
 
-Acceptance Criteria
-I know this is true when...
-<Describe what a completed task looks like>
+Criteri di accettazione
+Il task e' completato quando...
+<Descrivi cosa si vedra' a task completato>
 
-Risks
-<Potential risks and who could mitigate them>
+Rischi
+<Rischi potenziali e chi potrebbe mitigarli>
 ```
 
 ---
@@ -109,9 +109,9 @@ Epic
 
 | Tipo | Convenzione | Esempio |
 |---|---|---|
-| Epic | Sostantivo breve e descrittivo (modulo/funzionalita') | "User Management" |
-| User Story | Prefisso `[Epic]` + nome funzionalita' | "[User Management] Login with email" |
-| Task | Prefisso `[Epic]` + verbo + deliverable | "[User Management] Implement auth endpoint" |
+| Epic | Sostantivo breve e descrittivo (modulo/funzionalita') | "Gestione utenti" |
+| User Story | Prefisso `[Epic]` + nome funzionalita' | "[Gestione utenti] Login con email" |
+| Task | Prefisso `[Epic]` + verbo + deliverable | "[Gestione utenti] Implementare endpoint autenticazione" |
 
 ### Regole di naming
 
@@ -124,7 +124,7 @@ Epic
    Questo garantisce che ogni task sia immediatamente riconducibile al suo modulo
    anche quando visualizzato fuori contesto (notifiche, filtri, ricerche).
    - Formato: `[Nome Epic] Titolo del task`
-   - Esempio: `[User Management] Password reset flow`
+   - Esempio: `[Gestione utenti] Flusso reset password`
 
 ---
 
@@ -132,10 +132,11 @@ Epic
 
 | Elemento | Lingua |
 |---|---|
-| Titoli task | Inglese |
-| Descrizioni task | Inglese |
-| Acceptance Criteria | Inglese |
+| Titoli task | Italiano |
+| Descrizioni task | Italiano |
+| Acceptance Criteria | Italiano |
 | Comunicazione con il PM | Italiano |
+| Note tecniche [AI-suggested] | Italiano |
 
 ---
 

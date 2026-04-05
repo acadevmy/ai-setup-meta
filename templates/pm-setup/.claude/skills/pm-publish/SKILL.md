@@ -88,14 +88,14 @@ Per ogni **User Story** nella gerarchia approvata:
    - `markdown_description`:
      ```markdown
      ## User Story
-     As a <role>, I want to <goal> so that I can <reason>.
+     Come <ruolo>, voglio <obiettivo> in modo da <motivazione>.
 
-     ## Acceptance Criteria
-     Scenario: <scenario description>
-     Given <initial state>
-     When <user action>
-     Then <expected outcome>
-     And <continuation>
+     ## Criteri di accettazione
+     Scenario: <descrizione scenario>
+     Dato <stato iniziale>
+     Quando <azione utente>
+     Allora <risultato atteso>
+     E <continuazione>
      ```
 
 Per ogni **Task** nella gerarchia approvata:
@@ -108,21 +108,21 @@ Per ogni **Task** nella gerarchia approvata:
    - `priority`: la priorita' assegnata in pm-refine
    - `markdown_description`: inserisci subito (nessun template custom da attendere)
      ```markdown
-     ## Task Outcome
+     ## Risultato atteso
      <deliverable chiaro e verificabile>
 
-     ## Additional Notes
+     ## Note aggiuntive
      <contesto>
      - [AI-suggested] <nota tecnica per i developer>
 
-     ## Assumptions
+     ## Assunzioni
      - <assunzione da validare>
 
-     ## Acceptance Criteria
-     I know this is true when...
+     ## Criteri di accettazione
+     Il task e' completato quando...
      <criterio di completamento>
 
-     ## Risks
+     ## Rischi
      - <rischio e possibile mitigazione>
      ```
 
