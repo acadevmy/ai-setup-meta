@@ -17,12 +17,17 @@ Esegui questi comandi nella directory dove vuoi usare il setup
 (la tua home `~` per un setup globale, o la root di un progetto specifico):
 
 ```bash
-# Crea la directory di configurazione Gemini
-mkdir -p .gemini
+# Crea le directory di configurazione Gemini
+mkdir -p .gemini/commands/pm
 
-# Scarica i file dal repository
+# Scarica i file principali
 curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/GEMINI.md" -o .gemini/GEMINI.md
 curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/PM-CONSTITUTION.md" -o PM-CONSTITUTION.md
+
+# Scarica i comandi slash
+for cmd in pm-flow pm-intake pm-transcript pm-figma pm-structure pm-refine pm-review pm-publish; do
+  curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/commands/pm/$cmd.toml" -o ".gemini/commands/pm/$cmd.toml"
+done
 ```
 
 In alternativa, puoi scaricare i file dalla [pagina release](https://github.com/acadevmy/ai-setup-meta/releases)
@@ -110,44 +115,46 @@ Dovresti vedere `clickup` (e `google-workspace`, `figma` se configurati) nella l
 
 | Comando | Descrizione |
 |---|---|
-| `Esegui pm-flow` | Flusso completo: documento → task ClickUp |
-| `Esegui pm-intake con <path>` | Analisi documento → Discovery Brief |
-| `Esegui pm-transcript` | Analisi trascrizioni Google Meet da Drive |
-| `Esegui pm-figma con <URL>` | Analisi design Figma → task per riprodurre il layout |
-| `Esegui pm-structure` | Brief → gerarchia Epic/Story/Task |
-| `Esegui pm-refine` | Validazione INVEST + Acceptance Criteria |
-| `Esegui pm-review` | Revisione e approvazione |
-| `Esegui pm-publish` | Pubblicazione su ClickUp |
+| `/pm:pm-flow` | Flusso completo: documento → task ClickUp |
+| `/pm:pm-intake <path>` | Analisi documento → Discovery Brief |
+| `/pm:pm-transcript` | Analisi trascrizioni Google Meet da Drive |
+| `/pm:pm-figma <URL>` | Analisi design Figma → task per riprodurre il layout |
+| `/pm:pm-structure` | Brief → gerarchia Epic/Story/Task |
+| `/pm:pm-refine` | Validazione INVEST + criteri di accettazione |
+| `/pm:pm-review` | Revisione e approvazione |
+| `/pm:pm-publish` | Pubblicazione su ClickUp |
 
-> **Nota**: su Gemini CLI i comandi non sono invocabili con `/project:`.
-> Chiedi a Gemini in linguaggio naturale di eseguire il workflow desiderato.
-> Le istruzioni delle skill sono incluse nel file `GEMINI.md`.
+I comandi accettano argomenti dopo lo slash command (es. `/pm:pm-figma https://figma.com/...`).
+
+Per ricaricare i comandi dopo un aggiornamento:
+```
+/commands reload
+```
 
 ## Come iniziare
 
 ### Da un documento di requisiti
 
 ```
-Analizza il documento requisiti.md e crea i task su ClickUp per il progetto Alpha
+/pm:pm-flow requisiti.md
 ```
 
 ### Da una trascrizione di meeting
 
 ```
-Cerca le trascrizioni dei meeting recenti e analizza l'ultima per creare i task
+/pm:pm-transcript
 ```
 
 ### Da un design Figma
 
 ```
-Analizza questo design Figma e crea i task per riprodurre il layout:
-https://www.figma.com/design/abc123/My-Project?node-id=1-2
+/pm:pm-figma https://www.figma.com/design/abc123/My-Project?node-id=1-2
 ```
 
-### Senza documenti (intervista guidata)
+### Flusso guidato (scegli l'input durante l'esecuzione)
 
 ```
-Aiutami a creare i task per una nuova funzionalita'. Fammi delle domande per capire cosa serve.
+/pm:pm-flow
 ```
 
 ## Struttura file
@@ -155,19 +162,25 @@ Aiutami a creare i task per una nuova funzionalita'. Fammi delle domande per cap
 ```
 progetto/
 ├── .gemini/
-│   ├── GEMINI.md          # Istruzioni per Gemini (non modificare)
-│   └── settings.json      # Configurazione MCP servers
-└── PM-CONSTITUTION.md     # Regole qualita' task
+│   ├── GEMINI.md              # Istruzioni per Gemini (non modificare)
+│   ├── settings.json          # Configurazione MCP servers
+│   └── commands/
+│       └── pm/
+│           ├── pm-flow.toml       # /pm:pm-flow
+│           ├── pm-intake.toml     # /pm:pm-intake
+│           ├── pm-transcript.toml # /pm:pm-transcript
+│           ├── pm-figma.toml      # /pm:pm-figma
+│           ├── pm-structure.toml  # /pm:pm-structure
+│           ├── pm-refine.toml     # /pm:pm-refine
+│           ├── pm-review.toml     # /pm:pm-review
+│           └── pm-publish.toml    # /pm:pm-publish
+└── PM-CONSTITUTION.md         # Regole qualita' task
 ```
 
 ## Aggiornamento
 
-Per aggiornare il setup, riesegui i comandi di download del punto 1:
-
-```bash
-curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/GEMINI.md" -o .gemini/GEMINI.md
-curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/PM-CONSTITUTION.md" -o PM-CONSTITUTION.md
-```
+Per aggiornare il setup, riesegui i comandi di download del punto 1.
+Dopo l'aggiornamento dei comandi, esegui `/commands reload` in Gemini CLI.
 
 ---
 *Generato da: ai-base-setup v1.0.0*

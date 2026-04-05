@@ -490,6 +490,48 @@ if [ "$GEMINI_SUPPORT" = "true" ]; then
     ok "README.md copiato per Gemini"
   fi
 
+  # Genera comandi .toml per Gemini CLI
+  GEMINI_CMDS_DIR="$GEMINI_DIR/commands/pm"
+  mkdir -p "$GEMINI_CMDS_DIR"
+
+  CMD_COUNT=0
+  for SKILL_DIR in "$DIST_DIR/skills"/*/; do
+    SKILL_FILE="$SKILL_DIR/SKILL.md"
+    [ -f "$SKILL_FILE" ] || continue
+
+    SKILL_NAME=$(basename "$SKILL_DIR")
+    # Salta setup e reference skills (clickup, github-ops)
+    [ "$SKILL_NAME" = "setup" ] && continue
+    [ "$SKILL_NAME" = "clickup" ] && continue
+    [ "$SKILL_NAME" = "github-ops" ] && continue
+
+    # Estrai description dal frontmatter YAML
+    SKILL_DESC=$(grep '^description:' "$SKILL_FILE" | head -1 | sed 's/^description: *//; s/^"//; s/"$//')
+    [ -z "$SKILL_DESC" ] && SKILL_DESC="Esegui $SKILL_NAME"
+
+    # Estrai il contenuto senza frontmatter (tutto dopo il secondo ---)
+    SKILL_CONTENT=$(awk 'BEGIN{c=0} /^---$/{c++; next} c>=2{print}' "$SKILL_FILE")
+
+    # Genera il file .toml
+    ESCAPED_DESC=$(echo "$SKILL_DESC" | head -1 | sed 's/"/\\"/g')
+    {
+      echo "description = \"$ESCAPED_DESC\""
+      echo 'prompt = """'
+      echo "Leggi il file PM-CONSTITUTION.md prima di procedere."
+      echo ""
+      echo "Esegui la seguente skill. Se l'utente ha fornito argomenti, usali come input."
+      echo ""
+      echo "Argomenti dell'utente: {{args}}"
+      echo ""
+      echo "$SKILL_CONTENT"
+      echo '"""'
+    } > "$GEMINI_CMDS_DIR/$SKILL_NAME.toml"
+
+    CMD_COUNT=$((CMD_COUNT + 1))
+  done
+
+  ok "Comandi Gemini generati: $CMD_COUNT (.toml in commands/pm/)"
+
   # Genera .mcp.json Gemini-compatibile
   # Gemini CLI non supporta "type: url/http" direttamente — usa mcp-remote come bridge
   if [ -f "$DIST_DIR/.mcp.json" ]; then
