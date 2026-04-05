@@ -92,9 +92,22 @@ Ogni User Story deve soddisfare i criteri INVEST:
 
 | Tipo | Convenzione | Esempio |
 |---|---|---|
-| Epic | Sostantivo (modulo/funzionalita') | "User Authentication" |
-| User Story | Formato "As a..." implicito nel titolo breve | "Login with email and password" |
-| Task | Verbo + deliverable | "Implement auth endpoint" |
+| Epic | Sostantivo breve e descrittivo (modulo/funzionalita') | "User Management" |
+| User Story | Prefisso `[Epic]` + nome funzionalita' | "[User Management] Login with email" |
+| Task | Prefisso `[Epic]` + verbo + deliverable | "[User Management] Implement auth endpoint" |
+
+### Regole di naming
+
+1. **Epic**: titolo breve e descrittivo, massimo 3-4 parole. Deve identificare
+   immediatamente il modulo o l'area funzionale (es. "User Management", "Product Catalog",
+   "Order Processing").
+
+2. **Prefisso obbligatorio per sotto-task**: ogni User Story e Task figlio di un'Epic
+   deve avere come prefisso il nome dell'Epic tra parentesi quadre.
+   Questo garantisce che ogni task sia immediatamente riconducibile al suo modulo
+   anche quando visualizzato fuori contesto (notifiche, filtri, ricerche).
+   - Formato: `[Nome Epic] Titolo del task`
+   - Esempio: `[User Management] Password reset flow`
 
 ---
 
@@ -120,11 +133,15 @@ Queste note:
 
 ---
 
-## VII. Tracciabilita'
+## VII. Tag
 
-1. Ogni task creato dall'agente deve includere il tag `pm-created`
-2. La descrizione deve iniziare con il marker `<!-- pm-setup:v1.0 -->` per la tracciabilita'
-3. I task complessi devono avere il tag `needs-sdd` per segnalare ai developer che richiedono il flusso Spec-Driven Development
+1. Usare **solo tag gia' esistenti** nello space ClickUp — non creare mai tag nuovi
+2. Prima di assegnare un tag, verificare quali tag sono disponibili nello space
+3. Se nessun tag esistente e' appropriato, non assegnare tag piuttosto che crearne uno nuovo
+
+## VIII. Tracciabilita'
+
+1. La descrizione deve iniziare con il marker `<!-- pm-setup:v1.0 -->` per la tracciabilita'
 
 ---
 
