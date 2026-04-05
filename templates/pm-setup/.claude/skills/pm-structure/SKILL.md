@@ -111,6 +111,7 @@ Assumptions
 <Assunzioni da validare con il team tecnico, in italiano>
 
 Acceptance Criteria
+I know this is true when...
 <Criterio di completamento verificabile, in italiano>
 
 Risks
@@ -171,7 +172,7 @@ Vuoi procedere con la validazione qualita' e l'arricchimento dei criteri di acce
 ```
 
 **Nota**: nella presentazione al PM, NON mostrare i campi "Additional Notes" con le note
-`[AI-suggested]` — sono per i developer e verrebbero solo confusi. Mostra solo il Risultato atteso.
+`[AI-suggested]` — sono per i developer e verrebbero solo confusi. Mostra solo il Task Outcome.
 
 ### 7. Feedback e iterazione
 

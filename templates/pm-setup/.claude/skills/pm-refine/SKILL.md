@@ -69,10 +69,10 @@ Per ogni **User Story**, genera scenari Gherkin usando l'approccio **Example Map
 ```
 Scenarios
 [Descrizione dello scenario, in italiano]
-Dato <stato iniziale, in italiano>
-Quando <azione dell'utente, in italiano>
-Allora <risultato atteso, in italiano>
-E <continuazione, in italiano>
+Given <stato iniziale, in italiano>
+When <azione dell'utente, in italiano>
+Then <risultato atteso, in italiano>
+And <continuazione, in italiano>
 ```
 
 **Linee guida:**
