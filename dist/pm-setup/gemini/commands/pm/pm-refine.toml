@@ -66,13 +66,14 @@ Per ogni **User Story**, genera scenari Gherkin usando l'approccio **Example Map
 2. **Genera esempi**: per ogni regola, scrivi uno scenario concreto
 3. **Identifica edge case**: cosa succede in situazioni anomale?
 
-**Formato:**
+**Formato (titoli in inglese come da template ClickUp, contenuto in italiano):**
 ```
-Scenario: <descrizione dello scenario>
-Dato <stato iniziale>
-Quando <azione dell'utente>
-Allora <risultato atteso>
-E <continuazione, se necessario>
+Scenarios
+[Descrizione dello scenario, in italiano]
+Given <stato iniziale, in italiano>
+When <azione dell'utente, in italiano>
+Then <risultato atteso, in italiano>
+And <continuazione, in italiano>
 ```
 
 **Linee guida:**

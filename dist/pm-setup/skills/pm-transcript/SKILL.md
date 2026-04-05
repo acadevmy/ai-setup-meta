@@ -8,8 +8,7 @@ disable-model-invocation: false
 
 # /project:pm-transcript
 
-Recupera le trascrizioni di Google Meet dal Google Drive del PM,
-le analizza e produce un **Discovery Brief** strutturato pronto
+Recupera le trascrizioni dei Google Meet più recenti (massimo 10gg) dal Google Drive del PM, le analizza e produce un **Discovery Brief** strutturato pronto
 per essere trasformato in task ClickUp.
 
 **Usage**: `/project:pm-transcript`

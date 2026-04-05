@@ -60,11 +60,21 @@ Per ogni Epic:
 
 Per ogni Epic, genera le **User Story** dalle sotto-funzionalita' del brief.
 
-**Formato obbligatorio:**
+**Formato obbligatorio (segue il template ClickUp — titoli in inglese, contenuto in italiano):**
 ```
-Come <attore dal Discovery Brief>,
-voglio <obiettivo dalla sotto-funzionalita'>
-in modo da <valore business tracciato all'obiettivo del brief>.
+User Story
+As a <attore dal Discovery Brief, in italiano>,
+I want to <obiettivo dalla sotto-funzionalita', in italiano>
+so that I can <valore business tracciato all'obiettivo del brief, in italiano>.
+
+
+Acceptance Criteria
+Scenarios
+[Descrizione scenario, in italiano]
+Given <stato iniziale, in italiano>
+When <azione utente, in italiano>
+Then <risultato atteso, in italiano>
+And <continuazione, in italiano>
 ```
 
 **Linee guida:**
@@ -88,21 +98,21 @@ l'AI li genera basandosi sulla sua conoscenza di come si implementano le funzion
 
 **Formato obbligatorio per ogni Task:**
 ```
-Risultato atteso
-<Deliverable chiaro e verificabile>
+Task Outcome
+<Deliverable chiaro e verificabile, in italiano>
 
-Note aggiuntive
-<Contesto + note tecniche marcate [AI-suggested]>
+Additional Notes
+<Contesto in italiano + note tecniche marcate [AI-suggested]>
 
-Assunzioni
-<Assunzioni da validare con il team tecnico>
+Assumptions
+<Assunzioni da validare con il team tecnico, in italiano>
 
-Criteri di accettazione
-Il task e' completato quando...
-<Criterio di completamento verificabile>
+Acceptance Criteria
+I know this is true when...
+<Criterio di completamento verificabile, in italiano>
 
-Rischi
-<Rischi potenziali e chi potrebbe mitigarli>
+Risks
+<Rischi potenziali e chi potrebbe mitigarli, in italiano>
 ```
 
 **Regole per i Task:**
@@ -126,19 +136,21 @@ Ecco la gerarchia task generata dal Discovery Brief:
 <Descrizione Epic>
 
 ### E1-US1: [Gestione utenti] Login con email e password
-Come <ruolo>, voglio <obiettivo> in modo da <motivazione>.
+As a utente registrato, I want to accedere con email e password
+so that I can utilizzare le funzionalita' riservate.
 
 ### E1-US2: [Gestione utenti] Reset password
-Come <ruolo>, voglio <obiettivo> in modo da <motivazione>.
+As a utente registrato, I want to reimpostare la password
+so that I can recuperare l'accesso al mio account.
 
 ### E1-T1: [Gestione utenti] Implementare endpoint autenticazione
-Risultato atteso: <outcome>
+Task Outcome: <outcome>
 
 ### E1-T2: [Gestione utenti] Creare form di login
-Risultato atteso: <outcome>
+Task Outcome: <outcome>
 
 ### E1-T3: [Gestione utenti] Implementare flusso reset password
-Risultato atteso: <outcome>
+Task Outcome: <outcome>
 
 
 ## E2: <Epic Title>
@@ -154,7 +166,7 @@ Vuoi procedere con la validazione qualita' e l'arricchimento dei criteri di acce
 ```
 
 **Nota**: nella presentazione al PM, NON mostrare i campi "Additional Notes" con le note
-`[AI-suggested]` — sono per i developer e verrebbero solo confusi. Mostra solo il Risultato atteso.
+`[AI-suggested]` — sono per i developer e verrebbero solo confusi. Mostra solo il Task Outcome.
 
 ### 7. Feedback e iterazione
 
