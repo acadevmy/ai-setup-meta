@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "clickup": {
+      "url": "https://mcp.clickup.com/mcp"
+    },
+    "gdrive": {
+      "command": "npx",
+      "args": [
+        "@piotr-agier/google-drive-mcp"
+      ],
+      "env": {
+        "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "${GOOGLE_DRIVE_OAUTH_CREDENTIALS}"
+      }
+    },
+    "figma": {
+      "url": "https://mcp.figma.com/mcp"
+    }
+  }
+}

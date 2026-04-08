@@ -47,6 +47,27 @@ Il plugin Cursor condivide skills e agents con la versione Claude. Aggiunge:
 - `hooks/hooks.cursor.json` — hooks con path variable Cursor-native
 
 **Prerequisiti**: Cursor, `jq`.
+### OpenAI Codex CLI
+
+I template che supportano Codex (attualmente `pm-setup`) distribuiscono un plugin compatibile
+in `dist/<template>/codex/`. L'installazione avviene tramite il sistema marketplace di Codex:
+
+```bash
+# 1. Scarica il plugin nella directory personale
+mkdir -p ~/.codex/plugins
+curl -sL "https://github.com/acadevmy/ai-setup-meta/archive/refs/heads/main.tar.gz" | \
+  tar -xz --strip-components=3 -C ~/.codex/plugins/ "ai-setup-meta-main/dist/pm-setup/codex"
+mv ~/.codex/plugins/codex ~/.codex/plugins/pm-setup
+
+# 2. Registra nel marketplace personale (~/.agents/plugins/marketplace.json)
+# Vedi la guida completa per il contenuto del file
+```
+
+Il plugin e' accessibile con `@pm-setup` o tramite `/skills` in Codex CLI.
+Per la guida completa (inclusa installazione per progetto) vedi
+[dist/pm-setup/codex/README.md](dist/pm-setup/codex/README.md).
+
+**Prerequisiti**: `codex` CLI, Node.js 18+, account ClickUp.
 
 ### Gemini CLI
 
