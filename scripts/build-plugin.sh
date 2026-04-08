@@ -348,110 +348,14 @@ fi
 
 # ── Genera output Gemini (se gemini_support nel manifest) ────────────────────
 GEMINI_SUPPORT=$(jq -r '.gemini_support // false' "$MANIFEST")
-
 if [ "$GEMINI_SUPPORT" = "true" ]; then
-  step "Generazione output Gemini CLI"
+  bash "$BUILDERS_DIR/build-gemini.sh"
+fi
 
-  GEMINI_DIR="$DIST_DIR/gemini"
-  mkdir -p "$GEMINI_DIR"
-
-  # Genera GEMINI.md — solo istruzioni generali (le skill sono nei comandi .toml)
-  {
-    # Header
-    echo "# Gemini System Instructions — $DESCRIPTION"
-    echo ""
-    echo "> Generato automaticamente da ai-base-setup. Non modificare direttamente."
-    echo ""
-
-    # Includi AGENTS.template.md se presente nei templates bundled
-    AGENTS_TPL="$DIST_DIR/skills/setup/templates/AGENTS.template.md"
-    if [ -f "$AGENTS_TPL" ]; then
-      echo "---"
-      echo ""
-      cat "$AGENTS_TPL"
-      echo ""
-    fi
-  } > "$GEMINI_DIR/GEMINI.md"
-
-  ok "GEMINI.md generato (istruzioni generali — skill nei comandi .toml)"
-
-  # Copia la governance (PM-CONSTITUTION o CONSTITUTION)
-  for GOV_FILE in "PM-CONSTITUTION.md" "CONSTITUTION.md"; do
-    GOV_SRC="$DIST_DIR/skills/setup/templates/$GOV_FILE"
-    if [ -f "$GOV_SRC" ]; then
-      cp "$GOV_SRC" "$GEMINI_DIR/$GOV_FILE"
-      ok "Governance: $GOV_FILE copiata per Gemini"
-      break
-    fi
-  done
-
-  # Copia il README Gemini se presente
-  GEMINI_README="$TEMPLATE_DIR/GEMINI-README.md"
-  if [ -f "$GEMINI_README" ]; then
-    cp "$GEMINI_README" "$GEMINI_DIR/README.md"
-    ok "README.md copiato per Gemini"
-  fi
-
-  # Genera comandi .toml per Gemini CLI
-  GEMINI_CMDS_DIR="$GEMINI_DIR/commands/pm"
-  mkdir -p "$GEMINI_CMDS_DIR"
-
-  CMD_COUNT=0
-  for SKILL_DIR in "$DIST_DIR/skills"/*/; do
-    SKILL_FILE="$SKILL_DIR/SKILL.md"
-    [ -f "$SKILL_FILE" ] || continue
-
-    SKILL_NAME=$(basename "$SKILL_DIR")
-    # Salta setup e reference skills (clickup, github-ops)
-    [ "$SKILL_NAME" = "setup" ] && continue
-    [ "$SKILL_NAME" = "clickup" ] && continue
-    [ "$SKILL_NAME" = "github-ops" ] && continue
-
-    # Estrai description dal frontmatter YAML
-    SKILL_DESC=$(grep '^description:' "$SKILL_FILE" | head -1 | sed 's/^description: *//; s/^"//; s/"$//')
-    [ -z "$SKILL_DESC" ] && SKILL_DESC="Esegui $SKILL_NAME"
-
-    # Estrai il contenuto senza frontmatter (tutto dopo il secondo ---)
-    SKILL_CONTENT=$(awk 'BEGIN{c=0} /^---$/{c++; next} c>=2{print}' "$SKILL_FILE")
-
-    # Genera il file .toml
-    ESCAPED_DESC=$(echo "$SKILL_DESC" | head -1 | sed 's/"/\\"/g')
-    {
-      echo "description = \"$ESCAPED_DESC\""
-      echo 'prompt = """'
-      echo "Leggi il file PM-CONSTITUTION.md prima di procedere."
-      echo ""
-      echo "Esegui la seguente skill. Se l'utente ha fornito argomenti, usali come input."
-      echo ""
-      echo "Argomenti dell'utente: {{args}}"
-      echo ""
-      echo "$SKILL_CONTENT"
-      echo '"""'
-    } > "$GEMINI_CMDS_DIR/$SKILL_NAME.toml"
-
-    CMD_COUNT=$((CMD_COUNT + 1))
-  done
-
-  ok "Comandi Gemini generati: $CMD_COUNT (.toml in commands/pm/)"
-
-  # Genera .mcp.json Gemini-compatibile
-  # Gemini CLI non supporta "type: url/http" direttamente — usa mcp-remote come bridge
-  if [ -f "$DIST_DIR/.mcp.json" ]; then
-    jq '
-      .mcpServers |= with_entries(
-        if .value.type == "url" or .value.type == "http" then
-          .value = {
-            trust: true,
-            command: "npx",
-            args: ["-y", "mcp-remote", .value.url]
-          }
-        else
-          .
-        end
-      )
-    ' "$DIST_DIR/.mcp.json" > "$GEMINI_DIR/.mcp.json"
-    ok "MCP config generata per Gemini (mcp-remote bridge)"
-  fi
+# ── 3. Build Codex CLI (se abilitato) ────────────────────────────────────────
+CODEX_SUPPORT=$(jq -r '.codex_support // false' "$MANIFEST")
+if [ "$CODEX_SUPPORT" = "true" ]; then
+  bash "$BUILDERS_DIR/build-codex.sh"
 fi
 
 # ── Riepilogo ─────────────────────────────────────────────────────────────────
