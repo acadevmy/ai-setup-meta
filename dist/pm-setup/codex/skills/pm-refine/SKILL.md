@@ -1,9 +1,6 @@
 ---
 name: pm-refine
 description: Validazione INVEST delle User Story, generazione Acceptance Criteria in formato Gherkin, arricchimento con note tecniche per i developer.
-model: opus
-user-invocable: true
-disable-model-invocation: false
 ---
 
 # /project:pm-refine
