@@ -49,6 +49,7 @@ Leggi `PM-CONSTITUTION.md` per verificare:
 
 Analizza le **Aree funzionali** del Discovery Brief.
 Ogni area funzionale di alto livello diventa una **Epic**.
+Controlla su Clickup le Epic esistenti e non duplicarle.
 
 Per ogni Epic:
 - **Titolo**: sostantivo breve e descrittivo, massimo 3-4 parole
@@ -89,7 +90,7 @@ And <continuazione, in italiano>
 
 ### 5. Generare i Task tecnici
 
-Per ogni Epic, genera i **Task** tecnici necessari come sotto-task diretti dell'Epic
+Per ogni Epic, genera i **Task** tecnici se necessari come sotto-task diretti dell'Epic
 (allo stesso livello delle User Story, NON come sotto-task delle User Story).
 
 **IMPORTANTE**: la gerarchia ha massimo 1 livello di annidamento.
@@ -111,7 +112,6 @@ Assumptions
 <Assunzioni da validare con il team tecnico, in italiano>
 
 Acceptance Criteria
-I know this is true when...
 <Criterio di completamento verificabile, in italiano>
 
 Risks
