@@ -61,7 +61,7 @@ Per ogni Epic nella gerarchia approvata:
    - `tags`: solo tag gia' esistenti nello space (recuperati al punto 3), se appropriati
    - `priority`: la priorita' assegnata in pm-refine (se presente)
 
-2. **Attendi qualche secondo** — ClickUp applica un template automatico al tipo di task
+2. **Attendi 3 secondi** — ClickUp applica un template automatico al tipo di task
 
 3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`.
    La descrizione deve seguire il formato del template ClickUp (titoli in inglese,
@@ -98,7 +98,7 @@ Per ogni **User Story** nella gerarchia approvata:
    - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
 
-2. **Attendi qualche secondo** — ClickUp applica un template automatico al tipo di task
+2. **Attendi 3 secondi** — ClickUp applica un template automatico al tipo di task
 
 3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`.
    La descrizione deve seguire il formato del template ClickUp (titoli sezione in inglese,
@@ -128,7 +128,7 @@ Per ogni **Task** nella gerarchia approvata:
    - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
 
-2. **Attendi qualche secondo** — ClickUp applica un template automatico al tipo di task
+2. **Attendi 3 secondi** — ClickUp applica un template automatico al tipo di task
 
 3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`.
    La descrizione deve seguire il formato del template ClickUp (titoli sezione in inglese,
