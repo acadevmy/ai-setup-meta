@@ -1,9 +1,6 @@
 ---
 name: pm-publish
 description: Pubblica la gerarchia approvata di Epic/User Story/Task su ClickUp via MCP. Gestisce tipi custom, gerarchia padre-figlio e delay per template.
-model: opus
-user-invocable: true
-disable-model-invocation: false
 ---
 
 # /project:pm-publish

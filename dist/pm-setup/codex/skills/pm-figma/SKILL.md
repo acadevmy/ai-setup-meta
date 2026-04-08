@@ -1,9 +1,6 @@
 ---
 name: pm-figma
 description: Analizza un progetto o nodo Figma e genera User Stories e Task per riprodurre il layout. Il PM fornisce un URL Figma e la skill estrae i componenti, le schermate e i flussi utente.
-model: opus
-user-invocable: true
-disable-model-invocation: false
 ---
 
 # /project:pm-figma

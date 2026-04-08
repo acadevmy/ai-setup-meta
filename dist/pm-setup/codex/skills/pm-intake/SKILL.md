@@ -1,9 +1,6 @@
 ---
 name: pm-intake
 description: Parsing di un documento di requisiti e generazione di un Discovery Brief strutturato. Usa quando il PM fornisce un documento da analizzare.
-model: opus
-user-invocable: true
-disable-model-invocation: false
 ---
 
 # /project:pm-intake
