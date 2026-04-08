@@ -1,8 +1,6 @@
 ---
 name: clickup
 description: Reference documentation for ClickUp operations via MCP (statuses, workflow, task CRUD)
-user-invocable: false
-disable-model-invocation: false
 ---
 
 # Skill: ClickUp Operations

@@ -1,9 +1,6 @@
 ---
 name: pm-transcript
 description: Recupera e analizza trascrizioni Google Meet da Google Drive. Mostra le trascrizioni disponibili, il PM sceglie quale analizzare, poi la converte in un Discovery Brief compatibile con pm-structure.
-model: opus
-user-invocable: true
-disable-model-invocation: false
 ---
 
 # /project:pm-transcript

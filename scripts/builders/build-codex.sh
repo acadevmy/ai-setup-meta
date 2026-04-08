@@ -39,8 +39,38 @@ ok "AGENTS.md generato per Codex"
 # ── Governance ───────────────────────────────────────────────────────────────
 copy_governance "$CODEX_DIR" "Codex"
 
-# ── Skills (Codex usa SKILL.md nativamente) ──────────────────────────────────
-copy_skills "$CODEX_DIR/skills" "Codex" "setup"
+# ── Skills (Codex usa SKILL.md — sanitizza frontmatter Claude Code) ──────────
+# Codex accetta solo name, description e metadata nel frontmatter.
+# Rimuovi campi specifici di Claude Code: model, user-invocable, disable-model-invocation
+CODEX_SKILL_COUNT=0
+for SKILL_DIR in "$DIST_DIR/skills"/*/; do
+  SKILL_FILE="$SKILL_DIR/SKILL.md"
+  [ -f "$SKILL_FILE" ] || continue
+
+  SKILL_NAME=$(basename "$SKILL_DIR")
+
+  # Salta setup (specifico di Claude Code)
+  [ "$SKILL_NAME" = "setup" ] && continue
+
+  SKILL_DST="$CODEX_DIR/skills/$SKILL_NAME"
+  mkdir -p "$SKILL_DST"
+
+  # Sanitizza: rimuovi righe frontmatter non supportate da Codex
+  awk '
+    BEGIN { in_front=0; front_count=0 }
+    /^---$/ {
+      front_count++
+      if (front_count == 1) { in_front=1; print; next }
+      if (front_count == 2) { in_front=0; print; next }
+    }
+    in_front && /^(model|user-invocable|disable-model-invocation):/ { next }
+    { print }
+  ' "$SKILL_FILE" > "$SKILL_DST/SKILL.md"
+
+  CODEX_SKILL_COUNT=$((CODEX_SKILL_COUNT + 1))
+done
+
+ok "Skills copiate per Codex: $CODEX_SKILL_COUNT (frontmatter sanitizzato)"
 
 # ── .mcp.json (Codex plugin usa .mcp.json, come Claude Code) ────────────────
 # Il formato e' lo stesso di Claude Code: i server URL/HTTP sono supportati nativamente.

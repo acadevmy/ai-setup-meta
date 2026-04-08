@@ -1,9 +1,6 @@
 ---
 name: pm-review
 description: Presenta la gerarchia completa Epic/Story/Task al PM per revisione e approvazione. Loop di iterazione fino ad approvazione.
-model: sonnet
-user-invocable: true
-disable-model-invocation: false
 ---
 
 # /project:pm-review

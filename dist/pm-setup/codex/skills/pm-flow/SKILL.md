@@ -1,9 +1,6 @@
 ---
 name: pm-flow
 description: Flusso completo orchestrato per la creazione di task ClickUp da un documento di requisiti. Guida il PM dall'analisi alla pubblicazione.
-model: opus
-user-invocable: true
-disable-model-invocation: false
 ---
 
 # /project:pm-flow

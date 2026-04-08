@@ -11,91 +11,65 @@ Guida per configurare il workflow AI-Native per Project Manager su **OpenAI Code
 
 ## Installazione
 
-### Opzione A: Installazione personale (disponibile in tutti i progetti)
+### 1. Installa le skill (globali — disponibili in tutti i progetti)
 
 ```bash
-# 1. Crea la directory plugin personale
-mkdir -p ~/.codex/plugins
-
-# 2. Scarica il plugin
+# Scarica e installa le skill nella directory globale di Codex
+mkdir -p ~/.agents/skills
 curl -sL "https://github.com/acadevmy/ai-setup-meta/archive/refs/heads/main.tar.gz" | \
-  tar -xz --strip-components=3 -C ~/.codex/plugins/ "ai-setup-meta-main/dist/pm-setup/codex"
-mv ~/.codex/plugins/codex ~/.codex/plugins/pm-setup
+  tar -xz -C /tmp "ai-setup-meta-main/dist/pm-setup/codex/skills"
 
-# 3. Registra il plugin nel marketplace personale
-mkdir -p ~/.agents/plugins
-cat > ~/.agents/plugins/marketplace.json << 'JSON'
-{
-  "name": "acadevmy",
-  "interface": {
-    "displayName": "Acadevmy Plugins"
-  },
-  "plugins": [
-    {
-      "name": "pm-setup",
-      "source": {
-        "source": "local",
-        "path": "~/.codex/plugins/pm-setup"
-      },
-      "policy": {
-        "installation": "INSTALLED_BY_DEFAULT"
-      },
-      "category": "Productivity"
-    }
-  ]
-}
-JSON
+# Copia ogni skill nella directory di discovery globale
+for skill in /tmp/ai-setup-meta-main/dist/pm-setup/codex/skills/*/; do
+  cp -R "$skill" ~/.agents/skills/
+done
 
-# 4. Riavvia Codex
+# Copia AGENTS.md e PM-CONSTITUTION.md nella home (setup globale)
+cp /tmp/ai-setup-meta-main/dist/pm-setup/codex/AGENTS.md ~/.agents/AGENTS.md
+cp /tmp/ai-setup-meta-main/dist/pm-setup/codex/PM-CONSTITUTION.md ~/.agents/PM-CONSTITUTION.md
+
+# Pulizia
+rm -rf /tmp/ai-setup-meta-main
 ```
 
-### Opzione B: Installazione per progetto
+### 2. Configura i server MCP
 
-```bash
-# 1. Nella root del progetto, crea la directory plugin
-mkdir -p ./plugins
+Aggiungi i server MCP nel file `~/.codex/config.toml`:
 
-# 2. Scarica il plugin
-curl -sL "https://github.com/acadevmy/ai-setup-meta/archive/refs/heads/main.tar.gz" | \
-  tar -xz --strip-components=3 -C ./plugins/ "ai-setup-meta-main/dist/pm-setup/codex"
-mv ./plugins/codex ./plugins/pm-setup
-
-# 3. Registra il plugin nel marketplace del repo
-mkdir -p .agents/plugins
-cat > .agents/plugins/marketplace.json << 'JSON'
-{
-  "name": "pm-setup-local",
-  "interface": {
-    "displayName": "PM Setup"
-  },
-  "plugins": [
-    {
-      "name": "pm-setup",
-      "source": {
-        "source": "local",
-        "path": "./plugins/pm-setup"
-      },
-      "policy": {
-        "installation": "INSTALLED_BY_DEFAULT"
-      },
-      "category": "Productivity"
-    }
-  ]
-}
-JSON
-
-# 4. Riavvia Codex
+```toml
+# ClickUp — gestione task
+[mcp_servers.clickup]
+command = "npx"
+args = ["-y", "mcp-remote", "https://mcp.clickup.com/mcp"]
 ```
 
-### 3. Configura i server MCP (opzionale)
+Al primo utilizzo di ClickUp, Codex ti chiedera' di autorizzare l'accesso al tuo workspace.
 
-Il plugin include gia' la configurazione MCP per ClickUp, Google Drive e Figma.
-Se devi personalizzare i server, modifica il file `.mcp.json` nella directory del plugin.
+### 3. (Opzionale) Configura Google Drive
 
-Per configurare Google Drive, imposta le credenziali OAuth seguendo le istruzioni di
+Per accedere alle trascrizioni Google Meet, aggiungi in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.gdrive]
+command = "npx"
+args = ["@piotr-agier/google-drive-mcp"]
+
+[mcp_servers.gdrive.env]
+GOOGLE_DRIVE_OAUTH_CREDENTIALS = "${GOOGLE_DRIVE_OAUTH_CREDENTIALS}"
+```
+
+Configura le credenziali OAuth seguendo le istruzioni di
 [@piotr-agier/google-drive-mcp](https://www.npmjs.com/package/@piotr-agier/google-drive-mcp).
 
-Per Figma, imposta la variabile `FIGMA_OAUTH_TOKEN` nel tuo ambiente.
+### 4. (Opzionale) Configura Figma
+
+Per analizzare i design da Figma, aggiungi in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.figma]
+url = "https://mcp.figma.com/mcp"
+bearer_token_env_var = "FIGMA_OAUTH_TOKEN"
+```
 
 ## Verifica installazione
 
@@ -105,21 +79,21 @@ Avvia Codex CLI:
 codex
 ```
 
-Verifica che il plugin sia attivo:
+Verifica che le skill siano caricate:
 
 ```
-/plugins
+/skills
 ```
 
-Dovresti vedere `pm-setup` nella lista. Verifica i server MCP:
+Dovresti vedere le skill `pm-flow`, `pm-intake`, `pm-transcript`, etc. nella lista.
+
+Verifica i server MCP:
 
 ```
 /mcp
 ```
 
 ## Skill disponibili
-
-Le skill sono accessibili tramite `/skills` oppure invocando il plugin con `@pm-setup`.
 
 | Skill | Descrizione |
 |---|---|
@@ -137,46 +111,46 @@ Le skill sono accessibili tramite `/skills` oppure invocando il plugin con `@pm-
 ### Da un documento di requisiti
 
 ```
-@pm-setup esegui pm-flow con il file requisiti.md
+Esegui la skill pm-flow con il file requisiti.md
 ```
 
 ### Da una trascrizione di meeting
 
 ```
-@pm-setup esegui pm-transcript
+Esegui la skill pm-transcript
 ```
 
 ### Da un design Figma
 
 ```
-@pm-setup esegui pm-figma con URL https://www.figma.com/design/abc123/My-Project?node-id=1-2
+Esegui la skill pm-figma con URL https://www.figma.com/design/abc123/My-Project?node-id=1-2
 ```
 
-## Struttura plugin
+## Struttura dei file installati
 
 ```
-pm-setup/
-├── .codex-plugin/
-│   └── plugin.json            # Manifest plugin Codex
-├── .mcp.json                  # Configurazione MCP servers
-├── skills/
-│   ├── clickup/SKILL.md
-│   ├── pm-flow/SKILL.md
-│   ├── pm-intake/SKILL.md
-│   ├── pm-transcript/SKILL.md
-│   ├── pm-figma/SKILL.md
-│   ├── pm-structure/SKILL.md
-│   ├── pm-refine/SKILL.md
-│   ├── pm-review/SKILL.md
-│   └── pm-publish/SKILL.md
-├── AGENTS.md                  # Istruzioni di sistema
-└── PM-CONSTITUTION.md         # Regole qualita' task
+~/.agents/
+├── AGENTS.md                      # Istruzioni di sistema
+├── PM-CONSTITUTION.md             # Regole qualita' task
+└── skills/
+    ├── clickup/SKILL.md
+    ├── pm-flow/SKILL.md
+    ├── pm-intake/SKILL.md
+    ├── pm-transcript/SKILL.md
+    ├── pm-figma/SKILL.md
+    ├── pm-structure/SKILL.md
+    ├── pm-refine/SKILL.md
+    ├── pm-review/SKILL.md
+    └── pm-publish/SKILL.md
+
+~/.codex/
+└── config.toml                    # Configurazione MCP servers
 ```
 
 ## Aggiornamento
 
-Per aggiornare il plugin, riesegui i comandi di download del punto 2
-(sovrascrivendo la directory del plugin), poi riavvia Codex.
+Per aggiornare le skill, riesegui i comandi di download del punto 1
+(sovrascrivendo le skill esistenti), poi riavvia Codex.
 
 ---
 *Generato da: ai-base-setup v1.0.0*

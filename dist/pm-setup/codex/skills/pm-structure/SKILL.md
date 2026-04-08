@@ -1,9 +1,6 @@
 ---
 name: pm-structure
 description: Genera la gerarchia Epic/User Story/Task a partire da un Discovery Brief. Applica User Story Mapping per organizzare i requisiti in task strutturati.
-model: opus
-user-invocable: true
-disable-model-invocation: false
 ---
 
 # /project:pm-structure
