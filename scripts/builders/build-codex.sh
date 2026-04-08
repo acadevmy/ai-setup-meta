@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# build-codex.sh — Builder per OpenAI Codex CLI
+#
+# Genera la variante Codex in $DIST_DIR/codex/.
+# Richiede che il build Claude sia gia' stato eseguito (legge da $DIST_DIR/).
+# Variabili richieste dall'orchestratore:
+#   ROOT_DIR, TEMPLATE_DIR, MANIFEST, DIST_DIR, NAME, DESCRIPTION, VERSION, AUTHOR
+#
+# Ref: https://developers.openai.com/codex/plugins/build
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
+step "Generazione output OpenAI Codex CLI"
+
+CODEX_DIR="$DIST_DIR/codex"
+mkdir -p "$CODEX_DIR/.codex-plugin"
+mkdir -p "$CODEX_DIR/skills"
+
+# ── AGENTS.md — istruzioni di sistema ────────────────────────────────────────
+{
+  echo "# Codex System Instructions — $DESCRIPTION"
+  echo ""
+  echo "> Generato automaticamente da ai-base-setup. Non modificare direttamente."
+  echo ""
+
+  AGENTS_TPL="$DIST_DIR/skills/setup/templates/AGENTS.template.md"
+  if [ -f "$AGENTS_TPL" ]; then
+    echo "---"
+    echo ""
+    # Adatta i comandi da /project:pm-* a nomi skill diretti
+    sed 's|`/project:pm-|`pm-|g; s|/project:pm-|pm-|g' "$AGENTS_TPL"
+    echo ""
+  fi
+} > "$CODEX_DIR/AGENTS.md"
+
+ok "AGENTS.md generato per Codex"
+
+# ── Governance ───────────────────────────────────────────────────────────────
+copy_governance "$CODEX_DIR" "Codex"
+
+# ── Skills (Codex usa SKILL.md nativamente) ──────────────────────────────────
+copy_skills "$CODEX_DIR/skills" "Codex" "setup"
+
+# ── .mcp.json (Codex plugin usa .mcp.json, come Claude Code) ────────────────
+# Il formato e' lo stesso di Claude Code: i server URL/HTTP sono supportati nativamente.
+# Ref: https://developers.openai.com/codex/mcp
+if [ -f "$DIST_DIR/.mcp.json" ]; then
+  # Rimuovi il campo "type" che e' specifico di Claude Code — Codex usa "url" direttamente
+  jq '
+    .mcpServers |= with_entries(
+      if .value.type == "url" or .value.type == "http" then
+        .value |= {url: .url}
+      else
+        .
+      end
+    )
+  ' "$DIST_DIR/.mcp.json" > "$CODEX_DIR/.mcp.json"
+  ok ".mcp.json generata per Codex"
+fi
+
+# ── plugin.json ──────────────────────────────────────────────────────────────
+# Ref: https://developers.openai.com/codex/plugins/build
+# Genera displayName: "pm-setup" → "Pm Setup"
+DISPLAY_NAME=$(echo "$NAME" | tr '-' ' ' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1')
+
+jq -n \
+  --arg name "$NAME" \
+  --arg version "$VERSION" \
+  --arg description "$DESCRIPTION" \
+  --arg author "$AUTHOR" \
+  --arg displayName "$DISPLAY_NAME" \
+  '{
+    name: $name,
+    version: $version,
+    description: $description,
+    author: { name: $author },
+    skills: "./skills/",
+    mcpServers: "./.mcp.json",
+    interface: {
+      displayName: $displayName,
+      shortDescription: $description,
+      developerName: $author,
+      category: "Productivity"
+    }
+  }' > "$CODEX_DIR/.codex-plugin/plugin.json"
+
+ok "plugin.json generato per Codex"
+
+# ── README ───────────────────────────────────────────────────────────────────
+CODEX_README="$TEMPLATE_DIR/CODEX-README.md"
+if [ -f "$CODEX_README" ]; then
+  cp "$CODEX_README" "$CODEX_DIR/README.md"
+  ok "README.md copiato per Codex"
+fi

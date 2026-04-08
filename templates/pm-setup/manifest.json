@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "author": "Acadevmy",
   "gemini_support": true,
+  "codex_support": true,
   "agent": "pm-setup-agent.md",
   "setup_skill": "setup-skill.md",
   "shared_agents": ["clickup.md"],
