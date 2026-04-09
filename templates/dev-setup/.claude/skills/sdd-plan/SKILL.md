@@ -42,14 +42,13 @@ Highlight the current status (draft/approved/implemented).
 
 ### 3. Discussion and iteration
 
-Ask the developer how they want to proceed:
+Ask the developer how they want to proceed using the `AskUserQuestion` tool with these options:
+- Approve — the spec is ready, proceed with development
+- Modify — indicate what to change
+- Regenerate — regenerate the spec from scratch (will invoke sdd-spec)
 
-```
-How do you want to proceed?
-1. Approve — the spec is ready, proceed with development
-2. Modify — indicate what to change
-3. Regenerate — regenerate the spec from scratch (will invoke sdd-spec)
-```
+**STOP after asking**: after presenting the question, end your turn immediately.
+Do NOT add filler text, reminders, or repeat the question. Your turn is OVER.
 
 **If the developer chooses "Approve"**:
 - Update the spec file: change `Status: draft` to `Status: approved`

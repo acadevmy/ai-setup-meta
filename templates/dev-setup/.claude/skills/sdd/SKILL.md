@@ -34,17 +34,9 @@ with the developer, and only after approval proceeds with development.
   - INTENT: `filter`
   - PARAMS: `list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`
 - If the agent returns STATUS: error, inform the developer and stop
-- Ask the developer how many tasks they want to view (default: 5)
-- From the results, take the first N tasks sorted by priority (1 = urgent, ..., 4 = low)
-- Present them to the developer:
-  ```
-  Available tasks (SPRINT):
-  1. [DE-123] Task title 1 (Priority: Urgent)
-  2. [DE-124] Task title 2 (Priority: High)
-  3. [DE-125] Task title 3 (Priority: Normal)
-  ...
-  ```
-- Ask the developer which task they want to take on
+- From the results, take the first 5 tasks sorted by priority (1 = urgent, ..., 4 = low)
+- Present them to the developer using the `AskUserQuestion` tool with the task list as options
+- **STOP after asking** — end your turn, do NOT add filler or reminders
 - Launch the `clickup` agent with INTENT: `read` to retrieve the full content of the chosen task
 
 From the agent output, extract:
@@ -118,13 +110,12 @@ explicitly approves the spec. The developer can:
 
 ### 8. Choose the development methodology
 
-After spec approval, ask the developer:
-```
-Development methodology:
-1. TDD (Red-Green-Refactor) — recommended for backend, business logic, APIs, services
-2. BDD (Given/When/Then) — recommended for frontend, UI components, user flows
-3. None — direct development without test-first cycle
-```
+After spec approval, ask the developer using the `AskUserQuestion` tool with these options:
+- TDD (Red-Green-Refactor) — recommended for backend, business logic, APIs, services
+- BDD (Given/When/Then) — recommended for frontend, UI components, user flows
+- None — direct development without test-first cycle
+
+**STOP after asking** — end your turn, do NOT add filler or reminders.
 
 ### 9. Development
 
