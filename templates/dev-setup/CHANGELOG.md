@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.6] - 2026-04-09
+
+### Changed
+- Aggiornamento plugin
+
 ## [1.0.5] - 2026-04-09
 
 ### Added
