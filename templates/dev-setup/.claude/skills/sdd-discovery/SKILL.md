@@ -66,21 +66,33 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
 #### Strict rules
 
 1. **One question at a time**: NEVER make lists of questions. Ask a single question
-   (or at most two closely related ones), wait for the answer, analyze it, then
-   decide the next move. This must be a dynamic conversation, not a questionnaire.
+   (or at most two closely related ones), then **STOP your turn completely**.
+   This must be a dynamic conversation, not a questionnaire.
 
-2. **Don't settle**: If the answer is vague, incomplete or introduces new ambiguities,
+2. **STOP after asking — CRITICAL**: After posing each question you MUST end your
+   message immediately. Do NOT add filler text like "I'm waiting for your answer",
+   "let me know", "take your time", or any reminder/follow-up. Do NOT repeat or
+   rephrase the question. Do NOT generate any additional content after the question.
+   Your turn is OVER. The next message will be the developer's answer.
+
+3. **Use AskUserQuestion for closed questions**: When the question has a finite set
+   of likely answers (yes/no, choice among options, confirm/deny), use the
+   `AskUserQuestion` tool instead of plain text. This presents an interactive
+   selection UI to the developer. For open-ended questions where the developer
+   needs to explain or describe something, use plain text.
+
+4. **Don't settle**: If the answer is vague, incomplete or introduces new ambiguities,
    do NOT move on to the next topic. Dig deep with follow-up questions
    (e.g. "What exactly do you mean by X?", "What happens if the user does Y instead of X?").
 
-3. **Investigate edge cases**: For each feature, push the developer to think
+5. **Investigate edge cases**: For each feature, push the developer to think
    about failures (What happens if the database is offline? If the input is malformed?
    If the user doesn't have permissions?).
 
-4. **Respect boundaries**: If the developer says "I don't know yet" or "to be defined",
+6. **Respect boundaries**: If the developer says "I don't know yet" or "to be defined",
    accept it and note it as a gray area — don't insist. Flag it in the final summary.
 
-5. **Soft cap**: Aim to gather everything in **maximum 10-12 questions**. The developer
+7. **Soft cap**: Aim to gather everything in **maximum 10-12 questions**. The developer
    can say "enough, I've said everything" at any time to close the interview.
 
 #### Discovery framework
