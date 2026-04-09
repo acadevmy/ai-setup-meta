@@ -10,7 +10,7 @@
     {
       "name": "dev-setup",
       "source": "./dist/dev-setup",
-      "version": "1.0.0",
+      "version": "1.0.5",
       "description": "Setup AI-native per progetti di sviluppo software"
     }
   ]

@@ -56,7 +56,8 @@ step "Build plugin: $TEMPLATE_NAME"
 # ── Leggi manifest ────────────────────────────────────────────────────────────
 NAME=$(jq -r '.name' "$MANIFEST")
 DESCRIPTION=$(jq -r '.description' "$MANIFEST")
-VERSION=$(grep -oP 'TEMPLATE_VERSION=\K.*' "$TEMPLATE_DIR/.env.example" 2>/dev/null || echo "1.0.0")
+VERSION=$(sed -n 's/^TEMPLATE_VERSION=//p' "$TEMPLATE_DIR/.env.example" 2>/dev/null || echo "1.0.0")
+[ -z "$VERSION" ] && VERSION="1.0.0"
 AUTHOR=$(jq -r '.author // "Acadevmy"' "$MANIFEST")
 
 ok "Manifest letto: $NAME v$VERSION"
