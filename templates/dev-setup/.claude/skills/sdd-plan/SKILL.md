@@ -50,13 +50,24 @@ Highlight the current status (draft/approved/implemented).
 
 ### 3. Discussion and iteration
 
-Ask the developer how they want to proceed using the `AskUserQuestion` tool with these options:
-- Approve — the spec is ready, proceed with development
-- Modify — indicate what to change
-- Regenerate — regenerate the spec from scratch (will invoke sdd-spec)
+Ask the developer how they want to proceed by calling the `AskUserQuestion` tool:
 
-**STOP after asking**: after presenting the question, end your turn immediately.
-Do NOT add filler text, reminders, or repeat the question. Your turn is OVER.
+```json
+AskUserQuestion({
+  "questions": [{
+    "question": "Come vuoi procedere con la spec?",
+    "header": "Spec review",
+    "options": [
+      { "label": "Approva", "description": "La spec e' pronta, procedi con lo sviluppo." },
+      { "label": "Modifica", "description": "Indica cosa cambiare nella spec." },
+      { "label": "Rigenera", "description": "Rigenera la spec da zero (invochera' sdd-spec)." }
+    ],
+    "multiSelect": false
+  }]
+})
+```
+
+**STOP after the tool call**: end your turn immediately. No filler text, no reminders.
 
 **If the developer chooses "Approve"**:
 - Update the spec file: change `Status: draft` to `Status: approved`

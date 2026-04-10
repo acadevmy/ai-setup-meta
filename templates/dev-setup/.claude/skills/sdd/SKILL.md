@@ -44,8 +44,21 @@ for the developer IS the correct state.
   - PARAMS: `list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`
 - If the agent returns STATUS: error, inform the developer and stop
 - From the results, take the first 5 tasks sorted by priority (1 = urgent, ..., 4 = low)
-- Present them to the developer using the `AskUserQuestion` tool with the task list as options
-- **STOP after asking** — end your turn, do NOT add filler or reminders
+- Present them using `AskUserQuestion`. Example:
+  ```json
+  AskUserQuestion({
+    "questions": [{
+      "question": "Quale task vuoi prendere in carico?",
+      "header": "Task",
+      "options": [
+        { "label": "[DE-123] Task title", "description": "Priority: Urgent" },
+        { "label": "[DE-124] Task title", "description": "Priority: High" }
+      ],
+      "multiSelect": false
+    }]
+  })
+  ```
+- **STOP after the tool call** — end your turn, no filler
 - Launch the `clickup` agent with INTENT: `read` to retrieve the full content of the chosen task
 
 From the agent output, extract:
@@ -119,12 +132,24 @@ explicitly approves the spec. The developer can:
 
 ### 8. Choose the development methodology
 
-After spec approval, ask the developer using the `AskUserQuestion` tool with these options:
-- TDD (Red-Green-Refactor) — recommended for backend, business logic, APIs, services
-- BDD (Given/When/Then) — recommended for frontend, UI components, user flows
-- None — direct development without test-first cycle
+After spec approval, call `AskUserQuestion`:
 
-**STOP after asking** — end your turn, do NOT add filler or reminders.
+```json
+AskUserQuestion({
+  "questions": [{
+    "question": "Quale metodologia di sviluppo vuoi usare?",
+    "header": "Metodologia",
+    "options": [
+      { "label": "TDD (Recommended)", "description": "Red-Green-Refactor — per backend, business logic, API, servizi." },
+      { "label": "BDD", "description": "Given/When/Then — per frontend, componenti UI, user flow." },
+      { "label": "Nessuna", "description": "Sviluppo diretto senza ciclo test-first." }
+    ],
+    "multiSelect": false
+  }]
+})
+```
+
+**STOP after the tool call** — end your turn, no filler.
 
 ### 9. Development
 

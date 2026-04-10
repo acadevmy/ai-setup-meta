@@ -94,11 +94,35 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    - Responding to Stop hooks with additional text — reply `{"ok": true}` to hooks
    - ANY text at all after the question mark
 
-3. **Use AskUserQuestion for closed questions**: When the question has a finite set
-   of likely answers (yes/no, choice among options, confirm/deny), use the
-   `AskUserQuestion` tool instead of plain text. This presents an interactive
-   selection UI to the developer. For open-ended questions where the developer
-   needs to explain or describe something, use plain text.
+3. **Use AskUserQuestion tool for closed questions**: When the question has a
+   finite set of likely answers (yes/no, choice among options, confirm/deny),
+   you MUST call the `AskUserQuestion` tool instead of writing plain text.
+   This presents an interactive selection modal to the developer.
+   For open-ended questions where the developer needs to explain or describe
+   something freely, use plain text instead.
+
+   **How to call it** — example for a yes/no confirmation:
+   ```json
+   AskUserQuestion({
+     "questions": [{
+       "question": "La creazione del QR code deve avvenire solo in fase di creazione della missione, non in modifica?",
+       "header": "QR Creation",
+       "options": [
+         { "label": "Solo creazione", "description": "Il QR code viene generato solo quando la missione viene creata. In modifica resta invariato." },
+         { "label": "Anche in modifica", "description": "Il QR code puo' essere rigenerato anche quando si modifica la missione." },
+         { "label": "Da definire", "description": "Non ancora deciso, lo segno come gray area." }
+       ],
+       "multiSelect": false
+     }]
+   })
+   ```
+
+   **When to use it vs plain text**:
+   - Confirmation (yes/no/tbd) → AskUserQuestion
+   - Choice among 2-4 options → AskUserQuestion
+   - "Which of these approaches?" → AskUserQuestion
+   - "Describe the flow step by step" → plain text
+   - "What happens when X?" (open-ended) → plain text
 
 4. **Don't settle**: If the answer is vague, incomplete or introduces new ambiguities,
    do NOT move on to the next topic. Dig deep with follow-up questions
