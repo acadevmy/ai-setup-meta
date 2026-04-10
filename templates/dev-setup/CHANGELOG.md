@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.5] - 2026-04-10
+
+### Added
+- declare allowed-tools AskUserQuestion in skill frontmatter
+
 ## [1.3.4] - 2026-04-10
 
 ### Added
