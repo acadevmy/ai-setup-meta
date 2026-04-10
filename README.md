@@ -5,6 +5,8 @@ e il sistema **plugin + marketplace** che li distribuisce ai progetti degli svil
 
 ## Setup per sviluppatori
 
+### Claude Code
+
 Per aggiungere il workflow AI-Native a qualsiasi progetto (nuovo o esistente):
 
 ```bash
@@ -23,6 +25,37 @@ L'agente analizzera' il progetto e applichera' tutto in modo adattivo:
 - **Progetto nuovo (greenfield)**: setup completo con quality tools, profilo stack, MCP
 
 **Prerequisiti**: `git`, `claude` CLI. Opzionale: `gh` CLI (per MCP ClickUp e operazioni greenfield).
+
+### OpenAI Codex CLI
+
+I template che supportano Codex (attualmente `pm-setup`) distribuiscono skill compatibili
+in `dist/<template>/codex/`. L'installazione avviene copiando le skill nella directory
+di discovery globale `~/.agents/skills/`:
+
+```bash
+# Scarica e installa le skill
+mkdir -p ~/.agents/skills
+curl -sL "https://github.com/acadevmy/ai-setup-meta/archive/refs/heads/main.tar.gz" | \
+  tar -xz -C /tmp "ai-setup-meta-main/dist/pm-setup/codex/skills"
+for skill in /tmp/ai-setup-meta-main/dist/pm-setup/codex/skills/*/; do
+  cp -R "$skill" ~/.agents/skills/
+done
+rm -rf /tmp/ai-setup-meta-main
+```
+
+Le skill sono accessibili tramite `/skills` in Codex CLI.
+Per la guida completa (MCP, Google Drive, Figma) vedi
+[dist/pm-setup/codex/README.md](dist/pm-setup/codex/README.md).
+
+**Prerequisiti**: `codex` CLI, Node.js 18+, account ClickUp.
+
+### Gemini CLI
+
+I template che supportano Gemini (attualmente `pm-setup`) distribuiscono comandi `.toml`
+in `dist/<template>/gemini/`. Per la guida completa vedi
+[dist/pm-setup/gemini/README.md](dist/pm-setup/gemini/README.md).
+
+**Prerequisiti**: `gemini` CLI, Node.js 18+, account ClickUp.
 
 ## Architettura
 
@@ -83,14 +116,23 @@ ai-setup-meta/
 │           ├── backend-node.md
 │           └── mobile.md
 ├── dist/                        # Plugin built (generati, committati)
-│   └── dev-setup/               # Plugin Claude Code self-contained
-│       ├── .claude-plugin/plugin.json
-│       ├── skills/              # 13 skills (template + shared + setup)
-│       ├── agents/              # 2 agents (review + clickup)
-│       ├── hooks/               # hooks.json + scripts
-│       └── .mcp.json            # context7
+│   ├── dev-setup/               # Plugin Claude Code self-contained
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/              # 13 skills (template + shared + setup)
+│   │   ├── agents/              # 2 agents (review + clickup)
+│   │   ├── hooks/               # hooks.json + scripts
+│   │   └── .mcp.json            # context7
+│   └── pm-setup/                # Plugin PM multi-piattaforma
+│       ├── .claude-plugin/      # Claude Code
+│       ├── gemini/              # Gemini CLI (comandi .toml, mcp-remote)
+│       └── codex/               # Codex CLI (SKILL.md nativi, config.toml)
 ├── scripts/
-│   ├── build-plugin.sh          # Build: manifest → plugin in dist/
+│   ├── build-plugin.sh          # Orchestratore: legge manifest, invoca i builder
+│   ├── builders/
+│   │   ├── common.sh            # Funzioni condivise (ok, warn, fail, step)
+│   │   ├── build-claude.sh      # Builder Claude Code (sempre eseguito)
+│   │   ├── build-gemini.sh      # Builder Gemini CLI (se gemini_support)
+│   │   └── build-codex.sh       # Builder Codex CLI (se codex_support)
 │   ├── release-plugin.sh        # Release: version bump + build + tag + push
 │   ├── init-meta.sh
 │   └── validate-setup-urls.sh

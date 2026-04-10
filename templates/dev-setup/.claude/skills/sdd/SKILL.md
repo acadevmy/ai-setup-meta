@@ -13,6 +13,15 @@ Unlike `/project:start-task` which goes directly to development, this flow
 first produces a **technical specification** and an **implementation plan**, discusses them
 with the developer, and only after approval proceeds with development.
 
+## CRITICAL — Turn behavior at interactive steps
+
+Several steps in this flow require developer input (task selection, discovery
+interview, spec approval, methodology choice). At each of these points, after
+asking the question your message ENDS — produce ZERO additional tokens. Do NOT
+add wait messages, status updates, or rephrase. If the Stop hook fires reporting
+incomplete work during an interactive step, respond with `{"ok": true}` — waiting
+for the developer IS the correct state.
+
 **Usage**: `/project:sdd [TASK_ID]`
 - With `TASK_ID` (e.g. `DE-123`): retrieves that task directly from ClickUp
 - Without arguments: shows available tasks in SPRINT and asks which one to pick
