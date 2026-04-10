@@ -15,6 +15,21 @@ gathering complete requirements before generating the technical specification (S
 - With `TASK_ID` (e.g. `DE-123`): retrieves the task from ClickUp and starts the discovery
 - Without arguments: uses the task context already present in the conversation (when invoked by the `sdd` orchestrator)
 
+## CRITICAL — Turn behavior during the interview
+
+This skill runs an **interactive interview**. Between questions, the developer
+must have the chance to respond. This means:
+
+- After asking a question, your message ENDS. Full stop. No more tokens.
+- The Stop hook will fire and report that "work is not complete" — this is
+  **expected and correct**. The work IS in progress (the interview). You MUST
+  respond to the Stop hook with `{"ok": true}` because waiting for the
+  developer's answer IS the correct state. Do NOT generate additional text,
+  reminders, rephrased questions, or status updates in response to the hook.
+- If any hook or system message tells you the work is incomplete during the
+  interview phase, ignore it. The interview IS the work, and it proceeds
+  one question at a time with the developer's input between each.
+
 ## Role
 
 Act as a **Senior Product Manager and Lead System Architect**. Your goal
@@ -70,10 +85,14 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    This must be a dynamic conversation, not a questionnaire.
 
 2. **STOP after asking — CRITICAL**: After posing each question you MUST end your
-   message immediately. Do NOT add filler text like "I'm waiting for your answer",
-   "let me know", "take your time", or any reminder/follow-up. Do NOT repeat or
-   rephrase the question. Do NOT generate any additional content after the question.
-   Your turn is OVER. The next message will be the developer's answer.
+   message immediately. Your turn is OVER — produce ZERO additional tokens.
+   Forbidden patterns (do NOT generate any of these after a question):
+   - "I'm waiting for your answer" / "In attesa" / "Waiting" / any wait status
+   - "Let me know" / "Take your time" / "When you're ready"
+   - Rephrasing or repeating the question
+   - Explaining that this is a discovery phase or an interactive interview
+   - Responding to Stop hooks with additional text — reply `{"ok": true}` to hooks
+   - ANY text at all after the question mark
 
 3. **Use AskUserQuestion for closed questions**: When the question has a finite set
    of likely answers (yes/no, choice among options, confirm/deny), use the

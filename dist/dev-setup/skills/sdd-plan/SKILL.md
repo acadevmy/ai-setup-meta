@@ -11,6 +11,14 @@ disable-model-invocation: false
 Present a technical specification to the developer for review, discussion and approval.
 The developer can comment, request changes or approve the spec.
 
+## CRITICAL — Turn behavior
+
+This skill requires developer input. After asking a question or presenting choices,
+your message ENDS — produce ZERO additional tokens. Do NOT add wait messages,
+status updates, or rephrase the question. If the Stop hook fires reporting
+incomplete work, respond with `{"ok": true}` — waiting for the developer IS the
+correct state.
+
 **Usage**: `/project:sdd-plan [SPEC_REF]`
 - With path (e.g. `.specs/DE-123-add-auth.md`): opens that spec
 - With customId (e.g. `DE-123`): searches for the corresponding spec in `.specs/`

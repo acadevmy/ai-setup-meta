@@ -54,8 +54,9 @@ step "Build plugin: $TEMPLATE_NAME"
 
 export NAME=$(jq -r '.name' "$MANIFEST")
 export DESCRIPTION=$(jq -r '.description' "$MANIFEST")
-export VERSION=$(grep -oP 'TEMPLATE_VERSION=\K.*' "$TEMPLATE_DIR/.env.example" 2>/dev/null || \
-  jq -r '.version // empty' "$MANIFEST" 2>/dev/null || echo "1.0.0")
+export VERSION=$(sed -n 's/^TEMPLATE_VERSION=//p' "$TEMPLATE_DIR/.env.example" 2>/dev/null)
+[ -z "$VERSION" ] && VERSION=$(jq -r '.version // empty' "$MANIFEST" 2>/dev/null)
+[ -z "$VERSION" ] && VERSION="1.0.0"
 export AUTHOR=$(jq -r '.author // "Acadevmy"' "$MANIFEST")
 export ROOT_DIR
 
