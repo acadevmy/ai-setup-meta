@@ -4,6 +4,7 @@ description: Starts the complete Spec-Driven Development flow (spec, approval, d
 model: opus
 user-invocable: true
 disable-model-invocation: true
+allowed-tools: AskUserQuestion
 ---
 
 # /project:sdd

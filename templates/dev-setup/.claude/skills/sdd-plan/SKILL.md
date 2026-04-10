@@ -4,6 +4,7 @@ description: Presents the technical spec to the developer for discussion, iterat
 model: sonnet
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: AskUserQuestion
 ---
 
 # /project:sdd-plan

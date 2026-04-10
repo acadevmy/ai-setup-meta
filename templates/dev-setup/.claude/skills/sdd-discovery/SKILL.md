@@ -4,6 +4,7 @@ description: Structured discovery interview to gather complete requirements befo
 model: opus
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: AskUserQuestion
 ---
 
 # /project:sdd-discovery
