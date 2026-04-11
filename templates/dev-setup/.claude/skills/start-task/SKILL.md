@@ -45,10 +45,19 @@ Determine the branch type from the task title/description:
 - Bug → `fix/`
 - Maintenance → `chore/`
 
-Create the branch with the customId:
+**Ask the developer which base branch to use**:
+
+1. Run `git branch -r --sort=-committerdate | head -10` to detect available remote branches
+2. Strip the `origin/` prefix and filter out `HEAD`
+3. Build the `AskUserQuestion` options dynamically from the detected branches (max 4).
+   For each branch, use the branch name as `label` and add context as `description`
+   (e.g. last commit date or "branch principale" for main/master)
+4. The developer can always select "Other" to type a custom branch name
+
+Create the branch from the chosen base:
 ```bash
-git checkout main
-git pull origin main
+git checkout <base-branch>
+git pull origin <base-branch>
 git checkout -b <type>/<customId>-<short-description>
 ```
 

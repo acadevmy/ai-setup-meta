@@ -95,22 +95,34 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    - Responding to Stop hooks with additional text — reply `{"ok": true}` to hooks
    - ANY text at all after the question mark
 
-3. **Use AskUserQuestion tool for closed questions**: When the question has a
-   finite set of likely answers (yes/no, choice among options, confirm/deny),
-   you MUST call the `AskUserQuestion` tool instead of writing plain text.
-   This presents an interactive selection modal to the developer.
-   For open-ended questions where the developer needs to explain or describe
-   something freely, use plain text instead.
+3. **Closed-first — ALWAYS use AskUserQuestion**: Every question MUST be asked
+   via the `AskUserQuestion` tool with pre-compiled options. This is the PRIMARY
+   interaction method, not a fallback. The developer can always select "Other"
+   to provide a custom answer if none of the options fit.
 
-   **How to call it** — example for a yes/no confirmation:
+   **How it works**:
+   - Analyze the task context, project stack, and conversation so far
+   - Formulate your question as a closed choice with 2-4 options
+   - Each option should be a realistic, informed suggestion based on context
+   - Always include a "Da definire" option when the developer might not have decided yet
+   - The system automatically adds an "Other" option for free-text input
+
+   **How to convert open-ended questions to closed ones**:
+   - Instead of "What is the main problem?" → propose 2-3 likely problems based on the task description
+   - Instead of "Describe the flow" → propose 2-3 flow variants and let the developer pick or customize
+   - Instead of "What happens on error?" → propose 2-3 common error strategies (retry, notify user, silent log)
+   - If a question truly cannot be pre-compiled (very rare), use plain text — but this should be the exception, not the rule
+
+   **Example — Phase 1 question**:
    ```json
    AskUserQuestion({
      "questions": [{
-       "question": "La creazione del QR code deve avvenire solo in fase di creazione della missione, non in modifica?",
-       "header": "QR Creation",
+       "question": "Qual e' l'obiettivo principale del sistema di notifiche?",
+       "header": "Core Value",
        "options": [
-         { "label": "Solo creazione", "description": "Il QR code viene generato solo quando la missione viene creata. In modifica resta invariato." },
-         { "label": "Anche in modifica", "description": "Il QR code puo' essere rigenerato anche quando si modifica la missione." },
+         { "label": "Ridurre ritardi", "description": "Gli utenti oggi non si accorgono di eventi importanti in tempo, causando ritardi nelle risposte." },
+         { "label": "Sostituire email", "description": "Le notifiche email non vengono lette. Serve un canale piu' immediato (push/in-app)." },
+         { "label": "Engagement", "description": "Aumentare il coinvolgimento degli utenti riportandoli nell'app quando succede qualcosa di rilevante." },
          { "label": "Da definire", "description": "Non ancora deciso, lo segno come gray area." }
        ],
        "multiSelect": false
@@ -118,12 +130,22 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    })
    ```
 
-   **When to use it vs plain text**:
-   - Confirmation (yes/no/tbd) → AskUserQuestion
-   - Choice among 2-4 options → AskUserQuestion
-   - "Which of these approaches?" → AskUserQuestion
-   - "Describe the flow step by step" → plain text
-   - "What happens when X?" (open-ended) → plain text
+   **Example — Phase 3 question (edge case)**:
+   ```json
+   AskUserQuestion({
+     "questions": [{
+       "question": "Cosa deve succedere se l'invio della notifica push fallisce?",
+       "header": "Error handling",
+       "options": [
+         { "label": "Retry automatico", "description": "Il sistema riprova fino a 3 volte con backoff esponenziale." },
+         { "label": "Fallback email", "description": "Se il push fallisce, invia una email come fallback." },
+         { "label": "Log silenzioso", "description": "Logga l'errore senza ritentare. L'utente vedra' la notifica in-app al prossimo accesso." },
+         { "label": "Da definire", "description": "Non ancora deciso, lo segno come gray area." }
+       ],
+       "multiSelect": false
+     }]
+   })
+   ```
 
 4. **Don't settle**: If the answer is vague, incomplete or introduces new ambiguities,
    do NOT move on to the next topic. Dig deep with follow-up questions

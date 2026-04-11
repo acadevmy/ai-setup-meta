@@ -77,10 +77,19 @@ Determine the branch type from the task title/description:
 - Bug → `fix/`
 - Maintenance → `chore/`
 
-Create the branch with the customId:
+**Ask the developer which base branch to use**:
+
+1. Run `git branch -r --sort=-committerdate | head -10` to detect available remote branches
+2. Strip the `origin/` prefix and filter out `HEAD`
+3. Build the `AskUserQuestion` options dynamically from the detected branches (max 4).
+   For each branch, use the branch name as `label` and add context as `description`
+   (e.g. last commit date or "branch principale" for main/master)
+4. The developer can always select "Other" to type a custom branch name
+
+Create the branch from the chosen base:
 ```bash
-git checkout main
-git pull origin main
+git checkout <base-branch>
+git pull origin <base-branch>
 git checkout -b <type>/<customId>-<short-description>
 ```
 
@@ -173,12 +182,21 @@ When development is completed:
    - Fix any issues found
    - If there are changes, commit them: `refactor(<scope>): simplify implementation`
 
-3. **Review** — Run `/project:review` to:
+3. **Verify** — Run `/project:verify` to check spec conformance:
+   - Verify that all requirements (REQ-N) from the spec are implemented
+   - Verify that all planned tests exist
+   - Verify that the files in Impact were actually touched
+   - Verify that technical decisions were followed
+   - If STATUS = fail: show what is missing and return to development (step 9)
+   - If STATUS = pass-with-warnings: show warnings and ask the developer to confirm
+   - If STATUS = pass: proceed to review
+
+4. **Review** — Run `/project:review` to:
    - Verify CONSTITUTION.md compliance (via the Review Agent)
    - Verify code quality
    - Automatically update `REGISTRY.md` with new entries
 
-4. **Summary** — Show the developer a complete summary:
+5. **Summary** — Show the developer a complete summary:
    ```
    Implementation summary: DE-123 — Task title
 
@@ -187,34 +205,35 @@ When development is completed:
    Files created: <list>
    Files modified: <list>
    Tests: <passing/failing>
+   Verify: <pass/pass-with-warnings/fail>
    Review: <result>
    REGISTRY: <updated/unchanged>
    ```
 
-5. **Wait for OK** — The developer must confirm that the solution is complete and correct.
+6. **Wait for OK** — The developer must confirm that the solution is complete and correct.
    If the developer requests changes, apply corrections and return to step 1 of this section.
 
-6. **Push** the branch:
+7. **Push** the branch:
    ```bash
    git push -u origin <branch-name>
    ```
 
-7. **Open PR** with `gh pr create`:
+8. **Open PR** with `gh pr create`:
    - Title: follows Conventional Commits with customId (e.g. `feat(auth): add refresh token rotation [DE-123]`)
    - Body: includes What / Why / How to test sections + link to ClickUp task + link to spec
 
-8. **Update status** — Launch the `clickup` agent with:
+9. **Update status** — Launch the `clickup` agent with:
    - INTENT: `update`
    - PARAMS: `task_id: <task_id>, status: CODE REVIEW`
    - If the `CODE REVIEW` status is not available, use `IN REVIEW`
 
-9. **Update spec** — Change the spec status from `approved` to `implemented` in the `.specs/<customId>-<slug>.md` file
+10. **Update spec** — Change the spec status from `approved` to `implemented` in the `.specs/<customId>-<slug>.md` file
 
 ## Expected output
 - Branch created with customId in the name
 - Technical spec in `.specs/` (status: implemented)
 - Code implemented following the approved spec
-- Code optimized (simplify) and CONSTITUTION-compliant (review)
+- Code verified against spec (verify), optimized (simplify) and CONSTITUTION-compliant (review)
 - `REGISTRY.md` updated with new entries
 - Task moved: SPRINT → IN PROGRESS → CODE REVIEW
 - PR opened on GitHub with reference to the ClickUp task and spec
