@@ -26,29 +26,6 @@ L'agente analizzera' il progetto e applichera' tutto in modo adattivo:
 
 **Prerequisiti**: `git`, `claude` CLI. Opzionale: `gh` CLI (per MCP ClickUp e operazioni greenfield).
 
-### OpenAI Codex CLI
-
-I template che supportano Codex (attualmente `pm-setup`) distribuiscono skill compatibili
-in `dist/<template>/codex/`. L'installazione avviene copiando le skill nella directory
-di discovery globale `~/.agents/skills/`:
-
-```bash
-# Scarica e installa le skill
-mkdir -p ~/.agents/skills
-curl -sL "https://github.com/acadevmy/ai-setup-meta/archive/refs/heads/main.tar.gz" | \
-  tar -xz -C /tmp "ai-setup-meta-main/dist/pm-setup/codex/skills"
-for skill in /tmp/ai-setup-meta-main/dist/pm-setup/codex/skills/*/; do
-  cp -R "$skill" ~/.agents/skills/
-done
-rm -rf /tmp/ai-setup-meta-main
-```
-
-Le skill sono accessibili tramite `/skills` in Codex CLI.
-Per la guida completa (MCP, Google Drive, Figma) vedi
-[dist/pm-setup/codex/README.md](dist/pm-setup/codex/README.md).
-
-**Prerequisiti**: `codex` CLI, Node.js 18+, account ClickUp.
-
 ### Gemini CLI
 
 I template che supportano Gemini (attualmente `pm-setup`) distribuiscono comandi `.toml`
@@ -169,13 +146,38 @@ bash scripts/release-plugin.sh patch dev-setup
 
 ## Skills distribuite dal plugin dev-setup
 
+### Flusso consigliato
+
+```
+/dev-setup:setup          ← una tantum, bootstrap del progetto
+       │
+       ▼
+/dev-setup:sdd-discovery  ← intervista strutturata per raccogliere requisiti
+       │
+       ▼
+/dev-setup:sdd-spec       ← genera specifica tecnica dal discovery
+       │
+       ▼
+/dev-setup:sdd-plan       ← presenta la spec per discussione e approvazione
+       │
+       ▼
+/dev-setup:sdd-dev        ← sviluppo guidato dalla spec approvata (TDD/BDD)
+       │
+       ▼
+/dev-setup:review         ← code review con conformita' CONSTITUTION
+```
+
+> **`/dev-setup:sdd`** orchestra l'intero flusso in un unico comando:
+> task selection → branch → discovery → spec → approval → dev → simplify → verify → review → PR.
+>
+
 ### Workflow skills
 
 | Skill | Descrizione |
 |---|---|
 | `/dev-setup:setup` | Bootstrap AI-Native (rileva stack, installa governance) |
-| `/dev-setup:start-task` | Flow rapido: branch → TDD/BDD → review → PR |
-| `/dev-setup:sdd` | Flow Spec-Driven: spec → approvazione → sviluppo |
+| `/dev-setup:sdd` | Flow Spec-Driven completo: task → discovery → spec → approval → dev → review → PR |
+| `/dev-setup:sdd-discovery` | Intervista strutturata per raccogliere requisiti prima della spec |
 | `/dev-setup:sdd-spec` | Genera specifica tecnica |
 | `/dev-setup:sdd-plan` | Presenta spec per discussione |
 | `/dev-setup:sdd-dev` | Sviluppo da spec approvata |
@@ -186,6 +188,7 @@ bash scripts/release-plugin.sh patch dev-setup
 |---|---|
 | `/dev-setup:tdd` | Test-Driven Development (Red-Green-Refactor) |
 | `/dev-setup:bdd` | Behavior-Driven Development (Given/When/Then) |
+| Nessuna | Sviluppo diretto senza ciclo test-first |
 | `/dev-setup:review` | Code review con conformita' CONSTITUTION |
 
 ### Shared skills
