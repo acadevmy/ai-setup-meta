@@ -2,6 +2,7 @@
   "name": "dev-setup",
   "description": "Setup AI-native per progetti di sviluppo software",
   "author": "Acadevmy",
+  "cursor_support": true,
   "agent": "dev-setup-agent.md",
   "setup_skill": "setup-skill.md",
   "shared_agents": ["clickup.md"],
