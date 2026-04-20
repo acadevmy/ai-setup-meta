@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.4.0] - 2026-04-20
+
+### Added
+- add Nuxt 3 support and extract greenfield boilerplate (#14)
+- add support for Cursor plugin integration and enhance README with installation instructions (#13)
+- declare allowed-tools AskUserQuestion in skill frontmatter
+- add PM template for AI-assisted ClickUp task creation (#10)
+
+### Changed
+- bump dev-setup plugin version to 1.3.6 and update environment template examples
+- enforce closed-question interaction, add dynamic base branch selection, and introduce a verify step in development workflows
+- bump dev-setup to v1.3.5
+- bump dev-setup to v1.3.4
+- bump dev-setup to v1.3.2
+- bump dev-setup to v1.3.0
+- bump dev-setup to v1.0.6
+- bump dev-setup to v1.0.5
+- require Context7 documentation lookups for external APIs in agent templates
+- update environment variable templates to include missing configuration keys
+- Feat/translation (#9)
+- Feat/flutter constitution best practices (#8)
+- enhance mobile setup documentation for Flutter (#7)
+- update environment variable templates with new configuration keys
+
+### Fixed
+- add concrete AskUserQuestion examples to all interactive skills
+- stop generating filler text after interview questions (#11)
+
 ## [Unreleased]
 
 ### Added
