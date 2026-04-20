@@ -26,6 +26,28 @@ L'agente analizzera' il progetto e applichera' tutto in modo adattivo:
 
 **Prerequisiti**: `git`, `claude` CLI. Opzionale: `gh` CLI (per MCP ClickUp e operazioni greenfield).
 
+### Cursor
+
+Il plugin `dev-setup` è distribuito nativamente anche per Cursor. Per installarlo localmente:
+
+```bash
+# 1. Build del plugin (se non è già aggiornato)
+bash scripts/build-plugin.sh dev-setup
+
+# 2. Installa il plugin locale in Cursor
+ln -s $(pwd)/dist/dev-setup ~/.cursor/plugins/local/dev-setup
+
+# 3. Ricarica Cursor
+# Developer → Reload Window
+```
+
+Il plugin Cursor condivide skills e agents con la versione Claude. Aggiunge:
+- `commands/` — invocabili da Cursor con `/skill-name`
+- `mcp.json` — MCP servers (ClickUp, Figma, Context7) compatibili con Cursor
+- `hooks/hooks.cursor.json` — hooks con path variable Cursor-native
+
+**Prerequisiti**: Cursor, `jq`.
+
 ### Gemini CLI
 
 I template che supportano Gemini (attualmente `pm-setup`) distribuiscono comandi `.toml`
@@ -93,12 +115,15 @@ ai-setup-meta/
 │           ├── backend-node.md
 │           └── mobile.md
 ├── dist/                        # Plugin built (generati, committati)
-│   ├── dev-setup/               # Plugin Claude Code self-contained
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/              # 13 skills (template + shared + setup)
-│   │   ├── agents/              # 2 agents (review + clickup)
-│   │   ├── hooks/               # hooks.json + scripts
-│   │   └── .mcp.json            # context7
+│   ├── dev-setup/               # Plugin Claude + Cursor (root condivisa)
+│   │   ├── .claude-plugin/      # Manifest Claude Code
+│   │   ├── .cursor-plugin/      # Manifest Cursor
+│   │   ├── skills/              # 13 skills (condiviso Claude + Cursor)
+│   │   ├── agents/              # 2 agents (condiviso Claude + Cursor)
+│   │   ├── hooks/               # hooks.json (Claude) + hooks.cursor.json (Cursor)
+│   │   ├── commands/            # Commands Cursor (generati da skills)
+│   │   ├── .mcp.json            # MCP config Claude
+│   │   └── mcp.json             # MCP config Cursor (type rimosso)
 │   └── pm-setup/                # Plugin PM multi-piattaforma
 │       ├── .claude-plugin/      # Claude Code
 │       ├── gemini/              # Gemini CLI (comandi .toml, mcp-remote)
@@ -109,7 +134,8 @@ ai-setup-meta/
 │   │   ├── common.sh            # Funzioni condivise (ok, warn, fail, step)
 │   │   ├── build-claude.sh      # Builder Claude Code (sempre eseguito)
 │   │   ├── build-gemini.sh      # Builder Gemini CLI (se gemini_support)
-│   │   └── build-codex.sh       # Builder Codex CLI (se codex_support)
+│   │   ├── build-codex.sh       # Builder Codex CLI (se codex_support)
+│   │   └── build-cursor.sh      # Builder Cursor (se cursor_support)
 │   ├── release-plugin.sh        # Release: version bump + build + tag + push
 │   ├── init-meta.sh
 │   └── validate-setup-urls.sh

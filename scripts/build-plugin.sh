@@ -81,6 +81,12 @@ if [ "$CODEX_SUPPORT" = "true" ]; then
   bash "$BUILDERS_DIR/build-codex.sh"
 fi
 
+# ── 4. Build Cursor (se abilitato) ───────────────────────────────────────────
+CURSOR_SUPPORT=$(jq -r '.cursor_support // false' "$MANIFEST")
+if [ "$CURSOR_SUPPORT" = "true" ]; then
+  bash "$BUILDERS_DIR/build-cursor.sh"
+fi
+
 # ── Riepilogo ─────────────────────────────────────────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
@@ -105,6 +111,15 @@ fi
 
 if [ "$CODEX_SUPPORT" = "true" ]; then
   echo "  Codex:  AGENTS.md + plugin generato"
+fi
+
+if [ "$CURSOR_SUPPORT" = "true" ]; then
+  CMD_COUNT=$(find "$DIST_DIR/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+  echo "  Cursor: plugin.json + mcp.json + $CMD_COUNT commands generati"
+  echo ""
+  echo "  Test locale Cursor:"
+  echo "    ln -s \$(pwd)/dist/$TEMPLATE_NAME ~/.cursor/plugins/local/$TEMPLATE_NAME"
+  echo "    # poi: Developer → Reload Window in Cursor"
 fi
 
 echo ""
