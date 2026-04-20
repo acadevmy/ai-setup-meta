@@ -111,6 +111,17 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
       errors=$((errors + 1))
     fi
   done
+
+  # Boilerplate files (greenfield-only verbatim downloads)
+  for bp in $(python3 -c "import json; [print(b) for b in json.load(open('$manifest')).get('boilerplate_files',[])]" 2>/dev/null); do
+    file="templates/$TEMPLATE_NAME/boilerplate/$bp"
+    if [ -f "${REPO_ROOT}/${file}" ]; then
+      printf '%b\n' "${GREEN}OK${NC}  ${file}"
+    else
+      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
+      errors=$((errors + 1))
+    fi
+  done
 done
 
 echo ""

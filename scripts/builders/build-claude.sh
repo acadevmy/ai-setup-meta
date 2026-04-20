@@ -95,6 +95,20 @@ for PROFILE in $(jq -r '.profiles[]' "$MANIFEST"); do
   fi
 done
 
+# Boilerplate files (greenfield config, scaricati verbatim a runtime dal setup-agent)
+mkdir -p "$TEMPLATES_DST/boilerplate"
+for BP in $(jq -r '.boilerplate_files[] // empty' "$MANIFEST"); do
+  SRC="$TEMPLATE_DIR/boilerplate/$BP"
+  DST="$TEMPLATES_DST/boilerplate/$BP"
+  if [ -f "$SRC" ]; then
+    mkdir -p "$(dirname "$DST")"
+    cp "$SRC" "$DST"
+    ok "Boilerplate: $BP"
+  else
+    warn "Boilerplate non trovato: $BP"
+  fi
+done
+
 # Settings.json (solo permessi, senza hooks)
 SETTINGS_SRC="$TEMPLATE_DIR/.claude/settings.json"
 if [ -f "$SETTINGS_SRC" ]; then
