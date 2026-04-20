@@ -9,7 +9,15 @@
   "shared_skills": ["clickup", "github-ops"],
   "template_agents": ["review.md"],
   "template_skills": ["start-task", "review", "tdd", "bdd", "sdd", "sdd-discovery", "sdd-spec", "sdd-plan", "sdd-dev"],
-  "profiles": ["web-frontend.md", "backend-node.md", "mobile.md"],
+  "profiles": ["web-frontend.md", "web-frontend-nuxt.md", "backend-node.md", "mobile.md"],
+  "boilerplate_files": [
+    ".commitlintrc.json",
+    ".prettierrc.json",
+    ".releaserc.json",
+    ".eslintrc.base.json",
+    ".github/workflows/release.yml",
+    ".gitignore"
+  ],
   "required_files": [
     "AGENTS.template.md",
     "AGENTS.workspace-template.md",

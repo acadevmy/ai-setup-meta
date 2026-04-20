@@ -254,9 +254,37 @@ not directly in the generated files.
 
 ---
 
-## VII. Mobile (Flutter / React Native)
+## VII. Frontend (Nuxt 3 / Vue 3)
 
-### 24. Flutter — Widget composition
+### 24. Composition API only
+- `<script setup lang="ts">` è obbligatorio — no Options API
+- Props e emits tipizzati con `defineProps<T>()` e `defineEmits<E>()`
+- No business logic nel template — estrai in composables (`composables/useXxx.ts`)
+
+### 25. Data fetching with `useFetch` / `useAsyncData`
+- Usa `useFetch` / `useAsyncData` / `$fetch` — **mai** fetch dentro `onMounted` o `watch`
+- Fornisci una `key` esplicita quando il fetch è condizionale o parametrizzato
+- Non chiamare backend esterni direttamente dai componenti — passa sempre da `server/api/*`
+  (proxy con validazione Zod lato server)
+
+### 26. Global state with Pinia
+- Stato condiviso solo in Pinia stores (`stores/*.ts`), registrati via `@pinia/nuxt`
+- No `provide/inject` ad-hoc per stato condiviso tra componenti distanti
+- Getters e actions con tipi di ritorno espliciti — nessun `any` implicito
+
+### 27. SSR awareness and Nuxt auto-imports
+- Il default è SSR: gatta ogni API browser-only con `import.meta.client` o `<ClientOnly>`
+- Componenti multi-word (`UserCard.vue`, non `Card.vue`) per evitare conflitti con elementi HTML
+- Auto-imports di Nuxt attivi: non importare manualmente `ref`, `computed`, `useRoute`,
+  `useFetch`, `navigateTo`, ecc.
+- Per i test usa `@nuxt/test-utils` (`environment: 'nuxt'` in Vitest) in modo che gli
+  auto-imports funzionino
+
+---
+
+## VIII. Mobile (Flutter / React Native)
+
+### 28. Flutter — Widget composition
 - Widgets: UI and interactions only — no business logic, no HTTP calls
 - Prefer `StatelessWidget` over helper functions for reusable UI pieces
   (functions do not participate in the widget lifecycle)
@@ -268,7 +296,7 @@ not directly in the generated files.
 - Do not use `setState()` for shared application state — only for state
   strictly local to the widget
 
-### 25. Flutter — state management
+### 29. Flutter — state management
 - Choose **one** pattern per project and stick with it: Riverpod (preferred) or BLoC
 - Riverpod: use `ref.watch()` in `build()`, `ref.read()` only in callbacks
 - Riverpod: prefer `@riverpod` code generation and `AsyncNotifier` for async state
@@ -279,7 +307,7 @@ not directly in the generated files.
 - State passed through providers **must** be immutable — never mutate
   in-place, always return a new instance
 
-### 26. Dart — type safety
+### 30. Dart — type safety
 `dynamic` is **forbidden** — like `any` in TypeScript. Use `Object` and narrowing.
 
 ```dart
@@ -310,7 +338,7 @@ final user = response as User; // unsafe cast
 - Use class modifiers with intention: `final` for non-extendable classes,
   `sealed` for closed hierarchies, `base` for extension-only classes
 
-### 27. Flutter — immutability
+### 31. Flutter — immutability
 - All models and state classes **must** be immutable:
   `final` fields + `const` constructor
 - Annotate with `@immutable` (from `package:meta`) all value objects and state classes
@@ -320,7 +348,7 @@ final user = response as User; // unsafe cast
 - Prefer `final` for local variables (lint `prefer_final_locals`)
 - Use `const` wherever possible: constructors, collections, values
 
-### 28. Flutter — architecture
+### 32. Flutter — architecture
 Three mandatory layers with **dependency rule** (dependencies point only inward):
 
 ```
@@ -346,7 +374,7 @@ Data (repository implementations + data source + DTO)
   └── main.dart
   ```
 
-### 29. Flutter — performance
+### 33. Flutter — performance
 - No heavy work in `build()` — no I/O, no expensive computations
 - Use `const` widgets aggressively — Flutter skips rebuilds of const instances
 - Use `ListView.builder` / `GridView.builder` for long lists — never
@@ -357,7 +385,7 @@ Data (repository implementations + data source + DTO)
 - Profile with Flutter DevTools (`flutter run --profile`) before optimizing —
   measure, don't guess
 
-### 30. Flutter — error handling
+### 34. Flutter — error handling
 - Use the `sealed class Result<T>` pattern with `Success<T>` and `Failure<T>` subtypes
   for domain layer operations
 
@@ -387,7 +415,7 @@ Future<Result<User>> getUser(String id);
 - Always handle all branches in pattern matching on sealed error types —
   no `default` that swallows errors
 
-### 31. Flutter — linting and static analysis
+### 35. Flutter — linting and static analysis
 Minimum mandatory configuration in `analysis_options.yaml`:
 
 ```yaml
@@ -419,7 +447,7 @@ linter:
 - **Zero warnings in CI**: static analysis (`dart analyze`) must pass without warnings
 - Always use `package:` imports — never relative imports (`../`)
 
-### 32. Flutter — testing
+### 36. Flutter — testing
 Test pyramid: many unit > widget tests > few integration tests.
 
 | Layer | Minimum coverage | Tool |
@@ -436,7 +464,7 @@ Test pyramid: many unit > widget tests > few integration tests.
 - Test file naming: `<source_file>_test.dart` in a `test/` structure mirroring `lib/`
 - Every test must be independent — no shared mutable state between tests
 
-### 33. Dart — naming and file organization
+### 37. Dart — naming and file organization
 - Files: `snake_case.dart` (e.g. `user_repository.dart`, `auth_provider.dart`)
 - Directories: `snake_case` (e.g. `data_sources/`, `use_cases/`)
 - One public class per file (exception: tightly coupled types such as sealed class + subtypes)
@@ -444,7 +472,7 @@ Test pyramid: many unit > widget tests > few integration tests.
 - Imports: always `package:`, never relative (`../`)
 - Import order: `dart:` → `package:` → relative (enforced by lint `directives_ordering`)
 
-### 34. React Native — Expo as baseline
+### 38. React Native — Expo as baseline
 - Always start from the Expo managed workflow
 - Migrate to bare workflow only if necessary and documented
 - Use Expo Router for navigation
@@ -452,17 +480,17 @@ Test pyramid: many unit > widget tests > few integration tests.
 
 ---
 
-## VIII. AI Agent
+## IX. AI Agent
 
-### 35. The agent follows this Constitution
+### 39. The agent follows this Constitution
 Claude Code and any other AI agent **must** comply with these rules exactly
 as a human developer would. No exceptions exist for "simplicity" or "speed".
 
-### 36. The agent does not bypass hooks
+### 40. The agent does not bypass hooks
 Git hooks (lint, test) also apply to commits suggested by the agent.
 Never use `--no-verify`.
 
-### 37. The agent does not modify this file autonomously
+### 41. The agent does not modify this file autonomously
 Changes to `CONSTITUTION.md` require a PR with explicit human approval.
 
 ---

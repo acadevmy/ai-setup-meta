@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- add Nuxt 3 / Vue 3 stack profile (`web-frontend-nuxt.md`)
+- extend setup-agent auto-detect to distinguish Nuxt from other frontend frameworks
+- add Nuxt option to greenfield stack selection (Step 2b) and to full-stack frontend variant
+- add Section VII to CONSTITUTION with Nuxt/Vue rules (24-27: Composition API, useFetch/useAsyncData, Pinia, SSR/auto-imports) — applied also to existing Nuxt projects via Step 4 Rule A
+- extend Step 4 Rule A with framework-based removal (keeps Section VI or VII depending on detected/selected framework)
+
+### Changed
+- renumber CONSTITUTION sections: Mobile VII → VIII, AI Agent VIII → IX (rules 24-34 shifted to 28-38, rules 35-37 shifted to 39-41)
+- extract greenfield config boilerplate (commitlint, prettier, semantic-release, base ESLint, release workflow, gitignore) from dev-setup-agent.md into `templates/dev-setup/boilerplate/`; setup-agent now downloads them verbatim via `gh api` (Step 8.4/8.6/8.7 simplified, ~140 lines removed from the agent)
+- add `boilerplate_files` field to manifest.json; validate-setup-urls.sh and build-claude.sh extended to enumerate it
+
 ## [1.3.5] - 2026-04-10
 
 ### Added

@@ -34,6 +34,7 @@ which files to download. The manifest declares:
 - `template_agents` → downloaded from `templates/dev-setup/.claude/agents/<name>`
 - `template_skills` → downloaded from `templates/dev-setup/.claude/skills/<name>/SKILL.md`
 - `profiles` → downloaded from `templates/dev-setup/profiles/<name>`
+- `boilerplate_files` → greenfield-only config files (commitlint, prettier, eslint base, semantic-release, `.github/workflows/release.yml`, `.gitignore`), downloaded verbatim from `templates/dev-setup/boilerplate/<path>`
 - `required_files` → template files (CONSTITUTION, AGENTS.template, REGISTRY, etc.)
 
 ## Download strategy
@@ -107,6 +108,18 @@ Search in order:
 - Or: `.tsx`, `.jsx`, or `.vue` files exist in `src/` → **yes**
 - Otherwise → **no**
 
+#### Frontend framework (only if Frontend detected == yes)
+Search in order:
+1. `package.json` contains `nuxt` → **nuxt**
+2. `package.json` contains `next` → **next**
+3. `package.json` contains `@angular/core` → **angular**
+4. `package.json` contains `react` (without `next`) → **react**
+5. `package.json` contains `vue` (without `nuxt`) → **vue**
+6. `package.json` contains `svelte` → **svelte**
+7. None of the above → **unknown**
+
+This value is informational (shown in the detection summary). In EXISTING mode no stack profile is downloaded or applied — the project's tooling is preserved as-is. The framework info can be used to compile placeholders in the AGENTS.md template (Step 5).
+
 #### Mobile detected?
 - `pubspec.yaml` present → **yes**
 - `package.json` contains `react-native` or `expo` → **yes**
@@ -142,6 +155,7 @@ Detected stack:
   Linter:       npm run lint
   Validation:   Zod
   Frontend:     yes
+  Framework:    nuxt
   Mobile:       no
 ```
 
@@ -163,13 +177,16 @@ Do you confirm these sub-projects? (yes/no)
 If the mode is GREENFIELD, ask the developer to choose the stack:
 
 1. **Web Frontend** — Next.js / Angular / React + ShadCN/UI + Tailwind
-2. **Backend Node** — Node.js / NestJS + Prisma + Zod
-3. **Mobile** — Flutter / React Native (Expo)
-4. **Full-stack** — Frontend + Backend (monorepo)
+2. **Web Frontend (Nuxt)** — Nuxt 3 / Vue 3 + shadcn-vue + Tailwind
+3. **Backend Node** — Node.js / NestJS + Prisma + Zod
+4. **Mobile** — Flutter / React Native (Expo)
+5. **Full-stack** — Frontend + Backend (monorepo)
 
 If they choose **Mobile**, also ask:
 - **Flutter**
 - **React Native (Expo)**
+
+If they choose **Full-stack**, also ask which frontend variant (React-like or Nuxt).
 
 ---
 
@@ -227,10 +244,11 @@ gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/AGENTS.project-
 **Stack profile** (GREENFIELD only, will be applied in Step 9.5):
 
 Download the selected profile from the manifest `profiles`:
-- Web Frontend: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/web-frontend.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
+- Web Frontend (React/Next/Angular): `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/web-frontend.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
+- Web Frontend (Nuxt): `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/web-frontend-nuxt.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
 - Backend Node: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/backend-node.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
 - Mobile: `gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/profiles/mobile.md -H "Accept: application/vnd.github.raw" > .claude/.setup-tmp/profile.md`
-- Full-stack: download both `web-frontend.md` and `backend-node.md` (as `profile_web.md` and `profile_api.md`)
+- Full-stack: download the selected frontend profile (`web-frontend.md` or `web-frontend-nuxt.md`) plus `backend-node.md` (as `profile_web.md` and `profile_api.md`)
 
 #### 3.2 — Verbatim files (directly to destination)
 
@@ -318,21 +336,24 @@ Start from the content downloaded to `.claude/.setup-tmp/CONSTITUTION_SOURCE.md`
 Apply the following removal/adaptation rules based on the detected stack.
 Rules are applied in order A → B → C → D → E. Renumbering (rule E) happens last.
 
-**Rule A — Section VI (Web frontend)**:
-- If frontend was **not** detected → remove the entire Section VI (from `## VI.` up to before `## VII.`)
-- **Multi-project**: keep Section VI if **any** sub-project has frontend detected
+**Rule A — Section VI (Frontend: Next.js / Angular / React) and Section VII (Frontend: Nuxt / Vue)**:
+- If frontend was **not** detected → remove both Section VI (from `## VI.` up to before `## VII.`) and Section VII (from `## VII.` up to before `## VIII.`)
+- If frontend **is** detected, apply the sub-rule based on the framework identified in Step 2:
+  - `framework == nuxt` or `framework == vue` → remove Section VI (keep only Section VII Nuxt/Vue)
+  - `framework ∈ {next, angular, react, svelte, unknown}` → remove Section VII (keep only Section VI React-like)
+- **Multi-project**: evaluate per sub-project. Keep Section VI if **any** sub-project uses a React-like framework; keep Section VII if **any** sub-project uses Nuxt/Vue. Both sections can coexist if the monorepo mixes stacks.
 
-**Rule B — Section VII (Mobile)**:
-- If mobile was **not** detected → remove the entire Section VII (from `## VII.` up to before `## VIII.`)
-- **Multi-project**: keep Section VII if **any** sub-project has mobile detected
-- If mobile is detected as **Flutter only** (no React Native) → remove only rule 32 (React Native)
-- If mobile is detected as **React Native only** (no Flutter) → remove rules 22-31 (Flutter/Dart) and keep only rule 32
+**Rule B — Section VIII (Mobile)**:
+- If mobile was **not** detected → remove the entire Section VIII (from `## VIII.` up to before `## IX.`)
+- **Multi-project**: keep Section VIII if **any** sub-project has mobile detected
+- If mobile is detected as **Flutter only** (no React Native) → remove only rule 38 (React Native)
+- If mobile is detected as **React Native only** (no Flutter) → remove rules 28-37 (Flutter/Dart) and keep only rule 38
 
 **Rule C — Sections I-V (TypeScript-specific)**:
 - If the detected language includes `node` → keep sections I-V in full
 - If the detected language does **not** include `node` but includes `flutter` → remove TypeScript-specific rules:
-  - Rule 1 (Schema-first with Zod): remove entirely — Flutter data validation is covered by rule 25 (freezed/json_serializable)
-  - Rule 2 (TypeScript strict — zero `any`): remove entirely — Dart type safety is covered by rule 24
+  - Rule 1 (Schema-first with Zod): remove entirely — Flutter data validation is covered by rule 31 (freezed/json_serializable)
+  - Rule 2 (TypeScript strict — zero `any`): remove entirely — Dart type safety is covered by rule 30
   - Rule 7 (Dependency Injection): replace `DI (native NestJS, or manual for pure Node projects)` with `DI via service locator (get_it) or framework-native injection`
   - Rule 14 (Pull Request): replace `ESLint` with `static analysis (dart analyze)`
   - Rule 17 (Input validation with Zod): replace the Zod reference with:
@@ -405,24 +426,28 @@ After all removals and adaptations (rules A-D), renumber the remaining rules seq
 
 **Quick decision summary**:
 
-| Detected stack | Sec. I-V | Sec. III (Test) | Sec. VI (Frontend) | Sec. VII (Mobile) |
-|---|---|---|---|---|
-| Node/TS backend only | Keep | TDD only | Remove | Remove |
-| Node/TS frontend only | Keep | BDD only | Keep | Remove |
-| Node/TS fullstack only | Keep | TDD + BDD | Keep | Remove |
-| Flutter only | Adapt (C) | Adapt Dart (D) | Remove | Flutter only |
-| React Native only | Keep TS | TDD + BDD | Remove | RN only |
-| Node + Flutter (multi) | Keep | TDD + BDD | Depends | Keep |
-| Other language | Adapt generic (C) | Depends on stack | Remove | Remove |
+| Detected stack | Sec. I-V | Sec. III (Test) | Sec. VI (Frontend React-like) | Sec. VII (Frontend Nuxt/Vue) | Sec. VIII (Mobile) |
+|---|---|---|---|---|---|
+| Node/TS backend only | Keep | TDD only | Remove | Remove | Remove |
+| Node/TS frontend (React-like) | Keep | BDD only | Keep | Remove | Remove |
+| Node/TS frontend (Nuxt/Vue) | Keep | BDD only | Remove | Keep | Remove |
+| Node/TS fullstack (React-like) | Keep | TDD + BDD | Keep | Remove | Remove |
+| Node/TS fullstack (Nuxt) | Keep | TDD + BDD | Remove | Keep | Remove |
+| Flutter only | Adapt (C) | Adapt Dart (D) | Remove | Remove | Flutter only |
+| React Native only | Keep TS | TDD + BDD | Remove | Remove | RN only |
+| Node + Flutter (multi) | Keep | TDD + BDD | Depends | Depends | Keep |
+| Other language | Adapt generic (C) | Depends on stack | Remove | Remove | Remove |
 
 #### For GREENFIELD mode:
 
 Apply the same adaptation rules (A-E) based on the stack chosen in Step 2b:
-- **Web Frontend**: remove Sec. VII, keep Sec. VI, Sec. III BDD only
-- **Backend Node**: remove Sec. VI and VII, Sec. III TDD only
-- **Mobile (Flutter)**: remove Sec. VI, remove rule 32 (RN), adapt TS rules (C), adapt tests (D)
-- **Mobile (React Native)**: remove Sec. VI, remove rules 22-31 (Flutter), keep TS rules (RN uses TypeScript)
-- **Full-stack**: keep everything
+- **Web Frontend** (React-like): remove Sec. VII (Nuxt) and Sec. VIII (Mobile), keep Sec. VI, Sec. III BDD only
+- **Web Frontend (Nuxt)**: remove Sec. VI (React-like) and Sec. VIII (Mobile), keep Sec. VII, Sec. III BDD only
+- **Backend Node**: remove Sec. VI, VII, and VIII, Sec. III TDD only
+- **Mobile (Flutter)**: remove Sec. VI and VII, remove rule 38 (RN), adapt TS rules (C), adapt tests (D)
+- **Mobile (React Native)**: remove Sec. VI and VII, remove rules 28-37 (Flutter), keep TS rules (RN uses TypeScript)
+- **Full-stack** (React-like frontend): remove Sec. VII and Sec. VIII, keep Sec. VI
+- **Full-stack** (Nuxt frontend): remove Sec. VI and Sec. VIII, keep Sec. VII
 
 #### For UPDATE mode:
 
@@ -612,104 +637,20 @@ Make them executable:
 chmod +x .husky/pre-commit .husky/commit-msg
 ```
 
-#### 8.4 — Quality configurations
+#### 8.4 — Quality configurations (verbatim download)
 
-Create **`.commitlintrc.json`**:
-```json
-{
-  "extends": ["@commitlint/config-conventional"],
-  "rules": {
-    "type-enum": [
-      2,
-      "always",
-      ["feat", "fix", "docs", "style", "refactor", "test", "chore", "perf", "ci"]
-    ],
-    "subject-case": [2, "never", ["start-case", "pascal-case", "upper-case"]],
-    "subject-max-length": [2, "always", 100],
-    "body-max-line-length": [1, "always", 200]
-  }
-}
+Download the boilerplate config files listed in the manifest `boilerplate_files`:
+`.commitlintrc.json`, `.prettierrc.json`, `.releaserc.json`, `.eslintrc.base.json`.
+
+For each entry in `boilerplate_files` whose path does **not** start with `.github/` and is **not** `.gitignore`, and only if the destination file does not already exist:
+
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/boilerplate/<BOILERPLATE_FILE> -H "Accept: application/vnd.github.raw" > <BOILERPLATE_FILE>
 ```
 
-Create **`.prettierrc.json`**:
-```json
-{
-  "semi": true,
-  "singleQuote": true,
-  "trailingComma": "all",
-  "printWidth": 100,
-  "tabWidth": 2,
-  "arrowParens": "always",
-  "endOfLine": "lf"
-}
-```
+The destination path equals the source path (e.g. `boilerplate/.prettierrc.json` → `.prettierrc.json` in project root).
 
-Create **`.releaserc.json`** (semantic-release):
-```json
-{
-  "branches": ["main"],
-  "plugins": [
-    [
-      "@semantic-release/commit-analyzer",
-      {
-        "preset": "conventionalcommits",
-        "releaseRules": [
-          { "type": "feat", "release": "minor" },
-          { "type": "fix", "release": "patch" },
-          { "type": "perf", "release": "patch" },
-          { "type": "refactor", "release": "patch" },
-          { "type": "chore", "scope": "deps", "release": "patch" },
-          { "breaking": true, "release": "major" }
-        ]
-      }
-    ],
-    [
-      "@semantic-release/release-notes-generator",
-      {
-        "preset": "conventionalcommits",
-        "presetConfig": {
-          "types": [
-            { "type": "feat", "section": "New features" },
-            { "type": "fix", "section": "Bug fixes" },
-            { "type": "perf", "section": "Performance" },
-            { "type": "refactor", "section": "Refactoring" },
-            { "type": "chore", "section": "Maintenance" },
-            { "type": "docs", "section": "Documentation" },
-            { "type": "ci", "section": "CI/CD" }
-          ]
-        }
-      }
-    ],
-    ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
-    ["@semantic-release/npm", { "npmPublish": false }],
-    [
-      "@semantic-release/git",
-      {
-        "assets": ["CHANGELOG.md", "package.json", "package-lock.json"],
-        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-      }
-    ],
-    "@semantic-release/github"
-  ]
-}
-```
-
-Create **`.eslintrc.base.json`**:
-```json
-{
-  "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint"],
-  "extends": [
-    "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
-  ],
-  "rules": {
-    "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-    "no-console": ["warn", { "allow": ["warn", "error"] }]
-  }
-}
-```
+If the destination file **already exists**: inform the developer and keep the existing one. **Do not** overwrite a config the developer may have customised.
 
 #### 8.5 — Apply stack profile
 
@@ -727,82 +668,28 @@ For the **fullstack** stack (multi-project):
 - Generate `AGENTS.md`, `CLAUDE.md` and `REGISTRY.md` for each sub-project (as described in Steps 5B and 5b)
 - At the root use the workspace template (as described in Step 5B)
 
-#### 8.6 — CI/CD workflow
+#### 8.6 — CI/CD workflow (verbatim download)
 
-Create **`.github/workflows/release.yml`** (GitHub Actions + semantic-release):
-```yaml
-name: Release
+Download the GitHub Actions workflow from the manifest `boilerplate_files`:
 
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-
-jobs:
-  release:
-    name: Semantic Release
-    runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-      - run: npx semantic-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```bash
+mkdir -p .github/workflows
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/boilerplate/.github/workflows/release.yml -H "Accept: application/vnd.github.raw" > .github/workflows/release.yml
 ```
+
+If `.github/workflows/release.yml` already exists: inform the developer and keep the existing one.
 
 > **Note**: If the developer uses GitLab CI or another provider, adapt the workflow to the project's CI/CD provider while keeping the same steps (checkout, setup, install, semantic-release).
 
-#### 8.7 — .gitignore
+#### 8.7 — .gitignore (verbatim download)
 
-If `.gitignore` does not exist, create it with:
+Download the default `.gitignore` from the manifest `boilerplate_files`, only if it does not already exist in the project:
+
+```bash
+gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/boilerplate/.gitignore -H "Accept: application/vnd.github.raw" > .gitignore
 ```
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
 
-# Build
-dist/
-build/
-.next/
-out/
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Testing
-coverage/
-
-# Misc
-*.log
-npm-debug.log*
-```
+If `.gitignore` already exists: inform the developer and keep the existing one.
 
 ---
 

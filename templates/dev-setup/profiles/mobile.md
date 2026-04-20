@@ -34,7 +34,7 @@ lib/
 
 ### Flutter rules
 
-> Complete rules are in the **CONSTITUTION.md** (section VII, rules 22-31).
+> Complete rules are in the **CONSTITUTION.md** (section VIII, rules 28-37).
 > Here is the operational summary for the mobile profile.
 
 - Widgets are UI only: no business logic, no HTTP calls
@@ -87,7 +87,7 @@ dev_dependencies:
 
 ### Flutter linting configuration (analysis_options.yaml)
 
-> Complete configuration in the **CONSTITUTION.md** (rule 29).
+> Complete configuration in the **CONSTITUTION.md** (rule 35).
 
 ```yaml
 include: package:flutter_lints/flutter.yaml
