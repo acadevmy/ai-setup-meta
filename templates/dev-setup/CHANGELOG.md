@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.0] - 2026-04-23
+
+### Added
+- introduce agent behavioral guidelines and update constitution to restrict premature abstractions and unrequested flexibility (#15)
+
 ## [Unreleased]
 
 ### Added

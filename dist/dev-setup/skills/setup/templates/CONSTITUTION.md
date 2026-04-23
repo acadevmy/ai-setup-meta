@@ -72,7 +72,16 @@ try {
 ### 5. Clean Code
 - **DRY**: do not duplicate logic — extract shared behavior into functions or modules
 - **KISS**: prefer the simplest solution that works; readability beats cleverness
-- **Boy Scout Rule**: leave code cleaner than you found it — small improvements on every touch
+- **No premature abstractions**: do not extract helpers, interfaces or generics for single-use code.
+  Wait for the second concrete use before abstracting
+- **No unrequested flexibility**: do not add configuration options, feature flags or extension
+  points that were not asked for. Hypothetical future needs are not a requirement
+- **No defensive code for impossible cases**: validate at system boundaries (external input, APIs).
+  Do not add guards for conditions that cannot occur given the surrounding code
+- **Boy Scout Rule (scoped)**: within a file you are already editing, fix trivial decay you
+  encounter (unused imports, obvious typos in comments, dead local variables). Do **not** refactor
+  adjacent code, rename symbols, or restyle unrelated sections as a side effect — surgical changes
+  always win over spontaneous cleanup. Larger cleanup requires its own PR
 
 ### 6. No magic numbers or magic strings
 Every constant value must have a meaningful name.
@@ -495,6 +504,6 @@ Changes to `CONSTITUTION.md` require a PR with explicit human approval.
 
 ---
 
-*Version: 1.1.0*
+*Version: 1.2.0*
 *Updated: 2026-04*
 *Next planned review: 2026-07*
