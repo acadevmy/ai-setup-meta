@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.1] - 2026-04-23
+
+### Changed
+- prefer ctx7 CLI over Context7 MCP for docs lookups (#16)
+
 ## [1.5.0] - 2026-04-23
 
 ### Added

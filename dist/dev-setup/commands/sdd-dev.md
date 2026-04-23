@@ -71,7 +71,7 @@ For each step in the plan, in the agreed order:
    ```
    Step <N>/<total>: <description>
    ```
-2. **Read documentation** if needed: use MCP Context7 to retrieve up-to-date documentation for libraries and frameworks
+2. **Read documentation** if needed: retrieve up-to-date docs for libraries and frameworks. Prefer the `ctx7` CLI (`ctx7 library <name> <query>` then `ctx7 docs <libraryId> <query>`) if available in PATH; fall back to the Context7 MCP otherwise
 
 3. **Implement** according to the chosen methodology:
 
