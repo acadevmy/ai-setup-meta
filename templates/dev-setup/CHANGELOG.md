@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- CONSTITUTION §5: explicit rules against premature abstractions, unrequested flexibility and defensive code for impossible cases
+- AGENTS.template.md and AGENTS.workspace-template.md: new "Agent behavior" section with four meta-principles (Think before coding, Simplicity first, Surgical changes, Goal-driven execution) to reduce LLM coding errors
+
+### Changed
+- CONSTITUTION §5 Boy Scout Rule scoped to trivial decay in files already being edited, resolving the tension with surgical-change behavior
+- CONSTITUTION version bump 1.1.0 → 1.2.0
+- AGENTS.template.md version bump 2.0.0 → 2.1.0
+- AGENTS.workspace-template.md version bump 1.0.0 → 1.1.0
+
 ## [1.4.0] - 2026-04-20
 
 ### Added
