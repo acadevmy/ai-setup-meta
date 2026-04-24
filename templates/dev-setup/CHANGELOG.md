@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.6.0] - 2026-04-24
+
+### Added
+- detect VCS and emit provider-aware greenfield files
+- add gitlab-ops and symmetric self-identify in github-ops
+
+### Changed
+- Merge pull request #17 from acadevmy/feat/gitlab-support
+- bump versions and generalize Constitution §16
+- add GitLab variants, update CHANGELOG, rebuild dist
+
 ## [1.5.2] - 2026-04-24
 
 ### Fixed
