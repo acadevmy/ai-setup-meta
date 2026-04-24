@@ -109,7 +109,7 @@ before proceeding.
 | **Figma** | Retrieve design tokens, components, specifications |
 | **Context7** | Up-to-date documentation for libraries and frameworks. **Prefer the `ctx7` CLI if available in PATH** — use this MCP only as fallback |
 
-> GitHub operations (branch, PR, commit) are performed with the `gh` CLI.
+{{VCS_OPS_NOTE}}
 
 ## Available agents
 

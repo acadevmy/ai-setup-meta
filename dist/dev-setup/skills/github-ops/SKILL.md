@@ -15,6 +15,19 @@ Do NOT use MCP GitHub — always use direct commands.
 - `gh` CLI installed and authenticated (`gh auth login`)
 - `git` configured with user.name and user.email
 
+## Self-identify (run first)
+
+Before executing any operation, verify the current repository targets GitHub:
+
+```bash
+git remote get-url origin | tr 'A-Z' 'a-z'
+```
+
+If the URL does **not** contain `github` (and no other signal identifies the host as GitHub), bail with a single-line message:
+`github-ops invoked on a non-GitHub repo (origin=<url>) — use gitlab-ops instead.`
+
+For GitHub Enterprise whose host is ambiguous, probe `gh auth status --hostname <host>`; if it succeeds, proceed.
+
 ## Available operations
 
 ### Create a branch

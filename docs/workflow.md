@@ -3,6 +3,12 @@
 Guida pratica su come Claude Code opera nel meta-repo e come il maintainer
 interagisce con esso giorno per giorno.
 
+> **Ambito**: questo documento descrive il workflow **di manutenzione del plugin stesso**
+> (il meta-repo `ai-setup-meta` e' ospitato su GitHub). Gli utenti finali del plugin
+> possono lavorare su progetti GitHub **o** GitLab — vedi
+> [developer-guide.md](./developer-guide.md) e [onboarding.md](./onboarding.md) per quel
+> lato. I comandi `gh` qui sotto riguardano solo il release del plugin.
+
 ## Ciclo di vita tipico di una modifica
 
 ```

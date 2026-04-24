@@ -222,7 +222,8 @@ bash scripts/release-plugin.sh patch dev-setup
 | Skill | Descrizione |
 |---|---|
 | `/dev-setup:clickup` | Operazioni ClickUp via MCP |
-| `/dev-setup:github-ops` | Branch, PR, merge operations |
+| `/dev-setup:github-ops` | Branch, PR, release su GitHub (`gh` CLI). Si auto-disattiva se il repo non punta a GitHub. |
+| `/dev-setup:gitlab-ops` | Branch, MR, release su GitLab (`glab` CLI). Legge `.gitlab/merge_request_templates/Default.md` quando presente. Si auto-disattiva se il repo non punta a GitLab. |
 
 ### Agents
 

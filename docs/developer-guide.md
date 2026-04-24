@@ -55,8 +55,9 @@ Prima di iniziare, verifica che tutto sia a posto:
 # Claude Code installato e funzionante
 claude --version
 
-# Autenticazione GitHub attiva
-gh auth status
+# Autenticazione attiva sul provider del progetto
+gh auth status     # per repo GitHub
+glab auth status   # per repo GitLab (aggiungi --hostname <host> se self-hosted)
 
 # MCP servers connessi (clickup, context7 e opzionalmente figma)
 claude mcp list
@@ -161,16 +162,27 @@ Claude Code esegue:
 2. Controlla qualita' del codice (duplicazioni, complessita', sicurezza)
 3. Aggiorna il **REGISTRY.md** con i nuovi componenti/servizi/pattern
 
-### 3.5 Push e Pull Request
+### 3.5 Push e apertura MR/PR
 
 ```bash
 git push -u origin feat/DE-123-descrizione-breve
+
+# Su GitHub
 gh pr create
+
+# Su GitLab (il setup rileva il provider e usa la skill corretta)
+glab mr create --source-branch feat/DE-123-descrizione-breve \
+               --target-branch <default-branch> \
+               --title "..." --description "..."
 ```
 
-La PR deve avere:
+Le skill di workflow (`/dev-setup:start-task`, `/dev-setup:sdd`) richiamano automaticamente la
+skill VCS corretta (`github-ops` o `gitlab-ops`) in base al remote `origin`. Su GitLab, il corpo
+dell'MR segue `.gitlab/merge_request_templates/Default.md` se presente nel repo.
+
+La MR/PR deve avere:
 - **Titolo**: formato Conventional Commits (`feat(scope): descrizione`)
-- **Descrizione**: Cosa / Perche' / Come testare
+- **Descrizione**: Cosa / Perche' / Come testare (o il template MR del repo, su GitLab)
 - **Almeno 1 review** approvata prima del merge
 - **Test verdi** in CI
 
@@ -304,7 +316,53 @@ Assicurati che nella root del progetto ci sia:
 
 ---
 
-## 8. Prossimi passi
+## 8. Upgrade del plugin
+
+Quando esce una nuova versione di `dev-setup`, servono due azioni distinte:
+
+**1. Aggiorna il plugin installato** (nuove skill, agents, boilerplate):
+
+```bash
+# Nel tuo Claude Code
+/plugin update dev-setup@acadevmy
+```
+
+Questo aggiorna skills, agents e template *bundled* del plugin — nessun file nel tuo progetto viene toccato.
+
+**2. Riapplica i template al progetto** (aggiorna i file di governance):
+
+```
+/dev-setup:setup
+```
+
+La skill rileva modalita' **UPDATE** (CONSTITUTION.md + `.claude/settings.json` gia' presenti) e rigenera:
+
+- `CONSTITUTION.md`, `AGENTS.md`, `CLAUDE.md`, `REGISTRY.md`
+
+Per ogni file chiede conferma prima di sovrascrivere (**conflict detection**). Accettare sovrascrive integralmente — eventuali modifiche manuali a quei file si perdono. Rifiutare mantiene la versione corrente.
+
+**Cosa NON viene modificato in UPDATE**:
+- Tooling (git hooks, ESLint, Prettier, CI/CD, `.gitignore`)
+- Dipendenze, lock file
+- Codice sorgente, `.env`
+
+**Raccomandazione**: tieni eventuali personalizzazioni di team fuori dai file rigenerati (es. in un `TEAM_NOTES.md` o in una sezione aggiuntiva di `REGISTRY.md` che conservi manualmente) — in quel modo l'upgrade e' sempre un accetta-overwrite senza rischi.
+
+**Verifica post-upgrade**:
+
+```bash
+# Controlla che il VCS rilevato sia corretto
+git remote get-url origin
+
+# Verifica la skill VCS attiva (deve corrispondere al provider del repo)
+grep -i 'gh\|glab' AGENTS.md
+```
+
+Se il progetto e' migrato da GitHub a GitLab (o viceversa), l'UPDATE rileva il nuovo `origin` e genera la `{{VCS_OPS_NOTE}}` corretta.
+
+---
+
+## 9. Prossimi passi
 
 Dopo aver completato il primo task:
 
