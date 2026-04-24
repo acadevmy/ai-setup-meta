@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.2] - 2026-04-24
+
+### Fixed
+- use opus instead of sonnet
+
 ## [1.5.1] - 2026-04-23
 
 ### Changed
