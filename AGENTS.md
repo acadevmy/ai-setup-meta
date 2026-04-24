@@ -171,4 +171,4 @@ Prima di aprire una PR, verifica:
 Questo file viene aggiornato manualmente tramite PR. Non modificarlo direttamente su `main`.
 
 ---
-*Versione: 2.0.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
+*Versione: 2.1.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
