@@ -532,10 +532,13 @@ from a secret store. Ever.
 
 ### 44. Remote state mandatory, locked, encrypted
 Local state is forbidden for anything beyond a throwaway experiment. The repository
-uses a remote backend with state locking and encryption at rest. For AWS-backed
-stacks the team default is **S3 + native locking** (`use_lockfile = true`, Terraform
-1.10+); DynamoDB-based locking is acceptable only on legacy modules and should be
-migrated opportunistically (HashiCorp has deprecated it).
+uses a remote backend with state locking and encryption at rest. Pick the backend
+that matches the team's infrastructure — S3-compatible storage (AWS S3, MinIO,
+Cloudflare R2, Backblaze B2, etc.) with native locking (`use_lockfile = true`,
+Terraform 1.10+), Azure Blob with lease locking, GCS, Terraform Cloud / HCP
+Terraform, and others are all acceptable. DynamoDB-based locking on S3 is legacy
+and should be migrated to `use_lockfile` opportunistically — HashiCorp has
+deprecated it.
 The backend **is** the state — there is no local/remote sync. Do not commit
 `*.tfstate*`; do not share state files out of band.
 
