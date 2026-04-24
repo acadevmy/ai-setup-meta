@@ -12,6 +12,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- `setup` skill: switch `model: sonnet` → `model: opus` to avoid the extra-usage prompt on Max plan when invoked from a 1M-context session
+
 ### Changed
 - AGENTS.template.md, AGENTS.workspace-template.md, sdd-dev SKILL.md: prefer the `ctx7` CLI over the Context7 MCP for documentation lookups when available in PATH. MCP retained as fallback
 - AGENTS.template.md version bump 2.1.0 → 2.2.0
