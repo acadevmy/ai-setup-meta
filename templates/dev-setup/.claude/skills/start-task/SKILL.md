@@ -113,9 +113,9 @@ When development is completed:
    git push -u origin <branch-name>
    ```
 
-5. **Open PR** with `gh pr create`:
+5. **Open the merge/pull request** by invoking the active VCS-ops skill — `github-ops` if the repo's `origin` points at GitHub, `gitlab-ops` if it points at GitLab. Each skill self-identifies and bails if invoked on the wrong provider, so the correct one proceeds automatically.
    - Title: follows Conventional Commits with customId
-   - Body: includes What / Why / How to test sections + link to ClickUp task
+   - Body: includes What / Why / How to test sections + link to ClickUp task. On GitLab, the body follows `.gitlab/merge_request_templates/Default.md` when present (see `gitlab-ops`).
 
 6. **Update status** — Launch the `clickup` agent with:
    - INTENT: `update`
@@ -126,4 +126,4 @@ When development is completed:
 - Code optimized (simplify) and CONSTITUTION-compliant (review)
 - `REGISTRY.md` updated with new entries
 - Task moved: SPRINT → IN PROGRESS → IN REVIEW
-- PR opened on GitHub with reference to the ClickUp task
+- MR/PR opened (GitLab merge request or GitHub pull request, depending on the repo's provider) with reference to the ClickUp task
