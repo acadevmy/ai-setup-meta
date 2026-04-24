@@ -169,6 +169,41 @@ Se sceglie **Mobile**, chiedi anche:
 
 ---
 
+### Passo 2c — Rilevamento VCS
+
+Determina il provider Git del progetto. Il risultato guida i Passi 5, 8.4, 8.6 e 9.
+
+1. Prova a leggere l'URL del remote:
+   ```bash
+   git -C <project-root> remote get-url origin 2>/dev/null
+   ```
+   Se `origin` non esiste, usa il primo remote disponibile (`git remote | head -1`).
+
+2. Se non esiste `.git` o non c'e' nessun remote configurato:
+   - `vcs = none`
+   - Comunica allo sviluppatore: "Nessun remote Git rilevato. I file VCS-specifici (CI, `.releaserc.json`) non verranno installati."
+   - Salta al Passo 3.
+
+3. Altrimenti, normalizza l'URL in minuscolo e classifica:
+   - Contiene `github.com` → `vcs = github`
+   - Contiene `gitlab` (qualsiasi host, es. `gitlab.com`, `gitlab.company.internal`) → `vcs = gitlab`
+   - Nessuno dei due → vai al punto 4 (probe CLI).
+
+4. **Probe CLI** per host self-hosted ambigui (es. `git@git.company.com:...`):
+   - Estrai l'hostname dall'URL (gestisci sia HTTPS sia SSH).
+   - Esegui `gh auth status --hostname <host> 2>/dev/null` e `glab auth status --hostname <host> 2>/dev/null`.
+   - Se esattamente uno dei due riconosce l'host → `vcs = <quello>`.
+   - Se nessuno o entrambi → chiedi allo sviluppatore con `AskUserQuestion`:
+     ```
+     question: "Quale provider Git usa questo progetto?"
+     options: [ {label: "GitHub"}, {label: "GitLab"}, {label: "Altro / nessuno"} ]
+     ```
+   - Se sceglie "Altro / nessuno" → `vcs = other` (stesso trattamento di `none` per i file VCS-specifici).
+
+5. Comunica allo sviluppatore il VCS rilevato prima di procedere. Salva il valore — verra' referenziato come `{VCS}` nei passi successivi.
+
+---
+
 ### Passo 3 — Installa risorse dal plugin
 
 Leggi i file template dal plugin e installali nel progetto.
@@ -280,6 +315,10 @@ Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
   - Aggiungi nota: `> Questo stack e' stato rilevato automaticamente. Se non e' corretto, aggiorna questa sezione manualmente.`
 - `{{TEST_COMMAND}}` → il comando test rilevato (es. `npm test`, `pytest`, `non rilevato`)
 - `{{LINT_COMMAND}}` → il comando linter rilevato (es. `npm run lint`, `ruff check .`, `non rilevato`)
+- `{{VCS_OPS_NOTE}}` → riga informativa sul provider Git rilevato al Passo 2c. Scegli una delle seguenti in base a `{VCS}`:
+  - `github` → `> GitHub operations (branch, PR, commit) are performed with the \`gh\` CLI.`
+  - `gitlab` → `` > GitLab operations (branch, MR, commit) are performed with the `glab` CLI. MR descriptions follow `.gitlab/merge_request_templates/Default.md` when present. ``
+  - `none` / `other` → `` > Git operations via the `git` CLI. No remote provider configured. ``
 
 **Valori placeholder per modalita' GREENFIELD:**
 
@@ -476,55 +515,13 @@ Crea **`.prettierrc.json`**:
 }
 ```
 
-Crea **`.releaserc.json`** (semantic-release):
-```json
-{
-  "branches": ["main"],
-  "plugins": [
-    [
-      "@semantic-release/commit-analyzer",
-      {
-        "preset": "conventionalcommits",
-        "releaseRules": [
-          { "type": "feat", "release": "minor" },
-          { "type": "fix", "release": "patch" },
-          { "type": "perf", "release": "patch" },
-          { "type": "refactor", "release": "patch" },
-          { "type": "chore", "scope": "deps", "release": "patch" },
-          { "breaking": true, "release": "major" }
-        ]
-      }
-    ],
-    [
-      "@semantic-release/release-notes-generator",
-      {
-        "preset": "conventionalcommits",
-        "presetConfig": {
-          "types": [
-            { "type": "feat", "section": "Nuove funzionalita'" },
-            { "type": "fix", "section": "Bug fix" },
-            { "type": "perf", "section": "Performance" },
-            { "type": "refactor", "section": "Refactoring" },
-            { "type": "chore", "section": "Manutenzione" },
-            { "type": "docs", "section": "Documentazione" },
-            { "type": "ci", "section": "CI/CD" }
-          ]
-        }
-      }
-    ],
-    ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
-    ["@semantic-release/npm", { "npmPublish": false }],
-    [
-      "@semantic-release/git",
-      {
-        "assets": ["CHANGELOG.md", "package.json", "package-lock.json"],
-        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-      }
-    ],
-    "@semantic-release/github"
-  ]
-}
-```
+Crea **`.releaserc.json`** (semantic-release). Scegli il boilerplate in base a `{VCS}` rilevato al Passo 2c:
+
+- `vcs = github` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.releaserc.github.json` in `.releaserc.json`
+- `vcs = gitlab` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.releaserc.gitlab.json` in `.releaserc.json`
+- `vcs = none` / `other` → **salta questo passo** (non creare `.releaserc.json` — non c'e' un provider a cui pubblicare release)
+
+I due file differiscono solo nell'ultimo plugin (`@semantic-release/github` vs `@semantic-release/gitlab`). Entrambi usano `conventionalcommits` e la stessa release rules.
 
 Crea **`.eslintrc.base.json`**:
 ```json
@@ -571,42 +568,13 @@ Per lo stack **fullstack** (multi-progetto):
 
 #### 8.6 — CI/CD workflow
 
-Crea **`.github/workflows/release.yml`** (GitHub Actions + semantic-release):
-```yaml
-name: Release
+Scegli il template CI in base a `{VCS}` rilevato al Passo 2c.
 
-on:
-  push:
-    branches: [main]
+- `vcs = github` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.github/workflows/release.yml` in `.github/workflows/release.yml` (crea la directory se manca). Richiede il secret `GITHUB_TOKEN` (fornito di default da GitHub Actions).
+- `vcs = gitlab` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.gitlab-ci.yml` in `.gitlab-ci.yml` nella root del progetto. Richiede una variabile CI/CD `GITLAB_TOKEN` con scope `api` + `write_repository` (configurala in Settings → CI/CD → Variables su GitLab).
+- `vcs = none` / `other` → **salta questo passo**. Informa lo sviluppatore che puo' aggiungere manualmente un workflow CI al provider che preferisce.
 
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-
-jobs:
-  release:
-    name: Semantic Release
-    runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-      - run: npx semantic-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-> **Nota**: Se lo sviluppatore usa GitLab CI o altro, adatta il workflow al provider CI/CD del progetto mantenendo gli stessi step (checkout, setup, install, semantic-release).
+Entrambi i template eseguono gli stessi step (checkout full history, setup Node 22, `npm ci`, `npx semantic-release`) e bypassano i commit con `[skip ci]`.
 
 #### 8.7 — .gitignore
 
@@ -675,6 +643,7 @@ Stack rilevato:
   - Test runner:  <test_command>
   - Linter:       <lint_command>
   - Validazione:  <validation_tool>
+  - VCS:          <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
 
 NON modificato (tooling esistente rispettato):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
@@ -700,8 +669,8 @@ Configurazione del progetto:
   - .eslintrc.json        — ESLint profilo <stack>
   - .prettierrc.json      — Prettier
   - .commitlintrc.json    — Conventional Commits
-  - .releaserc.json       — semantic-release
-  - .github/workflows/    — CI/CD (semantic-release)
+  - .releaserc.json       — semantic-release (variante <github|gitlab>)
+  - <CI config>           — .github/workflows/release.yml (GitHub) oppure .gitlab-ci.yml (GitLab)
   - .env.example          — variabili d'ambiente
 
 Skills disponibili (fornite dal plugin):
@@ -710,6 +679,8 @@ Skills disponibili (fornite dal plugin):
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
   - /dev-setup:review      — Code review con CONSTITUTION
+
+VCS rilevato: <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
 
 Prossimi passi:
   1. Copia .env.example in .env e compila le variabili
@@ -740,6 +711,8 @@ Skills disponibili (fornite dal plugin):
   - /dev-setup:bdd         — Behavior-Driven Development
   - /dev-setup:review      — Code review con CONSTITUTION
 
+VCS rilevato: <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
+
 NON modificato (tooling esistente rispettato):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
 
@@ -758,3 +731,4 @@ Prossimi passi:
 - **Tooling esistente**: In modalita' EXISTING, non installare ne' modificare: git hooks, linter, formatter, CI/CD, .gitignore, dipendenze. Innesta solo il workflow AI.
 - **Skills e agents**: NON installare skills e agents nel progetto. Sono forniti dal plugin e disponibili automaticamente come /dev-setup:<skill-name>.
 - **gh CLI**: Necessaria solo per la configurazione MCP (Passo 6) e per operazioni greenfield. Se non presente, il setup puo' comunque completarsi — stampa i comandi MCP da eseguire manualmente.
+- **VCS (GitHub vs GitLab)**: Il Passo 2c rileva il provider dal remote `origin`. Entrambe le skill `github-ops` e `gitlab-ops` sono sempre installate — ciascuna fa self-check all'invocazione e si disattiva se il repo non e' suo. Le skill di workflow (`start-task`, `sdd`) chiamano quella corretta in base al remote corrente.

@@ -9,18 +9,24 @@ Tempo stimato: **30–45 minuti** (prima installazione).
 |---|---|---|
 | Node.js | 20.x LTS | [nodejs.org](https://nodejs.org) |
 | git | 2.40+ | preinstallato su macOS/Linux |
-| gh CLI | 2.x+ | `brew install gh` oppure [cli.github.com](https://cli.github.com) |
+| gh CLI | 2.x+ | `brew install gh` oppure [cli.github.com](https://cli.github.com) — serve se il progetto e' su GitHub |
+| glab CLI | 1.30+ | `brew install glab` oppure [gitlab.com/gitlab-org/cli](https://gitlab.com/gitlab-org/cli) — serve se il progetto e' su GitLab |
 | Claude Code | ultima | `npm install -g @anthropic-ai/claude-code` |
 | Account Claude | Piano Pro o Max | [claude.ai](https://claude.ai) |
+
+> Installa **`gh`** o **`glab`** in base al provider del tuo progetto (entrambi se lavori su repo misti). Il setup rileva il provider leggendo il remote `origin` e attiva la skill VCS corrispondente.
 
 ## Passo 1 — Creare il progetto
 
 Crea un nuovo repo (o usa uno esistente) e posizionati nella root:
 
 ```bash
-# Nuovo progetto
+# Nuovo progetto su GitHub
 gh repo create YOUR_ORG/nome-progetto --private --clone
 cd nome-progetto
+
+# Oppure, nuovo progetto su GitLab
+glab repo create YOUR_GROUP/nome-progetto --private && git clone <url-clone> && cd nome-progetto
 
 # Oppure, progetto esistente
 cd /path/to/progetto-esistente
@@ -31,12 +37,16 @@ cd /path/to/progetto-esistente
 Ogni sviluppatore deve usare i **propri account personali**.
 Non condividere mai token o credenziali con altri membri del team.
 
-1. **GitHub** — autenticazione via `gh` CLI (non serve PAT manuale):
+1. **GitHub / GitLab** — autenticazione via CLI (non serve PAT manuale):
    ```bash
+   # Per progetti GitHub
    gh auth login
+
+   # Per progetti GitLab (incluso self-hosted: aggiungi --hostname <host>)
+   glab auth login
    ```
-   Si apre il browser: accedi con il tuo account GitHub e autorizza.
-   Le operazioni git e GitHub useranno la tua identita'. GitHub non usa MCP ma `gh` CLI + `git`.
+   Si apre il browser: accedi con il tuo account e autorizza.
+   Le operazioni git useranno la tua identita'. Nessuno dei due provider usa MCP — sempre `gh`/`glab` CLI + `git`.
 
 2. Copia il template MCP nella tua configurazione locale:
    ```bash
@@ -108,13 +118,17 @@ Puoi subito usare i comandi slash disponibili per il tuo stack.
 
 ## Release automatiche con semantic-release
 
-Per i progetti **greenfield**, il setup agent configura automaticamente **semantic-release**
-con GitHub Actions. Ad ogni push su `main`, la CI analizza i commit (Conventional Commits) e:
+Per i progetti **greenfield**, il setup agent configura automaticamente **semantic-release** con la CI del provider rilevato:
+
+- GitHub → `.github/workflows/release.yml` (GitHub Actions) + `.releaserc.json` con `@semantic-release/github`
+- GitLab → `.gitlab-ci.yml` + `.releaserc.json` con `@semantic-release/gitlab` (serve una variabile CI `GITLAB_TOKEN` con scope `api` + `write_repository`)
+
+Ad ogni push sul branch di default, la CI analizza i commit (Conventional Commits) e:
 
 - Calcola la nuova versione (major/minor/patch)
 - Genera `CHANGELOG.md`
 - Aggiorna la versione nel `package.json`
-- Crea tag e GitHub Release
+- Crea tag e Release (GitHub Release o GitLab Release)
 
 Non serve fare nulla di manuale: basta seguire le convenzioni di commit della Costituzione.
 

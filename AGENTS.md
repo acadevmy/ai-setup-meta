@@ -152,7 +152,8 @@ Comandi che invocano script sh sottostanti per operazioni di build/release/valid
 | Skill | Descrizione |
 |---|---|
 | `clickup` | Documentazione di riferimento per operazioni ClickUp |
-| `github-ops` | Operazioni GitHub (branch, PR, merge) |
+| `github-ops` | Operazioni GitHub (branch, PR, release) via `gh` CLI. Self-identify: si disattiva se il repo non punta a GitHub. |
+| `gitlab-ops` | Operazioni GitLab (branch, MR, release) via `glab` CLI. Usa `glab mr create --template` per i template MR del repo. Self-identify: si disattiva se il repo non punta a GitLab. |
 
 ## Checklist pre-PR
 
@@ -170,4 +171,4 @@ Prima di aprire una PR, verifica:
 Questo file viene aggiornato manualmente tramite PR. Non modificarlo direttamente su `main`.
 
 ---
-*Versione: 2.0.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
+*Versione: 2.1.0 — aggiornare il numero di versione ad ogni modifica sostanziale*

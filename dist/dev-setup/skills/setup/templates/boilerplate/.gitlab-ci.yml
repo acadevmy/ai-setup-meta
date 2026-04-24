@@ -1,0 +1,13 @@
+stages:
+  - release
+
+release:
+  stage: release
+  image: node:22
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_MESSAGE !~ /\[skip ci\]/'
+  variables:
+    GITLAB_TOKEN: $GITLAB_TOKEN
+  script:
+    - npm ci
+    - npx semantic-release

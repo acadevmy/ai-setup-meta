@@ -6,16 +6,18 @@
   "agent": "dev-setup-agent.md",
   "setup_skill": "setup-skill.md",
   "shared_agents": ["clickup.md"],
-  "shared_skills": ["clickup", "github-ops"],
+  "shared_skills": ["clickup", "github-ops", "gitlab-ops"],
   "template_agents": ["review.md"],
   "template_skills": ["start-task", "review", "tdd", "bdd", "sdd", "sdd-discovery", "sdd-spec", "sdd-plan", "sdd-dev"],
   "profiles": ["web-frontend.md", "web-frontend-nuxt.md", "backend-node.md", "mobile.md"],
   "boilerplate_files": [
     ".commitlintrc.json",
     ".prettierrc.json",
-    ".releaserc.json",
+    ".releaserc.github.json",
+    ".releaserc.gitlab.json",
     ".eslintrc.base.json",
     ".github/workflows/release.yml",
+    ".gitlab-ci.yml",
     ".gitignore"
   ],
   "required_files": [

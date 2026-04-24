@@ -211,11 +211,13 @@ hotfix/<customId>-<short-description>
 The `customId` is the ClickUp task identifier (e.g. `DE-123`).
 If the branch is not associated with a ClickUp task, omit the customId.
 
-### 16. Pull Request
+### 16. Pull Request / Merge Request
+On GitHub the term is Pull Request (PR); on GitLab it is Merge Request (MR). The rules below apply
+equally regardless of provider — use whichever terminology matches the project's host.
 - Title: follows Conventional Commits
 - Minimum description: **What**, **Why**, **How to test**
-- The PR cannot be merged if tests fail
-- The PR cannot be merged if ESLint reports errors
+- The PR/MR cannot be merged if tests fail
+- The PR/MR cannot be merged if ESLint reports errors
 - At least **1 review** required before merge
 
 ### 17. Atomic commits
