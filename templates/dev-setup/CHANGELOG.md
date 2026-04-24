@@ -19,6 +19,9 @@
 - add `.gitlab-ci.yml` and `.releaserc.gitlab.json` boilerplate
 - add GitLab variants to `docs/onboarding.md`, `docs/developer-guide.md`, `README.md`
 - add "Upgrade del plugin" section to `docs/developer-guide.md`
+- add `profiles/terraform.md`
+- add `CONSTITUTION.md` §X Infrastructure as Code (rules 42–50)
+- add Terraform detection in `setup-skill.md` (language, `infrastructure` flag, GREENFIELD option)
 
 ### Fixed
 - `setup` skill: switch `model: sonnet` → `model: opus` to avoid the extra-usage prompt on Max plan when invoked from a 1M-context session
@@ -27,9 +30,10 @@
 - `CONSTITUTION.md` §16 generalized to "Pull Request / Merge Request"
 - `shared/skills/github-ops`: add self-identify against `origin` host
 - `start-task` + `sdd`: delegate MR/PR opening to the active `*-ops` skill
-- `setup-skill.md` Passi 5 / 8.4 / 8.6 / 9 branch on detected VCS
-- `manifest.json`: `gitlab-ops` in `shared_skills`, `.releaserc.*.json` + `.gitlab-ci.yml` in `boilerplate_files`
+- `setup-skill.md` Passi 4 / 5 / 8.4 / 8.6 / 9 branch on detected VCS and `infrastructure`
+- `manifest.json`: `gitlab-ops` in `shared_skills`, `terraform.md` in `profiles`, `.releaserc.*.json` + `.gitlab-ci.yml` in `boilerplate_files`
 - rename `boilerplate/.releaserc.json` → `.releaserc.github.json`
+- `CONSTITUTION.md` version 1.2.0 → 1.3.0
 - `AGENTS.template.md` version 2.2.0 → 2.3.0
 - `AGENTS.workspace-template.md` version 1.2.0 → 1.3.0
 - AGENTS.template.md, AGENTS.workspace-template.md, sdd-dev SKILL.md: prefer the `ctx7` CLI over the Context7 MCP for documentation lookups when available in PATH. MCP retained as fallback
