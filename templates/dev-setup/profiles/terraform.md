@@ -49,13 +49,50 @@ For trivial modules a single `main.tf` is acceptable. Split as soon as the modul
 - `.terraform.lock.hcl` is **committed to VCS**. It records exact provider versions + checksums; CI `terraform init` uses it to reproduce the same provider set across machines.
 - `.terraform/` (local plugin cache + working files) and `*.tfstate*` are **gitignored**.
 
-## State (S3 default for AWS, weebora-aligned)
+## State
 
-Remote state is mandatory. State locking is mandatory. Local state is forbidden for anything beyond a throwaway experiment.
+Remote state is mandatory. State locking is mandatory. Encryption at rest is mandatory. Local state is forbidden for anything beyond a throwaway experiment.
 
-### S3 backend — recommended (modern)
+Pick the backend that matches the team's infrastructure. Common options — none of these are defaults imposed by this profile:
 
-Terraform 1.10+ supports S3-native locking via `use_lockfile = true`. **Prefer this over DynamoDB** — HashiCorp marked DynamoDB locking deprecated.
+| Backend | State locking | Typical use |
+|---|---|---|
+| **GitLab managed Terraform state** (`http` backend to GitLab API) | Native, GitLab-managed | Teams already on GitLab — zero extra infra, state lives with the project, permissions inherit from GitLab roles |
+| S3-compatible storage (AWS S3, MinIO, Cloudflare R2, Backblaze B2, Hetzner Object Storage, etc.) | S3-native (`use_lockfile = true`, Terraform 1.10+) or the legacy DynamoDB / external lock | Teams already using object storage with the S3 API |
+| Azure Blob Storage | Native lease locking | Azure-first teams |
+| Google Cloud Storage | Native locking | GCP-first teams |
+| Terraform Cloud / HCP Terraform | Native locking + run history | Teams wanting hosted state and plan/apply UX |
+| PostgreSQL / Consul / etcd | Backend-specific | On-prem or niche deployments |
+
+### GitLab managed Terraform state — recommended when on GitLab
+
+GitLab hosts Terraform state natively for every project. No external storage, no separate lock resource, no extra IAM to wire up. Access is controlled by the project's GitLab roles (Developer to read, Maintainer to write/lock).
+
+```hcl
+# terraform.tf (or backend.tf)
+terraform {
+  backend "http" {
+    # lock_method / unlock_method are REQUIRED for GitLab state locking
+    lock_method   = "POST"
+    unlock_method = "DELETE"
+    retry_wait_min = 5
+  }
+}
+```
+
+All connection details are passed via environment variables at `terraform init` time — **not** hardcoded in the backend block:
+
+- `TF_HTTP_ADDRESS=https://<gitlab-host>/api/v4/projects/<project-id>/terraform/state/<state-name>`
+- `TF_HTTP_LOCK_ADDRESS=$TF_HTTP_ADDRESS/lock`
+- `TF_HTTP_UNLOCK_ADDRESS=$TF_HTTP_ADDRESS/lock`
+- `TF_HTTP_USERNAME=gitlab-ci-token` (in CI) or your GitLab username (locally)
+- `TF_HTTP_PASSWORD=$CI_JOB_TOKEN` (in CI) or a personal access token with `api` scope (locally)
+
+In CI this reduces the auth surface to a single `CI_JOB_TOKEN` that GitLab injects automatically — no cloud credentials needed for state. Cloud provider credentials are still required to actually create/destroy cloud resources (see the CI recipes below), but that's a separate concern from state.
+
+### S3-compatible backend — recommended (modern)
+
+Terraform 1.10+ supports state locking native to the S3 API via `use_lockfile = true`. This is the recommended pattern for S3-compatible storage — HashiCorp has deprecated the legacy DynamoDB lock in favor of it.
 
 ```hcl
 # terraform.tf (or backend.tf)
@@ -63,16 +100,18 @@ terraform {
   backend "s3" {
     bucket       = "<your-state-bucket>"
     key          = "<env>/<component>/terraform.tfstate"
-    region       = "<aws-region>"
+    region       = "<region>"                     # e.g. us-east-1, eu-west-1, or your S3-compatible endpoint region
     encrypt      = true
     use_lockfile = true
   }
 }
 ```
 
-### S3 backend — legacy (DynamoDB lock)
+For non-AWS S3-compatible backends, add `endpoint` / `skip_credentials_validation` / `skip_metadata_api_check` / `force_path_style` as documented by the provider you're using (MinIO, R2, etc.).
 
-If the repo is older and already uses a DynamoDB lock table, keep it until you migrate:
+### S3 with DynamoDB lock — legacy (AWS-only)
+
+If the repo already uses an AWS DynamoDB lock table, keep it until you migrate to `use_lockfile`:
 
 ```hcl
 terraform {
@@ -86,30 +125,26 @@ terraform {
 }
 ```
 
-### State bucket requirements
+### Backend security requirements
 
-Whatever backend you use, the bucket must have:
+Regardless of which backend you pick, the storage container must have:
 
-- **Versioning enabled** — recoverability for accidental state corruption.
-- **Encryption at rest** (SSE-S3 or SSE-KMS).
-- **Public access blocked** (all four block-public-access flags on).
-- **Access control via IAM role** — ideally assumed via OIDC in CI, short-lived credentials. No long-lived access keys in CI secrets.
+- **Versioning / object history enabled** — recoverability for accidental state corruption.
+- **Encryption at rest** — provider's native encryption or a customer-managed key.
+- **Private / default-deny access** — no public reads or writes. On AWS S3 specifically that means all four block-public-access flags; on other backends, the equivalent private-by-default posture.
+- **Short-lived credentials via OIDC / workload identity federation** — no long-lived access keys in CI secrets. AWS: `aws-actions/configure-aws-credentials` with a role-to-assume; Azure: OIDC to AAD; GCP: Workload Identity Federation; Terraform Cloud: dynamic provider credentials.
 
 ### Local/remote "sync"
 
 There is no sync. The backend **is** the state. `terraform init` hydrates `.terraform/` from the backend on a fresh clone; every `plan` and `apply` reads and writes the backend directly. Do not commit `*.tfstate`, do not email it, do not paste it into Slack.
 
-### Alternative backends
-
-Azure Blob Storage + lease locking, GCS, and Terraform Cloud are acceptable for non-AWS stacks. Same rules apply: remote, locked, encrypted, private.
-
 ### Bootstrapping
 
-The S3 bucket and DynamoDB lock table (if used) must exist **before** `terraform init` can use them. Typical options:
+The state storage (bucket / container / database) and any external lock resource must exist **before** `terraform init` can use the backend. Typical options:
 
-1. Manually create the bucket + table once, then let all subsequent modules use them as backend.
-2. A separate `bootstrap/` Terraform configuration that uses a local backend to create the remote-state resources, then migrate its own state into S3 after the first apply.
-3. CloudFormation / click-ops for the bootstrap only — documented in the repo's README.
+1. Manually create the storage + lock resource once, then let all subsequent modules use them as backend.
+2. A separate `bootstrap/` Terraform configuration that uses a local backend to create the remote-state resources, then migrates its own state into the remote backend after the first apply.
+3. Cloud-native click-ops or a one-off script for the bootstrap only — documented in the repo's README.
 
 ## Module structure
 
@@ -143,9 +178,17 @@ In CI, the same three commands run on every PR/MR (plus `terraform plan`). `terr
 
 ## CI/CD recipes (reference text, not auto-generated)
 
-The plugin does **not** generate a CI workflow for Terraform projects today. Adapt one of the recipes below to the repo's existing pipeline. Both assume the runner obtains AWS credentials via OIDC (GitHub: `aws-actions/configure-aws-credentials@v4` with `role-to-assume`; GitLab: `id_tokens` + `aws sts assume-role-with-web-identity`). **Do not** store long-lived access keys in CI secrets.
+The plugin does **not** generate a CI workflow for Terraform projects today. Adapt one of the recipes below to the repo's existing pipeline. Both use short-lived credentials via workload identity / OIDC — **do not** store long-lived access keys in CI secrets.
+
+Where cloud credentials are needed (to create/destroy cloud resources — state access is separate), prefer the cloud SDK's **native** OIDC-to-credentials exchange over hand-rolling `aws sts` / equivalent calls:
+
+- **AWS**: set `AWS_ROLE_ARN` and `AWS_WEB_IDENTITY_TOKEN_FILE` env vars; the AWS SDK exchanges the web-identity token automatically (the same mechanism EKS IRSA uses). No explicit `aws sts assume-role-with-web-identity` call required.
+- **Azure**: set `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_FEDERATED_TOKEN_FILE` — the Azure SDK / `azurerm` provider handle the federation.
+- **GCP**: use Workload Identity Federation; the Google SDK reads the token via the standard GOOGLE_APPLICATION_CREDENTIALS path.
 
 ### GitHub Actions — `.github/workflows/terraform.yml`
+
+Uses `aws-actions/configure-aws-credentials@v4`, which sets the AWS SDK env vars for you (no manual STS call).
 
 ```yaml
 name: Terraform
@@ -170,7 +213,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: <pin to repo's required_version>
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4   # sets AWS_* env vars via OIDC
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: <region>
@@ -210,16 +253,35 @@ jobs:
       - run: terraform apply -auto-approve
 ```
 
-### GitLab CI — job additions to an existing `.gitlab-ci.yml`
+### GitLab CI — `.gitlab-ci.yml` job additions
+
+Uses **GitLab managed Terraform state** (no external state backend) and **AWS SDK native OIDC** (no explicit `aws sts` call). The `id_tokens.AWS_TOKEN.aud` value must match the OIDC trust relationship configured on the AWS IAM role.
 
 ```yaml
 stages:
   - validate
   - apply
 
+variables:
+  TF_STATE_NAME: default                                           # one per module/env
+  TF_HTTP_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}"
+  TF_HTTP_LOCK_ADDRESS: "${TF_HTTP_ADDRESS}/lock"
+  TF_HTTP_UNLOCK_ADDRESS: "${TF_HTTP_ADDRESS}/lock"
+  TF_HTTP_USERNAME: "gitlab-ci-token"
+  TF_HTTP_PASSWORD: "${CI_JOB_TOKEN}"
+
 .terraform:
   image: hashicorp/terraform:<pin to repo's required_version>
+  id_tokens:
+    AWS_TOKEN:
+      aud: "https://gitlab.com"                                    # must match your AWS IAM role trust policy
   before_script:
+    # AWS SDK native OIDC — no explicit `aws sts assume-role-with-web-identity` needed.
+    # The SDK reads AWS_WEB_IDENTITY_TOKEN_FILE + AWS_ROLE_ARN and handles the exchange.
+    - echo "$AWS_TOKEN" > /tmp/aws_token
+    - export AWS_WEB_IDENTITY_TOKEN_FILE=/tmp/aws_token
+    - export AWS_ROLE_ARN="${AWS_ROLE_TO_ASSUME}"
+    - export AWS_ROLE_SESSION_NAME="gitlab-ci-${CI_JOB_ID}"
     - terraform init
 
 terraform:validate:
@@ -228,17 +290,7 @@ terraform:validate:
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes: ['**/*.tf', '**/*.tfvars']
-  id_tokens:
-    AWS_TOKEN:
-      aud: https://gitlab.com
   script:
-    - aws sts assume-role-with-web-identity
-        --role-arn "$AWS_ROLE_TO_ASSUME"
-        --role-session-name "gitlab-ci-$CI_JOB_ID"
-        --web-identity-token "$AWS_TOKEN" > /tmp/creds.json
-    - export AWS_ACCESS_KEY_ID=$(jq -r .Credentials.AccessKeyId /tmp/creds.json)
-    - export AWS_SECRET_ACCESS_KEY=$(jq -r .Credentials.SecretAccessKey /tmp/creds.json)
-    - export AWS_SESSION_TOKEN=$(jq -r .Credentials.SessionToken /tmp/creds.json)
     - terraform fmt -check -recursive
     - terraform validate
     - terraform plan -out=plan.cache
@@ -252,21 +304,26 @@ terraform:apply:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: ['**/*.tf', '**/*.tfvars']
-      when: manual             # require human trigger
+      when: manual                                                 # require human trigger
   script:
     - terraform apply -auto-approve plan.cache
   dependencies: [terraform:validate]
 ```
 
+**What changed vs. the old pattern**: earlier GitLab + AWS examples (including the official GitLab cloud-services doc) show an explicit `aws sts assume-role-with-web-identity` call followed by exporting `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN`. That works, but it hard-codes the token exchange in shell. The SDK-native approach above is shorter, less error-prone, and matches how EKS IRSA and GitHub's `configure-aws-credentials` already work under the hood.
+
+**If Terraform doesn't provision AWS resources** (e.g. you're only managing GitLab resources or on-prem infra), drop the `id_tokens` block and the three AWS env-var exports entirely — you only need the `TF_HTTP_*` vars for state.
+
 ### Adapt to your repo
 
-- **Monorepo with multiple modules**: run the validate/plan job per module directory (matrix in GitHub, `parallel:matrix` in GitLab).
-- **Per-env pipelines**: add environment to the cache key (`key = "<env>/<component>/terraform.tfstate"`) and gate apply per env.
-- **Plan output posted to MR**: GitLab has a built-in `$CI_MERGE_REQUEST_IID` and Terraform integration (`terraform plan -json | ...` piped to the merge-request widget).
+- **Monorepo with multiple modules**: run the validate/plan job per module directory (matrix in GitHub, `parallel:matrix` in GitLab). Give each its own `TF_STATE_NAME` on GitLab-managed state.
+- **Per-env pipelines**: key the state name by env (`TF_STATE_NAME: "${CI_ENVIRONMENT_NAME}"`) and gate apply per env.
+- **Plan output posted to MR**: GitLab has a first-class Terraform MR widget. See [docs.gitlab.com/ci/terraform](https://docs.gitlab.com/ci/terraform) for the `terraform plan -json | gitlab-terraform-report` integration.
+- **Non-AWS clouds**: replace the `AWS_*` env-var block with the Azure (`AZURE_FEDERATED_TOKEN_FILE` / `AZURE_CLIENT_ID` / `AZURE_TENANT_ID`) or GCP (Workload Identity Federation credentials file) equivalents.
 
 ## Working with legacy repositories
 
-`iac_weebora` is an example of a legacy Terraform repo: pinned to Terraform 1.2.0 (2022), uses deprecated provider-block syntax, requires a Rosetta workaround on macOS ARM64 for the `template` provider. Don't treat it as a reference — the conventions above describe current best practice.
+A legacy Terraform repository typically carries some combination of: an old pinned Terraform version (pre-1.x or very early 1.x), deprecated provider-block syntax, DynamoDB-based state locking that predates `use_lockfile`, per-OS workarounds for older providers (e.g. Rosetta on macOS ARM64 for the archived `template` provider), hand-rolled module structure, or missing `description` / `type` on variables. Don't treat the legacy state as a reference for new work — the conventions above describe current best practice.
 
 When touching a legacy module:
 

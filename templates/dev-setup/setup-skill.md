@@ -358,7 +358,7 @@ In base allo stack scelto nel Passo 2b:
 | Backend Node | `**Backend Node**: Node.js 20+, NestJS 10+, Zod + class-validator, Jest + Supertest, Prisma` | `npm test` | `npm run lint` |
 | Mobile (Flutter) | `**Mobile**: Flutter 3.24+ (BLoC/Riverpod)` | `flutter test` | `dart analyze` |
 | Mobile (React Native) | `**Mobile**: React Native con Expo (Zustand/Jotai)` | `npm test` | `npm run lint` |
-| Infrastructure (Terraform) | `**Infrastructure**: Terraform — segui la versione pinnata del repo, remote state (S3 default), HashiCorp style guide` | `terraform validate` | `terraform fmt -check -recursive` |
+| Infrastructure (Terraform) | `**Infrastructure**: Terraform — segui la versione pinnata del repo, remote state con locking + encryption at rest, HashiCorp style guide` | `terraform validate` | `terraform fmt -check -recursive` |
 
 **Per modalita' UPDATE:** Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
 
