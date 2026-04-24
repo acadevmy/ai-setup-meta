@@ -8,6 +8,11 @@
 
 ## I. Core Principles
 
+> **Note for Terraform projects**: the TypeScript / Zod-centric principles in §I apply to
+> code projects. For Terraform / HCL code, see **§X (Infrastructure as Code)** for the
+> equivalent rules (provider pinning, remote state, credential handling, CI gating, legacy
+> grandfather clause).
+
 ### 1. Schema-first
 Every external datum (API response, form input, env variable, public function parameter)
 **must** be validated with **Zod** before being used.
@@ -506,6 +511,85 @@ Changes to `CONSTITUTION.md` require a PR with explicit human approval.
 
 ---
 
-*Version: 1.2.0*
+## X. Infrastructure as Code (Terraform)
+
+These rules apply to repositories with `*.tf` files. They codify the team's non-negotiable
+conventions for Terraform/HCL code and anchor to the
+[HashiCorp Terraform Style Guide](https://developer.hashicorp.com/terraform/language/style).
+The `profiles/terraform.md` companion documents the *how*; this section is the *what*.
+
+### 42. Provider and Terraform version pinning
+The `required_providers` block must declare every provider with an **explicit version
+constraint**. The `required_version` field must pin the Terraform core version the
+repository is targeted at. Loose `>=` or unbounded `~>` at the major level that would
+allow a breaking upgrade to slip in silently are forbidden.
+
+### 43. No hardcoded credentials
+AWS keys, API tokens, service account JSON, database passwords — **none** of these
+appear in `.tf` files. Credentials come from environment variables, CI secrets,
+cloud-provider identity providers (OIDC / assume-role), or `data` sources reading
+from a secret store. Ever.
+
+### 44. Remote state mandatory, locked, encrypted
+Local state is forbidden for anything beyond a throwaway experiment. The repository
+uses a remote backend with state locking and encryption at rest. For AWS-backed
+stacks the team default is **S3 + native locking** (`use_lockfile = true`, Terraform
+1.10+); DynamoDB-based locking is acceptable only on legacy modules and should be
+migrated opportunistically (HashiCorp has deprecated it).
+The backend **is** the state — there is no local/remote sync. Do not commit
+`*.tfstate*`; do not share state files out of band.
+
+### 45. Pre-commit gate
+`terraform fmt -check -recursive` and `terraform validate` must pass before a
+commit lands. These align with §16 (tests and lints green before merge) and §17
+(atomic commits). CI enforces the same gate — see §47.
+
+### 46. Destructive operations require explicit human go
+`terraform destroy`, `terraform state rm`, `terraform import` against production,
+and any `plan` output that shows **resource deletions** against production require
+an explicit in-message approval from the user before the agent proceeds. This is
+the IaC specialization of the team-wide "never touch production without explicit go"
+rule (see also §16 and the per-repo `AGENTS.md`).
+
+### 47. CI-gated workflow
+Every PR/MR that changes `*.tf` must run `terraform fmt -check -recursive`,
+`terraform validate`, and `terraform plan`. The plan output is posted to the
+PR/MR as a comment so humans review the diff before apply. `terraform apply` is
+**never automatic on merge** — it runs either from a manually-triggered pipeline
+job or on a protected branch with required review. Apply against production
+additionally requires §46.
+
+### 48. File layout, naming, module contracts
+Follow the HashiCorp style guide:
+- One module per directory; configuration split across `terraform.tf`,
+  `providers.tf`, `backend.tf`, `variables.tf`, `main.tf`, `locals.tf`,
+  `outputs.tf` (omit files that would be empty).
+- Resource / variable / output / local / module identifiers in **snake_case**.
+- Do **not** repeat the resource type in the identifier (`aws_instance.web`,
+  not `aws_instance.web_instance`). Use `this` for a module's single primary
+  resource.
+- Every `variable` block has `type` and `description`. Every `output` block has
+  `description`. Mark sensitive values with `sensitive = true`.
+
+### 49. Lock file in VCS
+`.terraform.lock.hcl` is **committed**. `.terraform/` and `*.tfstate*` are
+gitignored. Provider checksum drift between machines is a bug, not a feature.
+
+### 50. Legacy modules — grandfather clause (Boy Scout Rule, scoped)
+Existing modules that predate these rules (older Terraform versions, deprecated
+provider-block syntax, DynamoDB-based locking, missing `description` on
+variables, etc.) are **grandfathered**. When you touch a legacy module:
+- Apply §§ 42–49 to **new modules** and to **files you are already modifying**.
+- Do **not** bulk-refactor a legacy repo as a side effect of an unrelated change.
+- Track larger upgrades (TF version bump, backend migration, provider-block
+  rewrite) as **separate PRs** with their own review.
+
+This clause is the scoped form of the CONSTITUTION §5 Boy Scout Rule, applied to
+IaC. New code / new modules follow §§ 42–49; legacy code is updated
+opportunistically.
+
+---
+
+*Version: 1.3.0*
 *Updated: 2026-04*
 *Next planned review: 2026-07*
