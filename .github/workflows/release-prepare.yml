@@ -1,0 +1,121 @@
+name: Release - Prepare
+
+# Apre una "release PR" che bumpa la versione, taglia il CHANGELOG (preservando
+# la prosa di [Unreleased]) e ricostruisce dist/. La PR e' rivedibile prima del
+# merge; il merge stesso triggera release-publish.yml che crea tag + GitHub
+# Release.
+#
+# Trigger: workflow_dispatch (UI manuale) con scelta del tipo di release e del
+# template. Solo i maintainer con permesso di scrittura possono lanciarla.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Tipo di bump'
+        type: choice
+        required: true
+        options:
+          - patch
+          - minor
+          - major
+      template:
+        description: 'Nome del template (es. dev-setup)'
+        type: string
+        required: true
+        default: 'dev-setup'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install jq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run prepare-release.sh
+        id: prepare
+        run: |
+          bash scripts/release/prepare-release.sh \
+            "${{ inputs.release_type }}" \
+            "${{ inputs.template }}"
+
+      - name: Create release branch + commit
+        run: |
+          BRANCH="${{ steps.prepare.outputs.branch }}"
+          TAG="${{ steps.prepare.outputs.tag }}"
+          NEW_VERSION="${{ steps.prepare.outputs.new_version }}"
+
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore(release): prepare ${{ inputs.template }} v${NEW_VERSION}"
+          git push -u origin "$BRANCH"
+
+      - name: Open release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ steps.prepare.outputs.branch }}"
+          NEW_VERSION="${{ steps.prepare.outputs.new_version }}"
+          CURRENT_VERSION="${{ steps.prepare.outputs.current_version }}"
+          TEMPLATE="${{ inputs.template }}"
+
+          # Estrai release notes dalla nuova sezione [NEW_VERSION] del CHANGELOG
+          # (lettura non distruttiva — la sezione e' gia' nel commit appena pushato)
+          NOTES=$(python3 - <<PY
+          import re
+          from pathlib import Path
+          text = Path("templates/${TEMPLATE}/CHANGELOG.md").read_text()
+          ver = "${NEW_VERSION}"
+          ver_re = re.escape(ver)
+          m = re.search(rf'^## \[{ver_re}\][^\n]*\n(.*?)(?=^## \[)', text, re.MULTILINE | re.DOTALL)
+          print((m.group(1).strip() if m else "(nessun contenuto trovato)"))
+          PY
+          )
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(release): ${TEMPLATE} v${NEW_VERSION}" \
+            --body "$(cat <<EOF
+          ## Cosa cambia
+
+          Release PR generata automaticamente da \`release-prepare.yml\`.
+          Bumpa \`${TEMPLATE}\` da \`v${CURRENT_VERSION}\` a \`v${NEW_VERSION}\` (\`${{ inputs.release_type }}\`).
+
+          ### Modifiche incluse
+
+          - \`templates/${TEMPLATE}/.env.example\` → \`TEMPLATE_VERSION=${NEW_VERSION}\`
+          - \`templates/${TEMPLATE}/CHANGELOG.md\` → sezione \`[Unreleased]\` cuttata in \`[${NEW_VERSION}] - $(date +%Y-%m-%d)\`
+          - \`.claude-plugin/marketplace.json\` → \`version: ${NEW_VERSION}\`
+          - \`.cursor-plugin/marketplace.json\` → \`version: ${NEW_VERSION}\`
+          - \`dist/${TEMPLATE}/\` → rebuild
+
+          ### Release notes (anteprima)
+
+          ${NOTES}
+
+          ## Perche'
+
+          Il merge di questa PR triggera \`release-publish.yml\` che crea il tag annotato \`${TEMPLATE}-v${NEW_VERSION}\` e la GitHub Release corrispondente.
+
+          ## Come testare
+
+          - Verifica che il diff contenga solo bump di versione + cut del CHANGELOG + dist rebuild.
+          - Verifica che \`### Added\`/\`### Changed\`/\`### Fixed\` nella sezione \`[${NEW_VERSION}]\` corrispondano a quanto scritto in \`[Unreleased]\` durante le PR feature precedenti.
+          - Una volta mergata, controlla che la GitHub Release \`${TEMPLATE}-v${NEW_VERSION}\` appaia sotto Releases.
+          EOF
+          )"
