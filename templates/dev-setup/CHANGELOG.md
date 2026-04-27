@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.8.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.7.0...dev-setup-v1.8.0) (2026-04-27)
+
+
+### Features
+
+* **setup:** Add Terraform profile and CONSTITUTION §X ([#20](https://github.com/acadevmy/ai-setup-meta/issues/20)) ([1349af7](https://github.com/acadevmy/ai-setup-meta/commit/1349af711e55cf8882c54a7dee97229f7ec5190e))
+
 ## [1.7.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.6.0...dev-setup-v1.7.0) (2026-04-27)
 
 
