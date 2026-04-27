@@ -1,5 +1,11 @@
 # Changelog
 
+<!--
+release-please gestisce questo file dal release v1.7.0 in avanti.
+Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
+Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
+-->
+
 ## [1.6.0] - 2026-04-24
 
 ### Added
@@ -25,32 +31,6 @@
 
 ### Added
 - introduce agent behavioral guidelines and update constitution to restrict premature abstractions and unrequested flexibility (#15)
-
-## [Unreleased]
-
-### Added
-- add `gitlab-ops` shared skill
-- add VCS detection in `setup-skill.md` (Passo 2c)
-- add `{{VCS_OPS_NOTE}}` placeholder in AGENTS templates
-- add `.gitlab-ci.yml` and `.releaserc.gitlab.json` boilerplate
-- add GitLab variants to `docs/onboarding.md`, `docs/developer-guide.md`, `README.md`
-- add "Upgrade del plugin" section to `docs/developer-guide.md`
-
-### Fixed
-- `setup` skill: switch `model: sonnet` → `model: opus` to avoid the extra-usage prompt on Max plan when invoked from a 1M-context session
-
-### Changed
-- `CONSTITUTION.md` §16 generalized to "Pull Request / Merge Request"
-- `shared/skills/github-ops`: add self-identify against `origin` host
-- `start-task` + `sdd`: delegate MR/PR opening to the active `*-ops` skill
-- `setup-skill.md` Passi 5 / 8.4 / 8.6 / 9 branch on detected VCS
-- `manifest.json`: `gitlab-ops` in `shared_skills`, `.releaserc.*.json` + `.gitlab-ci.yml` in `boilerplate_files`
-- rename `boilerplate/.releaserc.json` → `.releaserc.github.json`
-- `AGENTS.template.md` version 2.2.0 → 2.3.0
-- `AGENTS.workspace-template.md` version 1.2.0 → 1.3.0
-- AGENTS.template.md, AGENTS.workspace-template.md, sdd-dev SKILL.md: prefer the `ctx7` CLI over the Context7 MCP for documentation lookups when available in PATH. MCP retained as fallback
-- AGENTS.template.md version bump 2.1.0 → 2.2.0
-- AGENTS.workspace-template.md version bump 1.1.0 → 1.2.0
 
 ## [1.4.0] - 2026-04-20
 

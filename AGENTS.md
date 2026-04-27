@@ -72,13 +72,55 @@ Il team lavora principalmente su:
 
 ### Commit
 - Lingua: **inglese**
-- Formato: Conventional Commits obbligatorio
+- Formato: **Conventional Commits 1.0** obbligatorio
   ```
   feat(constitution): add no-any rule for TypeScript
   fix(mcp): correct ClickUp API endpoint
   chore(profiles): update mobile stack to Flutter 3.24
   ```
 - Mai commit con `--no-verify`
+
+#### Tipi e impatto sulla release
+
+Il tipo del commit determina il bump automatico calcolato da [release-please](https://github.com/googleapis/release-please) al prossimo push su `main`. release-please apre/aggiorna una "release PR" running; al merge della PR vengono creati tag annotato + GitHub Release.
+
+| Tipo | Bump | Note |
+|---|---|---|
+| `feat:` / `feat(scope):` | minor | Nuova funzionalita' visibile all'utente |
+| `fix:` / `fix(scope):` | patch | Bug fix |
+| `perf:` / `revert:` | patch | |
+| `feat!:` / `fix!:` o `BREAKING CHANGE:` nel body | major | Vedi sezione "Breaking changes" sotto |
+| `docs:` / `style:` / `chore:` / `ci:` / `test:` / `refactor:` / `build:` | nessun release | Compaiono nel CHANGELOG ma non bumpano la versione |
+
+Per evitare che un commit di documentazione importante venga ignorato, usa `feat:` se introduce una funzionalita' (es. nuova sezione di onboarding).
+
+#### Breaking changes
+
+Una di queste due forme:
+
+```
+feat(setup)!: drop sonnet model fallback
+```
+
+oppure il footer esplicito nel body:
+
+```
+feat(setup): switch to opus default
+
+BREAKING CHANGE: setup skill now requires extra usage on Pro plans.
+```
+
+Entrambe triggrano un bump major al prossimo run di release-please.
+
+#### Cosa appare nel CHANGELOG
+
+release-please **genera CHANGELOG.md a partire dai commit** dall'ultimo tag. Il subject del commit (ovvero la prima riga) diventa l'entry. Quindi:
+
+- **Squash-merge consigliato** — il subject del commit di squash diventa il subject della PR, che e' typically gia' formattato CC. Niente noise da merge commits intermedi.
+- **Subject leggibile** — pensa al commit subject come release-note-ready. Esempio: `feat(profile): add Terraform profile with S3 backend recipes` invece di `feat(profile): wip`.
+- **Scope informativo** — `feat(profile)`, `fix(setup)`, ecc. Lo scope viene incluso nel CHANGELOG raggruppato per categoria.
+
+release-please raggruppa le entries per tipo (Features / Bug Fixes / Documentation / Performance / ecc.) nella sezione `## [X.Y.Z]` del CHANGELOG. La sezione `## [Unreleased]` non e' usata — release-please calcola tutto dai commit.
 
 ### Pull Request
 - Ogni modifica a `main` passa per PR — nessuna eccezione

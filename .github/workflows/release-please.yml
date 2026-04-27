@@ -1,0 +1,51 @@
+name: Release Please
+
+# Su ogni push su main, release-please calcola il bump dai conventional commits
+# dall'ultimo tag dev-setup-v* e apre/aggiorna una "release PR" running.
+# Al merge della release PR, release-please crea il tag annotato + GitHub Release.
+#
+# Configurazione:
+#   - release-please-config.json (root): tipo release, extra-files, changelog path
+#   - .release-please-manifest.json (root): versione corrente (source of truth)
+#
+# Convenzione commit: vedi AGENTS.md → "Tipi e impatto sulla release"
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Se la release PR e' stata mergeata in questo run, ricostruisce dist/
+      # con la nuova versione e committa direttamente su main. Necessario
+      # perche' release-please bumpa solo il campo `version` di plugin.json,
+      # ma le skill/agents in dist/ vanno rebuildate solo se sono cambiate
+      # (in pratica non cambiano per un release commit puro — ma il rebuild
+      # garantisce idempotenza e cattura eventuali drift).
+      - name: Rebuild dist after release publish
+        if: ${{ steps.release.outputs['.--release_created'] }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq jq
+          bash scripts/build-plugin.sh dev-setup
+          if ! git diff --quiet -- dist/; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add dist/
+            git commit -m "chore(dist): rebuild after release ${{ steps.release.outputs['.--tag_name'] }}"
+            git push origin main
+          else
+            echo "dist/ in sync — niente da committare"
+          fi

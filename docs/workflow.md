@@ -12,69 +12,99 @@ interagisce con esso giorno per giorno.
 ## Ciclo di vita tipico di una modifica
 
 ```
-Maintainer individua un miglioramento
+Contributor (umano o agent) apre branch su feat/<scope>
          │
          ▼
-  Crea branch di lavoro
-  git checkout -b feat/DE-123-descrizione
+  (opzionale) Avvia Claude Code e usa una skill helper
+  per il tipo di modifica:
+    /project:update-constitution  — aggiornare CONSTITUTION e
+                                    propagare al template
+    /project:sync-profiles        — sincronizzare profili stack
+    /project:generate-setup       — rigenerare il setup template
+  (Le skill modificano i file in templates/, shared/, ecc.
+   secondo le regole di CONSTITUTION.md. Il contributor commita
+   manualmente le modifiche con conventional commits.)
          │
          ▼
-  Avvia Claude Code: claude
+  Conventional commit subject (feat:/fix:/feat!:/docs:/...) +
+  push branch + apre PR
+  - build-verify.yml controlla che dist/ sia in sync
          │
          ▼
-  Esegue il comando slash appropriato:
-  /project:update-constitution  (se modifica regole)
-  /project:sync-profiles        (se aggiorna stack)
-  /project:generate-setup       (se rigenera il setup agent)
+  Review + squash-merge su main (build-verify verde)
          │
          ▼
-  Claude Code lavora in autonomia:
-  - Crea/modifica file in templates/dev-setup/
-  - Valida con validate-setup
-  - Aggiorna CHANGELOG
-  - Apre PR via gh CLI
+  release-please.yml automatico su push su main:
+  - parse dei conventional commits dall'ultimo tag dev-setup-v*
+  - calcola bump type (major/minor/patch) o niente (per docs:/chore:/ecc.)
+  - se ci sono commit rilevanti, apre/aggiorna una "release PR" running:
+      - bump versione in templates/dev-setup/.env.example (marker x-release-please-version)
+      - bump version in dist/dev-setup/.{claude,cursor}-plugin/plugin.json
+      - aggiorna .release-please-manifest.json
+      - genera/aggiorna sezione "## [X.Y.Z]" in templates/dev-setup/CHANGELOG.md
+        (raggruppata per Features / Bug Fixes / Documentation / ecc.)
          │
          ▼
-  Maintainer revisiona la PR su GitHub
+  Maintainer rivede la release PR (puo' attendere accumulo di piu'
+  PR feature — release-please aggiorna la PR ad ogni push su main)
          │
          ▼
-  Merge su main
+  Merge della release PR su main
          │
          ▼
-  bash scripts/release-template.sh minor
-  → Sincronizza verso il repo di distribuzione
-  → Crea tag + GitHub Release
-         │
-         ▼
-  /project:release → notifica il team su ClickUp
+  release-please.yml di nuovo:
+  - tag annotato dev-setup-vX.Y.Z
+  - GitHub Release con il diff della sezione CHANGELOG come body
+  - rebuild di dist/ e commit ("chore(dist): rebuild after release ...")
 ```
+
+> **Nota sulle skill helper**: le skill `/project:*` sono strumenti **opzionali** del meta-repo (vivono in `.claude/skills/`). Non sono parte del CI. Servono al contributor per fare modifiche guidate (es. aggiornare la CONSTITUTION mantenendo coerenza fra root e template). Il contributor puo' anche modificare i file a mano — il flow di release dipende solo dai conventional commits, non da come sono stati creati i cambi. Vedi [`AGENTS.md → Skill disponibili`](../AGENTS.md#skill-disponibili) per la lista completa e la descrizione di ognuna.
 
 ## Come funziona il release
 
-Il release script (`scripts/release-template.sh`) pubblica il **setup agent** sul repo template.
-Il repo di distribuzione contiene solo l'entry point per il bootstrap (dispatcher + agent di dominio)
-— non l'intero contenuto di `templates/dev-setup/`. I file del template vengono scaricati a runtime
-dal setup agent via `gh api`.
+Il release flow usa [release-please](https://github.com/googleapis/release-please) (action ufficiale Google, battle-tested). Su ogni push su `main`, l'action analizza i conventional commits dall'ultimo tag e:
 
-Il flusso:
+- Apre o aggiorna una "release PR" running con bump versione + CHANGELOG generato
+- Al merge della release PR, crea tag annotato + GitHub Release
 
-1. Verifica prerequisiti (`gh` CLI, `.env.local`, branch `main` pulito)
-2. Valida gli URL nel setup agent (`scripts/validate-setup-urls.sh`)
-3. Calcola la nuova versione (semver)
-4. Aggiorna `templates/dev-setup/CHANGELOG.md` e `.env.example` nel meta-repo
-5. Crea commit nel meta-repo: `chore(release): bump dev-setup to vX.Y.Z`
-6. Clona il repo di distribuzione (`GITHUB_ORG/GITHUB_DIST_REPO`)
-7. Copia **4 elementi** nel repo di distribuzione:
-   - `.claude/skills/setup/SKILL.md` (da `dist/setup.md` — il dispatcher)
-   - `.claude/agents/*.md` (da `dist/agents/` — agent di dominio)
-   - `README.md` (generato dallo script)
-   - `CHANGELOG.md`
-8. Commit, tag e push sul repo di distribuzione
-9. Push del meta-repo
-10. Crea la GitHub Release con `gh release create`
+Niente push diretto su `main`, niente trigger manuale, niente bash custom. Due workflow:
 
-**Il repo di distribuzione non va mai modificato direttamente.** Ogni modifica parte
-dal meta-repo e viene pubblicata con il release script.
+1. **`release-please.yml`** — gira su ogni push su `main`. Action: `googleapis/release-please-action@v4`.
+2. **`build-verify.yml`** — gira su ogni PR. Verifica che `dist/` sia in sync con la sorgente.
+
+### Configurazione release-please
+
+- **`release-please-config.json`** (root) — definisce il package, gli `extra-files` da bumpare, il path del CHANGELOG. Single-package mode con root come scope.
+- **`.release-please-manifest.json`** (root) — versione corrente. release-please la aggiorna automaticamente; non editare a mano.
+
+`extra-files` configurati per il bump della versione:
+
+- `templates/dev-setup/.env.example` — riconosciuto via marker comment `# x-release-please-version`
+- `dist/dev-setup/.claude-plugin/plugin.json` — JSON path `$.version`
+- `dist/dev-setup/.cursor-plugin/plugin.json` — JSON path `$.version`
+
+I file `.claude-plugin/marketplace.json` e `.cursor-plugin/marketplace.json` non hanno il campo `version` per plugin: Claude Code/Cursor leggono la versione da `dist/<plugin>/.{claude,cursor}-plugin/plugin.json` come fallback.
+
+### Verifica del build (PR check)
+
+`build-verify.yml` gira su ogni PR che tocca `templates/`, `shared/`, `scripts/builders/`, marketplace files, o `dist/`:
+
+- Esegue `bash scripts/build-plugin.sh <template>`
+- Fallisce se `git diff` rileva differenze rispetto a `dist/` committato
+
+Cattura il caso in cui qualcuno modifica `templates/` ma dimentica di rebuildare `dist/`.
+
+### Override manuale del bump type
+
+release-please ha un comando per forzare il release type tramite "release-as" footer in un commit:
+
+```
+feat(profile): add some feature
+
+Release-As: 2.0.0
+```
+
+In alternativa puoi scrivere `release-please-action`-style annotations (vedi [docs ufficiali](https://github.com/googleapis/release-please#how-do-i-change-the-version-number)).
 
 ## Operazioni frequenti
 
@@ -105,18 +135,14 @@ claude
 # Verifica e commita il dist/setup.md aggiornato
 ```
 
-### Rilasciare una nuova versione del template
-```bash
-# Assicurarsi di essere su main aggiornato
-git checkout main && git pull
+### Rilasciare una nuova versione del plugin
 
-# Pubblica sul repo template
-bash scripts/release-template.sh minor   # o patch / major
+Niente azioni esplicite richieste:
 
-# Notifica il team su ClickUp
-claude
-/project:release
-```
+1. Mergea le tue PR feature/fix con commit conventional (`feat:`, `fix:`, ecc.). release-please apre o aggiorna automaticamente una release PR ad ogni push su `main`.
+2. Quando vuoi pubblicare, mergea la release PR. release-please crea tag e GitHub Release in automatico.
+
+Per forzare una versione specifica (override): aggiungi `Release-As: X.Y.Z` nel footer di un commit.
 
 ## Setup iniziale del repo di distribuzione
 

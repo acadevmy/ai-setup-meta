@@ -1,0 +1,46 @@
+name: Build Verify
+
+# Verifica che `dist/` sia in sync con la sorgente (`templates/`, `shared/`,
+# script di build). Lancia `build-plugin.sh` per ogni template e fallisce se
+# il rebuild produrrebbe modifiche rispetto a `dist/` committato.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'templates/**'
+      - 'shared/**'
+      - 'scripts/builders/**'
+      - 'scripts/build-plugin.sh'
+      - '.claude-plugin/**'
+      - '.cursor-plugin/**'
+      - 'dist/**'
+      - '.github/workflows/build-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        template: [dev-setup]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+
+      - name: Build plugin (${{ matrix.template }})
+        run: bash scripts/build-plugin.sh ${{ matrix.template }}
+
+      - name: Check dist/ is in sync
+        run: |
+          if ! git diff --quiet -- dist/ .claude-plugin/ .cursor-plugin/; then
+            echo "::error::dist/ o marketplace.json out of sync rispetto a templates/. Esegui 'bash scripts/build-plugin.sh ${{ matrix.template }}' localmente e committa il risultato."
+            git --no-pager diff --stat -- dist/ .claude-plugin/ .cursor-plugin/
+            exit 1
+          fi
+          echo "✓ dist/ in sync con templates/"
