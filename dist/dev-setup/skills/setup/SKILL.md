@@ -64,9 +64,10 @@ Se la modalita' e' EXISTING, analizza il progetto per rilevare:
 - `go.mod` presente → **go**
 - `pubspec.yaml` presente → **flutter**
 - `Cargo.toml` presente → **rust**
+- Qualsiasi file `*.tf` nella root o in una subdirectory diretta (profondita' ≤ 2) → **terraform**
 - Nessuno dei precedenti → **unknown**
 
-Possono coesistere piu' linguaggi (es. node + python).
+Possono coesistere piu' linguaggi (es. node + python, oppure node + terraform per un monorepo full-stack).
 
 #### Test runner
 Cerca nell'ordine:
@@ -75,7 +76,8 @@ Cerca nell'ordine:
 3. `go.mod` → `go test ./...`
 4. `pubspec.yaml` → `flutter test`
 5. `Cargo.toml` → `cargo test`
-6. Nessuno trovato → `non rilevato`
+6. Linguaggi rilevati includono `terraform` → `terraform validate` (nota: Terraform non ha un test runner classico; `terraform validate` e' il piu' vicino built-in. Il profilo `terraform.md` documenta `terraform test` 1.6+ e Terratest come opzioni)
+7. Nessuno trovato → `non rilevato`
 
 #### Linter
 Cerca nell'ordine:
@@ -85,7 +87,8 @@ Cerca nell'ordine:
 4. `.golangci.yml` → `golangci-lint run`
 5. `analysis_options.yaml` → `dart analyze`
 6. `Cargo.toml` → `cargo clippy`
-7. Nessuno trovato → `non rilevato`
+7. Linguaggi rilevati includono `terraform` → `terraform fmt -check -recursive`
+8. Nessuno trovato → `non rilevato`
 
 #### Tool di validazione
 1. `pubspec.yaml` presente → **freezed + json_serializable** (modelli immutabili e serializzazione schema-driven, no Zod)
@@ -107,6 +110,12 @@ Cerca nell'ordine:
 - `pubspec.yaml` presente → **flutter**
 - altrimenti, `package.json` contiene `react-native` o `expo` → **react-native**
 - altrimenti → `non rilevato`
+
+#### Infrastructure rilevato?
+- Linguaggi rilevati includono `terraform` → **si**
+- Altrimenti → **no**
+
+Questa flag deriva dal rilevamento linguaggio e serve a gatettare la Sezione X della CONSTITUTION (Passo 4 Rule 4).
 
 #### Multi-progetto rilevato?
 
@@ -133,12 +142,13 @@ Se trovato, enumera i sub-project dalla configurazione del tool (es. `workspaces
 Per progetto singolo:
 ```
 Stack rilevato:
-  Linguaggi:   node
-  Test runner:  npm test
-  Linter:       npm run lint
-  Validazione:  Zod
-  Frontend:     si
-  Mobile:       no
+  Linguaggi:     node
+  Test runner:   npm test
+  Linter:        npm run lint
+  Validazione:   Zod
+  Frontend:      si
+  Mobile:        no
+  Infrastructure: no
 ```
 
 Per multi-progetto:
@@ -146,8 +156,9 @@ Per multi-progetto:
 Stack rilevato:
   Multi-progetto: si (Nx)
   Sub-project:
-    apps/web/  — node, frontend: si, test: npm test, lint: npm run lint
-    apps/api/  — node, frontend: no, test: npm test, lint: npm run lint
+    apps/web/    — node, frontend: si, infrastructure: no, test: npm test, lint: npm run lint
+    apps/api/    — node, frontend: no, infrastructure: no, test: npm test, lint: npm run lint
+    iac/         — terraform, infrastructure: si, test: terraform validate, lint: terraform fmt -check -recursive
 
 Confermi questi sub-project? (si/no)
 ```
@@ -162,10 +173,13 @@ Se la modalita' e' GREENFIELD, chiedi allo sviluppatore di scegliere lo stack:
 2. **Backend Node** — Node.js / NestJS + Prisma + Zod
 3. **Mobile** — Flutter / React Native (Expo)
 4. **Full-stack** — Frontend + Backend (monorepo)
+5. **Infrastructure / Terraform** — HCL, remote state (S3 default), AWS/Azure/GCP
 
 Se sceglie **Mobile**, chiedi anche:
 - **Flutter**
 - **React Native (Expo)**
+
+Se sceglie **Infrastructure / Terraform**: imposta `languages=[terraform]`, `infrastructure=yes`. **Nota importante**: il Passo 8 (setup greenfield) **non** applica boilerplate Terraform-specifico in questa versione (nessun `.gitignore` Terraform auto-generato, nessun workflow CI Terraform auto-emesso, nessun `versions.tf` scaffold). Il profilo `terraform.md` contiene le ricette CI e il backend S3 come testo di riferimento da copiare. Comunica questa limitazione allo sviluppatore nel riepilogo del Passo 9.
 
 ---
 
@@ -279,12 +293,26 @@ Parti dal contenuto letto da `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`.
    - **Multi-progetto**: mantieni Sezione VII se **qualsiasi** sub-project ha mobile rilevato
 3. Se il linguaggio rilevato **non** include `node` → aggiungi questa nota subito dopo la riga `## I. Principi fondamentali`:
    - **Multi-progetto**: aggiungi la nota solo se **nessun** sub-project usa `node`
+   - Se il linguaggio include `terraform`, adatta il testo della nota per menzionare esplicitamente §X (vedi variante sotto)
 
+**Nota standard** (nessun Terraform):
 ```
 > **Nota**: Le regole specifiche a TypeScript/Zod si applicano ai progetti TypeScript.
 > Per altri linguaggi, applicare il principio equivalente (validazione schema-first
 > con lo strumento appropriato del proprio stack, strict typing nativo del linguaggio).
 ```
+
+**Nota con Terraform** (linguaggi includono `terraform` e non includono `node`):
+```
+> **Nota**: Le regole specifiche a TypeScript/Zod si applicano ai progetti TypeScript.
+> Per altri linguaggi, applicare il principio equivalente. Per progetti Terraform / HCL,
+> le regole IaC sono codificate in **§X (Infrastructure as Code)** piu' avanti in questo
+> documento.
+```
+
+4. Se `infrastructure` **non** e' stato rilevato → rimuovi l'intera Sezione X (da `## X.` fino alla fine del documento, **preservando il blocco footer** `*Version: ...*`)
+   - **Multi-progetto**: mantieni Sezione X se **qualsiasi** sub-project ha `infrastructure` rilevato
+   - Quando la Sezione X viene rimossa, rimuovi anche la nota `> **Note for Terraform projects**` subito dopo `## I. Core Principles` (per evitare un puntatore a una sezione inesistente)
 
 #### Per modalita' GREENFIELD:
 
@@ -330,6 +358,7 @@ In base allo stack scelto nel Passo 2b:
 | Backend Node | `**Backend Node**: Node.js 20+, NestJS 10+, Zod + class-validator, Jest + Supertest, Prisma` | `npm test` | `npm run lint` |
 | Mobile (Flutter) | `**Mobile**: Flutter 3.24+ (BLoC/Riverpod)` | `flutter test` | `dart analyze` |
 | Mobile (React Native) | `**Mobile**: React Native con Expo (Zustand/Jotai)` | `npm test` | `npm run lint` |
+| Infrastructure (Terraform) | `**Infrastructure**: Terraform — segui la versione pinnata del repo, remote state con locking + encryption at rest, HashiCorp style guide` | `terraform validate` | `terraform fmt -check -recursive` |
 
 **Per modalita' UPDATE:** Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
 
@@ -639,11 +668,12 @@ Skills disponibili (fornite dal plugin):
   - /dev-setup:review      — Code review con CONSTITUTION
 
 Stack rilevato:
-  - Linguaggi:   <linguaggi>
-  - Test runner:  <test_command>
-  - Linter:       <lint_command>
-  - Validazione:  <validation_tool>
-  - VCS:          <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
+  - Linguaggi:      <linguaggi>
+  - Test runner:    <test_command>
+  - Linter:         <lint_command>
+  - Validazione:    <validation_tool>
+  - Infrastructure: <si|no> (se si: applicata §X CONSTITUTION, skill terraform profilo)
+  - VCS:            <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
 
 NON modificato (tooling esistente rispettato):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
@@ -681,11 +711,18 @@ Skills disponibili (fornite dal plugin):
   - /dev-setup:review      — Code review con CONSTITUTION
 
 VCS rilevato: <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
+Infrastructure: <si|no>
 
 Prossimi passi:
   1. Copia .env.example in .env e compila le variabili
   2. Verifica MCP: claude mcp list
   3. Usa /dev-setup:start-task (rapido) o /dev-setup:sdd (spec-driven) per iniziare!
+```
+
+**Nota GREENFIELD Terraform**: se lo stack scelto e' **Infrastructure / Terraform**, il Passo 8 non genera boilerplate Terraform (nessun `.gitignore` Terraform auto-emesso, nessun workflow CI auto-emesso, nessun `versions.tf` scaffold). Lo sviluppatore deve creare manualmente `main.tf`, `variables.tf`, `outputs.tf`, `terraform.tf` (o `versions.tf`) e il blocco `backend "s3"` seguendo le ricette in `profiles/terraform.md`. Aggiungi al riepilogo GREENFIELD:
+```
+  [Terraform GREENFIELD] Il plugin NON ha generato boilerplate Terraform.
+                         Vedi profiles/terraform.md per la struttura consigliata e le ricette CI.
 ```
 
 **Per MULTI-PROGETTO (EXISTING):**
@@ -712,6 +749,7 @@ Skills disponibili (fornite dal plugin):
   - /dev-setup:review      — Code review con CONSTITUTION
 
 VCS rilevato: <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
+Infrastructure: <si|no> (se si: ogni sub-project Terraform ha la §X CONSTITUTION applicata)
 
 NON modificato (tooling esistente rispettato):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore

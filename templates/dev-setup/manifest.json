@@ -9,7 +9,7 @@
   "shared_skills": ["clickup", "github-ops", "gitlab-ops"],
   "template_agents": ["review.md"],
   "template_skills": ["start-task", "review", "tdd", "bdd", "sdd", "sdd-discovery", "sdd-spec", "sdd-plan", "sdd-dev"],
-  "profiles": ["web-frontend.md", "web-frontend-nuxt.md", "backend-node.md", "mobile.md"],
+  "profiles": ["web-frontend.md", "web-frontend-nuxt.md", "backend-node.md", "mobile.md", "terraform.md"],
   "boilerplate_files": [
     ".commitlintrc.json",
     ".prettierrc.json",
