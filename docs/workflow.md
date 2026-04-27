@@ -12,69 +12,84 @@ interagisce con esso giorno per giorno.
 ## Ciclo di vita tipico di una modifica
 
 ```
-Maintainer individua un miglioramento
+Maintainer/contributor apre branch + PR
+  - Modifica template/, shared/, docs/, scripts/...
+  - Aggiunge entry in CHANGELOG.md sotto `[Unreleased]`
+  - build-verify.yml controlla che dist/ sia in sync
          │
          ▼
-  Crea branch di lavoro
-  git checkout -b feat/DE-123-descrizione
+  Review + merge su main
+  (build-verify deve essere verde)
          │
          ▼
-  Avvia Claude Code: claude
+  Una o piu' PR si accumulano in `[Unreleased]`
          │
          ▼
-  Esegue il comando slash appropriato:
-  /project:update-constitution  (se modifica regole)
-  /project:sync-profiles        (se aggiorna stack)
-  /project:generate-setup       (se rigenera il setup agent)
+  Maintainer apre Actions → "Release - Prepare"
+  Inputs: release_type (patch/minor/major), template
          │
          ▼
-  Claude Code lavora in autonomia:
-  - Crea/modifica file in templates/dev-setup/
-  - Valida con validate-setup
-  - Aggiorna CHANGELOG
-  - Apre PR via gh CLI
+  release-prepare.yml apre una "release PR":
+  - bumpa TEMPLATE_VERSION + entrambi i marketplace.json
+  - cut [Unreleased] → [X.Y.Z] - <data> preservando la prosa
+  - rebuild dist/
          │
          ▼
-  Maintainer revisiona la PR su GitHub
+  Review + merge della release PR su main
          │
          ▼
-  Merge su main
-         │
-         ▼
-  bash scripts/release-template.sh minor
-  → Sincronizza verso il repo di distribuzione
-  → Crea tag + GitHub Release
-         │
-         ▼
-  /project:release → notifica il team su ClickUp
+  release-publish.yml automatico:
+  - tag annotato <template>-vX.Y.Z
+  - push tag
+  - GitHub Release con sezione [X.Y.Z] del CHANGELOG come body
 ```
 
 ## Come funziona il release
 
-Il release script (`scripts/release-template.sh`) pubblica il **setup agent** sul repo template.
-Il repo di distribuzione contiene solo l'entry point per il bootstrap (dispatcher + agent di dominio)
-— non l'intero contenuto di `templates/dev-setup/`. I file del template vengono scaricati a runtime
-dal setup agent via `gh api`.
+Il release flow e' **automatizzato via GitHub Actions** in due fasi: una "release PR" rivedibile + una pubblicazione automatica al merge. Niente push diretto su `main`, niente release dal laptop del maintainer (path standard). Lo script `scripts/release-plugin.sh` resta disponibile come wrapper di emergenza, ma il path standard e' la GitHub Action.
 
-Il flusso:
+### Fase 1 — Apertura della release PR
 
-1. Verifica prerequisiti (`gh` CLI, `.env.local`, branch `main` pulito)
-2. Valida gli URL nel setup agent (`scripts/validate-setup-urls.sh`)
-3. Calcola la nuova versione (semver)
-4. Aggiorna `templates/dev-setup/CHANGELOG.md` e `.env.example` nel meta-repo
-5. Crea commit nel meta-repo: `chore(release): bump dev-setup to vX.Y.Z`
-6. Clona il repo di distribuzione (`GITHUB_ORG/GITHUB_DIST_REPO`)
-7. Copia **4 elementi** nel repo di distribuzione:
-   - `.claude/skills/setup/SKILL.md` (da `dist/setup.md` — il dispatcher)
-   - `.claude/agents/*.md` (da `dist/agents/` — agent di dominio)
-   - `README.md` (generato dallo script)
-   - `CHANGELOG.md`
-8. Commit, tag e push sul repo di distribuzione
-9. Push del meta-repo
-10. Crea la GitHub Release con `gh release create`
+Il maintainer apre **Actions → "Release - Prepare" → Run workflow** su GitHub:
 
-**Il repo di distribuzione non va mai modificato direttamente.** Ogni modifica parte
-dal meta-repo e viene pubblicata con il release script.
+- Inputs: `release_type` (`patch` / `minor` / `major`) e `template` (default `dev-setup`).
+- Il workflow `.github/workflows/release-prepare.yml` esegue `scripts/release/prepare-release.sh`, che:
+  1. Calcola la nuova versione partendo da `templates/<template>/.env.example` (`TEMPLATE_VERSION`)
+  2. **Cut del CHANGELOG**: rinomina `## [Unreleased]` in `## [X.Y.Z] - <data>` preservando la prosa verbatim, e re-inserisce un `[Unreleased]` vuoto sopra. **Non** ri-deriva entries dai messaggi di commit
+  3. Aggiorna `version` in `.claude-plugin/marketplace.json` e `.cursor-plugin/marketplace.json`
+  4. Aggiorna `TEMPLATE_VERSION` in `.env.example`
+  5. Ricostruisce `dist/<template>/` via `scripts/build-plugin.sh`
+- Il workflow committa tutto su un branch `release/<template>-vX.Y.Z` e apre una PR contro `main`.
+
+### Fase 2 — Review + merge
+
+La release PR e' un cambio normale: il maintainer la rivede, eventualmente edita la prosa del CHANGELOG (che ora vive in `## [X.Y.Z]`), e la mergea quando e' pronta.
+
+Al merge il workflow `.github/workflows/release-publish.yml` esegue `scripts/release/publish-release.sh`, che:
+
+1. Verifica che il branch corrisponda al pattern `release/<template>-v<X>.<Y>.<Z>` ed estrae template + versione
+2. Crea un tag annotato `<template>-v<X>.<Y>.<Z>` puntato al merge commit
+3. Pusha il tag a `origin`
+4. Estrae la sezione `## [X.Y.Z]` dal CHANGELOG e la usa come body della GitHub Release (via `gh release create`)
+
+### Fase 0 — Authoring delle entries di CHANGELOG durante le PR
+
+Le entries del CHANGELOG **vengono scritte durante le PR feature/fix**, non al momento della release. Ogni contributor che apre una PR deve aggiungere una riga nella sezione `## [Unreleased]` di `templates/<template>/CHANGELOG.md` sotto `### Added` / `### Changed` / `### Fixed`. Esempio: una PR che aggiunge un nuovo profilo Terraform aggiunge `- add \`profiles/terraform.md\`` sotto `### Added`. Tieni le entries terse, in stile imperativo, una per riga — vedi le release storiche `[1.4.0]` e precedenti come riferimento.
+
+Quando il workflow `Release - Prepare` gira, prende esattamente quelle entries e le promuove a `## [X.Y.Z]`. Non c'e' deduplicazione automatica: se le entries sono sbagliate o mancanti, lo saranno anche nella release.
+
+### Verifica del build (PR check)
+
+Ogni PR contro `main` che tocca `templates/`, `shared/`, `scripts/builders/`, `.{claude,cursor}-plugin/` o `dist/` triggera `.github/workflows/build-verify.yml`, che:
+
+- Esegue `bash scripts/build-plugin.sh <template>`
+- Fallisce se `git diff` rileva differenze rispetto a `dist/` committato
+
+Cattura il caso in cui qualcuno modifica `templates/` ma dimentica di rebuildare `dist/`.
+
+### Wrapper locale (`scripts/release-plugin.sh`)
+
+Esiste solo per emergenze in cui le GitHub Actions non sono disponibili. Esegue prepare + push diretto su `main` + publish in sequenza, **bypassando la review della PR**. Da usare con consapevolezza.
 
 ## Operazioni frequenti
 
@@ -105,17 +120,20 @@ claude
 # Verifica e commita il dist/setup.md aggiornato
 ```
 
-### Rilasciare una nuova versione del template
+### Rilasciare una nuova versione del plugin
+
+**Path standard** (via GitHub Actions):
+
+1. Vai su **Actions → "Release - Prepare" → Run workflow** nel repo
+2. Seleziona `release_type` (`patch` / `minor` / `major`) e `template` (`dev-setup`)
+3. Aspetta che il workflow apra la release PR
+4. Rivedi il diff (focus: la sezione `## [X.Y.Z]` del CHANGELOG riflette quanto autorato in `[Unreleased]`)
+5. Mergea la PR — il workflow `Release - Publish` crea tag e GitHub Release automaticamente
+
+**Path di emergenza** (locale, bypassa review):
 ```bash
-# Assicurarsi di essere su main aggiornato
 git checkout main && git pull
-
-# Pubblica sul repo template
-bash scripts/release-template.sh minor   # o patch / major
-
-# Notifica il team su ClickUp
-claude
-/project:release
+bash scripts/release-plugin.sh minor dev-setup   # o patch / major
 ```
 
 ## Setup iniziale del repo di distribuzione
