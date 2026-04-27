@@ -12,8 +12,22 @@ interagisce con esso giorno per giorno.
 ## Ciclo di vita tipico di una modifica
 
 ```
-Contributor (umano o agent) apre branch + PR
-  - Conventional commit subject (feat:/fix:/feat!:/etc.)
+Contributor (umano o agent) apre branch su feat/<scope>
+         │
+         ▼
+  (opzionale) Avvia Claude Code e usa una skill helper
+  per il tipo di modifica:
+    /project:update-constitution  — aggiornare CONSTITUTION e
+                                    propagare al template
+    /project:sync-profiles        — sincronizzare profili stack
+    /project:generate-setup       — rigenerare il setup template
+  (Le skill modificano i file in templates/, shared/, ecc.
+   secondo le regole di CONSTITUTION.md. Il contributor commita
+   manualmente le modifiche con conventional commits.)
+         │
+         ▼
+  Conventional commit subject (feat:/fix:/feat!:/docs:/...) +
+  push branch + apre PR
   - build-verify.yml controlla che dist/ sia in sync
          │
          ▼
@@ -43,6 +57,8 @@ Contributor (umano o agent) apre branch + PR
   - GitHub Release con il diff della sezione CHANGELOG come body
   - rebuild di dist/ e commit ("chore(dist): rebuild after release ...")
 ```
+
+> **Nota sulle skill helper**: le skill `/project:*` sono strumenti **opzionali** del meta-repo (vivono in `.claude/skills/`). Non sono parte del CI. Servono al contributor per fare modifiche guidate (es. aggiornare la CONSTITUTION mantenendo coerenza fra root e template). Il contributor puo' anche modificare i file a mano — il flow di release dipende solo dai conventional commits, non da come sono stati creati i cambi. Vedi [`AGENTS.md → Skill disponibili`](../AGENTS.md#skill-disponibili) per la lista completa e la descrizione di ognuna.
 
 ## Come funziona il release
 
