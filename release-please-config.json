@@ -5,7 +5,7 @@
       "release-type": "simple",
       "package-name": "dev-setup",
       "include-component-in-tag": true,
-      "tag-separator": "-v",
+      "tag-separator": "-",
       "bump-minor-pre-major": false,
       "bump-patch-for-minor-pre-major": false,
       "draft": false,
