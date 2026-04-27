@@ -12,45 +12,68 @@ interagisce con esso giorno per giorno.
 ## Ciclo di vita tipico di una modifica
 
 ```
-Maintainer/contributor apre branch + PR
-  - Modifica template/, shared/, docs/, scripts/...
-  - Aggiunge entry in CHANGELOG.md sotto `[Unreleased]`
+Contributor (umano o agent) apre branch + PR
+  - Conventional commit: feat:/fix:/feat!:/etc.
+  - Aggiunge entry in CHANGELOG.md sotto [Unreleased]
   - build-verify.yml controlla che dist/ sia in sync
          │
          ▼
-  Review + merge su main
-  (build-verify deve essere verde)
+  Review + merge su main (build-verify verde)
          │
          ▼
-  Una o piu' PR si accumulano in `[Unreleased]`
+  auto-release.yml automatico su push su main:
+  - calcola bump type (major/minor/patch) dai CC dall'ultimo tag
+  - se ci sono commit rilevanti, force-recreate la "release PR" running
+    (cut [Unreleased] -> [X.Y.Z], rebuild dist, push)
+  - chiude eventuali release PR con versione obsoleta
          │
          ▼
-  Maintainer apre Actions → "Release - Prepare"
-  Inputs: release_type (patch/minor/major), template
+  Maintainer rivede la release PR (eventualmente attende
+  che si accumulino piu' PR feature, ognuna re-aggiorna la PR)
          │
          ▼
-  release-prepare.yml apre una "release PR":
-  - bumpa TEMPLATE_VERSION + entrambi i marketplace.json
-  - cut [Unreleased] → [X.Y.Z] - <data> preservando la prosa
-  - rebuild dist/
-         │
-         ▼
-  Review + merge della release PR su main
+  Merge della release PR su main
          │
          ▼
   release-publish.yml automatico:
-  - tag annotato <template>-vX.Y.Z
-  - push tag
+  - tag annotato dev-setup-vX.Y.Z
   - GitHub Release con sezione [X.Y.Z] del CHANGELOG come body
 ```
 
 ## Come funziona il release
 
-Il release flow e' **automatizzato via GitHub Actions** in due fasi: una "release PR" rivedibile + una pubblicazione automatica al merge. Niente push diretto su `main`, niente release dal laptop del maintainer (path standard). Lo script `scripts/release-plugin.sh` resta disponibile come wrapper di emergenza, ma il path standard e' la GitHub Action.
+Il release flow e' **completamente automatizzato via GitHub Actions**. Su ogni push su `main` con commit rilevanti, viene aperta (o aggiornata) una "release PR" running. Il maintainer la mergea quando ready; il merge crea tag + GitHub Release in automatico. Niente push diretto su `main`, niente release dal laptop, niente trigger manuale del workflow nel caso normale.
 
-### Fase 1 — Apertura della release PR
+Tre componenti:
 
-Il maintainer apre **Actions → "Release - Prepare" → Run workflow** su GitHub:
+1. **Auto Release** (`auto-release.yml`) — su ogni push su `main`, calcola il bump type dai conventional commits e aggiorna la release PR running.
+2. **Release - Prepare** (`release-prepare.yml`) — `workflow_dispatch` manuale come override se serve forzare patch/minor/major a mano. Stesso effetto di Auto Release ma con bump scelto a mano.
+3. **Release - Publish** (`release-publish.yml`) — al merge della release PR, crea tag annotato + GitHub Release con la sezione `[X.Y.Z]` del CHANGELOG.
+
+### Fase 0 — Conventional Commits durante le PR (la disciplina che fa girare tutto)
+
+Ogni commit deve seguire CC 1.0. Il tipo determina il bump:
+
+- `feat(...)` → `minor`
+- `feat!:` o `BREAKING CHANGE:` nel body → `major`
+- Tutti gli altri (`fix:`, `chore:`, `docs:`, `refactor:`, `perf:`, `style:`, `test:`, `ci:`) → `patch`
+- Solo i commit che toccano `templates/dev-setup/`, `shared/`, `scripts/builders/`, `scripts/build-plugin.sh`, `scripts/release/` contano per il bump
+
+Vedi [`AGENTS.md`](../AGENTS.md#tipi-e-impatto-sulla-release) per la tabella completa.
+
+### Fase 1 — Auto Release apre/aggiorna la release PR
+
+Su ogni `push` su `main`:
+
+- `auto-release.yml` controlla i commit dall'ultimo tag `dev-setup-v*`
+- Se ci sono cambi rilevanti, calcola il bump type
+- Esegue `scripts/release/prepare-release.sh`
+- **Force-recreate** del branch `release/dev-setup-vX.Y.Z` (running PR — riscritta ogni volta)
+- Apre o refresha la PR
+
+### Fase 1-bis (opzionale) — Override manuale
+
+Se serve forzare il bump (es. release di emergenza con un solo `fix:` ma vuoi minor):
 
 - Inputs: `release_type` (`patch` / `minor` / `major`) e `template` (default `dev-setup`).
 - Il workflow `.github/workflows/release-prepare.yml` esegue `scripts/release/prepare-release.sh`, che:
@@ -122,15 +145,18 @@ claude
 
 ### Rilasciare una nuova versione del plugin
 
-**Path standard** (via GitHub Actions):
+**Path standard** (auto, niente click):
 
-1. Vai su **Actions → "Release - Prepare" → Run workflow** nel repo
-2. Seleziona `release_type` (`patch` / `minor` / `major`) e `template` (`dev-setup`)
-3. Aspetta che il workflow apra la release PR
-4. Rivedi il diff (focus: la sezione `## [X.Y.Z]` del CHANGELOG riflette quanto autorato in `[Unreleased]`)
-5. Mergea la PR — il workflow `Release - Publish` crea tag e GitHub Release automaticamente
+1. Mergea le tue PR feature/fix con commit conventional. Auto Release apre/aggiorna automaticamente una release PR ad ogni merge.
+2. Quando vuoi pubblicare, mergea la release PR. `Release - Publish` crea tag + GitHub Release.
 
-**Path di emergenza** (locale, bypassa review):
+**Path manuale** (override del bump type via dispatch):
+
+1. Vai su **Actions → "Release - Prepare" → Run workflow**
+2. Seleziona `release_type` e `template`
+3. Esattamente come Auto Release, ma con bump type forzato
+
+**Path di emergenza** (locale, bypassa review e Actions):
 ```bash
 git checkout main && git pull
 bash scripts/release-plugin.sh minor dev-setup   # o patch / major

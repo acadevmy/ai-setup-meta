@@ -72,13 +72,55 @@ Il team lavora principalmente su:
 
 ### Commit
 - Lingua: **inglese**
-- Formato: Conventional Commits obbligatorio
+- Formato: **Conventional Commits 1.0** obbligatorio
   ```
   feat(constitution): add no-any rule for TypeScript
   fix(mcp): correct ClickUp API endpoint
   chore(profiles): update mobile stack to Flutter 3.24
   ```
 - Mai commit con `--no-verify`
+
+#### Tipi e impatto sulla release
+
+Il tipo del commit determina il bump automatico al prossimo Auto Release. La release PR si apre da sola quando un push su `main` contiene almeno un commit rilevante.
+
+| Tipo | Bump | Quando usarlo |
+|---|---|---|
+| `feat:` / `feat(scope):` | minor | Nuova funzionalita' visibile all'utente |
+| `fix:` / `fix(scope):` | patch | Bug fix |
+| `feat!:` o `BREAKING CHANGE:` nel body | major | Breaking change (vedi nota sotto) |
+| `perf:` / `refactor:` | patch | Miglioramenti senza nuove feature |
+| `docs:` / `style:` / `test:` / `chore:` / `ci:` | patch | Manutenzione che tocca i path del plugin |
+
+Path tracciati per il bump: `templates/dev-setup/`, `shared/`, `scripts/builders/`, `scripts/build-plugin.sh`, `scripts/release/`. Modifiche fuori da questi path **non triggerano una release**.
+
+#### Breaking changes
+
+Una di queste due forme:
+
+```
+feat(setup)!: drop sonnet model fallback
+```
+
+oppure il footer esplicito nel body:
+
+```
+feat(setup): switch to opus default
+
+BREAKING CHANGE: setup skill now requires extra usage on Pro plans.
+```
+
+Entrambe triggrano un bump major al prossimo Auto Release.
+
+#### Skip della release
+
+Per non triggerare un bump nonostante un commit rilevante: aggiungi `[skip-auto-release]` nel subject. Da usare con parsimonia (es. correzioni di un commit appena pushato sulla stessa release).
+
+#### CHANGELOG durante la PR (importante)
+
+Ogni PR feature/fix deve aggiungere la sua entry sotto `## [Unreleased]` in `templates/<template>/CHANGELOG.md`, sezione `### Added` / `### Changed` / `### Fixed`. Tieni le entries terse, in stile imperativo, una per riga (vedi `[1.4.0]` come riferimento).
+
+Quando Auto Release calcola il bump, prende **esattamente quelle entries** e le promuove a `## [X.Y.Z]`. Niente prosa in `[Unreleased]` = niente release notes utili.
 
 ### Pull Request
 - Ogni modifica a `main` passa per PR — nessuna eccezione

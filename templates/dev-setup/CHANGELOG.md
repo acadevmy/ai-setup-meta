@@ -3,15 +3,17 @@
 ## [Unreleased]
 
 ### Added
-- `.github/workflows/release-prepare.yml` — workflow_dispatch che apre una "release PR" rivedibile
+- `.github/workflows/auto-release.yml` — su ogni push su `main`, calcola il bump type dai conventional commits e apre/aggiorna automaticamente una "release PR" running. Niente trigger manuale richiesto nel caso normale
+- `.github/workflows/release-prepare.yml` — `workflow_dispatch` come override manuale per forzare un bump type specifico
 - `.github/workflows/release-publish.yml` — su merge di una release PR crea tag annotato + GitHub Release
 - `.github/workflows/build-verify.yml` — PR check che fallisce se `dist/` e' out of sync rispetto a `templates/`
 - `scripts/release/prepare-release.sh` — bump versione + cut CHANGELOG (preserva prosa di `[Unreleased]`) + rebuild dist
 - `scripts/release/publish-release.sh` — tag annotato + GitHub Release con body letto dalla sezione `[X.Y.Z]` del CHANGELOG
 
 ### Changed
+- `AGENTS.md` (meta-repo) — formalizza la convenzione Conventional Commits 1.0 con tabella di mapping tipo → bump, sezione su breaking changes (`!:` e `BREAKING CHANGE:`), marker `[skip-auto-release]`, e nota sulla responsabilita' di scrivere entries in `[Unreleased]` durante la PR
 - `scripts/release-plugin.sh` slimmato a wrapper che chiama prepare + publish in sequenza (path di emergenza, bypassa review PR)
-- `docs/workflow.md` — documenta il nuovo flow (release-prepare workflow_dispatch → release PR → merge → release-publish)
+- `docs/workflow.md` — documenta il flow auto-release-driven con override `workflow_dispatch` e fallback locale
 
 ### Fixed
 - cut del CHANGELOG ora preserva la prosa autorale di `[Unreleased]` invece di ri-derivare entries dai messaggi di commit (la vecchia logica di `release-plugin.sh:142-150` includeva merge commit subjects come entries `### Changed`)

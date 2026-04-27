@@ -1,0 +1,169 @@
+name: Auto Release
+
+# Su ogni push su main:
+#   - calcola il bump type (major/minor/patch) dai commit conventional dall'ultimo tag
+#   - se ci sono cambiamenti rilevanti, prepara/aggiorna una "release PR" running
+#   - il maintainer rivede e mergea quando ready; il merge triggera release-publish.yml
+#
+# La release PR e' running: viene FORCE-aggiornata ad ogni push su main, quindi le
+# entries di CHANGELOG da rivedere si scrivono nelle PR feature (sotto [Unreleased]),
+# non nella release PR stessa. Edits manuali alla release PR andranno persi al
+# prossimo push su main.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-release:
+    # Skip su release commits del bot stesso (per evitare loop infiniti) e su
+    # commit con il marker esplicito [skip-auto-release].
+    if: |
+      !contains(github.event.head_commit.message, '[skip-auto-release]') &&
+      !startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute bump type from conventional commits
+        id: compute
+        run: |
+          LAST_TAG=$(git tag -l 'dev-setup-v*' --sort=-v:refname | head -1)
+
+          if [ -z "$LAST_TAG" ]; then
+            echo "Nessun tag dev-setup-v* trovato — initial release"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "bump_type=patch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Last tag: $LAST_TAG"
+
+          # Commit subjects + bodies dall'ultimo tag, esclusi merge commits,
+          # filtrati ai path che contano per il plugin.
+          COMMITS=$(git log --no-merges --format='%s%n%b%n---END---' "${LAST_TAG}..HEAD" -- \
+            templates/dev-setup/ \
+            shared/ \
+            scripts/builders/ \
+            scripts/build-plugin.sh \
+            scripts/release/ \
+            2>/dev/null || echo "")
+
+          if [ -z "$COMMITS" ]; then
+            echo "Nessun commit rilevante dopo $LAST_TAG; nothing to release"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Detect breaking changes (CC spec):
+          #   - "BREAKING CHANGE:" nel body
+          #   - "type!:" o "type(scope)!:" nel subject
+          if echo "$COMMITS" | grep -qE '^BREAKING CHANGE:'; then
+            BUMP=major
+          elif echo "$COMMITS" | grep -qE '^[a-z]+(\([^)]+\))?!:'; then
+            BUMP=major
+          elif echo "$COMMITS" | grep -qE '^feat(\([^)]+\))?:'; then
+            BUMP=minor
+          else
+            BUMP=patch
+          fi
+
+          echo "Bump type calcolato: $BUMP"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "bump_type=$BUMP" >> "$GITHUB_OUTPUT"
+
+      - name: Setup
+        if: steps.compute.outputs.should_release == 'true'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq jq
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run prepare-release
+        if: steps.compute.outputs.should_release == 'true'
+        id: prepare
+        run: |
+          bash scripts/release/prepare-release.sh \
+            "${{ steps.compute.outputs.bump_type }}" \
+            dev-setup
+
+      - name: Force-recreate release branch
+        if: steps.compute.outputs.should_release == 'true'
+        run: |
+          BRANCH="${{ steps.prepare.outputs.branch }}"
+          NEW_VERSION="${{ steps.prepare.outputs.new_version }}"
+
+          # Delete remote branch if exists (force-recreate per running PR)
+          if git ls-remote --exit-code origin "$BRANCH" >/dev/null 2>&1; then
+            git push origin --delete "$BRANCH" || true
+          fi
+
+          git checkout -b "$BRANCH"
+          git add -A
+          # Marker [skip-auto-release] usato per pulizia, ma il push e' su release/*
+          # quindi questo workflow (che triggera solo su main) non viene rieseguito.
+          git commit -m "chore(release): prepare dev-setup v${NEW_VERSION} [skip-auto-release]"
+          git push -u origin "$BRANCH"
+
+      - name: Close superseded release PRs and open or refresh release PR
+        if: steps.compute.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ steps.prepare.outputs.branch }}"
+          NEW_VERSION="${{ steps.prepare.outputs.new_version }}"
+          BUMP="${{ steps.compute.outputs.bump_type }}"
+
+          # Chiudi qualsiasi PR di release aperta su un branch DIVERSO (versione vecchia).
+          # Questo capita se il bump type cambia (es. era minor, arriva un BREAKING -> diventa major).
+          OLD_PRS=$(gh pr list --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("release/dev-setup-v")) | select(.headRefName != "'"$BRANCH"'") | .number')
+          for pr in $OLD_PRS; do
+            gh pr close "$pr" \
+              --comment "Superseded by \`release/dev-setup-v${NEW_VERSION}\` (bump recomputed: ${BUMP}). Branch eliminato." \
+              --delete-branch || true
+          done
+
+          # Apri PR se non esiste gia' per questo branch
+          EXISTING=$(gh pr list --state open --head "$BRANCH" --json number --jq 'first(.[]).number' 2>/dev/null || echo "")
+          if [ -z "$EXISTING" ]; then
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore(release): dev-setup v${NEW_VERSION}" \
+              --body "$(cat <<EOF
+          Auto-prepared release.
+
+          - **Versione nuova**: \`${NEW_VERSION}\`
+          - **Bump type**: \`${BUMP}\` (calcolato dai conventional commits dall'ultimo tag)
+
+          ## Cosa contiene
+
+          La sezione \`## [${NEW_VERSION}]\` del CHANGELOG riflette le entries autorate dai contributor sotto \`[Unreleased]\` durante le PR feature/fix. Vedi il diff per il contenuto esatto.
+
+          ## Avviso
+
+          Questa release PR e' **running**: viene riscritta ad ogni push su \`main\`. Edits manuali in questa PR vanno persi al prossimo merge di feature PR. Per modificare il CHANGELOG, edita \`[Unreleased]\` in una PR feature separata — al prossimo run di Auto Release questa PR si aggiornera' automaticamente.
+
+          ## Pubblicazione
+
+          Al merge di questa PR, il workflow \`Release - Publish\` crea automaticamente:
+          - tag annotato \`dev-setup-v${NEW_VERSION}\`
+          - GitHub Release con la sezione \`[${NEW_VERSION}]\` del CHANGELOG come body
+          EOF
+          )"
+            echo "Aperta nuova release PR per v${NEW_VERSION}"
+          else
+            echo "PR esistente #${EXISTING} aggiornata via force-push del branch"
+          fi
+
+      - name: Skipped (no release needed)
+        if: steps.compute.outputs.should_release != 'true'
+        run: echo "Niente da rilasciare."
