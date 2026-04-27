@@ -1,0 +1,41 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "dev-setup",
+      "include-component-in-tag": true,
+      "tag-separator": "-v",
+      "bump-minor-pre-major": false,
+      "bump-patch-for-minor-pre-major": false,
+      "draft": false,
+      "prerelease": false,
+      "changelog-path": "templates/dev-setup/CHANGELOG.md",
+      "extra-files": [
+        "templates/dev-setup/.env.example",
+        {
+          "type": "json",
+          "path": "dist/dev-setup/.claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "dist/dev-setup/.cursor-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": ".claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name == 'dev-setup')].version"
+        },
+        {
+          "type": "json",
+          "path": ".cursor-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name == 'dev-setup')].version"
+        }
+      ]
+    }
+  },
+  "plugins": ["sentence-case"],
+  "$comment": "Single-package mode at repo root. Source of truth is .release-please-manifest.json. extra-files propagate the bump into .env.example (marker x-release-please-version), the two dist/ plugin.json files (jsonpath $.version), and the two marketplace.json catalogs (jsonpath filter to the dev-setup plugin entry)."
+}

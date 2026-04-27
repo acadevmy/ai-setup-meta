@@ -13,106 +13,82 @@ interagisce con esso giorno per giorno.
 
 ```
 Contributor (umano o agent) apre branch + PR
-  - Conventional commit: feat:/fix:/feat!:/etc.
-  - Aggiunge entry in CHANGELOG.md sotto [Unreleased]
+  - Conventional commit subject (feat:/fix:/feat!:/etc.)
   - build-verify.yml controlla che dist/ sia in sync
          │
          ▼
-  Review + merge su main (build-verify verde)
+  Review + squash-merge su main (build-verify verde)
          │
          ▼
-  auto-release.yml automatico su push su main:
-  - calcola bump type (major/minor/patch) dai CC dall'ultimo tag
-  - se ci sono commit rilevanti, force-recreate la "release PR" running
-    (cut [Unreleased] -> [X.Y.Z], rebuild dist, push)
-  - chiude eventuali release PR con versione obsoleta
+  release-please.yml automatico su push su main:
+  - parse dei conventional commits dall'ultimo tag dev-setup-v*
+  - calcola bump type (major/minor/patch) o niente (per docs:/chore:/ecc.)
+  - se ci sono commit rilevanti, apre/aggiorna una "release PR" running:
+      - bump versione in templates/dev-setup/.env.example (marker x-release-please-version)
+      - bump version in dist/dev-setup/.{claude,cursor}-plugin/plugin.json
+      - aggiorna .release-please-manifest.json
+      - genera/aggiorna sezione "## [X.Y.Z]" in templates/dev-setup/CHANGELOG.md
+        (raggruppata per Features / Bug Fixes / Documentation / ecc.)
          │
          ▼
-  Maintainer rivede la release PR (eventualmente attende
-  che si accumulino piu' PR feature, ognuna re-aggiorna la PR)
+  Maintainer rivede la release PR (puo' attendere accumulo di piu'
+  PR feature — release-please aggiorna la PR ad ogni push su main)
          │
          ▼
   Merge della release PR su main
          │
          ▼
-  release-publish.yml automatico:
+  release-please.yml di nuovo:
   - tag annotato dev-setup-vX.Y.Z
-  - GitHub Release con sezione [X.Y.Z] del CHANGELOG come body
+  - GitHub Release con il diff della sezione CHANGELOG come body
+  - rebuild di dist/ e commit ("chore(dist): rebuild after release ...")
 ```
 
 ## Come funziona il release
 
-Il release flow e' **completamente automatizzato via GitHub Actions**. Su ogni push su `main` con commit rilevanti, viene aperta (o aggiornata) una "release PR" running. Il maintainer la mergea quando ready; il merge crea tag + GitHub Release in automatico. Niente push diretto su `main`, niente release dal laptop, niente trigger manuale del workflow nel caso normale.
+Il release flow usa [release-please](https://github.com/googleapis/release-please) (action ufficiale Google, battle-tested). Su ogni push su `main`, l'action analizza i conventional commits dall'ultimo tag e:
 
-Tre componenti:
+- Apre o aggiorna una "release PR" running con bump versione + CHANGELOG generato
+- Al merge della release PR, crea tag annotato + GitHub Release
 
-1. **Auto Release** (`auto-release.yml`) — su ogni push su `main`, calcola il bump type dai conventional commits e aggiorna la release PR running.
-2. **Release - Prepare** (`release-prepare.yml`) — `workflow_dispatch` manuale come override se serve forzare patch/minor/major a mano. Stesso effetto di Auto Release ma con bump scelto a mano.
-3. **Release - Publish** (`release-publish.yml`) — al merge della release PR, crea tag annotato + GitHub Release con la sezione `[X.Y.Z]` del CHANGELOG.
+Niente push diretto su `main`, niente trigger manuale, niente bash custom. Due workflow:
 
-### Fase 0 — Conventional Commits durante le PR (la disciplina che fa girare tutto)
+1. **`release-please.yml`** — gira su ogni push su `main`. Action: `googleapis/release-please-action@v4`.
+2. **`build-verify.yml`** — gira su ogni PR. Verifica che `dist/` sia in sync con la sorgente.
 
-Ogni commit deve seguire CC 1.0. Il tipo determina il bump:
+### Configurazione release-please
 
-- `feat(...)` → `minor`
-- `feat!:` o `BREAKING CHANGE:` nel body → `major`
-- Tutti gli altri (`fix:`, `chore:`, `docs:`, `refactor:`, `perf:`, `style:`, `test:`, `ci:`) → `patch`
-- Solo i commit che toccano `templates/dev-setup/`, `shared/`, `scripts/builders/`, `scripts/build-plugin.sh`, `scripts/release/` contano per il bump
+- **`release-please-config.json`** (root) — definisce il package, gli `extra-files` da bumpare, il path del CHANGELOG. Single-package mode con root come scope.
+- **`.release-please-manifest.json`** (root) — versione corrente. release-please la aggiorna automaticamente; non editare a mano.
 
-Vedi [`AGENTS.md`](../AGENTS.md#tipi-e-impatto-sulla-release) per la tabella completa.
+`extra-files` configurati per il bump della versione:
 
-### Fase 1 — Auto Release apre/aggiorna la release PR
+- `templates/dev-setup/.env.example` — riconosciuto via marker comment `# x-release-please-version`
+- `dist/dev-setup/.claude-plugin/plugin.json` — JSON path `$.version`
+- `dist/dev-setup/.cursor-plugin/plugin.json` — JSON path `$.version`
 
-Su ogni `push` su `main`:
-
-- `auto-release.yml` controlla i commit dall'ultimo tag `dev-setup-v*`
-- Se ci sono cambi rilevanti, calcola il bump type
-- Esegue `scripts/release/prepare-release.sh`
-- **Force-recreate** del branch `release/dev-setup-vX.Y.Z` (running PR — riscritta ogni volta)
-- Apre o refresha la PR
-
-### Fase 1-bis (opzionale) — Override manuale
-
-Se serve forzare il bump (es. release di emergenza con un solo `fix:` ma vuoi minor):
-
-- Inputs: `release_type` (`patch` / `minor` / `major`) e `template` (default `dev-setup`).
-- Il workflow `.github/workflows/release-prepare.yml` esegue `scripts/release/prepare-release.sh`, che:
-  1. Calcola la nuova versione partendo da `templates/<template>/.env.example` (`TEMPLATE_VERSION`)
-  2. **Cut del CHANGELOG**: rinomina `## [Unreleased]` in `## [X.Y.Z] - <data>` preservando la prosa verbatim, e re-inserisce un `[Unreleased]` vuoto sopra. **Non** ri-deriva entries dai messaggi di commit
-  3. Aggiorna `version` in `.claude-plugin/marketplace.json` e `.cursor-plugin/marketplace.json`
-  4. Aggiorna `TEMPLATE_VERSION` in `.env.example`
-  5. Ricostruisce `dist/<template>/` via `scripts/build-plugin.sh`
-- Il workflow committa tutto su un branch `release/<template>-vX.Y.Z` e apre una PR contro `main`.
-
-### Fase 2 — Review + merge
-
-La release PR e' un cambio normale: il maintainer la rivede, eventualmente edita la prosa del CHANGELOG (che ora vive in `## [X.Y.Z]`), e la mergea quando e' pronta.
-
-Al merge il workflow `.github/workflows/release-publish.yml` esegue `scripts/release/publish-release.sh`, che:
-
-1. Verifica che il branch corrisponda al pattern `release/<template>-v<X>.<Y>.<Z>` ed estrae template + versione
-2. Crea un tag annotato `<template>-v<X>.<Y>.<Z>` puntato al merge commit
-3. Pusha il tag a `origin`
-4. Estrae la sezione `## [X.Y.Z]` dal CHANGELOG e la usa come body della GitHub Release (via `gh release create`)
-
-### Fase 0 — Authoring delle entries di CHANGELOG durante le PR
-
-Le entries del CHANGELOG **vengono scritte durante le PR feature/fix**, non al momento della release. Ogni contributor che apre una PR deve aggiungere una riga nella sezione `## [Unreleased]` di `templates/<template>/CHANGELOG.md` sotto `### Added` / `### Changed` / `### Fixed`. Esempio: una PR che aggiunge un nuovo profilo Terraform aggiunge `- add \`profiles/terraform.md\`` sotto `### Added`. Tieni le entries terse, in stile imperativo, una per riga — vedi le release storiche `[1.4.0]` e precedenti come riferimento.
-
-Quando il workflow `Release - Prepare` gira, prende esattamente quelle entries e le promuove a `## [X.Y.Z]`. Non c'e' deduplicazione automatica: se le entries sono sbagliate o mancanti, lo saranno anche nella release.
+I file `.claude-plugin/marketplace.json` e `.cursor-plugin/marketplace.json` non hanno il campo `version` per plugin: Claude Code/Cursor leggono la versione da `dist/<plugin>/.{claude,cursor}-plugin/plugin.json` come fallback.
 
 ### Verifica del build (PR check)
 
-Ogni PR contro `main` che tocca `templates/`, `shared/`, `scripts/builders/`, `.{claude,cursor}-plugin/` o `dist/` triggera `.github/workflows/build-verify.yml`, che:
+`build-verify.yml` gira su ogni PR che tocca `templates/`, `shared/`, `scripts/builders/`, marketplace files, o `dist/`:
 
 - Esegue `bash scripts/build-plugin.sh <template>`
 - Fallisce se `git diff` rileva differenze rispetto a `dist/` committato
 
 Cattura il caso in cui qualcuno modifica `templates/` ma dimentica di rebuildare `dist/`.
 
-### Wrapper locale (`scripts/release-plugin.sh`)
+### Override manuale del bump type
 
-Esiste solo per emergenze in cui le GitHub Actions non sono disponibili. Esegue prepare + push diretto su `main` + publish in sequenza, **bypassando la review della PR**. Da usare con consapevolezza.
+release-please ha un comando per forzare il release type tramite "release-as" footer in un commit:
+
+```
+feat(profile): add some feature
+
+Release-As: 2.0.0
+```
+
+In alternativa puoi scrivere `release-please-action`-style annotations (vedi [docs ufficiali](https://github.com/googleapis/release-please#how-do-i-change-the-version-number)).
 
 ## Operazioni frequenti
 
@@ -145,22 +121,12 @@ claude
 
 ### Rilasciare una nuova versione del plugin
 
-**Path standard** (auto, niente click):
+Niente azioni esplicite richieste:
 
-1. Mergea le tue PR feature/fix con commit conventional. Auto Release apre/aggiorna automaticamente una release PR ad ogni merge.
-2. Quando vuoi pubblicare, mergea la release PR. `Release - Publish` crea tag + GitHub Release.
+1. Mergea le tue PR feature/fix con commit conventional (`feat:`, `fix:`, ecc.). release-please apre o aggiorna automaticamente una release PR ad ogni push su `main`.
+2. Quando vuoi pubblicare, mergea la release PR. release-please crea tag e GitHub Release in automatico.
 
-**Path manuale** (override del bump type via dispatch):
-
-1. Vai su **Actions → "Release - Prepare" → Run workflow**
-2. Seleziona `release_type` e `template`
-3. Esattamente come Auto Release, ma con bump type forzato
-
-**Path di emergenza** (locale, bypassa review e Actions):
-```bash
-git checkout main && git pull
-bash scripts/release-plugin.sh minor dev-setup   # o patch / major
-```
+Per forzare una versione specifica (override): aggiungi `Release-As: X.Y.Z` nel footer di un commit.
 
 ## Setup iniziale del repo di distribuzione
 
