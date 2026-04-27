@@ -6,6 +6,18 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.7.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.6.0...dev-setup-v1.7.0) (2026-04-27)
+
+
+### Features
+
+* **release:** Automate build and release via GitHub Actions ([#21](https://github.com/acadevmy/ai-setup-meta/issues/21)) ([881a912](https://github.com/acadevmy/ai-setup-meta/commit/881a9128c24d866f531753f68059794519a650df))
+
+
+### Bug Fixes
+
+* **ci:** Correct release-please tag separator to avoid double-v ([#23](https://github.com/acadevmy/ai-setup-meta/issues/23)) ([0a3ded8](https://github.com/acadevmy/ai-setup-meta/commit/0a3ded8bc5065a27e672e2f477dd658a61beff13))
+
 ## [1.6.0] - 2026-04-24
 
 ### Added
