@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.8.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.8.0...dev-setup-v1.8.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* **setup:** Enumerate Nx-inferred workspaces from package.json and pnpm-workspace.yaml ([#25](https://github.com/acadevmy/ai-setup-meta/issues/25)) ([bb12df3](https://github.com/acadevmy/ai-setup-meta/commit/bb12df3b31d0e2d0e1178ec04c82fefcd681d18d))
+
 ## [1.8.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.7.0...dev-setup-v1.8.0) (2026-04-27)
 
 
