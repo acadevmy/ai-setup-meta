@@ -126,7 +126,20 @@ Questa flag deriva dal rilevamento linguaggio e serve a gatettare la Sezione X d
 - `lerna.json` presente → **si** (Lerna)
 - Root `package.json` contiene campo `workspaces` → **si** (Yarn/npm workspaces)
 
-Se trovato, enumera i sub-project dalla configurazione del tool (es. `workspaces` in package.json, `projects` in nx.json, `packages` in pnpm-workspace.yaml).
+**Enumerazione sub-project** (in ordine di priorita', il primo che produce risultati e' quello buono):
+1. `pnpm-workspace.yaml` → leggi `packages:` (lista di glob)
+2. Root `package.json` → leggi campo `workspaces` (array di glob)
+3. `lerna.json` → leggi `packages` (lista di glob)
+4. `nx.json` → leggi `projects` SOLO se il campo esiste (legacy, Nx ≤ 17). Da Nx 18+ il campo non e' piu' presente: i progetti sono dedotti da `package.json`/`project.json` sotto i path workspace ("inferred projects" model). In questo caso usa una delle fonti precedenti.
+5. `turbo.json` → i progetti sono dedotti dai workspace di pnpm/yarn/npm; Turborepo non mantiene una lista propria.
+
+Espandi i glob in directory effettive contenenti `package.json`. Cross-check opzionale: se il CLI Nx e' disponibile in `node_modules/.bin` o in PATH, lancia `pnpm nx show projects` (o `npx nx show projects`) e confronta l'elenco dedotto con l'output del CLI.
+
+Per ogni sub-project, leggi il suo `package.json`:
+- `name` → identificatore del progetto (usato sia per la display path che per il wrapping dei comandi, vedi sotto)
+- `scripts` → comandi disponibili (`dev`, `build`, `test`, `lint`, ...)
+- `dependencies` / `devDependencies` → driver per la rilevazione stack
+- Eventuale campo `nx` (per-target inputs/outputs/cache) → informativo, non cambia l'invocazione
 
 **Fase 2 — Detection strutturale** (solo se Fase 1 non ha trovato nulla):
 - Cerca nelle directory di primo livello file indicatori di progetto: `package.json`, `pubspec.yaml`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`
@@ -134,8 +147,15 @@ Se trovato, enumera i sub-project dalla configurazione del tool (es. `workspaces
 - Ignora directory comuni non-progetto: `node_modules`, `.git`, `.claude`, `dist`, `build`, `coverage`, `.github`, `.husky`
 
 **Se multi-progetto rilevato** (da Fase 1 o Fase 2):
-1. Per ogni sub-project trovato, esegui la auto-detection stack (Linguaggio, Test runner, Linter, Tool di validazione, Frontend rilevato?, Mobile rilevato?) nella directory del sub-project
-2. Mostra il riepilogo allo sviluppatore e chiedi conferma prima di procedere
+1. Per ogni sub-project trovato, esegui la auto-detection stack (Linguaggio, Test runner, Linter, Tool di validazione, Frontend rilevato?, Mobile rilevato?) nella directory del sub-project, leggendo il suo `package.json` (se presente) per `scripts`, `dependencies`, `devDependencies`.
+2. **Wrapping dell'invocazione**: in modalita' multi-progetto i comandi devono essere lanciabili dalla root del workspace, non solo dalla cartella del sub-project. Quando popoli `{{TEST_COMMAND}}` / `{{LINT_COMMAND}}` (e qualunque altro comando) nel template per-progetto, usa la forma wrappata corrispondente al monorepo tool rilevato:
+   - **Nx** → `nx run <name>:<target>` (preferito quando il target e' definito in `nx.json` `targetDefaults` o in `package.json` `nx.targets`); fallback `pnpm --filter <name> <script>` (o l'equivalente del package manager)
+   - **pnpm workspace** (senza Nx) → `pnpm --filter <name> <script>`
+   - **Yarn workspace** → `yarn workspace <name> <script>`
+   - **npm workspace** → `npm run <script> --workspace=<name>`
+   - **Lerna** → `lerna run <script> --scope=<name>`
+   - Sub-project non-Node (es. Terraform sotto `iac/`) → comando raw, eseguito dalla directory del sub-project (nessun wrapping).
+3. Mostra il riepilogo allo sviluppatore e chiedi conferma prima di procedere.
 
 **Mostra il riepilogo della detection allo sviluppatore.**
 
@@ -151,14 +171,14 @@ Stack rilevato:
   Infrastructure: no
 ```
 
-Per multi-progetto:
+Per multi-progetto (i comandi sono gia' wrappati per essere eseguiti dalla root del workspace):
 ```
 Stack rilevato:
-  Multi-progetto: si (Nx)
+  Multi-progetto: si (Nx + pnpm workspace)
   Sub-project:
-    apps/web/    — node, frontend: si, infrastructure: no, test: npm test, lint: npm run lint
-    apps/api/    — node, frontend: no, infrastructure: no, test: npm test, lint: npm run lint
-    iac/         — terraform, infrastructure: si, test: terraform validate, lint: terraform fmt -check -recursive
+    applications/web/   — node, frontend: si, test: pnpm --filter web test, lint: pnpm --filter web lint
+    applications/api/   — node, frontend: no, test: pnpm --filter api test, lint: pnpm --filter api lint
+    iac/                — terraform, infrastructure: si, test: terraform validate, lint: terraform fmt -check -recursive
 
 Confermi questi sub-project? (si/no)
 ```
