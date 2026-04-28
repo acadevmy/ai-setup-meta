@@ -134,7 +134,20 @@ This value is informational (shown in the detection summary). In EXISTING mode n
 - `lerna.json` present → **yes** (Lerna)
 - Root `package.json` contains `workspaces` field → **yes** (Yarn/npm workspaces)
 
-If found, enumerate sub-projects from the tool's configuration (e.g. `workspaces` in package.json, `projects` in nx.json, `packages` in pnpm-workspace.yaml).
+**Sub-project enumeration** (priority order, first source that yields results wins):
+1. `pnpm-workspace.yaml` → read `packages:` (glob list)
+2. Root `package.json` → read `workspaces` field (array of globs)
+3. `lerna.json` → read `packages` (glob list)
+4. `nx.json` → read `projects` ONLY if the field exists (legacy, Nx ≤ 17). From Nx 18+ the field is gone: projects are inferred from `package.json`/`project.json` under workspace paths ("inferred projects" model). In that case use one of the sources above.
+5. `turbo.json` → projects are inferred from the underlying pnpm/yarn/npm workspace; Turborepo does not maintain its own list.
+
+Expand globs to actual directories containing a `package.json`. Optional cross-check: if the Nx CLI is available in `node_modules/.bin` or PATH, run `pnpm nx show projects` (or `npx nx show projects`) and compare the inferred list against the CLI output.
+
+For each sub-project, read its `package.json`:
+- `name` → project identifier (used both for the display path and for command wrapping, see below)
+- `scripts` → available commands (`dev`, `build`, `test`, `lint`, ...)
+- `dependencies` / `devDependencies` → drivers for stack detection
+- Optional `nx` field (per-target inputs/outputs/cache) → informational, does not change the invocation
 
 **Phase 2 — Structural detection** (only if Phase 1 found nothing):
 - Search first-level directories for project indicator files: `package.json`, `pubspec.yaml`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`
@@ -142,8 +155,15 @@ If found, enumerate sub-projects from the tool's configuration (e.g. `workspaces
 - Ignore common non-project directories: `node_modules`, `.git`, `.claude`, `dist`, `build`, `coverage`, `.github`, `.husky`
 
 **If multi-project detected** (from Phase 1 or Phase 2):
-1. For each sub-project found, run auto-detection (Language, Test runner, Linter, Validation tool, Frontend detected?, Mobile detected?) in the sub-project directory
-2. Show the summary to the developer and ask for confirmation before proceeding
+1. For each sub-project found, run auto-detection (Language, Test runner, Linter, Validation tool, Frontend detected?, Mobile detected?) in the sub-project directory, reading its `package.json` (if present) for `scripts`, `dependencies`, `devDependencies`.
+2. **Invocation wrapping**: in multi-project mode commands must be runnable from the workspace root, not only from the sub-project folder. When populating `{{TEST_COMMAND}}` / `{{LINT_COMMAND}}` (and any other command) in the per-project template, use the wrapped form matching the detected monorepo tool:
+   - **Nx** → `nx run <name>:<target>` (preferred when the target is defined in `nx.json` `targetDefaults` or in `package.json` `nx.targets`); fallback `pnpm --filter <name> <script>` (or the equivalent for the package manager)
+   - **pnpm workspace** (no Nx) → `pnpm --filter <name> <script>`
+   - **Yarn workspace** → `yarn workspace <name> <script>`
+   - **npm workspace** → `npm run <script> --workspace=<name>`
+   - **Lerna** → `lerna run <script> --scope=<name>`
+   - Non-Node sub-projects (e.g. Terraform under `iac/`) → raw command, run from the sub-project directory (no wrapping).
+3. Show the summary to the developer and ask for confirmation before proceeding.
 
 **Show the detection summary to the developer.**
 
@@ -159,13 +179,14 @@ Detected stack:
   Mobile:       no
 ```
 
-For multi-project:
+For multi-project (commands are already wrapped to be runnable from the workspace root):
 ```
 Detected stack:
-  Multi-project: yes (Nx)
+  Multi-project: yes (Nx + pnpm workspace)
   Sub-projects:
-    apps/web/  — node, frontend: yes, test: npm test, lint: npm run lint
-    apps/api/  — node, frontend: no, test: npm test, lint: npm run lint
+    applications/web/   — node, frontend: yes, test: pnpm --filter web test, lint: pnpm --filter web lint
+    applications/api/   — node, frontend: no, test: pnpm --filter api test, lint: pnpm --filter api lint
+    iac/                — terraform, infrastructure: yes, test: terraform validate, lint: terraform fmt -check -recursive
 
 Do you confirm these sub-projects? (yes/no)
 ```
