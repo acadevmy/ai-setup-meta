@@ -155,6 +155,8 @@ Usa i MCP per operazioni esterne — non simulare cio' che puoi fare concretamen
 | **GitHub** | Branch, PR, commit, review, label |
 | **Context7** | Documentazione aggiornata di librerie e framework |
 
+> **Manutenzione**: esegui `claude mcp list` periodicamente per verificare che tutti i server MCP siano connessi e aggiornati. Un server in stato `! Needs authentication` blocca la pipeline autonoma.
+
 ## Agent disponibili
 
 Gli agent sono sub-processi isolati con il proprio contesto.
