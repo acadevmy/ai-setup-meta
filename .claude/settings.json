@@ -1,22 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git:*)",
       "Bash(npm:*)",
-      "Bash(node:*)",
-      "Bash(ls:*)",
-      "Bash(cat:*)",
-      "Bash(mkdir:*)",
-      "Bash(cp:*)",
-      "Bash(mv:*)",
-      "Bash(chmod:*)",
-      "Bash(echo:*)",
-      "Bash(grep:*)",
-      "Bash(sed:*)",
-      "Bash(find:*)",
-      "Bash(diff:*)",
-      "Bash(bash:scripts/*)",
-      "Bash(gh:*)"
+      "Bash(node *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(chmod *)",
+      "Bash(echo *)",
+      "Bash(grep *)",
+      "Bash(sed *)",
+      "Bash(find *)",
+      "Bash(diff *)",
+      "Bash(bash scripts/*)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "mcp__clickup__*"
     ],
     "deny": [
       "Bash(git push --force*)",
