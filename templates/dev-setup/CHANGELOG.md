@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.8.2](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.8.1...dev-setup-v1.8.2) (2026-04-29)
+
+
+### Bug Fixes
+
+* **settings:** Allow glab, yarn, pnpm, jq in baseline allowlist ([#27](https://github.com/acadevmy/ai-setup-meta/issues/27)) ([87018ad](https://github.com/acadevmy/ai-setup-meta/commit/87018ade62674a6a1e6237bb11be916fb1d32aa9))
+
 ## [1.8.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.8.0...dev-setup-v1.8.1) (2026-04-28)
 
 
