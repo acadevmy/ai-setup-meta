@@ -118,7 +118,43 @@ Search in order:
 6. `package.json` contains `svelte` → **svelte**
 7. None of the above → **unknown**
 
-This value is informational (shown in the detection summary). In EXISTING mode no stack profile is downloaded or applied — the project's tooling is preserved as-is. The framework info can be used to compile placeholders in the AGENTS.md template (Step 5).
+When the framework is detected, also read the version from `dependencies.<pkg>` or `devDependencies.<pkg>` and parse the major.minor (e.g. `"next": "^16.0.7"` → `16.0`). Save as `{FRAMEWORK_FRONTEND}` and `{FRAMEWORK_FRONTEND_VERSION}` for use in Step 5 (framework-specific AGENTS.md block injection).
+
+#### AI-tooling conventions verification (per detected framework)
+
+The state of the art for `AGENTS.md` conventions (and equivalents) moves quickly — hard-coded `profiles/<framework>.md` files reflect the state at plugin release, but newer framework versions introduce additional patterns the plugin doesn't yet know. For each detected framework (`{FRAMEWORK_FRONTEND}`, backend framework if applicable, infrastructure tools like Terraform, etc.), query current documentation to discover AI-tooling conventions.
+
+**Lookup strategy** (in order, first source that yields a result wins):
+
+1. **`ctx7` CLI** if available in PATH:
+   - `ctx7 library <framework>` to resolve the ID (e.g. `/vercel/next.js`)
+   - `ctx7 docs <id> "AGENTS.md convention bundled docs agent rules"` for the query
+2. **Context7 MCP** as fallback: `mcp__context7__resolve-library-id` + `mcp__context7__query-docs` with the same query
+3. **WebSearch** if neither ctx7/Context7 is reachable: query `"AGENTS.md convention <framework> <major>.<minor>"` (e.g. `"AGENTS.md convention next.js 16.2"`), preferring results from the framework's official domain
+4. **Skip** if no source is reachable (offline environment) — proceed with hard-coded profiles only and note the skip in the Step 9 summary
+
+**What to look for**, per framework:
+
+- Is there an `AGENTS.md` convention officially supported by the framework (e.g. Next.js's `BEGIN:nextjs-agent-rules` block)?
+- Which markers / sections are framework-managed (e.g. by a `<framework> upgrade` command)?
+- Path of bundled docs (if applicable, e.g. `node_modules/<framework>/dist/docs/`)
+- Codemod or related tooling for existing projects (e.g. `npx @next/codemod@latest agents-md`)
+- Minimum framework version that supports the convention
+
+**Source precedence**:
+
+- Hard-coded profile (`profiles/<framework>.md`) → primary source for frameworks documented at plugin release time (deterministic, predictable)
+- Runtime verification → additional source for frameworks not yet documented in the plugin **or** for newer versions that introduced new conventions
+
+Save any discovered convention as `{FRAMEWORK_AGENTS_CONVENTION}` (structured object: marker name, block content, source, doc link) — Step 5 applies it as framework-specific block injection following the same strategy documented for Next.js.
+
+**Output to the developer**: one line in the Step 9 summary per verified framework:
+
+```
+- <framework> <version>: convention <name> found via <source> → <action applied>
+- <framework> <version>: no documented AI-tooling convention → no action
+- <framework> <version>: verification skipped (offline) → only hard-coded profile applied
+```
 
 #### Mobile detected?
 - `pubspec.yaml` present → **yes**
@@ -510,6 +546,34 @@ Based on the stack chosen in Step 2b:
 **For UPDATE mode:** Regenerate as for EXISTING or GREENFIELD (depending on the project state).
 
 **Conflict detection**: If `AGENTS.md` already exists, ask the developer before overwriting.
+
+**Framework-specific block — Next.js (`AGENTS.md` bundled-docs convention)**:
+
+If `{FRAMEWORK_FRONTEND}` == `next`, prepend the canonical Next.js block to the generated `AGENTS.md`, **before** any template-derived content:
+
+```md
+<!-- BEGIN:nextjs-agent-rules -->
+
+# Next.js: ALWAYS read docs before coding
+
+Before any Next.js work, find and read the relevant doc in `node_modules/next/dist/docs/`. Your training data is outdated — the docs are the source of truth.
+
+<!-- END:nextjs-agent-rules -->
+
+```
+
+The `BEGIN:nextjs-agent-rules` / `END:nextjs-agent-rules` markers delimit a section managed by `next upgrade` (Next.js 16.2+): everything inside the markers is rewritten on upgrade, everything outside is preserved. Keeping plugin content below the `END` marker ensures `next upgrade` never overwrites it. See `profiles/nextjs.md` for full details.
+
+Based on `{FRAMEWORK_FRONTEND_VERSION}` (parsed as major.minor):
+
+- `>= 16.2` → docs are bundled at `node_modules/next/dist/docs/`. Add to the Step 9 summary: "run `npx next upgrade@canary` periodically to keep the AGENTS.md block current."
+- `< 16.2` → docs are **not** bundled. Add to the Step 9 summary: "run `npx @next/codemod@latest agents-md` to generate docs at `.next-docs/` and update the path in the block."
+
+**Brownfield**: if `AGENTS.md` already exists and contains a `BEGIN:nextjs-agent-rules` … `END:nextjs-agent-rules` block, **do not regenerate** the inside content. Preserve the block verbatim and plug the plugin template below the `END` marker. The inner block is Next.js's territory — rewriting it would conflict with the next `next upgrade`.
+
+**Runtime-discovered conventions**:
+
+If the verification step in Step 2a populated `{FRAMEWORK_AGENTS_CONVENTION}` for a framework other than Next.js (or for a Next.js version newer than what's documented above), apply the same injection strategy: delimited markers at the top of the file, plugin template content below the closing marker. Precedence: hard-coded profile (e.g. the Next.js block above) → runtime convention → no injection. On conflict between hard-coded and runtime, the hard-coded profile wins and the runtime convention is reported as "not applied, hard-coded source has precedence" in the Step 9 summary.
 
 Write the result to `AGENTS.md` in the project root.
 

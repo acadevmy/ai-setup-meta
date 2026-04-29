@@ -101,6 +101,54 @@ Cerca nell'ordine:
 - Oppure: esistono file `.tsx`, `.jsx`, o `.vue` in `src/` → **si**
 - Altrimenti → **no**
 
+#### Framework frontend rilevato?
+Solo se "Frontend rilevato?" → **si**. Identifica il framework principale e la versione (usato dal Passo 5 per pattern framework-specifici come il blocco AGENTS.md di Next.js).
+
+- `package.json` contiene `next` → **nextjs**
+- `package.json` contiene `nuxt` → **nuxt**
+- `package.json` contiene `@angular/core` → **angular**
+- `package.json` contiene `vue` (senza `nuxt`) → **vue**
+- `package.json` contiene `svelte` → **svelte**
+- `package.json` contiene `react` (senza `next`/`@angular/core`/`vue`/`nuxt`/`svelte`) → **react**
+- Altrimenti → `non rilevato`
+
+Quando il framework e' rilevato, leggi anche la versione da `dependencies.<pkg>` o `devDependencies.<pkg>` e parsa il major.minor (es. `"next": "^16.0.7"` → `16.0`; `"next": "~17.2.0"` → `17.2`). Salva come `{FRAMEWORK_FRONTEND}` e `{FRAMEWORK_FRONTEND_VERSION}`.
+
+#### Verifica convenzioni AI-tooling correnti (per ogni framework rilevato)
+
+Lo stato dell'arte delle convenzioni `AGENTS.md` (e equivalenti) cambia velocemente — i profile hard-coded in `profiles/<framework>.md` riflettono lo stato al rilascio del plugin, ma framework nuovi e versioni recenti introducono pattern aggiuntivi che il plugin non conosce ancora. Per ogni framework rilevato (`{FRAMEWORK_FRONTEND}`, framework backend se applicabile, framework infrastruttura come Terraform, ecc.) interroga la documentazione corrente per scoprire convenzioni AI-tooling.
+
+**Strategia di lookup** (in ordine, prima fonte che produce risultato vince):
+
+1. **`ctx7` CLI** se disponibile in PATH:
+   - `ctx7 library <framework>` per risolvere l'ID (es. `/vercel/next.js`)
+   - `ctx7 docs <id> "AGENTS.md convention bundled docs agent rules"` per la query
+2. **Context7 MCP** come fallback: `mcp__context7__resolve-library-id` + `mcp__context7__query-docs` con la stessa query
+3. **WebSearch** se ctx7/Context7 non sono disponibili: query `"AGENTS.md convention <framework> <major>.<minor>"` (es. `"AGENTS.md convention next.js 16.2"`), preferendo risultati dal dominio ufficiale del framework
+4. **Skip** se nessuna fonte e' raggiungibile (ambiente offline) — procedi con i soli profile hard-coded e segnala la skip nel riepilogo del Passo 9
+
+**Cosa cercare**, per ciascun framework:
+
+- Esiste una convenzione `AGENTS.md` ufficialmente supportata dal framework (es. il blocco `BEGIN:nextjs-agent-rules` di Next.js)?
+- Quali marker / sezioni vengono gestite automaticamente dal framework (es. da un comando `<framework> upgrade`)?
+- Path dei docs bundled (se applicabile, es. `node_modules/<framework>/dist/docs/`)
+- Codemod o tooling correlato per progetti esistenti (es. `npx @next/codemod@latest agents-md`)
+- Versione minima del framework che supporta la convenzione
+
+**Precedenza delle fonti**:
+
+- Profile hard-coded (`profiles/<framework>.md`) → fonte primaria per framework documentati al rilascio plugin (deterministico, predicibile)
+- Verifica runtime → fonte aggiuntiva per framework non ancora documentati nel plugin **o** per versioni piu' recenti che hanno introdotto nuove convenzioni
+
+Salva eventuali convenzioni scoperte come `{FRAMEWORK_AGENTS_CONVENTION}` (oggetto strutturato con: nome marker, contenuto del blocco, fonte, link doc) — il Passo 5 le applica come framework-specific block injection con la stessa strategia documentata per Next.js.
+
+**Output al developer**: una riga nel riepilogo del Passo 9 per ogni framework verificato, formato:
+```
+- <framework> <version>: convenzione <name> trovata via <source> → <azione applicata>
+- <framework> <version>: nessuna convenzione AI-tooling documentata → nessuna azione
+- <framework> <version>: verifica saltata (offline) → applicato solo profile hard-coded
+```
+
 #### Mobile rilevato?
 - `pubspec.yaml` presente → **si**
 - `package.json` contiene `react-native` o `expo` → **si**
@@ -383,6 +431,34 @@ In base allo stack scelto nel Passo 2b:
 **Per modalita' UPDATE:** Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
 
 **Conflict detection**: Se `AGENTS.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
+
+**Framework-specific block — Next.js (`AGENTS.md` bundled-docs convention)**:
+
+Se `{FRAMEWORK_FRONTEND}` == `nextjs`, prepend il blocco canonico Next.js al `AGENTS.md` generato, **prima** di tutto il contenuto derivato dal template:
+
+```md
+<!-- BEGIN:nextjs-agent-rules -->
+
+# Next.js: ALWAYS read docs before coding
+
+Before any Next.js work, find and read the relevant doc in `node_modules/next/dist/docs/`. Your training data is outdated — the docs are the source of truth.
+
+<!-- END:nextjs-agent-rules -->
+
+```
+
+I marker `BEGIN:nextjs-agent-rules` / `END:nextjs-agent-rules` delimitano una sezione gestita da `next upgrade` (Next.js 16.2+): tutto cio' che e' tra i marker viene riscritto agli upgrade, tutto cio' che e' fuori e' preservato. Tenere il contenuto del plugin sotto il `END` marker garantisce che `next upgrade` non lo sovrascriva. Per dettagli completi vedi `profiles/nextjs.md`.
+
+In base a `{FRAMEWORK_FRONTEND_VERSION}` (parsato come major.minor, es. `16.0`, `17.2`):
+
+- `>= 16.2` → i docs sono bundled in `node_modules/next/dist/docs/`. Aggiungi al riepilogo del Passo 9: "esegui `npx next upgrade@canary` periodicamente per aggiornare il blocco AGENTS.md."
+- `< 16.2` → i docs **non** sono bundled. Aggiungi al riepilogo del Passo 9: "esegui `npx @next/codemod@latest agents-md` per generare i docs in `.next-docs/` e aggiornare il path nel blocco."
+
+**Brownfield**: se `AGENTS.md` esiste gia' e contiene un blocco `BEGIN:nextjs-agent-rules` … `END:nextjs-agent-rules`, **non rigenerare** il contenuto interno. Preserva il blocco verbatim e plug il template del plugin sotto la chiusura `END`. Il blocco interno e' territorio di Next.js — riscriverlo confliggerebbe con il prossimo `next upgrade`.
+
+**Convenzioni framework scoperte a runtime**:
+
+Se la verifica del Passo 2a ha popolato `{FRAMEWORK_AGENTS_CONVENTION}` per un framework diverso da Next.js (o per una versione di Next.js piu' recente di quanto documentato sopra), applica la stessa strategia di iniezione: marker delimitati al top del file, contenuto del template del plugin sotto la chiusura. Precedenza: profile hard-coded (es. il blocco Next.js sopra) → convenzione runtime → nessuna iniezione. In caso di conflitto fra profile hard-coded e runtime, il profile vince e la convenzione runtime viene segnalata come "non applicata, fonte hard-coded ha precedenza" nel riepilogo del Passo 9.
 
 Scrivi il risultato in `AGENTS.md` nella root del progetto.
 
