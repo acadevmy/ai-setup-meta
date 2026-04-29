@@ -246,6 +246,53 @@ trovare l'ID e poi `/schedule delete <id>`.
 3. Risolvi manualmente o riformula il task description, poi sposta il task `BLOCKED -> SPRINT`
 4. La pipeline lo riprendera' al prossimo ciclo (`BLOCKED -> IN PROGRESS` se preferisci ripresa manuale)
 
+## Pipeline autonoma di manutenzione
+
+Il meta-repo include una pipeline che evolve autonomamente il setup (skill, MCP, profili,
+agent, constitution) processando task ClickUp dedicati e aprendo PR pronte per la review.
+
+### Componenti
+- Skill orchestrator: `.claude/skills/auto-maintain/SKILL.md`
+- Subagent: `.claude/agents/clickup.md`
+- Quality gate: `/project:validate`
+
+### Flusso (per ogni esecuzione)
+1. Pesca il task SPRINT a priorita' piu' alta dalla lista `CLICKUP_MAINTENANCE_LIST_ID`
+2. Sposta il task `SPRINT -> IN PROGRESS`
+3. Crea branch `chore/<customId>-<slug>` dal `main` aggiornato
+4. Classifica il tipo di intervento (skill / mcp / profile / agent / constitution / manifest / docs)
+5. Applica le modifiche guidate dalla `description` del task
+6. Esegue `/project:validate`
+7. Commit Conventional (inglese), push, `gh pr create` con descrizione **in italiano**
+8. Sposta il task `IN PROGRESS -> CODE REVIEW` con link PR
+
+### Bail-out (su errore o ambiguita')
+- Task spostato in stato `BLOCKED`
+- Commento ClickUp con step fallito + suggerimenti
+- Branch locale **non** eliminato (per debug)
+
+### Prerequisiti operativi (una tantum)
+- [ ] Creare la lista ClickUp di manutenzione
+- [ ] Compilare `CLICKUP_MAINTENANCE_LIST_ID` in `.env.local`
+- [ ] Verificare che lo status `BLOCKED` sia disponibile nella lista
+- [ ] Verificare `gh auth status` e `claude mcp list` (deve esserci `clickup`)
+
+### Attivazione dello scheduler
+Una volta verificata l'esecuzione manuale (`/project:auto-maintain`), schedulare la routine:
+
+```
+/schedule "0 4 * * *" "/project:auto-maintain"
+```
+
+Esecuzione: ogni notte alle 04:00 (fuso locale). Disattivazione: `/schedule list` per
+trovare l'ID e poi `/schedule delete <id>`.
+
+### Quando un task va in `BLOCKED`
+1. Leggi il commento di bail-out su ClickUp (step + motivo)
+2. Esamina il branch locale conservato dall'agente
+3. Risolvi manualmente o riformula il task description, poi sposta il task `BLOCKED -> SPRINT`
+4. La pipeline lo riprendera' al prossimo ciclo (`BLOCKED -> IN PROGRESS` se preferisci ripresa manuale)
+
 ## Checklist pre-PR
 
 Prima di aprire una PR, verifica:
