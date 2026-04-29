@@ -155,6 +155,8 @@ Usa i MCP per operazioni esterne — non simulare cio' che puoi fare concretamen
 | **GitHub** | Branch, PR, commit, review, label |
 | **Context7** | Documentazione aggiornata di librerie e framework |
 
+> **Verifica periodica**: esegui `claude mcp list` periodicamente per assicurarti che tutti i server MCP siano configurati e attivi. Se un MCP risulta assente, riaggiungerlo prima di proseguire con operazioni che ne dipendono.
+
 ## Agent disponibili
 
 Gli agent sono sub-processi isolati con il proprio contesto.
