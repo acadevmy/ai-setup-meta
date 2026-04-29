@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.9.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.8.2...dev-setup-v1.9.0) (2026-04-29)
+
+
+### Features
+
+* **setup:** Detect Next.js + verify framework AGENTS.md conventions online ([#29](https://github.com/acadevmy/ai-setup-meta/issues/29)) ([5d06ed6](https://github.com/acadevmy/ai-setup-meta/commit/5d06ed69f2d4a4d8e13737111ff11533ebdd3317))
+
 ## [1.8.2](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.8.1...dev-setup-v1.8.2) (2026-04-29)
 
 
