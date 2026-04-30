@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.10.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.9.1...dev-setup-v1.10.0) (2026-04-30)
+
+
+### Features
+
+* **setup:** Skip per-library file generation + auto-cite consumed libraries ([#36](https://github.com/acadevmy/ai-setup-meta/issues/36)) ([5985098](https://github.com/acadevmy/ai-setup-meta/commit/5985098029504eccca30c68d670498f562af0c58))
+
 ## [1.9.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.9.0...dev-setup-v1.9.1) (2026-04-30)
 
 
