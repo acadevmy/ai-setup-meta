@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.9.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.9.0...dev-setup-v1.9.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* **settings:** Use space syntax in Bash allow rules ([#34](https://github.com/acadevmy/ai-setup-meta/issues/34)) ([c54afdb](https://github.com/acadevmy/ai-setup-meta/commit/c54afdbbe1ff348087f316c9d2cc0b34b0d4365c))
+
 ## [1.9.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.8.2...dev-setup-v1.9.0) (2026-04-29)
 
 
