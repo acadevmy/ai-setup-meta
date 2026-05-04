@@ -33,9 +33,6 @@ done
 In alternativa, puoi scaricare i file dalla [pagina release](https://github.com/acadevmy/ai-setup-meta/releases)
 e copiarli manualmente.
 
-In alternativa, puoi scaricare i file dalla [pagina release](https://github.com/acadevmy/ai-setup-meta/releases)
-e copiarli manualmente.
-
 ### 2. Configura i server MCP
 
 Apri (o crea) il file `.gemini/settings.json` e aggiungi i server MCP:

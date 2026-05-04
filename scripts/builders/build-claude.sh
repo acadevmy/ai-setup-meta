@@ -109,6 +109,7 @@ for BP in $(jq -r '.boilerplate_files[] // empty' "$MANIFEST"); do
   fi
 done
 
+
 # Settings.json (solo permessi, senza hooks)
 SETTINGS_SRC="$TEMPLATE_DIR/.claude/settings.json"
 if [ -f "$SETTINGS_SRC" ]; then

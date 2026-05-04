@@ -48,6 +48,7 @@ Il plugin Cursor condivide skills e agents con la versione Claude. Aggiunge:
 
 **Prerequisiti**: Cursor, `jq`.
 
+
 ### OpenAI Codex CLI
 
 I template che supportano Codex (attualmente `pm-setup`) distribuiscono skill compatibili
