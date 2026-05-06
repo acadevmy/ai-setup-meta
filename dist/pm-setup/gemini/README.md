@@ -2,6 +2,23 @@
 
 Guida per configurare il workflow AI-Native per Project Manager su **Gemini CLI**.
 
+## Installazione rapida
+
+Apri il **Terminale** e incolla questo comando:
+
+```bash
+curl -sL https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/install.sh | bash
+```
+
+Lo script installa tutto automaticamente nella tua home (`~`) e ti guida passo passo.
+Dopo l'installazione, avvia `gemini` e sei pronto.
+
+---
+
+## Installazione manuale
+
+Segui questa guida se preferisci installare i file uno per uno.
+
 ## Prerequisiti
 
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) installato

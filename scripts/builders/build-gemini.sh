@@ -84,6 +84,13 @@ done
 
 ok "Comandi Gemini generati: $CMD_COUNT (.toml in commands/pm/)"
 
+# ── Script di installazione ──────────────────────────────────────────────────
+INSTALL_SCRIPT="$SCRIPT_DIR/../install-pm-gemini.sh"
+if [ -f "$INSTALL_SCRIPT" ]; then
+  cp "$INSTALL_SCRIPT" "$GEMINI_DIR/install.sh"
+  ok "install.sh copiato per Gemini"
+fi
+
 # ── MCP config (mcp-remote bridge) ──────────────────────────────────────────
 if [ -f "$DIST_DIR/.mcp.json" ]; then
   jq '
