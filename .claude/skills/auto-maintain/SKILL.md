@@ -13,7 +13,9 @@ autonomo, partendo da un task ClickUp e arrivando a una Pull Request pronta
 per la review umana.
 
 ## Quando viene invocata
-- Schedulata: routine cron `0 4 * * *` (vedi `AGENTS.md` sezione "Pipeline autonoma di manutenzione")
+- Schedulata: launchd `com.devmy.ai-base-setup.auto-maintain` alle 04:00, via
+  `scripts/auto-maintain-runner.sh` in un sandbox git worktree (`~/Works/.automaint/ai-base-setup`).
+  Log: `logs/auto-maintain.log`. Vedi `AGENTS.md` sezione "Pipeline autonoma di manutenzione" per setup.
 - On-demand: `/project:auto-maintain` (utile per test o catch-up)
 
 ## Principi operativi

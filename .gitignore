@@ -15,3 +15,6 @@ mcp/mcp.json
 
 # Dependencies
 node_modules/
+
+# Log dei run automatici
+logs/

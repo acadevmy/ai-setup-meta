@@ -17,6 +17,7 @@
       "Bash(bash scripts/*)",
       "Bash(git *)",
       "Bash(gh *)",
+      "Bash(head *)",
       "mcp__clickup__*"
     ],
     "deny": [

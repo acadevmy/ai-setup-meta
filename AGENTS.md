@@ -230,66 +230,52 @@ agent, constitution) processando task ClickUp dedicati e aprendo PR pronte per l
 - [ ] Verificare che lo status `BLOCKED` sia disponibile nella lista
 - [ ] Verificare `gh auth status` e `claude mcp list` (deve esserci `clickup`)
 
-### Attivazione dello scheduler
-Una volta verificata l'esecuzione manuale (`/project:auto-maintain`), schedulare la routine:
+### Prerequisiti sandbox (una tantum, dopo i prerequisiti operativi)
+La pipeline gira in un **worktree separato** per non interferire con il working tree principale
+(evita conflitti di branch, `git status` sporco, `checkout main` indesiderato).
 
-```
-/schedule "0 4 * * *" "/project:auto-maintain"
+```bash
+# Crea il sandbox
+git -C ~/Works/ai-base-setup worktree add ~/Works/.automaint/ai-base-setup main
+
+# Symlink .env.local nel sandbox (unico file da mantenere)
+ln -s ~/Works/ai-base-setup/.env.local ~/Works/.automaint/ai-base-setup/.env.local
+
+# Verifica
+git -C ~/Works/ai-base-setup worktree list
 ```
 
-Esecuzione: ogni notte alle 04:00 (fuso locale). Disattivazione: `/schedule list` per
-trovare l'ID e poi `/schedule delete <id>`.
+### Attivazione dello scheduler (launchd macOS)
+Carica i LaunchAgent dal repo (gia' presenti in `~/Library/LaunchAgents/`):
+
+```bash
+# Mantieni il Mac sveglio 03:30–05:00 (90 min)
+launchctl load ~/Library/LaunchAgents/com.devmy.ai-base-setup.caffeinate.plist
+
+# Esegue auto-maintain ogni notte alle 04:00
+launchctl load ~/Library/LaunchAgents/com.devmy.ai-base-setup.auto-maintain.plist
+
+# Verifica
+launchctl list | grep devmy.ai-base-setup
+```
+
+**Log**: `~/Works/ai-base-setup/logs/auto-maintain.log` (output Claude Code),
+`logs/auto-maintain.launchd.log` (errori launchd).
+
+**Trigger manuale** (test fuori orario):
+```bash
+launchctl start com.devmy.ai-base-setup.auto-maintain
+```
+
+**Disattivazione**:
+```bash
+launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.auto-maintain.plist
+launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.caffeinate.plist
+```
 
 ### Quando un task va in `BLOCKED`
 1. Leggi il commento di bail-out su ClickUp (step + motivo)
-2. Esamina il branch locale conservato dall'agente
-3. Risolvi manualmente o riformula il task description, poi sposta il task `BLOCKED -> SPRINT`
-4. La pipeline lo riprendera' al prossimo ciclo (`BLOCKED -> IN PROGRESS` se preferisci ripresa manuale)
-
-## Pipeline autonoma di manutenzione
-
-Il meta-repo include una pipeline che evolve autonomamente il setup (skill, MCP, profili,
-agent, constitution) processando task ClickUp dedicati e aprendo PR pronte per la review.
-
-### Componenti
-- Skill orchestrator: `.claude/skills/auto-maintain/SKILL.md`
-- Subagent: `.claude/agents/clickup.md`
-- Quality gate: `/project:validate`
-
-### Flusso (per ogni esecuzione)
-1. Pesca il task SPRINT a priorita' piu' alta dalla lista `CLICKUP_MAINTENANCE_LIST_ID`
-2. Sposta il task `SPRINT -> IN PROGRESS`
-3. Crea branch `chore/<customId>-<slug>` dal `main` aggiornato
-4. Classifica il tipo di intervento (skill / mcp / profile / agent / constitution / manifest / docs)
-5. Applica le modifiche guidate dalla `description` del task
-6. Esegue `/project:validate`
-7. Commit Conventional (inglese), push, `gh pr create` con descrizione **in italiano**
-8. Sposta il task `IN PROGRESS -> CODE REVIEW` con link PR
-
-### Bail-out (su errore o ambiguita')
-- Task spostato in stato `BLOCKED`
-- Commento ClickUp con step fallito + suggerimenti
-- Branch locale **non** eliminato (per debug)
-
-### Prerequisiti operativi (una tantum)
-- [ ] Creare la lista ClickUp di manutenzione
-- [ ] Compilare `CLICKUP_MAINTENANCE_LIST_ID` in `.env.local`
-- [ ] Verificare che lo status `BLOCKED` sia disponibile nella lista
-- [ ] Verificare `gh auth status` e `claude mcp list` (deve esserci `clickup`)
-
-### Attivazione dello scheduler
-Una volta verificata l'esecuzione manuale (`/project:auto-maintain`), schedulare la routine:
-
-```
-/schedule "0 4 * * *" "/project:auto-maintain"
-```
-
-Esecuzione: ogni notte alle 04:00 (fuso locale). Disattivazione: `/schedule list` per
-trovare l'ID e poi `/schedule delete <id>`.
-
-### Quando un task va in `BLOCKED`
-1. Leggi il commento di bail-out su ClickUp (step + motivo)
-2. Esamina il branch locale conservato dall'agente
+2. Esamina il branch locale conservato dall'agente (nel sandbox `~/Works/.automaint/ai-base-setup`)
 3. Risolvi manualmente o riformula il task description, poi sposta il task `BLOCKED -> SPRINT`
 4. La pipeline lo riprendera' al prossimo ciclo (`BLOCKED -> IN PROGRESS` se preferisci ripresa manuale)
 
