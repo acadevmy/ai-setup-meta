@@ -22,6 +22,15 @@ fi
 
 cd "$SANDBOX"
 
+# Aggiorna il sandbox all'ultimo main (necessario: la skill auto-maintain deve
+# essere presente nel sandbox prima di poterla invocare)
+echo "[$(date -Iseconds)] git pull --ff-only origin main" >> "$LOG"
+git pull --ff-only origin main >> "$LOG" 2>&1
+if [[ $? -ne 0 ]]; then
+  echo "[$(date -Iseconds)] ERROR: git pull failed (merge conflicts or diverged branch?)" >> "$LOG"
+  exit 1
+fi
+
 # Verifica .env.local (può essere symlink al repo primario)
 if [[ ! -f .env.local ]]; then
   echo "[$(date -Iseconds)] ERROR: .env.local not found in sandbox (symlink missing?)" >> "$LOG"
