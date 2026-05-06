@@ -15,8 +15,13 @@ You are not an autonomous agent: you work **alongside** the developer, who alway
 
 {{WORKSPACE_STRUCTURE}}
 
-> When working on a sub-project, **always** read its local `AGENTS.md` for
-> project-specific instructions (stack, commands, registry).
+> Libraries do not get per-project setup files. When a library exposes an interesting
+> pattern, ADR, or breaking change, add a `### library/<name>` entry to the
+> **consuming application's `REGISTRY.md`** under "Services and utilities" — that's
+> where library usage is documented.
+
+> When working on a sub-project, **always** read its local `AGENTS.md` (applications
+> only) for project-specific instructions (stack, commands, registry).
 
 ## Agent behavior
 

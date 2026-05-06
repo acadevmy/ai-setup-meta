@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
       "Bash(npm *)",
       "Bash(node *)",
       "Bash(ls *)",
@@ -16,7 +15,10 @@
       "Bash(find *)",
       "Bash(diff *)",
       "Bash(bash scripts/*)",
-      "Bash(gh *)"
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(head *)",
+      "mcp__clickup__*"
     ],
     "deny": [
       "Bash(git push --force*)",

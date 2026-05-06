@@ -162,6 +162,7 @@ Gli agent sono sub-processi isolati con il proprio contesto.
 | Agent | File | Ruolo |
 |---|---|---|
 | **validate-template** | `.claude/agents/validate-template.md` | Validazione pre-release dei template. Legge manifest.json. |
+| **clickup** | `.claude/agents/clickup.md` | CRUD ClickUp + gestione tag, usato dalla pipeline `auto-maintain`. Variante meta-repo del subagent canonico in `shared/agents/clickup.md`. |
 
 ### Shared agents (in `shared/`, distribuiti ai template)
 
@@ -178,6 +179,7 @@ Gli agent sono sub-processi isolati con il proprio contesto.
 | `/project:generate-setup` | Genera un template (multi-dominio, guidato da manifest) |
 | `/project:update-constitution` | Aggiorna CONSTITUTION e propaga ai template |
 | `/project:sync-profiles` | Sincronizza i profili stack nel template di dominio |
+| `/project:auto-maintain` | Pipeline autonoma: pesca un task ClickUp dalla lista di manutenzione e apre PR (vedi sezione dedicata) |
 
 ### Comandi (`/project:<nome>`)
 
@@ -196,6 +198,86 @@ Comandi che invocano script sh sottostanti per operazioni di build/release/valid
 | `clickup` | Documentazione di riferimento per operazioni ClickUp |
 | `github-ops` | Operazioni GitHub (branch, PR, release) via `gh` CLI. Self-identify: si disattiva se il repo non punta a GitHub. |
 | `gitlab-ops` | Operazioni GitLab (branch, MR, release) via `glab` CLI. Usa `glab mr create --template` per i template MR del repo. Self-identify: si disattiva se il repo non punta a GitLab. |
+
+## Pipeline autonoma di manutenzione
+
+Il meta-repo include una pipeline che evolve autonomamente il setup (skill, MCP, profili,
+agent, constitution) processando task ClickUp dedicati e aprendo PR pronte per la review.
+
+### Componenti
+- Skill orchestrator: `.claude/skills/auto-maintain/SKILL.md`
+- Subagent: `.claude/agents/clickup.md`
+- Quality gate: `/project:validate`
+
+### Flusso (per ogni esecuzione)
+1. Pesca il task SPRINT a priorita' piu' alta dalla lista `CLICKUP_MAINTENANCE_LIST_ID`
+2. Sposta il task `SPRINT -> IN PROGRESS`
+3. Crea branch `chore/<customId>-<slug>` dal `main` aggiornato
+4. Classifica il tipo di intervento (skill / mcp / profile / agent / constitution / manifest / docs)
+5. Applica le modifiche guidate dalla `description` del task
+6. Esegue `/project:validate`
+7. Commit Conventional (inglese), push, `gh pr create` con descrizione **in italiano**
+8. Sposta il task `IN PROGRESS -> CODE REVIEW` con link PR
+
+### Bail-out (su errore o ambiguita')
+- Task spostato in stato `BLOCKED`
+- Commento ClickUp con step fallito + suggerimenti
+- Branch locale **non** eliminato (per debug)
+
+### Prerequisiti operativi (una tantum)
+- [ ] Creare la lista ClickUp di manutenzione
+- [ ] Compilare `CLICKUP_MAINTENANCE_LIST_ID` in `.env.local`
+- [ ] Verificare che lo status `BLOCKED` sia disponibile nella lista
+- [ ] Verificare `gh auth status` e `claude mcp list` (deve esserci `clickup`)
+
+### Prerequisiti sandbox (una tantum, dopo i prerequisiti operativi)
+La pipeline gira in un **worktree separato** per non interferire con il working tree principale
+(evita conflitti di branch, `git status` sporco, `checkout main` indesiderato).
+
+```bash
+# Crea il sandbox
+git -C ~/Works/ai-base-setup worktree add ~/Works/.automaint/ai-base-setup main
+
+# Symlink .env.local nel sandbox (unico file da mantenere)
+ln -s ~/Works/ai-base-setup/.env.local ~/Works/.automaint/ai-base-setup/.env.local
+
+# Verifica
+git -C ~/Works/ai-base-setup worktree list
+```
+
+### Attivazione dello scheduler (launchd macOS)
+Carica i LaunchAgent dal repo (gia' presenti in `~/Library/LaunchAgents/`):
+
+```bash
+# Mantieni il Mac sveglio 03:30–05:00 (90 min)
+launchctl load ~/Library/LaunchAgents/com.devmy.ai-base-setup.caffeinate.plist
+
+# Esegue auto-maintain ogni notte alle 04:00
+launchctl load ~/Library/LaunchAgents/com.devmy.ai-base-setup.auto-maintain.plist
+
+# Verifica
+launchctl list | grep devmy.ai-base-setup
+```
+
+**Log**: `~/Works/ai-base-setup/logs/auto-maintain.log` (output Claude Code),
+`logs/auto-maintain.launchd.log` (errori launchd).
+
+**Trigger manuale** (test fuori orario):
+```bash
+launchctl start com.devmy.ai-base-setup.auto-maintain
+```
+
+**Disattivazione**:
+```bash
+launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.auto-maintain.plist
+launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.caffeinate.plist
+```
+
+### Quando un task va in `BLOCKED`
+1. Leggi il commento di bail-out su ClickUp (step + motivo)
+2. Esamina il branch locale conservato dall'agente (nel sandbox `~/Works/.automaint/ai-base-setup`)
+3. Risolvi manualmente o riformula il task description, poi sposta il task `BLOCKED -> SPRINT`
+4. La pipeline lo riprendera' al prossimo ciclo (`BLOCKED -> IN PROGRESS` se preferisci ripresa manuale)
 
 ## Checklist pre-PR
 

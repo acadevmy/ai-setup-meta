@@ -464,21 +464,34 @@ Scrivi il risultato in `AGENTS.md` nella root del progetto.
 
 #### 5B — Multi-progetto (o stack fullstack)
 
-Genera **due livelli** di AGENTS.md: uno alla root e uno per ogni sub-project.
+Genera **due livelli** di AGENTS.md: uno alla root e uno per ogni sub-project **applicazione**. Le librerie non ricevono file di setup per-progetto — la loro usage viene citata nel REGISTRY dell'applicazione che le consuma (vedi sotto, "Citazione delle librerie consumate").
+
+**Classificazione sub-project (application vs library)**, in ordine di priorita':
+
+1. Path matcha `applications/*`, `apps/*`, `services/*` → **application**
+2. Path matcha `libraries/*`, `libs/*`, `packages/*` → **library**
+3. `package.json` ha `"private": false` E `"main"`/`"exports"` → **library** (forma pubblicabile)
+4. `package.json` ha `scripts.dev` o `scripts.start` → **application** (forma eseguibile)
+5. Altrimenti → chiedi allo sviluppatore (default: **application**)
+
+Salva la classificazione per ciascun sub-project come `{SUBPROJECT_TYPE}`.
 
 **Root AGENTS.md** — usa `${CLAUDE_SKILL_DIR}/templates/AGENTS.workspace-template.md`:
-- `{{WORKSPACE_STRUCTURE}}` → genera una tabella con i sub-project confermati:
+- `{{WORKSPACE_STRUCTURE}}` → genera una tabella con TUTTI i sub-project confermati (apps + libs), con colonna `Type` e con la colonna `Instructions` differenziata:
   ```
-  | Progetto | Path | Stack | Istruzioni |
-  |---|---|---|---|
-  | Web Frontend | `apps/web/` | Next.js 14+, React 18+ | [`apps/web/AGENTS.md`](apps/web/AGENTS.md) |
-  | Backend API | `apps/api/` | Node.js 20+, NestJS 10+ | [`apps/api/AGENTS.md`](apps/api/AGENTS.md) |
+  | Project | Type | Path | Stack | Instructions |
+  |---|---|---|---|---|
+  | web   | application | apps/web/ | Next.js 14+, React 18+ | [apps/web/AGENTS.md](apps/web/AGENTS.md) |
+  | api   | application | apps/api/ | Node.js 20+, NestJS 10+ | [apps/api/AGENTS.md](apps/api/AGENTS.md) |
+  | shared | library    | libs/shared/ | TypeScript, Zod | (no per-library file — see consuming app REGISTRY) |
   ```
+- Aggiungi sotto la tabella la nota:
+  > Libraries do not get per-project setup files. When a library exposes an interesting pattern, ADR, or breaking change, add a `### library/<name>` entry to the **consuming application's `REGISTRY.md`** under "Services and utilities" — that's where library usage is documented.
 - Scrivi il risultato in `AGENTS.md` nella root
 
 **AGENTS.md per sub-project** — usa `${CLAUDE_SKILL_DIR}/templates/AGENTS.project-template.md`:
 
-Per ogni sub-project confermato, sostituisci i placeholder:
+**Solo per i sub-project con `{SUBPROJECT_TYPE} == 'application'`**, sostituisci i placeholder:
 - `{{PROJECT_NAME}}` → nome descrittivo del sub-project (es. "Web Frontend", "Backend API")
 - `{{STACK_DESCRIPTION}}` → stack rilevato del sub-project (stessi criteri del punto 5A)
 - `{{TEST_COMMAND}}` → test runner rilevato nel sub-project
@@ -486,6 +499,26 @@ Per ogni sub-project confermato, sostituisci i placeholder:
 - `{{ROOT_AGENTS_REL_PATH}}` → path relativo alla root (es. `../../AGENTS.md`)
 
 Scrivi il risultato in `<sub-project-path>/AGENTS.md`.
+
+I sub-project con `{SUBPROJECT_TYPE} == 'library'` **non ricevono** AGENTS.md / CLAUDE.md / REGISTRY.md.
+
+**Citazione delle librerie consumate** (per ogni applicazione):
+
+Per ogni sub-project con `{SUBPROJECT_TYPE} == 'application'`, leggi il suo `package.json` e identifica le dipendenze workspace verso le librerie del monorepo. Una dipendenza e' workspace-resolved quando:
+- Il valore e' `workspace:*`, `workspace:^`, `workspace:~`, o `workspace:<version>`
+- Oppure il nome del package matcha esattamente il `name` di un sub-project con `{SUBPROJECT_TYPE} == 'library'`
+
+Per ogni libreria consumata, aggiungi una entry in `<app>/REGISTRY.md` sezione "Services and utilities" usando questo template:
+
+```markdown
+### library/<name>
+
+- **Where**: `libraries/<name>/` (o il path effettivo) — workspace package
+- **Used by**: this application (aggiungi le altre app che la consumano, separate da virgola)
+- **Summary**: <una riga; usa la `description` di `<lib>/package.json` se presente, oppure il primo paragrafo significativo del README della libreria; se nessuno e' utilizzabile, scrivi "TBD — refine when first touched">
+```
+
+Cosi' l'agente AI che lavora nell'applicazione vede subito quali librerie usa, dove vivono, e ha un punto da cui partire per indagare il loro contenuto. Quando il team aggiunge pattern/ADR che toccano una libreria, vivono nel REGISTRY dell'app consumante e possono fare riferimento a `### library/<name>` per ancoraggio.
 
 ---
 
