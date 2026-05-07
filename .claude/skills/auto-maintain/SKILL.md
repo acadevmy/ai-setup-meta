@@ -23,10 +23,12 @@ per la review umana.
 - **Una PR per esecuzione**: un solo task processato per ciclo, una sola PR aperta.
 - **Bail-out conservativo**: in caso di dubbio o errore, ferma e marca il task come `BLOCKED`. Mai PR rumorose.
 - **Lingua**: codice e commit in inglese (Conventional Commits), descrizione PR e commenti ClickUp in italiano.
-- **Nessuna dipendenza da CLI esterne**: tutte le operazioni GitHub e ClickUp usano API REST via `curl`. Non serve `gh` installato né MCP ClickUp configurato.
+- **ClickUp via MCP**: tutte le operazioni ClickUp usano i tool `mcp__clickup__*` già autenticati. Nessun token da gestire.
+- **GitHub via curl + GH_TOKEN**: push e creazione PR usano l'API GitHub REST con il token da `.env.local`.
 
 ## Prerequisiti
-- `.env.local` con `CLICKUP_MAINTENANCE_LIST_ID`, `CLICKUP_API_TOKEN` e `GH_TOKEN` valorizzati
+- `.env.local` con `CLICKUP_MAINTENANCE_LIST_ID` e `GH_TOKEN` valorizzati
+- MCP ClickUp attivo e autenticato (verifica con `claude mcp list`)
 - `git` configurato con accesso in lettura/scrittura al repo
 - `curl` e `jq` disponibili nel PATH
 - Status `BLOCKED` disponibile nella lista ClickUp di manutenzione
@@ -39,61 +41,40 @@ per la review umana.
    ```bash
    set -a && source .env.local && set +a
    ```
-2. Verifica `CLICKUP_MAINTENANCE_LIST_ID`: se vuota o assente, stampa "Nessuna lista di manutenzione configurata, esco." ed esci con successo (no-op).
+2. Verifica `CLICKUP_MAINTENANCE_LIST_ID`: se vuota o assente, stampa "`CLICKUP_MAINTENANCE_LIST_ID` non è configurato in `.env.local`. Esco con no-op come da procedura." ed esci con successo (no-op).
 3. Verifica `git status --porcelain` pulito. Se sporco: esci con "Working tree non pulito, abort."
-4. Verifica `GH_TOKEN`: se assente o vuoto, esci con "GH_TOKEN non configurato in .env.local."
-5. Verifica `CLICKUP_API_TOKEN`: se assente o vuoto, esci con "CLICKUP_API_TOKEN non configurato in .env.local."
-6. Verifica token GitHub:
+4. Verifica `GH_TOKEN`: se assente o vuoto, esci con "GH_TOKEN non configurato in `.env.local`."
+5. Verifica token GitHub:
    ```bash
    curl -s -H "Authorization: token $GH_TOKEN" https://api.github.com/user | jq -e '.login' > /dev/null
    ```
    Se il comando fallisce (HTTP 401 o campo `.login` assente): esci con "GH_TOKEN non valido o scaduto."
-7. Verifica token ClickUp:
-   ```bash
-   curl -s -H "Authorization: $CLICKUP_API_TOKEN" https://api.clickup.com/api/v2/user | jq -e '.user.id' > /dev/null
-   ```
-   Se fallisce: esci con "CLICKUP_API_TOKEN non valido o scaduto."
 
 ### Step 1 — Selezione task
-1. Recupera i task in stato `SPRINT` dalla lista:
-   ```bash
-   TASKS_RESPONSE=$(curl -s \
-     -H "Authorization: $CLICKUP_API_TOKEN" \
-     "https://api.clickup.com/api/v2/list/$CLICKUP_MAINTENANCE_LIST_ID/task?statuses[]=SPRINT&order_by=priority&reverse=false")
+1. Recupera i task in stato `SPRINT` dalla lista usando il tool MCP:
    ```
-2. Estrai il task a priorità più alta (valore numerico minore: 1=urgent, 2=high, 3=normal, 4=low):
-   ```bash
-   TASK=$(echo "$TASKS_RESPONSE" | jq '[.tasks[]] | sort_by(.priority.priority // 4) | first')
+   mcp__clickup__clickup_filter_tasks(list_id: CLICKUP_MAINTENANCE_LIST_ID, statuses: ["SPRINT"])
    ```
-3. Se `TASK` è `null` o la lista è vuota: stampa "Nessun task in SPRINT, esco." ed esci con successo.
-4. Estrai i campi necessari:
-   ```bash
-   TASK_ID=$(echo "$TASK" | jq -r .id)
-   CUSTOM_ID=$(echo "$TASK" | jq -r .custom_id)
-   TASK_NAME=$(echo "$TASK" | jq -r .name)
-   TASK_DESC=$(echo "$TASK" | jq -r .description)
-   TASK_PRIORITY=$(echo "$TASK" | jq -r .priority.priority)
-   TASK_URL=$(echo "$TASK" | jq -r .url)
-   ```
+2. Ordina i task per priorità (valore numerico minore = priorità più alta: 1=urgent, 2=high, 3=normal, 4=low). Seleziona il primo.
+3. Se la lista è vuota: stampa "Nessun task in SPRINT, esco." ed esci con successo.
+4. Estrai i campi necessari dal task selezionato:
+   - `TASK_ID` — id interno ClickUp
+   - `CUSTOM_ID` — es. `AI-42`
+   - `TASK_NAME` — titolo del task
+   - `TASK_DESC` — description del task
+   - `TASK_PRIORITY` — valore numerico priorità
+   - `TASK_URL` — URL del task su ClickUp
 
 ### Step 2 — Lock task (SPRINT → IN PROGRESS)
-1. Aggiorna lo status:
-   ```bash
-   curl -s -X PUT \
-     -H "Authorization: $CLICKUP_API_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"status": "IN PROGRESS"}' \
-     "https://api.clickup.com/api/v2/task/$TASK_ID"
+1. Aggiorna lo status tramite MCP:
    ```
-2. Aggiungi commento:
-   ```bash
-   curl -s -X POST \
-     -H "Authorization: $CLICKUP_API_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"comment_text": "🤖 Avvio elaborazione automatica della pipeline auto-maintain."}' \
-     "https://api.clickup.com/api/v2/task/$TASK_ID/comment"
+   mcp__clickup__clickup_update_task(task_id: TASK_ID, status: "IN PROGRESS")
    ```
-3. Se la chiamata di update restituisce un errore HTTP: esci con `STATUS: error` (no bail-out con tag, il task è ancora in SPRINT).
+2. Aggiungi commento tramite MCP:
+   ```
+   mcp__clickup__clickup_create_task_comment(task_id: TASK_ID, comment_text: "🤖 Avvio elaborazione automatica della pipeline auto-maintain.")
+   ```
+3. Se la chiamata MCP restituisce un errore: esci con `STATUS: error` (no bail-out con tag, il task è ancora in SPRINT).
 
 ### Step 3 — Branch
 1. `git checkout main && git pull --ff-only`
@@ -208,22 +189,13 @@ Se nessun tipo è deducibile con confidenza ragionevole: **bail-out** (vedi sezi
    ```
 
 ### Step 9 — Move task (IN PROGRESS → CODE REVIEW)
-1. Aggiorna lo status:
-   ```bash
-   curl -s -X PUT \
-     -H "Authorization: $CLICKUP_API_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"status": "CODE REVIEW"}' \
-     "https://api.clickup.com/api/v2/task/$TASK_ID"
+1. Aggiorna lo status tramite MCP:
    ```
-2. Aggiungi commento con link PR:
-   ```bash
-   COMMENT_JSON=$(jq -n --arg text "🤖 PR aperta: $PR_URL" '{comment_text: $text}')
-   curl -s -X POST \
-     -H "Authorization: $CLICKUP_API_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d "$COMMENT_JSON" \
-     "https://api.clickup.com/api/v2/task/$TASK_ID/comment"
+   mcp__clickup__clickup_update_task(task_id: TASK_ID, status: "CODE REVIEW")
+   ```
+2. Aggiungi commento con link PR tramite MCP:
+   ```
+   mcp__clickup__clickup_create_task_comment(task_id: TASK_ID, comment_text: "🤖 PR aperta: <PR_URL>")
    ```
 3. Stampa riepilogo finale: `custom_id`, branch, `pr_url`.
 
@@ -234,24 +206,13 @@ Si attiva quando uno step fallisce o quando l'agente non può proseguire con suf
 Procedura:
 
 1. **Non** eliminare il branch locale (utile per debug umano), se è già stato creato.
-2. Sposta il task in stato `BLOCKED`:
-   ```bash
-   curl -s -X PUT \
-     -H "Authorization: $CLICKUP_API_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"status": "BLOCKED"}' \
-     "https://api.clickup.com/api/v2/task/$TASK_ID"
+2. Sposta il task in stato `BLOCKED` tramite MCP:
    ```
-3. Aggiungi commento con dettagli del blocco:
-   ```bash
-   BAIL_COMMENT=$(jq -n \
-     --arg text "⛔ Pipeline auto-maintain bloccata.\n\n**Step fallito**: <numero e nome>\n**Motivo**: <descrizione>\n**Branch locale**: <branch o 'non creato'>\n\nAzioni suggerite:\n- <suggerimento 1>\n- <suggerimento 2>" \
-     '{comment_text: $text}')
-   curl -s -X POST \
-     -H "Authorization: $CLICKUP_API_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d "$BAIL_COMMENT" \
-     "https://api.clickup.com/api/v2/task/$TASK_ID/comment"
+   mcp__clickup__clickup_update_task(task_id: TASK_ID, status: "BLOCKED")
+   ```
+3. Aggiungi commento con dettagli del blocco tramite MCP:
+   ```
+   mcp__clickup__clickup_create_task_comment(task_id: TASK_ID, comment_text: "⛔ Pipeline auto-maintain bloccata.\n\n**Step fallito**: <numero e nome>\n**Motivo**: <descrizione>\n**Branch locale**: <branch o 'non creato'>\n\nAzioni suggerite:\n- <suggerimento 1>\n- <suggerimento 2>")
    ```
 4. Esci con errore riportando `task_id`, `custom_id`, branch (se creato), motivo.
 
@@ -263,4 +224,4 @@ Recovery (lato umano): una volta risolto il blocco, rimetti il task in `SPRINT`.
 - Non operare mai direttamente su `main`
 - Non chiudere o cancellare task ClickUp: solo update di status + commenti
 - Non aggiungere/rimuovere reviewer GitHub automaticamente (delega all'umano)
-- Non loggare mai il valore di `GH_TOKEN` o `CLICKUP_API_TOKEN` nell'output
+- Non loggare mai il valore di `GH_TOKEN` nell'output
