@@ -4,7 +4,7 @@ description: Structured discovery interview to gather complete requirements befo
 model: opus
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: AskUserQuestion
+allowed-tools: AskUserQuestion, Read, Grep
 ---
 
 # /project:sdd-discovery
@@ -37,9 +37,10 @@ Act as a **Senior Product Manager and Lead System Architect**. Your goal
 is to conduct a thorough discovery phase for a new software feature,
 following Spec-Driven Development (SDD) principles.
 
-Your task: interview the developer to gather complete requirements
-starting from a raw task, until you have sufficient material to produce a
-structured **Discovery Summary** that will feed the technical specification.
+Your task: interview the developer **relentlessly** to gather complete requirements
+starting from a raw task, walking down every branch of the decision tree until you
+reach shared understanding and have sufficient material to produce a structured
+**Discovery Summary** that will feed the technical specification.
 
 ## Procedure
 
@@ -56,11 +57,14 @@ structured **Discovery Summary** that will feed the technical specification.
 - Use the task context already available in the conversation (passed by the `sdd` orchestrator)
 - If no context is available, ask the developer to provide a TASK_ID
 
-### 2. Analyze the project context
+### 2. Analyze the project context and explore the codebase
 
 - Read `CONSTITUTION.md` to understand applicable technical constraints
 - Read `REGISTRY.md` to learn about existing components, adopted patterns and architectural decisions
-- Identify relevant files in the project based on the task requirements
+- **Explore the codebase proactively**: use Read and Grep to find files, components, or patterns
+  relevant to the task. If a question can be answered by reading the code, answer it yourself
+  instead of asking the developer — save the developer's attention for decisions that cannot
+  be inferred from existing code.
 
 ### 3. Present the task
 
@@ -78,6 +82,19 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
 ```
 
 ### 4. Conduct the interview
+
+#### Core principles
+
+**Walk every branch of the decision tree.** After each answer, identify what new
+decision points have opened up and what dependencies have been introduced. Each answer
+is a node — explore all its sub-branches before moving to the next node. Do not skip
+branches because they seem "obvious": state your assumption and confirm it.
+
+**Provide your recommended answer for every question.** You are a senior architect with
+context about the codebase and the task. For each question, mark one option as
+`⭐ Raccomandato` and include a brief reason in its description. The developer should
+be able to simply confirm your recommendation when it fits — this is faster and surfaces
+disagreements immediately.
 
 #### Strict rules
 
@@ -101,9 +118,10 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    to provide a custom answer if none of the options fit.
 
    **How it works**:
-   - Analyze the task context, project stack, and conversation so far
+   - Analyze the task context, project stack, codebase, and conversation so far
    - Formulate your question as a closed choice with 2-4 options
-   - Each option should be a realistic, informed suggestion based on context
+   - **Always mark one option as `⭐ Raccomandato`** with a brief reason in the description
+   - Each other option should be a realistic, informed alternative
    - Always include a "Da definire" option when the developer might not have decided yet
    - The system automatically adds an "Other" option for free-text input
 
@@ -113,15 +131,15 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    - Instead of "What happens on error?" → propose 2-3 common error strategies (retry, notify user, silent log)
    - If a question truly cannot be pre-compiled (very rare), use plain text — but this should be the exception, not the rule
 
-   **Example — Phase 1 question**:
+   **Example — Phase 1 question with recommended answer**:
    ```json
    AskUserQuestion({
      "questions": [{
        "question": "Qual e' l'obiettivo principale del sistema di notifiche?",
        "header": "Core Value",
        "options": [
-         { "label": "Ridurre ritardi", "description": "Gli utenti oggi non si accorgono di eventi importanti in tempo, causando ritardi nelle risposte." },
-         { "label": "Sostituire email", "description": "Le notifiche email non vengono lette. Serve un canale piu' immediato (push/in-app)." },
+         { "label": "⭐ Raccomandato — Ridurre ritardi", "description": "Gli utenti oggi non si accorgono di eventi importanti in tempo, causando ritardi nelle risposte. Coerente con il flusso di approvazione già presente in REGISTRY.md." },
+         { "label": "Sostituire email", "description": "Le notifiche email non vengono lette. Serve un canale più immediato (push/in-app)." },
          { "label": "Engagement", "description": "Aumentare il coinvolgimento degli utenti riportandoli nell'app quando succede qualcosa di rilevante." },
          { "label": "Da definire", "description": "Non ancora deciso, lo segno come gray area." }
        ],
@@ -130,16 +148,16 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    })
    ```
 
-   **Example — Phase 3 question (edge case)**:
+   **Example — Phase 3 question (edge case) with recommended answer**:
    ```json
    AskUserQuestion({
      "questions": [{
        "question": "Cosa deve succedere se l'invio della notifica push fallisce?",
        "header": "Error handling",
        "options": [
-         { "label": "Retry automatico", "description": "Il sistema riprova fino a 3 volte con backoff esponenziale." },
+         { "label": "⭐ Raccomandato — Retry automatico", "description": "Il sistema riprova fino a 3 volte con backoff esponenziale. Strategia standard nel progetto (vedi ErrorHandler in REGISTRY.md)." },
          { "label": "Fallback email", "description": "Se il push fallisce, invia una email come fallback." },
-         { "label": "Log silenzioso", "description": "Logga l'errore senza ritentare. L'utente vedra' la notifica in-app al prossimo accesso." },
+         { "label": "Log silenzioso", "description": "Logga l'errore senza ritentare. L'utente vedrà la notifica in-app al prossimo accesso." },
          { "label": "Da definire", "description": "Non ancora deciso, lo segno come gray area." }
        ],
        "multiSelect": false
@@ -147,49 +165,70 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    })
    ```
 
-4. **Don't settle**: If the answer is vague, incomplete or introduces new ambiguities,
-   do NOT move on to the next topic. Dig deep with follow-up questions
-   (e.g. "What exactly do you mean by X?", "What happens if the user does Y instead of X?").
+4. **Don't settle — dig every sub-branch**: If the answer is vague, incomplete or introduces
+   new ambiguities, do NOT move on to the next topic. Trace every dependency introduced by
+   the answer. For example, if the developer says "the user can retry", immediately ask:
+   "How many retries? What happens when retries are exhausted?". Walk the sub-tree fully
+   before moving to the next branch.
 
-5. **Investigate edge cases**: For each feature, push the developer to think
+5. **Explore the codebase before asking**: If an answer can be inferred by reading existing
+   code (e.g. "does a UserService already exist?", "what's the current error handling pattern?"),
+   use Read/Grep to find out, then state your finding as a confirmed assumption in the next question.
+
+6. **Investigate edge cases relentlessly**: For each feature, push the developer to think
    about failures (What happens if the database is offline? If the input is malformed?
-   If the user doesn't have permissions?).
+   If the user doesn't have permissions? If two users submit simultaneously?).
 
-6. **Respect boundaries**: If the developer says "I don't know yet" or "to be defined",
+7. **Respect boundaries**: If the developer says "I don't know yet" or "to be defined",
    accept it and note it as a gray area — don't insist. Flag it in the final summary.
 
-7. **Soft cap**: Aim to gather everything in **maximum 10-12 questions**. The developer
-   can say "enough, I've said everything" at any time to close the interview.
+8. **No rigid question limit**: The interview continues until all branches of the decision
+   tree are resolved or explicitly marked as gray areas. For a simple task this may take
+   6-8 questions; for complex tasks 15 or more. The developer can say "enough, I've said
+   everything" at any time to close the interview early.
 
 #### Discovery framework
 
 Conduct the interview mentally following these phases, moving to the next
-only when the previous one is sufficiently clear:
+only when the previous one is sufficiently clear. **After each answer, identify all
+sub-branches it opens and resolve them before advancing to the next phase.**
 
 **Phase 1 — Core Value (the "Why")**
 What is the business problem or user objective? Why does this task exist?
-Who benefits? What is the expected value?
+Who benefits? What is the expected value? What would change if this weren't implemented?
 
 **Phase 2 — Happy Path (the "What")**
 What is the ideal step-by-step flow? What does the user see? What happens in the system?
-What are the expected inputs and outputs?
+What are the expected inputs and outputs? What are the acceptance criteria?
 
 **Phase 3 — Unhappy Path and Edge Cases**
 Error handling, validations, limits. What happens when something goes wrong?
 What are the edge cases to handle? Are there security or permission requirements?
+What are the boundary conditions (empty state, max values, concurrent access)?
 
 **Phase 4 — Constraints and dependencies (the high-level "How")**
 Known technical constraints, external dependencies, architectural preferences.
 Are there existing components to reuse? Non-functional requirements
-(performance, security, UX)?
+(performance, security, UX)? What must NOT change?
 
 > **Note**: Phase 4 gathers constraints and preferences, NOT solutions.
 > Detailed architectural decisions are the responsibility of the spec (`sdd-spec`).
 
+#### Branch resolution check
+
+Before generating the Discovery Summary, mentally verify:
+- [ ] All Phase 1 sub-questions are answered (or marked gray area)
+- [ ] The Happy Path is described step by step with no gaps
+- [ ] At least 3 edge cases / error scenarios are addressed
+- [ ] All technical constraints and dependencies are identified
+- [ ] No answer introduced a new unresolved branch
+
+If any branch is still open, continue the interview.
+
 ### 5. Generate the Discovery Summary
 
-When the interview is complete (all phases covered, or the developer
-said "enough"), generate a structured **Discovery Summary**:
+When the interview is complete (all branches resolved or marked as gray areas, or the
+developer said "enough"), generate a structured **Discovery Summary**:
 
 ```markdown
 ## Discovery Summary: <custom_id> — <name>
@@ -237,6 +276,6 @@ said "enough"), generate a structured **Discovery Summary**:
 - Return control to the orchestrator to proceed with `sdd-spec`
 
 ## Expected output
-- Interactive interview completed (max 10-12 questions)
+- Interactive interview completed (branches fully resolved, typically 10-15 questions for non-trivial tasks)
 - Structured Discovery Summary in the conversation context
 - Gray areas explicitly documented
