@@ -11,6 +11,26 @@ following the conventions and rules established by the Constitution.
 
 You are not an autonomous agent: you work **alongside** the developer, who always has the final say.
 
+## Project Identity
+
+- **Name:** {{PROJECT_NAME}}
+- **Purpose:** {{PROJECT_PURPOSE}}
+- **Primary users:** {{PROJECT_PRIMARY_USERS}}
+
+> Identity grounds every decision the agent makes about scope and audience.
+> Keep this section short and concrete — one line each.
+
+## Infrastructure
+
+- **Source control / CI:** {{INFRA_VCS_CI}}
+- **Secrets management:** {{INFRA_SECRETS}}
+- **Hosting / deploy target:** {{INFRA_HOSTING}}
+- **Observability:** {{INFRA_OBSERVABILITY}}
+
+> List the actual tools in use (e.g. "GitLab + GitLab CI", "dotenv-vault",
+> "AWS EKS", "Datadog"). Lines marked `{{TODO: ...}}` are auto-detection
+> misses — fill them in or delete the line if the dimension does not apply.
+
 ## Workspace structure
 
 {{WORKSPACE_STRUCTURE}}
@@ -22,6 +42,42 @@ You are not an autonomous agent: you work **alongside** the developer, who alway
 
 > When working on a sub-project, **always** read its local `AGENTS.md` (applications
 > only) for project-specific instructions (stack, commands, registry).
+
+## Quality Standards
+
+Workspace-wide quality bar — applies to every sub-project unless its local `AGENTS.md` overrides:
+
+- **Test coverage target:** {{QUALITY_COVERAGE_TARGET}}
+- **Test (workspace):** `{{TEST_COMMAND}}`
+- **Lint (workspace):** `{{LINT_COMMAND}}`
+- **Type-check (workspace):** `{{TYPECHECK_COMMAND}}`
+
+Per-sub-project commands live in each sub-project's `AGENTS.md` under its `Test and lint commands` section.
+
+## Boundaries
+
+> Three-tier decision table. The agent consults this before any non-trivial action.
+> Priority is **Never > Ask First > Always**: a step that violates a "Never" rule
+> is forbidden even if it is also covered by an "Always" rule. This section is a
+> cheat-sheet over `CONSTITUTION.md`, not a replacement — when these bullets and
+> the Constitution conflict, the Constitution wins.
+
+### Always Do
+
+{{BOUNDARIES_ALWAYS}}
+
+### Ask First
+
+{{BOUNDARIES_ASK_FIRST}}
+
+### Never Do
+
+- Commit secrets, API keys, tokens, or `.env` files
+- Disable strict type-checking or test enforcement to make a change pass
+- Push directly to a production ref without an explicit, in-message go-ahead
+- Bypass commit/push hooks (`--no-verify`, `--no-gpg-sign`) to dodge a failing check
+- Take destructive git actions (`reset --hard`, `push --force`, branch deletion) without explicit go-ahead
+{{BOUNDARIES_NEVER_EXTRA}}
 
 ## Agent behavior
 
@@ -110,6 +166,8 @@ Rationale: the CLI is faster, streams output, and does not consume MCP tool-call
 | **ClickUp** | Read tasks, update status, retrieve briefs |
 | **Figma** | Retrieve design tokens, components, specifications |
 | **Context7** | Up-to-date documentation for libraries and frameworks. **Prefer the `ctx7` CLI if available in PATH** — use this MCP only as fallback |
+
+> **About `.mcp.json`** — committed, team-shared. For personal/IDE-specific servers use `claude mcp add --scope local <name> <command>` (writes to `~/.claude.json` only, never to a project file); for machine-specific values inside committed entries use `${VAR}` env var expansion (Claude Code expands at load time). See the [Claude Code MCP docs](https://code.claude.com/docs/en/mcp) for the full scope model.
 
 {{VCS_OPS_NOTE}}
 

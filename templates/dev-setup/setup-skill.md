@@ -349,6 +349,60 @@ Leggi `${CLAUDE_SKILL_DIR}/templates/.env.example` e scrivilo in `.env.example`.
 
 ---
 
+#### 3.3 — Adatta allowlist al package manager rilevato
+
+Il template di `.claude/settings.json` elenca tutti e tre i Node package manager (`Bash(npm *)`, `Bash(pnpm *)`, `Bash(yarn *)`) nell'array `allow`, perche' al rilascio del plugin non sappiamo quale userai. Se il progetto ha un lock file univoco, restringi l'allowlist al PM in uso — un agente non deve invocare `yarn install` in un progetto pnpm e bypassare le convenzioni di workspace/hoisting.
+
+**Skip se**:
+- `.claude/settings.json` esisteva gia' al momento del 3.2 e non e' stato sovrascritto (la conflict detection l'ha lasciato intatto — non spettano a te modifiche post-hoc).
+- Linguaggi rilevati al Passo 2 NON includono `node` (es. progetto Python/Go/Terraform puro): le 3 entry restano per supportare eventuale `npx <tool>` puntuale.
+
+**Detection del package manager**:
+
+| Lock file rilevato in root | Package manager |
+|---|---|
+| `pnpm-lock.yaml` | **pnpm** |
+| `yarn.lock` | **yarn** |
+| `package-lock.json` | **npm** |
+| Piu' di un lock file | **ambiguo** — non toccare l'allowlist, segnala l'anomalia nel riepilogo del Passo 9 |
+| Nessun lock file (`package.json` esiste ma il progetto non e' ancora stato `install`-ato) | **nessuno** — lascia tutte e tre le entry, segnala nel riepilogo del Passo 9 |
+
+**Modifiche all'allowlist** (solo se PM rilevato e univoco):
+
+- `pnpm` → mantieni `Bash(pnpm *)`, aggiungi `Bash(pnpx *)` se non gia' presente, rimuovi `Bash(npm *)` e `Bash(yarn *)`. **Mantieni `Bash(npx *)`** — e' universale, usato dalla CLI di `ctx7` (`npx ctx7@latest`), dai codemod ufficiali (`npx @next/codemod@latest`), e da molti README di tool one-shot. Rimuovere `npx` rompe questi flussi senza guadagno reale.
+- `yarn` → mantieni `Bash(yarn *)` e `Bash(npx *)`, rimuovi `Bash(npm *)` e `Bash(pnpm *)`.
+- `npm` → mantieni `Bash(npm *)` e `Bash(npx *)`, rimuovi `Bash(yarn *)` e `Bash(pnpm *)`.
+
+**Deny array intatto**: NON toccare l'array `deny`. `Bash(npm publish*)`, `Bash(pnpm publish*)`, `Bash(yarn publish*)` rimangono tutti — una `publish` accidentale via il PM "sbagliato" e' comunque un evento da bloccare.
+
+**Implementazione (jq, idempotente, preserva il resto del file)**:
+
+```bash
+# Rilevato PM == "pnpm"
+jq '.permissions.allow |= ((. - ["Bash(npm *)", "Bash(yarn *)"]) | if any(. == "Bash(pnpx *)") then . else . + ["Bash(pnpx *)"] end)' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+
+# Rilevato PM == "yarn"
+jq '.permissions.allow -= ["Bash(npm *)", "Bash(pnpm *)"]' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+
+# Rilevato PM == "npm"
+jq '.permissions.allow -= ["Bash(yarn *)", "Bash(pnpm *)"]' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+```
+
+`jq` e' gia' una dipendenza dichiarata del plugin (vedi `scripts/build-plugin.sh`), quindi e' ragionevole assumerlo presente.
+
+**Riporta nel riepilogo del Passo 9** (una sola riga):
+- PM univoco rilevato: `allowlist tightened to <pm>-only commands per detected lock file (<lockfile>)`
+- Lock file multipli: `multiple lock files detected (<list>) — allowlist left as default; consider committing to a single PM`
+- Nessun lock file ma `node` rilevato: `no lock file present — allowlist left as default; the team should run \`<pm> install\` and re-run setup to tighten`
+
+---
+
 ### Passo 4 — Adatta CONSTITUTION.md
 
 Parti dal contenuto letto da `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`.
@@ -411,10 +465,50 @@ Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
   - Aggiungi nota: `> Questo stack e' stato rilevato automaticamente. Se non e' corretto, aggiorna questa sezione manualmente.`
 - `{{TEST_COMMAND}}` → il comando test rilevato (es. `npm test`, `pytest`, `non rilevato`)
 - `{{LINT_COMMAND}}` → il comando linter rilevato (es. `npm run lint`, `ruff check .`, `non rilevato`)
+- `{{TYPECHECK_COMMAND}}` → il comando di type-check rilevato. Per progetti Node con `tsconfig.json`, leggi `package.json.scripts.typecheck` o `package.json.scripts['type-check']`; se mancano, usa `tsc --noEmit`. Per altri stack, lascia `non rilevato`.
+- `{{QUALITY_COVERAGE_TARGET}}` → soglia di coverage. Default: `80%` con commento `(industry baseline; adjust if your team has set a different bar)`. Se il `package.json` o il config del test runner espone una soglia esplicita, usa quella.
 - `{{VCS_OPS_NOTE}}` → riga informativa sul provider Git rilevato al Passo 2c. Scegli una delle seguenti in base a `{VCS}`:
   - `github` → `> GitHub operations (branch, PR, commit) are performed with the \`gh\` CLI.`
   - `gitlab` → `` > GitLab operations (branch, MR, commit) are performed with the `glab` CLI. MR descriptions follow `.gitlab/merge_request_templates/Default.md` when present. ``
   - `none` / `other` → `` > Git operations via the `git` CLI. No remote provider configured. ``
+
+**Project Identity (interattivo, modalita' EXISTING e GREENFIELD):**
+
+Emetti UNA singola domanda batch con tre sotto-campi e raccogli le risposte. Lascia `{{TODO: <hint>}}` per i campi vuoti — non improvvisare valori.
+
+> Domanda da porre allo sviluppatore:
+>
+> "Per popolare la sezione `Project Identity` di AGENTS.md mi servono tre informazioni brevi (premi Invio per saltare un campo, lo lascio come TODO):
+> - **Name**: nome corto del progetto (es. 'Acme Web App')
+> - **Purpose**: una frase su cosa fa il progetto
+> - **Primary users**: chi lo usa (es. 'consumer travelers', 'internal ops')"
+
+Sostituzioni:
+- `{{PROJECT_NAME}}` → risposta del developer, oppure `{{TODO: short app name}}`
+- `{{PROJECT_PURPOSE}}` → risposta del developer, oppure `{{TODO: one-sentence purpose}}`
+- `{{PROJECT_PRIMARY_USERS}}` → risposta del developer, oppure `{{TODO: who uses this app}}`
+
+**Infrastructure (auto-detect + TODO, modalita' EXISTING e GREENFIELD):**
+
+Tenta auto-detection nell'ordine sotto; tutto cio' che non e' rilevabile diventa `{{TODO: <hint>}}`:
+
+- `{{INFRA_VCS_CI}}` → combina:
+  - VCS: parsa l'URL del remote da `.git/config` (`gitlab.com` → `GitLab`, `github.com` → `GitHub`, `bitbucket.org` → `Bitbucket`, `dev.azure.com` → `Azure DevOps`)
+  - CI: presenza di `.gitlab-ci.yml` → `GitLab CI`; `.github/workflows/` → `GitHub Actions`; `.circleci/config.yml` → `CircleCI`; `bitbucket-pipelines.yml` → `Bitbucket Pipelines`; `azure-pipelines.yml` → `Azure Pipelines`; `Jenkinsfile` → `Jenkins`
+  - Risultato: `<VCS> + <CI>` (es. `GitLab + GitLab CI`). Se VCS rilevato e CI no, scrivi `<VCS>, CI: {{TODO: which CI provider}}`.
+- `{{INFRA_SECRETS}}` → presenza di `dotenv-vault.json` o `.env.vault` → `dotenv-vault`; `*.tfstate` con backend `vault` → `HashiCorp Vault`; `aws-secretsmanager` o `aws ssm` riferimenti in IaC/CI → `AWS Secrets Manager` / `AWS Parameter Store`. Altrimenti `{{TODO: secrets manager (e.g. dotenv-vault, AWS SSM, Vault)}}`.
+- `{{INFRA_HOSTING}}` → euristica leggera dal CI: rileva nomi di provider in step di deploy (`vercel`, `netlify`, `aws-eks`, `kubectl`, `gcloud run`, `firebase deploy`). Altrimenti `{{TODO: hosting/deploy target}}`.
+- `{{INFRA_OBSERVABILITY}}` → presenza di `datadog.yaml` / dipendenza `dd-trace` → `Datadog`; `sentry.client.config.*` o `@sentry/*` in package.json → `Sentry`; `newrelic.{yml,json}` → `New Relic`. Altrimenti `{{TODO: observability tool}}`.
+
+**Boundaries (semi-auto, modalita' EXISTING e GREENFIELD):**
+
+- `{{BOUNDARIES_ALWAYS}}` → seed automatico con i comandi di qualita' rilevati, formato bullet list:
+  - `- Run \`{{TEST_COMMAND}}\` before commit` (omettilo se `{{TEST_COMMAND}}` e' `non rilevato`)
+  - `- Run \`{{LINT_COMMAND}}\` before commit` (omettilo se `{{LINT_COMMAND}}` e' `non rilevato`)
+  - `- Run \`{{TYPECHECK_COMMAND}}\` before commit` (omettilo se `{{TYPECHECK_COMMAND}}` e' `non rilevato`)
+  - Se tutti tre sono `non rilevato`, lascia `{{TODO: list always-do actions for this project}}`
+- `{{BOUNDARIES_ASK_FIRST}}` → `{{TODO: list actions that require explicit go-ahead (e.g. adding new dependencies, schema migrations, brand-color changes)}}`
+- `{{BOUNDARIES_NEVER_EXTRA}}` → vuota di default (la lista `Never Do` di base e' gia' nel template; aggiungi qui solo le proibizioni specifiche del progetto). Esempio se rilevi un repo con prod ref non standard: `- Push to <branch-name> without explicit go-ahead`.
 
 **Valori placeholder per modalita' GREENFIELD:**
 
@@ -487,6 +581,7 @@ Salva la classificazione per ciascun sub-project come `{SUBPROJECT_TYPE}`.
   ```
 - Aggiungi sotto la tabella la nota:
   > Libraries do not get per-project setup files. When a library exposes an interesting pattern, ADR, or breaking change, add a `### library/<name>` entry to the **consuming application's `REGISTRY.md`** under "Services and utilities" — that's where library usage is documented.
+- `{{PROJECT_NAME}}`, `{{PROJECT_PURPOSE}}`, `{{PROJECT_PRIMARY_USERS}}`, `{{INFRA_VCS_CI}}`, `{{INFRA_SECRETS}}`, `{{INFRA_HOSTING}}`, `{{INFRA_OBSERVABILITY}}`, `{{QUALITY_COVERAGE_TARGET}}`, `{{TEST_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TYPECHECK_COMMAND}}`, `{{BOUNDARIES_ALWAYS}}`, `{{BOUNDARIES_ASK_FIRST}}`, `{{BOUNDARIES_NEVER_EXTRA}}` → segui le stesse istruzioni del Passo 5A (prompt interattivo per Project Identity, auto-detect per Infrastructure, semi-auto per Boundaries). Per i comandi di workspace, preferisci la forma multi-progetto del build tool: Nx → `nx run-many -t <target>`; pnpm workspace puro → `pnpm -r <script>`; turbo → `turbo run <task>`. Se ne rilevi piu' di uno, usa quello esposto come root script in `package.json`.
 - Scrivi il risultato in `AGENTS.md` nella root
 
 **AGENTS.md per sub-project** — usa `${CLAUDE_SKILL_DIR}/templates/AGENTS.project-template.md`:
