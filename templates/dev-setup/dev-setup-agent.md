@@ -531,6 +531,46 @@ The template is the same for all modes: only the source of values changes.
   - Add note: `> This stack was auto-detected. If it is incorrect, update this section manually.`
 - `{{TEST_COMMAND}}` → the detected test command (e.g. `npm test`, `pytest`, `not detected`)
 - `{{LINT_COMMAND}}` → the detected linter command (e.g. `npm run lint`, `ruff check .`, `not detected`)
+- `{{TYPECHECK_COMMAND}}` → the detected type-check command. For Node projects with `tsconfig.json`, read `package.json.scripts.typecheck` or `package.json.scripts['type-check']`; if missing, use `tsc --noEmit`. For other stacks, leave as `not detected`.
+- `{{QUALITY_COVERAGE_TARGET}}` → coverage threshold. Default: `80%` with the comment `(industry baseline; adjust if your team has set a different bar)`. If `package.json` or the test runner config exposes an explicit threshold, use that.
+
+**Project Identity (interactive, EXISTING and GREENFIELD modes):**
+
+Emit ONE batched question with three sub-fields and collect the answers. Leave `{{TODO: <hint>}}` for empty fields — never invent values.
+
+> Question to ask the developer:
+>
+> "To populate the `Project Identity` section in AGENTS.md I need three short pieces of info (press Enter to skip a field, I'll leave a TODO):
+> - **Name**: short project name (e.g. 'Acme Web App')
+> - **Purpose**: one sentence on what the project does
+> - **Primary users**: who uses it (e.g. 'consumer travelers', 'internal ops')"
+
+Substitutions:
+- `{{PROJECT_NAME}}` → developer's answer, or `{{TODO: short app name}}`
+- `{{PROJECT_PURPOSE}}` → developer's answer, or `{{TODO: one-sentence purpose}}`
+- `{{PROJECT_PRIMARY_USERS}}` → developer's answer, or `{{TODO: who uses this app}}`
+
+**Infrastructure (auto-detect + TODO, EXISTING and GREENFIELD modes):**
+
+Try auto-detection in the order below; anything not detectable becomes `{{TODO: <hint>}}`:
+
+- `{{INFRA_VCS_CI}}` → combine:
+  - VCS: parse the remote URL from `.git/config` (`gitlab.com` → `GitLab`, `github.com` → `GitHub`, `bitbucket.org` → `Bitbucket`, `dev.azure.com` → `Azure DevOps`)
+  - CI: presence of `.gitlab-ci.yml` → `GitLab CI`; `.github/workflows/` → `GitHub Actions`; `.circleci/config.yml` → `CircleCI`; `bitbucket-pipelines.yml` → `Bitbucket Pipelines`; `azure-pipelines.yml` → `Azure Pipelines`; `Jenkinsfile` → `Jenkins`
+  - Result: `<VCS> + <CI>` (e.g. `GitLab + GitLab CI`). If VCS detected but CI not, write `<VCS>, CI: {{TODO: which CI provider}}`.
+- `{{INFRA_SECRETS}}` → presence of `dotenv-vault.json` or `.env.vault` → `dotenv-vault`; `*.tfstate` with `vault` backend → `HashiCorp Vault`; `aws-secretsmanager` or `aws ssm` references in IaC/CI → `AWS Secrets Manager` / `AWS Parameter Store`. Otherwise `{{TODO: secrets manager (e.g. dotenv-vault, AWS SSM, Vault)}}`.
+- `{{INFRA_HOSTING}}` → light heuristic from CI: detect provider names in deploy steps (`vercel`, `netlify`, `aws-eks`, `kubectl`, `gcloud run`, `firebase deploy`). Otherwise `{{TODO: hosting/deploy target}}`.
+- `{{INFRA_OBSERVABILITY}}` → presence of `datadog.yaml` / `dd-trace` dependency → `Datadog`; `sentry.client.config.*` or `@sentry/*` in package.json → `Sentry`; `newrelic.{yml,json}` → `New Relic`. Otherwise `{{TODO: observability tool}}`.
+
+**Boundaries (semi-auto, EXISTING and GREENFIELD modes):**
+
+- `{{BOUNDARIES_ALWAYS}}` → auto-seed with the detected quality commands as a bullet list:
+  - `- Run \`{{TEST_COMMAND}}\` before commit` (omit if `{{TEST_COMMAND}}` is `not detected`)
+  - `- Run \`{{LINT_COMMAND}}\` before commit` (omit if `{{LINT_COMMAND}}` is `not detected`)
+  - `- Run \`{{TYPECHECK_COMMAND}}\` before commit` (omit if `{{TYPECHECK_COMMAND}}` is `not detected`)
+  - If all three are `not detected`, leave `{{TODO: list always-do actions for this project}}`
+- `{{BOUNDARIES_ASK_FIRST}}` → `{{TODO: list actions that require explicit go-ahead (e.g. adding new dependencies, schema migrations, brand-color changes)}}`
+- `{{BOUNDARIES_NEVER_EXTRA}}` → empty by default (the base `Never Do` list is already in the template; only add project-specific prohibitions here). Example if you detect a non-standard prod ref: `- Push to <branch-name> without explicit go-ahead`.
 
 **Placeholder values for GREENFIELD mode:**
 
