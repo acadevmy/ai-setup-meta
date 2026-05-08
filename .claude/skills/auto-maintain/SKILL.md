@@ -25,6 +25,29 @@ per la review umana.
 - **Lingua**: codice e commit in inglese (Conventional Commits), descrizione PR e commenti ClickUp in italiano.
 - **ClickUp via MCP**: tutte le operazioni ClickUp usano i tool `mcp__clickup__*` già autenticati. Nessun token da gestire.
 - **GitHub via curl + GH_TOKEN**: push e creazione PR usano l'API GitHub REST con il token da `.env.local`.
+- **Resumable**: ogni run scrive `.automaint-state.json` dopo ogni step. In caso di interruzione (timeout, errore transitorio), il run successivo riprende dal passo corretto senza perdere il lavoro già fatto.
+
+## File di stato (`.automaint-state.json`)
+
+Traccia il progresso della pipeline tra run diversi. Schema:
+
+```json
+{
+  "next_step": 5,
+  "task_id": "abc123",
+  "custom_id": "DE-15244",
+  "branch": "chore/DE-15244-slug",
+  "task_name": "Titolo task",
+  "task_desc": "Descrizione completa...",
+  "task_url": "https://app.clickup.com/t/abc123",
+  "intent_type": "skill-update",
+  "started_at": "2026-05-08T04:11:45+02:00"
+}
+```
+
+- `next_step`: il prossimo step da eseguire (aggiornato dopo ogni step completato)
+- Su completamento: elimina il file
+- Su bail-out: aggiungi `"status": "blocked"` — il runner non ritenta
 
 ## Prerequisiti
 - `.env.local` con `CLICKUP_MAINTENANCE_LIST_ID` e `GH_TOKEN` valorizzati
@@ -36,13 +59,38 @@ per la review umana.
 
 ## Procedura
 
-### Step 0 — Preflight
+### Step 0 — Resume detection + Preflight
+
+**Prima di tutto**, controlla se esiste un file di stato da un run precedente:
+
+```bash
+STATE_FILE=".automaint-state.json"
+if [[ -f "$STATE_FILE" ]]; then
+  NEXT_STEP=$(jq -r '.next_step' "$STATE_FILE")
+  TASK_ID=$(jq -r '.task_id // ""' "$STATE_FILE")
+  CUSTOM_ID=$(jq -r '.custom_id // ""' "$STATE_FILE")
+  BRANCH=$(jq -r '.branch // ""' "$STATE_FILE")
+  TASK_NAME=$(jq -r '.task_name // ""' "$STATE_FILE")
+  TASK_DESC=$(jq -r '.task_desc // ""' "$STATE_FILE")
+  TASK_URL=$(jq -r '.task_url // ""' "$STATE_FILE")
+  INTENT_TYPE=$(jq -r '.intent_type // ""' "$STATE_FILE")
+  echo "[RESUME] Riprendendo da Step $NEXT_STEP — task $CUSTOM_ID branch $BRANCH"
+else
+  NEXT_STEP=1
+  echo "[START] Avvio pipeline da Step 1"
+fi
+```
+
+Se `NEXT_STEP > 1`: salta tutti gli step già completati (branch esiste, task è già IN PROGRESS, ecc.) e vai direttamente allo step indicato.
+
+**Preflight** (esegui sempre, indipendentemente dal resume):
+
 1. Carica le variabili da `.env.local`:
    ```bash
    set -a && source .env.local && set +a
    ```
 2. Verifica `CLICKUP_MAINTENANCE_LIST_ID`: se vuota o assente, stampa "`CLICKUP_MAINTENANCE_LIST_ID` non è configurato in `.env.local`. Esco con no-op come da procedura." ed esci con successo (no-op).
-3. Verifica `git status --porcelain` pulito. Se sporco: esci con "Working tree non pulito, abort."
+3. **Solo se `NEXT_STEP == 1`**: verifica `git status --porcelain` pulito. Se sporco: esci con "Working tree non pulito, abort." — In caso di resume (`NEXT_STEP > 1`) il working tree può essere sporco per le modifiche del run precedente: è atteso, prosegui.
 4. Verifica `GH_TOKEN`: se assente o vuoto, esci con "GH_TOKEN non configurato in `.env.local`."
 5. Verifica token GitHub:
    ```bash
@@ -51,6 +99,10 @@ per la review umana.
    Se il comando fallisce (HTTP 401 o campo `.login` assente): esci con "GH_TOKEN non valido o scaduto."
 
 ### Step 1 — Selezione task
+*(Salta se `NEXT_STEP > 1` — le variabili sono già state ripristinate dallo state file)*
+
+Stampa `[STEP 1 START] Selezione task`.
+
 1. Recupera i task in stato `SPRINT` dalla lista usando il tool MCP:
    ```
    mcp__clickup__clickup_filter_tasks(list_id: CLICKUP_MAINTENANCE_LIST_ID, statuses: ["SPRINT"])
@@ -64,8 +116,22 @@ per la review umana.
    - `TASK_DESC` — description del task
    - `TASK_PRIORITY` — valore numerico priorità
    - `TASK_URL` — URL del task su ClickUp
+5. Scrivi lo state file:
+   ```bash
+   python3 -c "
+   import json, sys
+   print(json.dumps({'next_step': 2, 'task_id': sys.argv[1], 'custom_id': sys.argv[2],
+     'branch': '', 'task_name': sys.argv[3], 'task_desc': sys.argv[4],
+     'task_url': sys.argv[5], 'started_at': sys.argv[6]}, indent=2))
+   " "$TASK_ID" "$CUSTOM_ID" "$TASK_NAME" "$TASK_DESC" "$TASK_URL" "$(date -Iseconds)" > .automaint-state.json
+   ```
+6. Stampa `[STEP 1 END] task=$CUSTOM_ID`.
 
 ### Step 2 — Lock task (SPRINT → IN PROGRESS)
+*(Salta se `NEXT_STEP > 2`)*
+
+Stampa `[STEP 2 START] Lock task $CUSTOM_ID`.
+
 1. Aggiorna lo status tramite MCP:
    ```
    mcp__clickup__clickup_update_task(task_id: TASK_ID, status: "IN PROGRESS")
@@ -75,13 +141,31 @@ per la review umana.
    mcp__clickup__clickup_create_task_comment(task_id: TASK_ID, comment_text: "🤖 Avvio elaborazione automatica della pipeline auto-maintain.")
    ```
 3. Se la chiamata MCP restituisce un errore: esci con `STATUS: error` (no bail-out con tag, il task è ancora in SPRINT).
+4. Aggiorna `next_step` a 3 nello state file:
+   ```bash
+   python3 -c "import json; s=json.load(open('.automaint-state.json')); s['next_step']=3; print(json.dumps(s,indent=2))" > .tmp && mv .tmp .automaint-state.json
+   ```
+5. Stampa `[STEP 2 END]`.
 
 ### Step 3 — Branch
-1. `git checkout main && git pull --ff-only`
+*(Salta se `NEXT_STEP > 3` — il branch esiste già)*
+
+Stampa `[STEP 3 START] Creazione branch`.
+
+1. `git checkout main && git merge --ff-only origin/main`
 2. Calcola `slug` dal `name` del task: lowercase, kebab-case, max 50 caratteri, solo `[a-z0-9-]`.
 3. `git checkout -b chore/<custom_id>-<slug>` (es. `chore/AI-42-add-mcp-helper-skill`)
+4. Aggiorna `branch` e `next_step` a 4 nello state file:
+   ```bash
+   python3 -c "import json, sys; s=json.load(open('.automaint-state.json')); s['next_step']=4; s['branch']=sys.argv[1]; print(json.dumps(s,indent=2))" "$BRANCH" > .tmp && mv .tmp .automaint-state.json
+   ```
+5. Stampa `[STEP 3 END] branch=$BRANCH`.
 
 ### Step 4 — Classifica intent del task
+*(Salta se `NEXT_STEP > 4` — `INTENT_TYPE` è già nello state file)*
+
+Stampa `[STEP 4 START] Classificazione intent`.
+
 Analizza `TASK_DESC` per dedurre il tipo di modifica. Tipi supportati:
 
 | Tipo | Indicatori | File target tipici |
@@ -96,7 +180,18 @@ Analizza `TASK_DESC` per dedurre il tipo di modifica. Tipi supportati:
 
 Se nessun tipo è deducibile con confidenza ragionevole: **bail-out** (vedi sezione "Bail-out").
 
+Aggiorna `intent_type` e `next_step` a 5 nello state file:
+```bash
+python3 -c "import json, sys; s=json.load(open('.automaint-state.json')); s['next_step']=5; s['intent_type']=sys.argv[1]; print(json.dumps(s,indent=2))" "$INTENT_TYPE" > .tmp && mv .tmp .automaint-state.json
+```
+
+Stampa `[STEP 4 END] intent=$INTENT_TYPE`.
+
 ### Step 5 — Apply changes
+*(In caso di resume a Step 5: il working tree può contenere modifiche parziali del run precedente — rileggi i file e applica le modifiche in modo idempotente, non duplicare cambiamenti già presenti)*
+
+Stampa `[STEP 5 START] Apply changes`.
+
 1. Applica le modifiche guidate da `TASK_DESC` usando Edit/Write.
 2. Per ogni file modificato/creato segui le convenzioni del meta-repo:
    - Lingua: codice in inglese, commenti in italiano, .md in italiano
@@ -105,13 +200,31 @@ Se nessun tipo è deducibile con confidenza ragionevole: **bail-out** (vedi sezi
    - Niente segreti, niente token, niente API key in chiaro
 3. Se il task richiede aggiornamenti coerenti in più file (es. nuovo agent shared → riferimento nel manifest): includili nello stesso commit logico.
 4. Se durante l'implementazione emergono ambiguità non risolvibili da `TASK_DESC`: **bail-out**.
+5. Aggiorna `next_step` a 6 nello state file:
+   ```bash
+   python3 -c "import json; s=json.load(open('.automaint-state.json')); s['next_step']=6; print(json.dumps(s,indent=2))" > .tmp && mv .tmp .automaint-state.json
+   ```
+6. Stampa `[STEP 5 END]`.
 
 ### Step 6 — Validate
+*(Salta se `NEXT_STEP > 6`)*
+
+Stampa `[STEP 6 START] Validazione`.
+
 1. Esegui `/project:validate`.
 2. Se la validazione fallisce: **bail-out** con dettagli.
 3. (Opzionale) Se sono stati toccati script `.sh`, esegui `bash -n <file>` come syntax check.
+4. Aggiorna `next_step` a 7 nello state file:
+   ```bash
+   python3 -c "import json; s=json.load(open('.automaint-state.json')); s['next_step']=7; print(json.dumps(s,indent=2))" > .tmp && mv .tmp .automaint-state.json
+   ```
+5. Stampa `[STEP 6 END]`.
 
 ### Step 7 — Commit
+*(Salta se `NEXT_STEP > 7`)*
+
+Stampa `[STEP 7 START] Commit`.
+
 1. Stage solo i file effettivamente modificati: `git add <path1> <path2> ...` (mai `git add -A`).
 2. Messaggio Conventional Commits in inglese:
    ```
@@ -119,8 +232,16 @@ Se nessun tipo è deducibile con confidenza ragionevole: **bail-out** (vedi sezi
 
    Refs: <custom_id>
    ```
+3. Aggiorna `next_step` a 8 nello state file:
+   ```bash
+   python3 -c "import json; s=json.load(open('.automaint-state.json')); s['next_step']=8; print(json.dumps(s,indent=2))" > .tmp && mv .tmp .automaint-state.json
+   ```
+4. Stampa `[STEP 7 END]`.
 
 ### Step 8 — Push + PR
+*(Salta se `NEXT_STEP > 8`)*
+
+Stampa `[STEP 8 START] Push + PR`.
 1. Ricava il path `org/repo` dal remote:
    ```bash
    REPO_PATH=$(git remote get-url origin | sed 's/.*github\.com[:/]\(.*\)\.git$/\1/')
@@ -187,8 +308,15 @@ Se nessun tipo è deducibile con confidenza ragionevole: **bail-out** (vedi sezi
      -d "{\"labels\": [\"$LABEL\"]}" \
      "https://api.github.com/repos/$REPO_PATH/issues/$PR_NUMBER/labels"
    ```
+6. Aggiorna `next_step` a 9 nello state file:
+   ```bash
+   python3 -c "import json; s=json.load(open('.automaint-state.json')); s['next_step']=9; print(json.dumps(s,indent=2))" > .tmp && mv .tmp .automaint-state.json
+   ```
+7. Stampa `[STEP 8 END] pr=$PR_URL`.
 
 ### Step 9 — Move task (IN PROGRESS → CODE REVIEW)
+Stampa `[STEP 9 START] ClickUp update`.
+
 1. Aggiorna lo status tramite MCP:
    ```
    mcp__clickup__clickup_update_task(task_id: TASK_ID, status: "CODE REVIEW")
@@ -197,7 +325,12 @@ Se nessun tipo è deducibile con confidenza ragionevole: **bail-out** (vedi sezi
    ```
    mcp__clickup__clickup_create_task_comment(task_id: TASK_ID, comment_text: "🤖 PR aperta: <PR_URL>")
    ```
-3. Stampa riepilogo finale: `custom_id`, branch, `pr_url`.
+3. Elimina il file di stato — la pipeline è completata:
+   ```bash
+   rm -f .automaint-state.json
+   ```
+4. Stampa riepilogo finale: `custom_id`, branch, `pr_url`.
+5. Stampa `[STEP 9 END] DONE`.
 
 ## Bail-out
 
@@ -214,7 +347,11 @@ Procedura:
    ```
    mcp__clickup__clickup_create_task_comment(task_id: TASK_ID, comment_text: "⛔ Pipeline auto-maintain bloccata.\n\n**Step fallito**: <numero e nome>\n**Motivo**: <descrizione>\n**Branch locale**: <branch o 'non creato'>\n\nAzioni suggerite:\n- <suggerimento 1>\n- <suggerimento 2>")
    ```
-4. Esci con errore riportando `task_id`, `custom_id`, branch (se creato), motivo.
+4. Marca il file di stato come bloccato (impedisce il retry automatico del runner):
+   ```bash
+   python3 -c "import json; s=json.load(open('.automaint-state.json')); s['status']='blocked'; print(json.dumps(s,indent=2))" > .tmp && mv .tmp .automaint-state.json
+   ```
+5. Esci con errore riportando `task_id`, `custom_id`, branch (se creato), motivo.
 
 Recovery (lato umano): una volta risolto il blocco, rimetti il task in `SPRINT`. La pipeline lo ripescherà al prossimo ciclo.
 
