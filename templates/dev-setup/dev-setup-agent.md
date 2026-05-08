@@ -384,6 +384,60 @@ If it **already exists**: inform the developer and keep the existing one.
 
 ---
 
+#### 3.3 — Tighten allowlist to the detected package manager
+
+The `.claude/settings.json` template lists all three Node package managers (`Bash(npm *)`, `Bash(pnpm *)`, `Bash(yarn *)`) in the `allow` array because at plugin release time we don't know which one you'll use. If the project has a single lock file, narrow the allowlist to the PM in use — an agent shouldn't run `yarn install` in a pnpm project and bypass workspace/hoisting conventions.
+
+**Skip if**:
+- `.claude/settings.json` already existed at the time of 3.2 and was not overwritten (conflict detection left it alone — post-hoc edits aren't your job).
+- Detected languages from Step 2 do NOT include `node` (e.g. pure Python/Go/Terraform project): the three entries stay so an occasional `npx <tool>` still works.
+
+**Package manager detection**:
+
+| Lock file detected at root | Package manager |
+|---|---|
+| `pnpm-lock.yaml` | **pnpm** |
+| `yarn.lock` | **yarn** |
+| `package-lock.json` | **npm** |
+| Multiple lock files | **ambiguous** — leave the allowlist alone, flag the anomaly in the Step 9 summary |
+| No lock file (`package.json` exists but `install` has not yet been run) | **none** — leave all three entries, flag in the Step 9 summary |
+
+**Allowlist edits** (only when a single PM is detected):
+
+- `pnpm` → keep `Bash(pnpm *)`, add `Bash(pnpx *)` if not already present, remove `Bash(npm *)` and `Bash(yarn *)`. **Keep `Bash(npx *)`** — it is universal, used by the `ctx7` CLI (`npx ctx7@latest`), official codemods (`npx @next/codemod@latest`), and many one-shot tool READMEs. Removing `npx` breaks those flows for no real gain.
+- `yarn` → keep `Bash(yarn *)` and `Bash(npx *)`, remove `Bash(npm *)` and `Bash(pnpm *)`.
+- `npm` → keep `Bash(npm *)` and `Bash(npx *)`, remove `Bash(yarn *)` and `Bash(pnpm *)`.
+
+**Deny array untouched**: do NOT modify the `deny` array. `Bash(npm publish*)`, `Bash(pnpm publish*)`, `Bash(yarn publish*)` all remain — an accidental `publish` via the "wrong" PM is still an event worth blocking.
+
+**Implementation (jq, idempotent, preserves the rest of the file)**:
+
+```bash
+# Detected PM == "pnpm"
+jq '.permissions.allow |= ((. - ["Bash(npm *)", "Bash(yarn *)"]) | if any(. == "Bash(pnpx *)") then . else . + ["Bash(pnpx *)"] end)' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+
+# Detected PM == "yarn"
+jq '.permissions.allow -= ["Bash(npm *)", "Bash(pnpm *)"]' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+
+# Detected PM == "npm"
+jq '.permissions.allow -= ["Bash(yarn *)", "Bash(pnpm *)"]' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+```
+
+`jq` is already a declared dependency of the plugin (see `scripts/build-plugin.sh`), so it is reasonable to assume it is present.
+
+**Report in the Step 9 summary** (one line):
+- Single PM detected: `allowlist tightened to <pm>-only commands per detected lock file (<lockfile>)`
+- Multiple lock files: `multiple lock files detected (<list>) — allowlist left as default; consider committing to a single PM`
+- No lock file but `node` detected: `no lock file present — allowlist left as default; the team should run \`<pm> install\` and re-run setup to tighten`
+
+---
+
 ### Step 4 — Adapt CONSTITUTION.md
 
 Start from the content downloaded to `.claude/.setup-tmp/CONSTITUTION_SOURCE.md`.
