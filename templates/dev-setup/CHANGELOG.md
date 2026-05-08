@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.12.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.11.0...dev-setup-v1.12.0) (2026-05-08)
+
+
+### Features
+
+* **auto-maintain:** Add retry loop and resumable pipeline via state file ([#43](https://github.com/acadevmy/ai-setup-meta/issues/43)) ([83f709c](https://github.com/acadevmy/ai-setup-meta/commit/83f709cbfc5a44f052a57a9811351fc91e6da667))
+
 ## [1.11.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.10.0...dev-setup-v1.11.0) (2026-05-08)
 
 
