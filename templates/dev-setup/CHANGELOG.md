@@ -6,6 +6,19 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.11.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.10.0...dev-setup-v1.11.0) (2026-05-08)
+
+
+### Features
+
+* **setup:** Tighten allowlist to detected package manager ([#41](https://github.com/acadevmy/ai-setup-meta/issues/41)) ([eacb6d5](https://github.com/acadevmy/ai-setup-meta/commit/eacb6d5d085af0aef18be7982c678ff1cac2d318))
+* **template:** Add Project Identity, Infrastructure, Quality Standards, Boundaries ([#40](https://github.com/acadevmy/ai-setup-meta/issues/40)) ([970e6bd](https://github.com/acadevmy/ai-setup-meta/commit/970e6bd060f1241b31f769e6a6b4270d2b2cbf22))
+
+
+### Bug Fixes
+
+* **settings:** Tighten deny list and document MCP scopes ([#39](https://github.com/acadevmy/ai-setup-meta/issues/39)) ([fd4f93a](https://github.com/acadevmy/ai-setup-meta/commit/fd4f93a7d2c75aea835774a68524a487574c8eeb))
+
 ## [1.10.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.9.1...dev-setup-v1.10.0) (2026-04-30)
 
 
