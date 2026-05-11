@@ -9,6 +9,7 @@ SANDBOX=/Users/andreao/Works/.automaint/ai-base-setup
 STATE_FILE="$SANDBOX/.automaint-state.json"
 MAX_RETRIES=3
 RETRY_DELAY=60
+TIMEOUT=3600
 
 mkdir -p "$PRIMARY_REPO/logs"
 LOG="$PRIMARY_REPO/logs/auto-maintain.log"
@@ -55,12 +56,24 @@ while [[ $attempt -lt $MAX_RETRIES ]]; do
   attempt=$((attempt + 1))
   log "claude attempt $attempt/$MAX_RETRIES"
 
-  claude -p "/auto-maintain" --dangerously-skip-permissions >> "$LOG" 2>&1
+  # macOS non ha timeout(1): implementazione bash-nativa con processo timer
+  claude -p "/auto-maintain" --dangerously-skip-permissions >> "$LOG" 2>&1 &
+  CLAUDE_PID=$!
+  ( sleep "$TIMEOUT" && kill "$CLAUDE_PID" 2>/dev/null ) &
+  TIMER_PID=$!
+  wait "$CLAUDE_PID"
   RC=$?
+  kill "$TIMER_PID" 2>/dev/null
+  wait "$TIMER_PID" 2>/dev/null
+  [[ $RC -eq 143 ]] && RC=124  # SIGTERM → codice timeout canonico
 
   if [[ $RC -eq 0 ]]; then
     log "claude succeeded on attempt $attempt"
     break
+  fi
+
+  if [[ $RC -eq 124 ]]; then
+    log "claude TIMEOUT after ${TIMEOUT}s on attempt $attempt"
   fi
 
   # Se la pipeline ha segnalato BLOCKED, non ritentare
