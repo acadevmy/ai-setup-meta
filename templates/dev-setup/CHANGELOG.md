@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.13.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.12.0...dev-setup-v1.13.0) (2026-05-11)
+
+
+### Features
+
+* Implement timeout logic for auto-maintain runner and exclude state file from tracking ([#46](https://github.com/acadevmy/ai-setup-meta/issues/46)) ([100277b](https://github.com/acadevmy/ai-setup-meta/commit/100277b4951678aea6dfce15ee6033aa7e71aed6))
+
 ## [1.12.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.11.0...dev-setup-v1.12.0) (2026-05-08)
 
 
