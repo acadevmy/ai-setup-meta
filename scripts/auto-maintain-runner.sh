@@ -29,22 +29,17 @@ fi
 cd "$SANDBOX"
 
 # Sincronizza il sandbox su main aggiornato.
-# Il run precedente può aver lasciato il sandbox su un branch feature: checkout main
-# garantisce che Claude legga skill e agent aggiornati prima di partire.
-log "git sync sandbox to origin/main"
+# Usa --detach per non occupare il nome del branch 'main': in questo modo il repo
+# principale può stare su main senza conflitti con il worktree sandbox.
+log "git sync sandbox to origin/main (detached)"
 git fetch origin main >> "$LOG" 2>&1
 if [[ $? -ne 0 ]]; then
   log "ERROR: git fetch failed (network issue?)"
   exit 1
 fi
-git checkout main >> "$LOG" 2>&1
+git checkout --detach origin/main >> "$LOG" 2>&1
 if [[ $? -ne 0 ]]; then
-  log "ERROR: cannot checkout main (uncommitted changes in sandbox?)"
-  exit 1
-fi
-git merge --ff-only origin/main >> "$LOG" 2>&1
-if [[ $? -ne 0 ]]; then
-  log "ERROR: git merge --ff-only failed (diverged branch?)"
+  log "ERROR: cannot detach to origin/main"
   exit 1
 fi
 
