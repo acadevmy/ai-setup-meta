@@ -28,11 +28,23 @@ fi
 
 cd "$SANDBOX"
 
-# Aggiorna il riferimento a main senza checkout forzato (safe anche su branch work)
-log "git fetch origin main"
+# Sincronizza il sandbox su main aggiornato.
+# Il run precedente può aver lasciato il sandbox su un branch feature: checkout main
+# garantisce che Claude legga skill e agent aggiornati prima di partire.
+log "git sync sandbox to origin/main"
 git fetch origin main >> "$LOG" 2>&1
 if [[ $? -ne 0 ]]; then
   log "ERROR: git fetch failed (network issue?)"
+  exit 1
+fi
+git checkout main >> "$LOG" 2>&1
+if [[ $? -ne 0 ]]; then
+  log "ERROR: cannot checkout main (uncommitted changes in sandbox?)"
+  exit 1
+fi
+git merge --ff-only origin/main >> "$LOG" 2>&1
+if [[ $? -ne 0 ]]; then
+  log "ERROR: git merge --ff-only failed (diverged branch?)"
   exit 1
 fi
 
@@ -56,16 +68,16 @@ while [[ $attempt -lt $MAX_RETRIES ]]; do
   attempt=$((attempt + 1))
   log "claude attempt $attempt/$MAX_RETRIES"
 
-  # macOS non ha timeout(1): implementazione bash-nativa con processo timer
-  claude -p "/auto-maintain" --dangerously-skip-permissions >> "$LOG" 2>&1 &
+  # macOS non ha timeout(1): timer bash + SIGKILL su processo e figli
+  claude -p "/auto-maintain" --dangerously-skip-permissions --max-budget-usd 2.00 >> "$LOG" 2>&1 &
   CLAUDE_PID=$!
-  ( sleep "$TIMEOUT" && kill "$CLAUDE_PID" 2>/dev/null ) &
+  ( sleep "$TIMEOUT" && pkill -9 -P "$CLAUDE_PID" 2>/dev/null; kill -9 "$CLAUDE_PID" 2>/dev/null ) &
   TIMER_PID=$!
   wait "$CLAUDE_PID"
   RC=$?
   kill "$TIMER_PID" 2>/dev/null
   wait "$TIMER_PID" 2>/dev/null
-  [[ $RC -eq 143 ]] && RC=124  # SIGTERM → codice timeout canonico
+  [[ $RC -eq 143 || $RC -eq 137 ]] && RC=124  # SIGTERM/SIGKILL → codice timeout canonico
 
   if [[ $RC -eq 0 ]]; then
     log "claude succeeded on attempt $attempt"
