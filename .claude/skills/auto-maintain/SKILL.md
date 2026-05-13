@@ -13,10 +13,10 @@ autonomo, partendo da un task ClickUp e arrivando a una Pull Request pronta
 per la review umana.
 
 ## Quando viene invocata
-- Schedulata: launchd `com.devmy.ai-base-setup.auto-maintain` alle 04:00, via
-  `scripts/auto-maintain-runner.sh` in un sandbox git worktree (`~/Works/.automaint/ai-base-setup`).
-  Log: `logs/auto-maintain.log`. Vedi `AGENTS.md` sezione "Pipeline autonoma di manutenzione" per setup.
-- On-demand: `/project:auto-maintain` (utile per test o catch-up)
+- **Schedulata (primaria)**: Claude Code Routine `auto-maintain ai-base-setup` su `claude.ai/code/routines`,
+  con schedule giornaliero. Gira su infrastruttura cloud Anthropic — nessun launchd, nessuna dipendenza TTY.
+  Vedi `AGENTS.md` sezione "Pipeline autonoma di manutenzione" per setup.
+- **On-demand**: `/project:auto-maintain` (utile per test o catch-up locali)
 
 ## Principi operativi
 - **Nessuna interazione utente**: niente `AskUserQuestion`, niente attese.
@@ -50,8 +50,9 @@ Traccia il progresso della pipeline tra run diversi. Schema:
 - Su bail-out: aggiungi `"status": "blocked"` — il runner non ritenta
 
 ## Prerequisiti
-- `.env.local` con `CLICKUP_MAINTENANCE_LIST_ID` e `GH_TOKEN` valorizzati
-- MCP ClickUp attivo e autenticato (verifica con `claude mcp list`)
+- `CLICKUP_MAINTENANCE_LIST_ID` disponibile come variabile d'ambiente (via `.env.local` in locale, via Routine environment nel cloud)
+- `GH_TOKEN` disponibile come variabile d'ambiente (stessa modalità)
+- Connector ClickUp autenticato: OAuth via claude.ai nel cloud, MCP locale (`claude mcp list`) in locale
 - `git` configurato con accesso in lettura/scrittura al repo
 - `curl` e `jq` disponibili nel PATH
 - Status `BLOCKED` disponibile nella lista ClickUp di manutenzione
@@ -85,13 +86,13 @@ Se `NEXT_STEP > 1`: salta tutti gli step già completati (branch esiste, task è
 
 **Preflight** (esegui sempre, indipendentemente dal resume):
 
-1. Carica le variabili da `.env.local`:
+1. Carica le variabili da `.env.local` se il file esiste (in locale); nel cloud le variabili arrivano dall'environment della Routine:
    ```bash
-   set -a && source .env.local && set +a
+   [[ -f .env.local ]] && { set -a; source .env.local; set +a; }
    ```
-2. Verifica `CLICKUP_MAINTENANCE_LIST_ID`: se vuota o assente, stampa "`CLICKUP_MAINTENANCE_LIST_ID` non è configurato in `.env.local`. Esco con no-op come da procedura." ed esci con successo (no-op).
+2. Verifica `CLICKUP_MAINTENANCE_LIST_ID`: se vuota o assente, stampa "`CLICKUP_MAINTENANCE_LIST_ID` non è configurato." ed esci con successo (no-op).
 3. **Solo se `NEXT_STEP == 1`**: verifica `git status --porcelain` pulito. Se sporco: esci con "Working tree non pulito, abort." — In caso di resume (`NEXT_STEP > 1`) il working tree può essere sporco per le modifiche del run precedente: è atteso, prosegui.
-4. Verifica `GH_TOKEN`: se assente o vuoto, esci con "GH_TOKEN non configurato in `.env.local`."
+4. Verifica `GH_TOKEN`: se assente o vuoto, esci con "GH_TOKEN non configurato."
 5. Verifica token GitHub:
    ```bash
    curl -s -H "Authorization: token $GH_TOKEN" https://api.github.com/user | jq -e '.login' > /dev/null
@@ -152,7 +153,7 @@ Stampa `[STEP 2 START] Lock task $CUSTOM_ID`.
 
 Stampa `[STEP 3 START] Creazione branch`.
 
-1. `git checkout main && git merge --ff-only origin/main`
+1. Assicurati di essere su `main` aggiornato. Nel cloud (Routine) il repo è già clonato sul branch default — esegui `git pull --ff-only origin main` se non sei già all'ultima versione. In locale: `git checkout main && git pull --ff-only origin main`.
 2. Calcola `slug` dal `name` del task: lowercase, kebab-case, max 50 caratteri, solo `[a-z0-9-]`.
 3. `git checkout -b chore/<custom_id>-<slug>` (es. `chore/AI-42-add-mcp-helper-skill`)
 4. Aggiorna `branch` e `next_step` a 4 nello state file:

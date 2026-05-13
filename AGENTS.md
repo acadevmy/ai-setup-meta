@@ -224,60 +224,66 @@ agent, constitution) processando task ClickUp dedicati e aprendo PR pronte per l
 - Commento ClickUp con step fallito + suggerimenti
 - Branch locale **non** eliminato (per debug)
 
-### Prerequisiti operativi (una tantum)
-- [ ] Creare la lista ClickUp di manutenzione
-- [ ] Compilare `CLICKUP_MAINTENANCE_LIST_ID` in `.env.local`
-- [ ] Verificare che lo status `BLOCKED` sia disponibile nella lista
-- [ ] Verificare `gh auth status` e `claude mcp list` (deve esserci `clickup`)
+### Setup (una tantum)
 
-### Prerequisiti sandbox (una tantum, dopo i prerequisiti operativi)
-La pipeline gira in un **worktree separato** per non interferire con il working tree principale
-(evita conflitti di branch, `git status` sporco, `checkout main` indesiderato).
+**1. Connettore ClickUp su claude.ai**
 
-```bash
-# Crea il sandbox
-git -C ~/Works/ai-base-setup worktree add ~/Works/.automaint/ai-base-setup main
+Vai su `claude.ai/customize/connectors` e aggiungi il server MCP ClickUp:
+- **URL**: `https://mcp.clickup.com/mcp`
+- **Autenticazione**: OAuth (segui il flusso guidato dall'interfaccia)
 
-# Symlink .env.local nel sandbox (unico file da mantenere)
-ln -s ~/Works/ai-base-setup/.env.local ~/Works/.automaint/ai-base-setup/.env.local
+**2. Variabili d'ambiente nella Routine**
 
-# Verifica
-git -C ~/Works/ai-base-setup worktree list
+Nella Routine su `claude.ai/code/routines`, configura nell'Environment:
+- `CLICKUP_MAINTENANCE_LIST_ID` = `901217493496`
+- `GH_TOKEN` = Personal Access Token GitHub (scope: `repo`, `workflow`)
+
+**3. Crea la Routine**
+
+Su `claude.ai/code/routines → New routine`:
+
+| Campo | Valore |
+|---|---|
+| **Name** | `auto-maintain ai-base-setup` |
+| **Repository** | `acadevmy/ai-setup-meta` |
+| **Branch pushes** | Abilita *Allow unrestricted branch pushes* |
+| **Connectors** | ClickUp (aggiunto al passo 1) |
+| **Schedule** | Daily (o weekdays), scegli l'orario preferito |
+
+**Prompt della Routine** (copia-incolla nel campo Instructions):
+
+```
+Sei l'agente di manutenzione del meta-repo ai-base-setup.
+
+Esegui la pipeline auto-maintain seguendo esattamente le istruzioni in
+`.claude/skills/auto-maintain/SKILL.md`.
+
+Il repository e' gia' clonato in questa sessione. Procedi in modo completamente
+autonomo senza interazioni, applicando le modifiche richieste dal task ClickUp
+piu' prioritario in stato SPRINT e aprendo una PR al termine.
+
+Variabili disponibili nell'environment della Routine:
+- CLICKUP_MAINTENANCE_LIST_ID: ID della lista di manutenzione ClickUp
+- GH_TOKEN: Personal Access Token GitHub per push e creazione PR
+
+Il connector ClickUp e' disponibile con autenticazione OAuth: usa i tool
+`mcp__clickup__*` per tutte le operazioni ClickUp senza gestire token.
 ```
 
-### Attivazione dello scheduler (launchd macOS)
-Carica i LaunchAgent dal repo (gia' presenti in `~/Library/LaunchAgents/`):
+**4. Disattiva launchd (non piu' necessario)**
 
-```bash
-# Mantieni il Mac sveglio 03:30–05:00 (90 min)
-launchctl load ~/Library/LaunchAgents/com.devmy.ai-base-setup.caffeinate.plist
-
-# Esegue auto-maintain ogni notte alle 04:00
-launchctl load ~/Library/LaunchAgents/com.devmy.ai-base-setup.auto-maintain.plist
-
-# Verifica
-launchctl list | grep devmy.ai-base-setup
-```
-
-**Log**: `~/Works/ai-base-setup/logs/auto-maintain.log` (output Claude Code),
-`logs/auto-maintain.launchd.log` (errori launchd).
-
-**Trigger manuale** (test fuori orario):
-```bash
-launchctl start com.devmy.ai-base-setup.auto-maintain
-```
-
-**Disattivazione**:
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.auto-maintain.plist
 launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.caffeinate.plist
 ```
 
+**Test immediato**: dalla detail page della Routine, clicca **Run now**.
+
 ### Quando un task va in `BLOCKED`
 1. Leggi il commento di bail-out su ClickUp (step + motivo)
-2. Esamina il branch locale conservato dall'agente (nel sandbox `~/Works/.automaint/ai-base-setup`)
+2. Apri la sessione del run su `claude.ai/code/routines` per vedere il transcript completo
 3. Risolvi manualmente o riformula il task description, poi sposta il task `BLOCKED -> SPRINT`
-4. La pipeline lo riprendera' al prossimo ciclo (`BLOCKED -> IN PROGRESS` se preferisci ripresa manuale)
+4. La pipeline lo riprendera' al prossimo ciclo
 
 ## Checklist pre-PR
 
@@ -295,4 +301,4 @@ Prima di aprire una PR, verifica:
 Questo file viene aggiornato manualmente tramite PR. Non modificarlo direttamente su `main`.
 
 ---
-*Versione: 2.1.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
+*Versione: 2.2.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
