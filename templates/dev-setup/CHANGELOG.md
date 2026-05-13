@@ -6,6 +6,20 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [1.13.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.12.0...dev-setup-v1.13.0) (2026-05-13)
+
+
+### Features
+
+* **auto-maintain:** Migrate scheduler from launchd to Claude Code Routines ([#52](https://github.com/acadevmy/ai-setup-meta/issues/52)) ([13f6fb2](https://github.com/acadevmy/ai-setup-meta/commit/13f6fb2ebe9fcb61c7fde29f11da613eceaa3112))
+* Implement timeout logic for auto-maintain runner and exclude state file from tracking ([#46](https://github.com/acadevmy/ai-setup-meta/issues/46)) ([100277b](https://github.com/acadevmy/ai-setup-meta/commit/100277b4951678aea6dfce15ee6033aa7e71aed6))
+
+
+### Bug Fixes
+
+* **runner:** Sync sandbox to main before run and harden process kill ([#48](https://github.com/acadevmy/ai-setup-meta/issues/48)) ([c13cff1](https://github.com/acadevmy/ai-setup-meta/commit/c13cff12505fc33655b8da05614c27d2ad5cb176))
+* **runner:** Use detached HEAD in sandbox to avoid worktree branch conflict ([#50](https://github.com/acadevmy/ai-setup-meta/issues/50)) ([3688eda](https://github.com/acadevmy/ai-setup-meta/commit/3688eda07988aee9edd9ce90664e028d3da7dab2))
+
 ## [1.12.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.11.0...dev-setup-v1.12.0) (2026-05-08)
 
 
