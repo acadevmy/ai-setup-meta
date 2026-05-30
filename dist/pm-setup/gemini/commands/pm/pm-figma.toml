@@ -1,6 +1,6 @@
 description = "Analizza un progetto o nodo Figma e genera User Stories e Task per riprodurre il layout. Il PM fornisce un URL Figma e la skill estrae i componenti, le schermate e i flussi utente."
 prompt = """
-Leggi il file PM-CONSTITUTION.md prima di procedere.
+Le regole di PM-CONSTITUTION sono gia' disponibili nel tuo contesto.
 
 Esegui la seguente skill. Se l'utente ha fornito argomenti, usali come input.
 

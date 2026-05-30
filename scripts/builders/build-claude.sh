@@ -58,7 +58,7 @@ if [ -f "$SETUP_SKILL_SRC" ]; then
   cp "$SETUP_SKILL_SRC" "$DIST_DIR/skills/setup/SKILL.md"
   ok "Setup skill copiata"
 else
-  fail "File sorgente setup-skill.md non trovato in $TEMPLATE_DIR/"
+  warn "setup-skill.md non trovato — skill setup omessa (template bundle-only)"
 fi
 
 # Bundle template files per la setup skill

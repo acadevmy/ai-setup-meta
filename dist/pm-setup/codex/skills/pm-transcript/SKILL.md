@@ -29,8 +29,11 @@ Questa skill richiede il MCP **Google Drive** configurato.
 Se non e' configurato, informa il PM:
 ```
 Per utilizzare questa skill devi configurare l'accesso a Google Drive.
-Esegui il setup con: /project:setup
-e scegli di configurare Google Drive quando richiesto.
+Esegui questo comando nella shell e riavvia Claude Code:
+
+claude mcp add gdrive \
+  -e GOOGLE_DRIVE_OAUTH_CREDENTIALS=/path/to/gcp-oauth.keys.json \
+  -- npx @piotr-agier/google-drive-mcp -s user
 ```
 
 ## Procedura

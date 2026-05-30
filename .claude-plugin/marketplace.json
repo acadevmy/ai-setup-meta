@@ -16,7 +16,7 @@
     {
       "name": "pm-setup",
       "source": "./dist/pm-setup",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "description": "Setup AI-native per Project Manager: creazione task ClickUp da requisiti"
     }
   ]

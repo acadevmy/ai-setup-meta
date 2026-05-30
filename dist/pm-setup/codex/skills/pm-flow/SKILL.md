@@ -68,7 +68,7 @@ Da dove vuoi partire?
 
 Mostra al PM:
 ```
-Fase 1/5 completata: Analisi dell'input
+Fase 1/6 completata: Analisi dell'input
 
 Il Discovery Brief e' pronto. Procediamo con la generazione della gerarchia task.
 Vuoi continuare o fermarti qui?
@@ -84,7 +84,7 @@ Invoca la skill `pm-structure` con il Discovery Brief nel contesto.
 
 Mostra al PM:
 ```
-Fase 2/5 completata: Gerarchia task generata
+Fase 2/6 completata: Gerarchia task generata
 
 <N> Epic, <N> User Stories, <N> Task.
 Procediamo con la validazione qualita' e i criteri di accettazione.
@@ -99,7 +99,7 @@ Invoca la skill `pm-refine` con la gerarchia nel contesto.
 
 Mostra al PM:
 ```
-Fase 3/5 completata: Validazione e arricchimento
+Fase 3/6 completata: Validazione e arricchimento
 
 Tutti i criteri di accettazione sono stati generati.
 Procediamo con la revisione finale prima della pubblicazione.
@@ -116,6 +116,27 @@ Invoca la skill `pm-review` con la gerarchia raffinata nel contesto.
 > (modifica, rigenera, approva con eccezioni). Non interferire con il loop.
 
 Se il PM sceglie "Rigenera" durante la review, torna alla fase INTAKE (punto 2).
+
+### 5b. Fase LINT — Validazione formato rigido
+
+Invoca la skill `pm-lint` con la gerarchia approvata nel contesto.
+
+**Output atteso**: Validazione PASSED o lista errori.
+
+**Se pm-lint riporta errori (FAILED)**:
+- Mostra la lista degli errori al PM
+- Chiedi: "Ci sono problemi di formato da risolvere prima della pubblicazione. Vuoi correggerli automaticamente o torni a pm-refine?"
+- **Non procedere con pm-publish** finche' pm-lint non riporta PASSED
+- Dopo le correzioni, ri-invoca pm-lint per conferma
+
+Mostra al PM:
+```
+Fase 4/5 completata: Validazione formato
+
+<N> check eseguiti — <PASSED / N errori trovati>.
+<Se PASSED> Procediamo con la pubblicazione su ClickUp.
+<Se errori> Vedi errori sopra. Correggi e riprova.
+```
 
 ### 6. Fase PUBLISH — Pubblicazione su ClickUp
 
@@ -150,7 +171,8 @@ Per riprendere, il PM puo' invocare direttamente la skill della fase successiva:
 - Dopo intake → `/project:pm-structure`
 - Dopo structure → `/project:pm-refine`
 - Dopo refine → `/project:pm-review`
-- Dopo review → `/project:pm-publish`
+- Dopo review → `/project:pm-lint` (poi pm-publish se PASSED)
+- Dopo lint OK → `/project:pm-publish`
 
 ## Output atteso
 - Flusso completo completato: dal documento ai task su ClickUp

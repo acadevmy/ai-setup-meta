@@ -14,7 +14,7 @@ step "Generazione output Gemini CLI"
 GEMINI_DIR="$DIST_DIR/gemini"
 mkdir -p "$GEMINI_DIR"
 
-# ── GEMINI.md — istruzioni di sistema ────────────────────────────────────────
+# ── GEMINI.md — istruzioni di sistema + PM-CONSTITUTION inline ───────────────
 {
   echo "# Gemini System Instructions — $DESCRIPTION"
   echo ""
@@ -28,9 +28,19 @@ mkdir -p "$GEMINI_DIR"
     cat "$AGENTS_TPL"
     echo ""
   fi
+
+  # Inline PM-CONSTITUTION come contextFileName — Gemini la carica automaticamente
+  PM_CONST="$DIST_DIR/skills/setup/templates/PM-CONSTITUTION.md"
+  if [ -f "$PM_CONST" ]; then
+    echo "---"
+    echo ""
+    echo "<!-- PM-CONSTITUTION (bundled inline — sempre in contesto via contextFileName) -->"
+    cat "$PM_CONST"
+    echo ""
+  fi
 } > "$GEMINI_DIR/GEMINI.md"
 
-ok "GEMINI.md generato (istruzioni generali — skill nei comandi .toml)"
+ok "GEMINI.md generato (istruzioni + PM-CONSTITUTION inline)"
 
 # ── Governance ───────────────────────────────────────────────────────────────
 copy_governance "$GEMINI_DIR" "Gemini"
@@ -65,17 +75,21 @@ for SKILL_DIR in "$DIST_DIR/skills"/*/; do
   SKILL_CONTENT=$(awk 'BEGIN{c=0} /^---$/{c++; next} c>=2{print}' "$SKILL_FILE")
 
   # Genera il file .toml
+  # PM-CONSTITUTION e' gia' in contesto via GEMINI.md (contextFileName) — non serve rileggerla
+  # Rimuovi riferimenti a ${CLAUDE_SKILL_DIR} non validi in Gemini
+  SKILL_CONTENT_CLEAN=$(echo "$SKILL_CONTENT" | \
+    sed 's|\${CLAUDE_SKILL_DIR}/\.\./setup/templates/PM-CONSTITUTION\.md|PM-CONSTITUTION.md (disponibile in contesto)|g')
   ESCAPED_DESC=$(echo "$SKILL_DESC" | head -1 | sed 's/"/\\"/g')
   {
     echo "description = \"$ESCAPED_DESC\""
     echo 'prompt = """'
-    echo "Leggi il file PM-CONSTITUTION.md prima di procedere."
+    echo "Le regole di PM-CONSTITUTION sono gia' disponibili nel tuo contesto."
     echo ""
     echo "Esegui la seguente skill. Se l'utente ha fornito argomenti, usali come input."
     echo ""
     echo "Argomenti dell'utente: {{args}}"
     echo ""
-    echo "$SKILL_CONTENT"
+    echo "$SKILL_CONTENT_CLEAN"
     echo '"""'
   } > "$GEMINI_CMDS_DIR/$SKILL_NAME.toml"
 
@@ -108,3 +122,26 @@ if [ -f "$DIST_DIR/.mcp.json" ]; then
   ' "$DIST_DIR/.mcp.json" > "$GEMINI_DIR/.mcp.json"
   ok "MCP config generata per Gemini (mcp-remote bridge)"
 fi
+
+# ── gemini-extension.json ─────────────────────────────────────────────────────
+# Generato DOPO .mcp.json cosi' i mcpServers sono gia' disponibili.
+# Ref: https://google-gemini.github.io/gemini-cli/docs/extensions/
+MCP_SERVERS="{}"
+if [ -f "$GEMINI_DIR/.mcp.json" ]; then
+  MCP_SERVERS=$(jq '.mcpServers' "$GEMINI_DIR/.mcp.json" 2>/dev/null || echo "{}")
+fi
+
+jq -n \
+  --arg name "$NAME" \
+  --arg version "$VERSION" \
+  --arg description "$DESCRIPTION" \
+  --argjson mcpServers "$MCP_SERVERS" \
+  '{
+    name: $name,
+    version: $version,
+    description: $description,
+    contextFileName: "GEMINI.md",
+    mcpServers: $mcpServers
+  }' > "$GEMINI_DIR/gemini-extension.json"
+
+ok "gemini-extension.json generato"

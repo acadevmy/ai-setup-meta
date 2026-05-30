@@ -1,6 +1,6 @@
 description = "Recupera e analizza trascrizioni Google Meet da Google Drive. Mostra le trascrizioni disponibili, il PM sceglie quale analizzare, poi la converte in un Discovery Brief compatibile con pm-structure."
 prompt = """
-Leggi il file PM-CONSTITUTION.md prima di procedere.
+Le regole di PM-CONSTITUTION sono gia' disponibili nel tuo contesto.
 
 Esegui la seguente skill. Se l'utente ha fornito argomenti, usali come input.
 
@@ -33,8 +33,11 @@ Questa skill richiede il MCP **Google Drive** configurato.
 Se non e' configurato, informa il PM:
 ```
 Per utilizzare questa skill devi configurare l'accesso a Google Drive.
-Esegui il setup con: /project:setup
-e scegli di configurare Google Drive quando richiesto.
+Esegui questo comando nella shell e riavvia Claude Code:
+
+claude mcp add gdrive \
+  -e GOOGLE_DRIVE_OAUTH_CREDENTIALS=/path/to/gcp-oauth.keys.json \
+  -- npx @piotr-agier/google-drive-mcp -s user
 ```
 
 ## Procedura

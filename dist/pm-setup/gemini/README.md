@@ -4,55 +4,49 @@ Guida per configurare il workflow AI-Native per Project Manager su **Gemini CLI*
 
 ## Installazione rapida
 
-Apri il **Terminale** e incolla questo comando:
-
 ```bash
-curl -sL https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/install.sh | bash
+gemini extensions install https://github.com/acadevmy/ai-setup-meta/dist/pm-setup/gemini
 ```
 
-Lo script installa tutto automaticamente nella tua home (`~`) e ti guida passo passo.
-Dopo l'installazione, avvia `gemini` e sei pronto.
+Oppure, da sorgente locale:
+
+```bash
+gemini extensions install ./dist/pm-setup/gemini
+```
+
+**Nessuna procedura di setup aggiuntiva.** Le istruzioni di sistema e le regole di qualita'
+(PM-CONSTITUTION) sono bundled nell'estensione — niente file da scrivere nella directory del
+progetto. Il plugin convive con `dev-setup` senza conflitti.
 
 ---
 
 ## Installazione manuale
 
-Segui questa guida se preferisci installare i file uno per uno.
+Se preferisci installare manualmente invece di usare `gemini extensions install`:
 
-## Prerequisiti
-
-- [Gemini CLI](https://github.com/google-gemini/gemini-cli) installato
-- [Node.js](https://nodejs.org/) 18+ (per i server MCP)
-- Account ClickUp con accesso al workspace del team
-- (Consigliato) Account Google per accedere alle trascrizioni dei meeting
-
-## Installazione
-
-### 1. Scarica e installa i file
-
-Esegui questi comandi nella directory dove vuoi usare il setup
-(la tua home `~` per un setup globale, o la root di un progetto specifico):
+### 1. Scarica i file
 
 ```bash
-# Crea le directory di configurazione Gemini
-mkdir -p .gemini/commands/pm
+# Crea la directory dell'estensione
+mkdir -p ~/.config/gemini/extensions/pm-setup/.gemini/commands/pm
 
 # Scarica i file principali
-curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/GEMINI.md" -o .gemini/GEMINI.md
-curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/PM-CONSTITUTION.md" -o PM-CONSTITUTION.md
+curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/gemini-extension.json" \
+  -o ~/.config/gemini/extensions/pm-setup/gemini-extension.json
+curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/GEMINI.md" \
+  -o ~/.config/gemini/extensions/pm-setup/GEMINI.md
 
 # Scarica i comandi slash
-for cmd in pm-flow pm-intake pm-transcript pm-figma pm-structure pm-refine pm-review pm-publish; do
-  curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/commands/pm/$cmd.toml" -o ".gemini/commands/pm/$cmd.toml"
+for cmd in pm-flow pm-intake pm-transcript pm-figma pm-structure pm-refine pm-review pm-lint pm-publish; do
+  curl -sL "https://raw.githubusercontent.com/acadevmy/ai-setup-meta/main/dist/pm-setup/gemini/commands/pm/$cmd.toml" \
+    -o ~/.config/gemini/extensions/pm-setup/commands/pm/$cmd.toml
 done
 ```
 
-In alternativa, puoi scaricare i file dalla [pagina release](https://github.com/acadevmy/ai-setup-meta/releases)
-e copiarli manualmente.
-
 ### 2. Configura i server MCP
 
-Apri (o crea) il file `.gemini/settings.json` e aggiungi i server MCP:
+I server MCP sono dichiarati in `gemini-extension.json` e attivati automaticamente.
+Se non vengono caricati, aggiungili in `.gemini/settings.json` del tuo progetto:
 
 ```json
 {
@@ -66,138 +60,44 @@ Apri (o crea) il file `.gemini/settings.json` e aggiungi i server MCP:
 }
 ```
 
-Al primo utilizzo di ClickUp, Gemini ti chiedera' di autorizzare l'accesso al tuo workspace.
+### 3. (Consigliato) Estensione Google Workspace
 
-### 3. (Consigliato) Installa l'estensione Google Workspace
-
-L'estensione Google Workspace permette di accedere a Google Drive, Docs, Calendar e Gmail
-direttamente da Gemini CLI. L'autenticazione avviene automaticamente via browser.
+Per accedere alle trascrizioni dei meeting:
 
 ```bash
 gemini extensions install https://github.com/gemini-cli-extensions/workspace
 ```
 
-Quando richiesto, conferma con `Y`. Al primo utilizzo, il browser si aprira'
-per autorizzare l'accesso al tuo account Google.
-
-> **Nota**: l'estensione gira localmente sulla tua macchina e comunica
-> direttamente con le API Google usando le tue credenziali OAuth.
-> Nessuna API key o configurazione manuale necessaria.
-
-Per verificare che l'estensione sia installata:
-```
-gemini /mcp list
-```
-
-Dovresti vedere `google-workspace` nella lista dei server attivi.
-
-### 4. (Opzionale) Configura Figma
-
-Per analizzare i design da Figma, aggiungi il server MCP nel tuo `.gemini/settings.json`:
-
-```json
-{
-  "mcpServers": {
-    "clickup": {
-      "trust": true,
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://mcp.clickup.com/mcp"]
-    },
-    "figma": {
-      "trust": true,
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://mcp.figma.com/mcp"]
-    }
-  }
-}
-```
+---
 
 ## Verifica installazione
 
-Avvia Gemini CLI nella directory del progetto:
-
 ```bash
 gemini
-```
-
-Verifica che i server MCP e le estensioni siano connessi:
-
-```
 /mcp
 ```
 
-Dovresti vedere `clickup` (e `google-workspace`, `figma` se configurati) nella lista dei server attivi.
+Dovresti vedere `clickup` nella lista dei server attivi.
 
 ## Comandi disponibili
 
 | Comando | Descrizione |
 |---|---|
-| `/pm:pm-flow` | Flusso completo: documento → task ClickUp |
-| `/pm:pm-intake <path>` | Analisi documento → Discovery Brief |
+| `/pm:pm-flow` | Flusso completo: documento → task ClickUp (lint automatico incluso) |
+| `/pm:pm-intake <path>` | Analisi documento → Discovery Brief (con auto-detection stack) |
 | `/pm:pm-transcript` | Analisi trascrizioni Google Meet da Drive |
 | `/pm:pm-figma <URL>` | Analisi design Figma → task per riprodurre il layout |
 | `/pm:pm-structure` | Brief → gerarchia Epic/Story/Task |
-| `/pm:pm-refine` | Validazione INVEST + criteri di accettazione |
+| `/pm:pm-refine` | Validazione INVEST + criteri di accettazione Gherkin |
 | `/pm:pm-review` | Revisione e approvazione |
-| `/pm:pm-publish` | Pubblicazione su ClickUp |
-
-I comandi accettano argomenti dopo lo slash command (es. `/pm:pm-figma https://figma.com/...`).
-
-Per ricaricare i comandi dopo un aggiornamento:
-```
-/commands reload
-```
-
-## Come iniziare
-
-### Da un documento di requisiti
-
-```
-/pm:pm-flow requisiti.md
-```
-
-### Da una trascrizione di meeting
-
-```
-/pm:pm-transcript
-```
-
-### Da un design Figma
-
-```
-/pm:pm-figma https://www.figma.com/design/abc123/My-Project?node-id=1-2
-```
-
-### Flusso guidato (scegli l'input durante l'esecuzione)
-
-```
-/pm:pm-flow
-```
-
-## Struttura file
-
-```
-progetto/
-├── .gemini/
-│   ├── GEMINI.md              # Istruzioni per Gemini (non modificare)
-│   ├── settings.json          # Configurazione MCP servers
-│   └── commands/
-│       └── pm/
-│           ├── pm-flow.toml       # /pm:pm-flow
-│           ├── pm-intake.toml     # /pm:pm-intake
-│           ├── pm-transcript.toml # /pm:pm-transcript
-│           ├── pm-figma.toml      # /pm:pm-figma
-│           ├── pm-structure.toml  # /pm:pm-structure
-│           ├── pm-refine.toml     # /pm:pm-refine
-│           ├── pm-review.toml     # /pm:pm-review
-│           └── pm-publish.toml    # /pm:pm-publish
-└── PM-CONSTITUTION.md         # Regole qualita' task
-```
+| `/pm:pm-lint` | Validazione formato rigido (hard-fail) pre-pubblicazione |
+| `/pm:pm-publish` | Pubblicazione su ClickUp con delay deterministico |
 
 ## Aggiornamento
 
-Per aggiornare il setup, riesegui i comandi di download del punto 1.
-Dopo l'aggiornamento dei comandi, esegui `/commands reload` in Gemini CLI.
+```bash
+gemini extensions update pm-setup
+```
 
 ---
-*Generato da: ai-base-setup v1.0.0*
+*Generato da: ai-base-setup v2.0.0*

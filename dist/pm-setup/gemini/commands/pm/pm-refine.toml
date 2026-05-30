@@ -1,6 +1,6 @@
 description = "Validazione INVEST delle User Story, generazione Acceptance Criteria in formato Gherkin, arricchimento con note tecniche per i developer."
 prompt = """
-Leggi il file PM-CONSTITUTION.md prima di procedere.
+Le regole di PM-CONSTITUTION sono gia' disponibili nel tuo contesto.
 
 Esegui la seguente skill. Se l'utente ha fornito argomenti, usali come input.
 
@@ -40,7 +40,7 @@ Epic/Story/Task (generata da `/project:pm-structure` o dall'orchestratore).
 
 ### 2. Leggere PM-CONSTITUTION.md
 
-Leggi `PM-CONSTITUTION.md` per verificare:
+Leggi `PM-CONSTITUTION.md (disponibile in contesto)` per verificare:
 - Criteri INVEST obbligatori
 - Formato Gherkin per le Acceptance Criteria
 - Regole di tracciabilita' (tag, marker)

@@ -53,18 +53,19 @@ e' la singola fonte di verita'.
 
 | Comando | Quando usarlo |
 |---|---|
-| `/project:pm-flow [PATH_DOCUMENTO]` | Flusso completo: dal documento ai task su ClickUp |
-| `/project:pm-intake [PATH_DOCUMENTO]` | Parsing di un documento → Discovery Brief |
-| `/project:pm-transcript` | Recupera e analizza trascrizioni Google Meet da Drive |
-| `/project:pm-figma <FIGMA_URL>` | Analizza un design Figma e genera task per riprodurre il layout |
-| `/project:pm-structure` | Genera gerarchia Epic/Story/Task da un brief |
-| `/project:pm-refine` | Valida qualita' INVEST e arricchisce Acceptance Criteria |
-| `/project:pm-review` | Revisione e approvazione con il PM |
-| `/project:pm-publish` | Pubblica i task approvati su ClickUp |
+| `/pm-setup:pm-flow [PATH_DOCUMENTO]` | Flusso completo guidato: documento → task ClickUp (lint automatico incluso) |
+| `/pm-setup:pm-intake [PATH_DOCUMENTO]` | Parsing di un documento → Discovery Brief (con auto-detection stack) |
+| `/pm-setup:pm-transcript` | Recupera e analizza trascrizioni Google Meet da Drive |
+| `/pm-setup:pm-figma <FIGMA_URL>` | Analizza un design Figma e genera task per riprodurre il layout |
+| `/pm-setup:pm-structure` | Genera gerarchia Epic/Story/Task da un brief |
+| `/pm-setup:pm-refine` | Valida qualita' INVEST e arricchisce Acceptance Criteria Gherkin |
+| `/pm-setup:pm-review` | Revisione e approvazione con il PM |
+| `/pm-setup:pm-lint` | Validazione formato rigido (hard-fail) — blocca pubblicazione se non conforme |
+| `/pm-setup:pm-publish` | Pubblica i task approvati su ClickUp con delay deterministico |
 
-> Usa `/project:pm-flow` per il flusso completo guidato.
-> Usa `/project:pm-transcript` per analizzare trascrizioni di meeting.
-> Usa `/project:pm-figma` per analizzare design Figma e generare task.
+> Usa `/pm-setup:pm-flow` per il flusso completo guidato (lint eseguito automaticamente).
+> Usa `/pm-setup:pm-transcript` per analizzare trascrizioni di meeting.
+> Usa `/pm-setup:pm-figma` per analizzare design Figma e generare task.
 > Usa le skill singole quando vuoi eseguire solo una fase specifica.
 
 ## Gestione progetto ClickUp

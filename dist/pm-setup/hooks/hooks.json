@@ -1,1 +1,15 @@
-{"hooks": {}}
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__clickup__clickup_create_task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-task.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

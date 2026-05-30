@@ -1,6 +1,6 @@
 ---
 name: pm-publish
-description: Pubblica la gerarchia approvata di Epic/User Story/Task su ClickUp via MCP. Gestisce tipi custom, gerarchia padre-figlio e delay per template.
+description: Pubblica la gerarchia approvata di Epic/User Story/Task su ClickUp via MCP. Gestisce tipi custom, gerarchia padre-figlio e delay deterministico per template.
 model: opus
 user-invocable: true
 disable-model-invocation: false
@@ -15,6 +15,33 @@ creando i task con i tipi custom corretti e mantenendo la gerarchia padre-figlio
 - Usa la gerarchia approvata presente nel contesto della conversazione (da pm-review)
 - Se non c'e' una gerarchia approvata, chiede al PM di completare prima le fasi precedenti
 
+## Pattern obbligatorio: create → poll → update
+
+> **IMPORTANTE**: per TUTTI i tipi di task (Epic, User Story, Task), il flusso e' SEMPRE:
+> 1. **`create_task`** — crea il task con nome/tipo/parent/tag/priority
+> 2. **Poll `get_task`** — aspetta che ClickUp applichi il template automatico (status, custom fields)
+> 3. **`update_task`** — aggiorna la descrizione con il formato del template ClickUp
+>
+> NON saltare il polling. Su Claude Code, un hook esegue automaticamente `sleep 8` dopo ogni
+> `create_task` come prima barriera. Il polling e' il secondo strato di garanzia (cross-platform).
+
+### Come eseguire il polling
+
+Dopo ogni `create_task`, esegui questo ciclo (max 15 tentativi):
+
+```
+Per i = 1..15:
+  task = mcp__clickup__clickup_get_task(task_id=<id_appena_creato>)
+  se task.status.status != "Open" OPPURE task.custom_fields e' non vuoto:
+    break  # template applicato — procedi con update_task
+  se i == 15:
+    registra warning "Template non confermato per <task_name>" e procedi comunque
+  altrimenti:
+    attendi ~2s (esegui un'altra create_task non dipendente, o una get_task di altro task)
+```
+
+---
+
 ## Procedura
 
 ### 1. Verificare la gerarchia approvata
@@ -28,7 +55,7 @@ approvata dal PM (da `/project:pm-review`).
 
 ### 2. Risolvere il progetto e la lista ClickUp
 
-Il setup e' installato globalmente — non esiste un `.env` per progetto.
+Il plugin e' self-contained — non esiste un `.env` per progetto.
 La mappa `progetto → list_id` e' nella memoria del modello.
 
 1. **Chiedi al PM** per quale progetto sta lavorando (se non gia' specificato nel flusso)
@@ -60,7 +87,7 @@ Per ogni Epic nella gerarchia approvata:
    - `tags`: solo tag gia' esistenti nello space (recuperati al punto 3), se appropriati
    - `priority`: la priorita' assegnata in pm-refine (se presente)
 
-2. **Attendi 3 secondi** — ClickUp applica un template automatico al tipo di task
+2. **Poll `get_task`** — esegui il ciclo di polling descritto sopra.
 
 3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`.
    La descrizione deve seguire il formato del template ClickUp (titoli in inglese,
@@ -97,7 +124,7 @@ Per ogni **User Story** nella gerarchia approvata:
    - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
 
-2. **Attendi 3 secondi** — ClickUp applica un template automatico al tipo di task
+2. **Poll `get_task`** — esegui il ciclo di polling descritto sopra.
 
 3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`.
    La descrizione deve seguire il formato del template ClickUp (titoli sezione in inglese,
@@ -127,7 +154,7 @@ Per ogni **Task** nella gerarchia approvata:
    - `tags`: solo tag gia' esistenti nello space, se appropriati
    - `priority`: la priorita' assegnata in pm-refine
 
-2. **Attendi 3 secondi** — ClickUp applica un template automatico al tipo di task
+2. **Poll `get_task`** — esegui il ciclo di polling descritto sopra.
 
 3. **Aggiorna la descrizione** con `mcp__clickup__clickup_update_task`.
    La descrizione deve seguire il formato del template ClickUp (titoli sezione in inglese,
@@ -152,10 +179,7 @@ Per ogni **Task** nella gerarchia approvata:
      <rischio e possibile mitigazione, in italiano>
      ```
 
-> **IMPORTANTE**: per TUTTI i tipi di task (Epic, User Story, Task), il flusso e' sempre:
-> 1. Crea il task
-> 2. Attendi qualche secondo (le automazioni ClickUp applicano il template)
-> 3. Aggiorna la descrizione
+> **Riepilogo pattern**: Crea → Poll (finche' template applicato, max 15 tentativi) → Update.
 > Tutti i sotto-task (US e Task) sono figli diretti dell'Epic — mai annidati tra loro.
 
 ### 7. Impostare le dipendenze
@@ -193,6 +217,7 @@ Riepilogo:
 - Task creati: <N>
 - Dipendenze impostate: <N>
 - Tag applicati: <tag dallo space utilizzati, se presenti>
+- Warning template: <N task per cui il polling ha esaurito i tentativi>
 
 Tutti i task sono pronti per essere assegnati e pianificati nello sprint!
 ```
@@ -211,5 +236,6 @@ Se la creazione di un task fallisce:
 ## Output atteso
 - Task creati su ClickUp con gerarchia a 1 livello (Epic → sotto-task)
 - Tipi custom applicati (Epic, User Story)
+- Template ClickUp applicati prima dell'update della descrizione (garantito da polling)
 - Tag e dipendenze impostati
 - Report finale con URL di tutti i task creati

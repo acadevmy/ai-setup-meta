@@ -1,0 +1,141 @@
+---
+name: pm-lint
+description: Valida deterministicamente la gerarchia approvata contro PM-CONSTITUTION prima della pubblicazione. Hard-fail se non conforme — blocca pm-publish.
+---
+
+# /project:pm-lint
+
+Valida la conformita' della gerarchia Epic/User Story/Task approvata
+rispetto alle regole di PM-CONSTITUTION. **Hard-fail**: se ci sono errori,
+blocca la pubblicazione e riporta ogni non-conformita' con indicazione di fix.
+
+**Usage**: `/project:pm-lint`
+- Usa la gerarchia presente nel contesto della conversazione (da pm-review o pm-refine)
+- Invocata automaticamente da pm-flow prima di pm-publish
+
+## Procedura
+
+### 1. Verificare la gerarchia
+
+Controlla che nel contesto sia presente una gerarchia approvata.
+
+**Se assente**: chiedi "Non ho una gerarchia nel contesto. Vuoi eseguire prima `/project:pm-review`?"
+
+### 2. Leggere la PM-CONSTITUTION
+
+Leggi `PM-CONSTITUTION.md (gia' inlineata in AGENTS.md — disponibile in contesto)` per caricare
+le regole di formato obbligatorie.
+
+### 3. Validazione Epic
+
+Per ogni **Epic** nella gerarchia, verifica:
+
+| Check | Regola |
+|---|---|
+| `E-01` | La descrizione contiene la sezione `Introduction` non vuota |
+| `E-02` | La descrizione contiene la sezione `Product requirement` non vuota |
+| `E-03` | La descrizione contiene la sezione `Technical requirement` non vuota |
+| `E-04` | La descrizione contiene la sezione `Design requirement` non vuota |
+| `E-05` | Il titolo e' un sostantivo breve (max 4 parole), senza prefisso `[...]` |
+| `E-06` | Contiene almeno un sotto-task (User Story o Task) |
+
+### 4. Validazione User Story
+
+Per ogni **User Story**, verifica:
+
+| Check | Regola |
+|---|---|
+| `US-01` | Il titolo inizia con `[Nome Epic]` (prefisso obbligatorio) |
+| `US-02` | La descrizione contiene il blocco `User Story` con la formula `As a ... I want to ... so that I can ...` |
+| `US-03` | Il campo `As a` non e' vuoto (attore identificato) |
+| `US-04` | Il campo `I want to` non e' vuoto (obiettivo identificato) |
+| `US-05` | Il campo `so that I can` esprime un valore concreto (non solo "fare X") |
+| `US-06` | La descrizione contiene la sezione `Acceptance Criteria` |
+| `US-07` | Esiste almeno uno scenario Gherkin con `Given`, `When`, `Then` |
+| `US-08` | La User Story NON e' figlia di un'altra User Story (massimo 1 livello) |
+| `US-09` | **INVEST - Independent**: se dipende da un'altra story, la dipendenza e' dichiarata esplicitamente |
+| `US-10` | **INVEST - Valuable**: la clausola "so that" non menziona tecnologie specifiche (API, endpoint, DB) |
+| `US-11` | **INVEST - Testable**: i criteri di accettazione sono specifici e verificabili |
+
+### 5. Validazione Task
+
+Per ogni **Task**, verifica:
+
+| Check | Regola |
+|---|---|
+| `T-01` | Il titolo inizia con `[Nome Epic]` (prefisso obbligatorio) |
+| `T-02` | Il titolo e' nella forma `[Epic] Verbo + Deliverable` |
+| `T-03` | La descrizione contiene la sezione `Task Outcome` non vuota |
+| `T-04` | La descrizione contiene la sezione `Additional Notes` |
+| `T-05` | La descrizione contiene la sezione `Assumptions` |
+| `T-06` | La descrizione contiene la sezione `Acceptance Criteria` con la clausola `I know this is true when...` |
+| `T-07` | La descrizione contiene la sezione `Risks` |
+| `T-08` | Il Task NON e' figlio di una User Story (deve essere figlio diretto dell'Epic) |
+
+### 6. Validazione gerarchia
+
+| Check | Regola |
+|---|---|
+| `H-01` | Nessun elemento orfano (tutti i sotto-task hanno un'Epic padre) |
+| `H-02` | Massimo 1 livello di annidamento: Epic → sotto-task (non Epic → US → Task) |
+| `H-03` | I sotto-task di tipo Task NON sono figli di User Story |
+
+### 7. Output
+
+#### Se NESSUN errore
+
+```
+Validazione superata!
+
+Gerarchia conforme a PM-CONSTITUTION.
+
+Riepilogo:
+- Epic: <N> — OK
+- User Story: <N> — OK
+- Task: <N> — OK
+- Check eseguiti: <N>
+
+La gerarchia e' pronta per essere pubblicata su ClickUp.
+```
+
+Segnala "PASSED" e restituisci il controllo (se invocata da pm-flow, procedi con pm-publish).
+
+#### Se CI SONO errori
+
+```
+Validazione fallita — <N> non-conformita' trovate.
+
+La pubblicazione e' BLOCCATA fino alla risoluzione di tutti gli errori.
+
+---
+
+ERRORI:
+
+[E1-US1] [Gestione utenti] Login con email
+  ❌ US-07: Nessuno scenario Gherkin trovato — aggiungi almeno un blocco Given/When/Then
+  ❌ US-05: "so that I can autenticare" non esprime valore concreto — riformula es. "so that I can accedere alle funzionalita' riservate al mio ruolo"
+
+[E1-T2] [Gestione utenti] Implementare endpoint
+  ❌ T-03: Sezione "Task Outcome" mancante o vuota
+  ❌ T-06: Sezione "Acceptance Criteria" mancante
+
+---
+
+Vuoi che applichi le correzioni automaticamente, oppure preferisci tornare a `/project:pm-refine` per correggerle manualmente?
+```
+
+**Hard-fail**: non procedere con pm-publish finche' tutti gli errori non sono risolti.
+
+Se l'utente sceglie la correzione automatica:
+- Applica solo le correzioni per cui hai informazioni sufficienti (es. aggiungere sezioni mancanti con placeholder)
+- Per correzioni che richiedono contenuto (es. riformulare una user story), chiedi al PM
+- Ri-esegui la validazione dopo le correzioni
+- Se la validazione passa, conferma e procedi
+
+**Se invocata standalone**: dopo la validazione, suggerisci il passo successivo.
+**Se invocata da pm-flow**: segnala PASSED/FAILED all'orchestratore e restituisci il controllo.
+
+## Output atteso
+- Lista completa di errori per elemento (codice check + descrizione + suggerimento fix)
+- Blocco deterministico della pubblicazione in caso di errori
+- Opzione di correzione automatica per errori non ambigui

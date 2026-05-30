@@ -24,6 +24,38 @@ Parla di "funzionalita'", "flussi utente", "regole", "vincoli", "obiettivi".
 
 ## Procedura
 
+### 0. Context Discovery (auto — nessuna interazione col PM)
+
+Prima di analizzare il documento, rileva il contesto del progetto in cui stai operando.
+Leggi i seguenti file **se esistono** nella directory corrente (non generare errori se assenti):
+
+1. **`AGENTS.md`** — cerca le sezioni "Stack", "Architettura", "Tecnologie", "Domain", "Modules".
+   Estrai: framework principale, linguaggi, moduli applicativi descritti.
+
+2. **`package.json`** — leggi i campi `name`, `description`, e le chiavi di `dependencies`
+   e `devDependencies`. Identifica: framework frontend (next, react, angular, vue, nuxt),
+   framework backend (nestjs, express, fastify, hapi), monorepo (nx, turbo).
+
+3. **`README.md`** (solo le prime 30 righe) — cerca una descrizione dell'applicazione.
+
+Costruisci un oggetto **ProjectContext** (solo per uso interno, non mostrarlo al PM):
+
+```
+ProjectContext:
+  app_name: <dal package.json name o dalla directory>
+  domain: <area di business dedotta da README/AGENTS.md>
+  stack: <es. "Next.js 14 + NestJS 10 + TypeScript" oppure "nessuno stack rilevato">
+  modules: <moduli esistenti da AGENTS.md, es. ["autenticazione", "catalogo", "ordini"]>
+  framework_hints: <suggerimenti tecnici specifici per task AI-suggested, es. "usa Server Actions Next.js", "usa Service NestJS">
+```
+
+**Se nessun file e' trovato**: ProjectContext vuoto — il plugin funziona in modalita' agnostica.
+
+Usa il ProjectContext per:
+- Arricchire il Discovery Brief con riferimenti ai moduli esistenti (evitare duplicati)
+- Rendere i suggerimenti `[AI-suggested]` coerenti con lo stack rilevato
+- Formulare le aree funzionali in modo coerente con il dominio applicativo
+
 ### 1. Acquisire il documento
 
 **Se `$ARGUMENTS` contiene un path**:
@@ -45,6 +77,9 @@ Leggi l'intero documento e identifica:
 5. **Domande aperte**: Ambiguita', contraddizioni, informazioni mancanti
 
 ### 3. Generare il Discovery Brief
+
+Se il ProjectContext contiene moduli esistenti, arricchisci le Aree funzionali con
+note di coerenza (es. "Modulo gia' esistente: autenticazione — estendere, non duplicare").
 
 Struttura le informazioni estratte nel seguente formato:
 
@@ -84,6 +119,10 @@ Struttura le informazioni estratte nel seguente formato:
 ### Fonte
 - Tipo: documento di requisiti
 - Riferimento: <path del file>
+
+### Contesto progetto rilevato
+- Stack: <dal ProjectContext, oppure "non rilevato">
+- Moduli esistenti: <lista o "nessuno rilevato">
 ```
 
 ### 4. Presentare al PM

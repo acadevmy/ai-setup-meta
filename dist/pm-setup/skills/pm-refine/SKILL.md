@@ -39,7 +39,7 @@ Epic/Story/Task (generata da `/project:pm-structure` o dall'orchestratore).
 
 ### 2. Leggere PM-CONSTITUTION.md
 
-Leggi `PM-CONSTITUTION.md` per verificare:
+Leggi `${CLAUDE_SKILL_DIR}/../setup/templates/PM-CONSTITUTION.md` per verificare:
 - Criteri INVEST obbligatori
 - Formato Gherkin per le Acceptance Criteria
 - Regole di tracciabilita' (tag, marker)

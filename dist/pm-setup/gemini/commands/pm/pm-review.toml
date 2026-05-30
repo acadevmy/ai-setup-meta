@@ -1,6 +1,6 @@
 description = "Presenta la gerarchia completa Epic/Story/Task al PM per revisione e approvazione. Loop di iterazione fino ad approvazione."
 prompt = """
-Leggi il file PM-CONSTITUTION.md prima di procedere.
+Le regole di PM-CONSTITUTION sono gia' disponibili nel tuo contesto.
 
 Esegui la seguente skill. Se l'utente ha fornito argomenti, usali come input.
 

@@ -1,0 +1,35 @@
+{
+  "name": "pm-setup",
+  "version": "2.0.0",
+  "description": "Setup AI-native per Project Manager: creazione task ClickUp da requisiti",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "clickup": {
+      "trust": true,
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.clickup.com/mcp"
+      ]
+    },
+    "gdrive": {
+      "command": "npx",
+      "args": [
+        "@piotr-agier/google-drive-mcp"
+      ],
+      "env": {
+        "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "${GOOGLE_DRIVE_OAUTH_CREDENTIALS}"
+      }
+    },
+    "figma": {
+      "trust": true,
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.figma.com/mcp"
+      ]
+    }
+  }
+}

@@ -17,7 +17,7 @@ CODEX_DIR="$DIST_DIR/codex"
 mkdir -p "$CODEX_DIR/.codex-plugin"
 mkdir -p "$CODEX_DIR/skills"
 
-# ── AGENTS.md — istruzioni di sistema ────────────────────────────────────────
+# ── AGENTS.md — istruzioni di sistema + PM-CONSTITUTION inline ───────────────
 {
   echo "# Codex System Instructions — $DESCRIPTION"
   echo ""
@@ -28,13 +28,23 @@ mkdir -p "$CODEX_DIR/skills"
   if [ -f "$AGENTS_TPL" ]; then
     echo "---"
     echo ""
-    # Adatta i comandi da /project:pm-* a nomi skill diretti
-    sed 's|`/project:pm-|`pm-|g; s|/project:pm-|pm-|g' "$AGENTS_TPL"
+    # Adatta i comandi da /pm-setup:pm-* a nomi skill diretti
+    sed 's|`/pm-setup:pm-|`pm-|g; s|/pm-setup:pm-|pm-|g' "$AGENTS_TPL"
+    echo ""
+  fi
+
+  # Inline PM-CONSTITUTION so Codex skills always have it in context
+  PM_CONST="$DIST_DIR/skills/setup/templates/PM-CONSTITUTION.md"
+  if [ -f "$PM_CONST" ]; then
+    echo "---"
+    echo ""
+    echo "<!-- PM-CONSTITUTION (bundled inline) -->"
+    cat "$PM_CONST"
     echo ""
   fi
 } > "$CODEX_DIR/AGENTS.md"
 
-ok "AGENTS.md generato per Codex"
+ok "AGENTS.md generato per Codex (con PM-CONSTITUTION inline)"
 
 # ── Governance ───────────────────────────────────────────────────────────────
 copy_governance "$CODEX_DIR" "Codex"
@@ -56,6 +66,7 @@ for SKILL_DIR in "$DIST_DIR/skills"/*/; do
   mkdir -p "$SKILL_DST"
 
   # Sanitizza: rimuovi righe frontmatter non supportate da Codex
+  # Rimuovi anche riferimenti a ${CLAUDE_SKILL_DIR} (PM-CONSTITUTION e' inlineato in AGENTS.md)
   awk '
     BEGIN { in_front=0; front_count=0 }
     /^---$/ {
@@ -65,7 +76,9 @@ for SKILL_DIR in "$DIST_DIR/skills"/*/; do
     }
     in_front && /^(model|user-invocable|disable-model-invocation):/ { next }
     { print }
-  ' "$SKILL_FILE" > "$SKILL_DST/SKILL.md"
+  ' "$SKILL_FILE" | \
+  sed 's|\${CLAUDE_SKILL_DIR}/\.\./setup/templates/PM-CONSTITUTION\.md|PM-CONSTITUTION.md (gia'\''\ inlineata in AGENTS.md — disponibile in contesto)|g' \
+  > "$SKILL_DST/SKILL.md"
 
   CODEX_SKILL_COUNT=$((CODEX_SKILL_COUNT + 1))
 done

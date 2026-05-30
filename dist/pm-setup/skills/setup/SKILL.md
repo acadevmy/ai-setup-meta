@@ -1,188 +1,47 @@
 ---
 name: setup
-description: Setup AI-Native per Project Manager. Configura MCP (ClickUp, Figma) e installa la governance per la creazione di task strutturati.
+description: Bundle carrier per PM-CONSTITUTION.md e file di governance. Non richiede esecuzione — il plugin pm-setup e' self-contained.
 model: sonnet
-user-invocable: true
+user-invocable: false
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: Read, Bash
 ---
 
-# PM Setup
+# pm-setup e' self-contained — nessun setup necessario
 
-Skill per configurare il workflow AI-Native per Project Manager.
-Le risorse sono bundled nel plugin — nessun download remoto necessario.
+Il plugin pm-setup non richiede una procedura di installazione nel progetto.
+Le skill, gli agent e la governance (PM-CONSTITUTION.md) sono bundled nel plugin.
 
----
+## MCP servers
 
-## Risorse locali
+I server MCP sono dichiarati in `.mcp.json` del plugin e vengono attivati automaticamente
+al primo utilizzo. Se un server non risulta disponibile, configuralo manualmente:
 
-Tutti i file template sono disponibili in:
-```
-${CLAUDE_SKILL_DIR}/templates/
-```
-
-Contiene: AGENTS.template.md, PM-CONSTITUTION.md, settings.json, .gitignore
-
----
-
-## Strategia di lettura
-
-I file si dividono in due categorie:
-
-- **Verbatim**: letti dal plugin e scritti direttamente nella destinazione finale (PM-CONSTITUTION, settings, .gitignore).
-- **Con trasformazione**: letti dal plugin, trasformati in memoria, poi scritti (AGENTS.template.md → AGENTS.md).
-
-**IMPORTANTE**: Skills e agents NON vengono installati nel progetto. Sono forniti dal plugin stesso e disponibili automaticamente.
-
----
-
-## Procedura completa
-
-Esegui i passi seguenti **nell'ordine indicato**. Non saltare nessun passo.
-
-### Passo 1 — Rileva la modalita'
-
-Analizza il progetto corrente per determinare la modalita' operativa:
-
-1. **UPDATE** — Se esistono gia' `PM-CONSTITUTION.md` E `AGENTS.md` nella root del progetto.
-   Chiedi al PM: "Il setup e' gia' stato eseguito. Vuoi aggiornare i file?"
-   Se risponde no, fermati.
-
-2. **FRESH** — In tutti gli altri casi. Il setup non e' stato ancora eseguito.
-
-Comunica la modalita' rilevata al PM prima di procedere.
-
----
-
-### Passo 2 — Installare le risorse (verbatim)
-
-Leggi i file dal plugin e scrivili nella root del progetto.
-
-#### 2.1 PM-CONSTITUTION.md
-
-Leggi `${CLAUDE_SKILL_DIR}/templates/PM-CONSTITUTION.md`.
-
-**Conflict detection**: se esiste gia' `PM-CONSTITUTION.md` nella root:
-- In modalita' UPDATE: sovrascrivi (e' l'intento dell'aggiornamento)
-- In modalita' FRESH: scrivi direttamente
-
-Scrivi in: `./PM-CONSTITUTION.md`
-
-#### 2.2 settings.json
-
-Leggi `${CLAUDE_SKILL_DIR}/templates/settings.json`.
-
-**Conflict detection**: se esiste gia' `.claude/settings.json`:
-- In modalita' UPDATE: sovrascrivi
-- In modalita' FRESH: crea la directory `.claude/` se non esiste, poi scrivi
-
-Scrivi in: `./.claude/settings.json`
-
-#### 2.3 .gitignore
-
-Leggi `${CLAUDE_SKILL_DIR}/templates/.gitignore`.
-
-**Conflict detection**: se esiste gia' `.gitignore`:
-- Leggi il contenuto esistente
-- Aggiungi SOLO le righe mancanti (non duplicare)
-
-Scrivi/aggiorna in: `./.gitignore`
-
----
-
-### Passo 3 — Generare AGENTS.md
-
-Leggi `${CLAUDE_SKILL_DIR}/templates/AGENTS.template.md`.
-
-Non ci sono placeholder da sostituire (a differenza del dev-setup che ha {{STACK_DESCRIPTION}}).
-Scrivi direttamente come `AGENTS.md`.
-
-Crea anche `CLAUDE.md` con il seguente contenuto:
-```
-@AGENTS.md
-```
-
----
-
-### Passo 4 — Configurare MCP servers
-
-#### 4.1 ClickUp (obbligatorio)
-
-Verifica se il MCP ClickUp e' gia' configurato (scope utente).
-
-Se NON configurato:
+**ClickUp** (obbligatorio):
 ```bash
 claude mcp add clickup --transport url https://mcp.clickup.com/mcp -s user
 ```
 
-Informa il PM: "Ho configurato il server MCP ClickUp. Al primo utilizzo ti verra' chiesto di autorizzare l'accesso."
-
-#### 4.2 Google Drive (consigliato)
-
-Chiedi al PM: "Vuoi configurare Google Drive per poter analizzare le trascrizioni dei meeting direttamente?"
-
-Se si', il PM deve prima configurare le credenziali OAuth Google:
-
-1. **Prerequisiti OAuth** — il PM (o l'admin IT) deve:
-   - Creare un progetto Google Cloud e abilitare le API: Drive, Docs, Calendar
-   - Configurare la schermata di consenso OAuth
-   - Creare credenziali OAuth di tipo "Desktop App"
-   - Scaricare il file JSON e rinominarlo `gcp-oauth.keys.json`
-
-2. **Configurazione MCP**:
-
+**Google Drive** (consigliato per pm-transcript):
 ```bash
 claude mcp add gdrive -e GOOGLE_DRIVE_OAUTH_CREDENTIALS=/path/to/gcp-oauth.keys.json -- npx @piotr-agier/google-drive-mcp -s user
 ```
 
-3. Al primo utilizzo, il browser si aprira' per autorizzare l'accesso al Google Drive del PM.
-
-Informa il PM: "Ho configurato Google Drive. Al primo utilizzo ti verra' chiesto di autorizzare l'accesso al tuo account Google tramite il browser."
-
-> **Tool esposti dal MCP**: `gdrive_search` (cercare file), `gdrive_read_file` (leggere contenuto).
-> Questi sono i tool usati dalla skill `/project:pm-transcript`.
-
-#### 4.3 Figma (opzionale)
-
-Chiedi al PM: "Vuoi configurare anche Figma per poter analizzare i design in futuro?"
-
-Se si':
+**Figma** (opzionale per pm-figma):
 ```bash
 claude mcp add figma --transport http https://mcp.figma.com/mcp -s user
 ```
 
----
+## Comandi disponibili
 
-### Passo 5 — Riepilogo
+Usa queste skill direttamente — non serve eseguire setup:
 
-Mostra un riepilogo al PM:
-
-```
-Setup PM completato!
-
-File installati:
-- PM-CONSTITUTION.md — regole di qualita' per i task
-- AGENTS.md — istruzioni per l'agente AI
-- CLAUDE.md — riferimento ad AGENTS.md
-- .claude/settings.json — permessi e configurazione
-- .gitignore — aggiornato
-
-MCP configurati:
-- ClickUp: <si/no>
-- Google Drive: <si/no>
-- Figma: <si/no>
-
-Comandi disponibili:
-- /project:pm-flow [PATH]   — flusso completo: documento → task ClickUp
-- /project:pm-intake [PATH] — analisi documento → Discovery Brief
-- /project:pm-transcript     — analisi trascrizioni Google Meet
-- /project:pm-figma <URL>    — analisi design Figma → task
-- /project:pm-structure      — brief → gerarchia Epic/Story/Task
-- /project:pm-refine         — validazione INVEST + Acceptance Criteria
-- /project:pm-review         — revisione e approvazione
-- /project:pm-publish        — pubblicazione su ClickUp
-
-Per iniziare:
-- Con un documento: esegui /project:pm-flow con il path del file
-- Con un meeting: esegui /project:pm-transcript per scegliere una trascrizione
-```
+- `/pm-setup:pm-flow [PATH]`   — flusso completo: documento → task ClickUp
+- `/pm-setup:pm-intake [PATH]` — analisi documento → Discovery Brief
+- `/pm-setup:pm-transcript`    — analisi trascrizioni Google Meet
+- `/pm-setup:pm-figma <URL>`   — analisi design Figma → task
+- `/pm-setup:pm-structure`     — brief → gerarchia Epic/Story/Task
+- `/pm-setup:pm-refine`        — validazione INVEST + Acceptance Criteria Gherkin
+- `/pm-setup:pm-review`        — revisione e approvazione con il PM
+- `/pm-setup:pm-lint`          — validazione formato rigido (pre-publish)
+- `/pm-setup:pm-publish`       — pubblicazione su ClickUp

@@ -1,6 +1,6 @@
 description = "Genera la gerarchia Epic/User Story/Task a partire da un Discovery Brief. Applica User Story Mapping per organizzare i requisiti in task strutturati."
 prompt = """
-Leggi il file PM-CONSTITUTION.md prima di procedere.
+Le regole di PM-CONSTITUTION sono gia' disponibili nel tuo contesto.
 
 Esegui la seguente skill. Se l'utente ha fornito argomenti, usali come input.
 
@@ -39,7 +39,7 @@ Controlla che nel contesto della conversazione sia presente un Discovery Brief
 
 ### 2. Leggere PM-CONSTITUTION.md
 
-Leggi `PM-CONSTITUTION.md` per verificare:
+Leggi `PM-CONSTITUTION.md (disponibile in contesto)` per verificare:
 - Formati obbligatori per Epic, User Story e Task
 - Criteri INVEST da rispettare
 - Naming conventions
@@ -99,6 +99,10 @@ Non creare mai Epic → User Story → Task (3 livelli).
 
 **Questo e' il punto dove l'AI colma il gap tecnico**: il PM non deve specificare i task tecnici,
 l'AI li genera basandosi sulla sua conoscenza di come si implementano le funzionalita' software.
+
+Se il Discovery Brief contiene un **ProjectContext** con stack rilevato, usa quelle informazioni
+per rendere le note `[AI-suggested]` specifiche allo stack (es. se stack = "Next.js 14",
+scrivi "[AI-suggested] Usa un Server Action per la mutazione" invece di un riferimento generico).
 
 **Formato obbligatorio per ogni Task:**
 ```
