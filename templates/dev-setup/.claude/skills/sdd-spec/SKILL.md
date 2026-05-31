@@ -110,6 +110,27 @@ List of main test cases to implement.>
 - Test 2: <description>
 - ...
 
+## Simplify phase
+<Stato di esecuzione della skill `simplify` dopo lo sviluppo.
+Da compilare dal flusso `/project:sdd-dev` (step Simplify) al termine dell'esecuzione.>
+
+- **Stato**: pending | completata | skipped
+- **Data**: <YYYY-MM-DD quando eseguita, altrimenti "—">
+- **Esito**: <`changes-applied` | `no-changes` | `skipped` quando completata, altrimenti "—">
+- **Modifiche applicate**: <elenco sintetico dei file/refactor applicati, oppure "nessuna">
+- **Note**: <eventuali osservazioni, file fuori scope, motivi di skip>
+
+## Review phase
+<Stato di esecuzione della skill `/project:review` dopo lo sviluppo.
+Da compilare dal flusso `/project:review` al termine dell'esecuzione.>
+
+- **Stato**: pending | completata
+- **Data**: <YYYY-MM-DD quando eseguita, altrimenti "—">
+- **Esito**: <`pass` | `pass-with-warnings` | `fail` quando completata, altrimenti "—">
+- **Violazioni**: <numero di violazioni CONSTITUTION rilevate, oppure 0>
+- **Warning**: <elenco sintetico W-1, W-2, ... con motivazione, oppure "nessuno">
+- **REGISTRY updates**: <numero entry applicate + breve riassunto add/update per sezione, oppure "nessuna">
+
 ## Notes
 <Risks, open questions, additional considerations, useful references.>
 ```
@@ -120,6 +141,7 @@ List of main test cases to implement.>
 - The implementation plan must be ordered by dependencies (foundations first, then features)
 - Reuse components and patterns already present in REGISTRY.md
 - Test cases must cover the listed requirements
+- Le sezioni `## Simplify phase` e `## Review phase` devono essere generate sempre con stato `pending` (placeholder "—" nei campi data/esito): verranno compilate automaticamente dai flussi `/project:sdd-dev` e `/project:review` al termine dell'esecuzione
 
 ### 6. Show the spec
 

@@ -140,6 +140,15 @@ After all steps are completed, run the `simplify` skill to:
 - Fix any issues found
 - If there are changes, commit them: `refactor(<scope>): simplify implementation`
 
+**Track the outcome in the spec**: at the end of the simplify run, update the `## Simplify phase` section of the loaded spec file with:
+- `Stato`: `completata` (oppure `skipped` se la skill non è stata eseguita per qualche motivo documentato)
+- `Data`: data odierna in formato `YYYY-MM-DD`
+- `Esito`: `changes-applied` se sono state committate modifiche, `no-changes` se il diff era già minimale, `skipped` con motivo
+- `Modifiche applicate`: elenco sintetico dei file modificati o `nessuna`
+- `Note`: eventuali file fuori scope, osservazioni o motivi di skip
+
+Sovrascrivi la sezione esistente preservando il resto dello spec. Non creare un commit dedicato per questa annotazione: includila nel commit successivo, oppure committala insieme al `refactor(<scope>): simplify implementation` se ci sono modifiche.
+
 ### 6. Summary
 
 Present a summary of what was implemented:
