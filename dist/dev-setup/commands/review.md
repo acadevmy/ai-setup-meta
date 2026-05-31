@@ -47,7 +47,24 @@ If the agent returned non-empty REGISTRY_UPDATES:
    - Find the existing entry in the section and update the modified fields
 4. Commit the update: `docs(registry): update REGISTRY.md`
 
-### 4. Final report
+### 4. Track the outcome in the spec
+
+Locate the spec for the current task:
+- Extract the customId from the current branch name (e.g. `feat/DE-123-desc` → `DE-123`)
+- Find `.specs/<customId>-*.md`
+- If no spec exists, skip this step (the review was likely invoked outside the SDD flow)
+
+Update the `## Review phase` section of the spec with:
+- `Stato`: `completata`
+- `Data`: data odierna in formato `YYYY-MM-DD`
+- `Esito`: il valore di STATUS restituito dal Review Agent (`pass`, `pass-with-warnings`, `fail`)
+- `Violazioni`: numero di violazioni CONSTITUTION rilevate
+- `Warning`: elenco sintetico dei warning con motivazione (es. `W-1: missing test for X`), oppure `nessuno`
+- `REGISTRY updates`: numero di entry applicate + breve riassunto add/update per sezione, oppure `nessuna`
+
+Sovrascrivi la sezione esistente preservando il resto dello spec. Se sono già stati prodotti commit di REGISTRY (`docs(registry): update REGISTRY.md`), includi l'aggiornamento dello spec in un commit aggiuntivo `docs(spec): track review outcome` oppure aggiungilo allo stesso commit di REGISTRY se la stage è ancora aperta.
+
+### 5. Final report
 
 Show a summary:
 ```
@@ -55,6 +72,7 @@ Review: <STATUS>
 Violations: <count>
 Warnings: <count>
 REGISTRY updated: <yes/no>
+Spec updated: <yes/no>
 
 <SUMMARY from agent>
 ```
@@ -63,3 +81,4 @@ REGISTRY updated: <yes/no>
 - CONSTITUTION compliance report
 - `REGISTRY.md` updated with new entries (if any)
 - Commit `docs(registry): update REGISTRY.md` (if registry changes)
+- Spec file aggiornato con la sezione `## Review phase` compilata (se lo spec esiste)
