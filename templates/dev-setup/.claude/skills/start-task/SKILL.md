@@ -1,6 +1,6 @@
 ---
 name: start-task
-description: Esegue l'intero flusso Spec-Driven Development (SDD) end-to-end in modalita' autonoma. Sostituisce ogni checkpoint umano (discovery, approvazione spec/plan, scelta metodologia, OK finale, apertura MR) con agenti AI. Invocare questa skill significa attivare l'auto-mode — non esistono flag.
+description: Runs the entire Spec-Driven Development (SDD) flow end-to-end in autonomous mode. Replaces every human checkpoint (discovery, spec/plan approval, methodology choice, final OK, MR opening) with AI agents. Invoking this skill means activating auto-mode — there are no flags.
 model: opus
 user-invocable: true
 disable-model-invocation: true
@@ -8,72 +8,72 @@ disable-model-invocation: true
 
 # /project:start-task
 
-Esegue l'intero flusso Spec-Driven Development (SDD) per un task ClickUp in modalita'
-**completamente autonoma**: dalla selezione del task all'apertura della MR/PR, senza
-alcuna `AskUserQuestion` rivolta all'umano.
+Runs the entire Spec-Driven Development (SDD) flow for a ClickUp task in
+**fully autonomous** mode: from task selection to opening the MR/PR, with no
+`AskUserQuestion` directed at the human.
 
-**Invocare `start-task` equivale ad attivare l'auto-mode**: non e' un flag, e' il
-comportamento intrinseco della skill. La modalita' interattiva resta disponibile via
-l'orchestratore `sdd` (che non viene modificato).
+**Invoking `start-task` is equivalent to activating auto-mode**: it is not a flag, it is the
+intrinsic behavior of the skill. Interactive mode remains available through the
+`sdd` orchestrator (which is not modified).
 
 **Usage**: `/project:start-task [TASK_ID]`
-- Con `TASK_ID` (es. `DE-123`): elabora quel task
-- Senza argomenti: prende il prossimo task in `SPRINT` dalla lista `CLICKUP_SETUP_LIST_ID`
+- With `TASK_ID` (e.g. `DE-123`): processes that task
+- Without arguments: takes the next task in `SPRINT` from the `CLICKUP_SETUP_LIST_ID` list
 
-## CRITICAL — Comportamento in auto-mode
+## CRITICAL — Behavior in auto-mode
 
-- **Nessuna `AskUserQuestion` puo' essere invocata**: ogni decisione passa per un agent
-  (`sdd-discovery-responder`, `sdd-approver`, `sdd-methodology-picker`) o per una regola
-  deterministica documentata
-- **Lo Stop hook silenzioso non si applica**: in auto-mode non c'e' attesa umana, quindi
-  il pattern "STOP dopo AskUserQuestion" non e' previsto. Se lo Stop hook segnala lavoro
-  incompleto, completa effettivamente il lavoro o esegui il bail-out
-- **Bound dei loop**: ogni loop ha un limite massimo di iterazioni (vedi tabella sotto).
-  Superato il bound senza convergenza → bail-out
-- **Skill SDD non modificabili**: questa skill orchestra le skill `sdd-spec`, `sdd-dev`,
-  `verify`, `simplify`, `review` ma **non puo' modificarne il comportamento interno**.
-  Le skill interattive (`sdd-discovery`, `sdd-plan`) **NON vanno invocate**: i loro output
-  vengono prodotti dagli agent dedicati di questa skill
+- **No `AskUserQuestion` may be invoked**: every decision goes through an agent
+  (`sdd-discovery-responder`, `sdd-approver`, `sdd-methodology-picker`) or a documented
+  deterministic rule
+- **The silent Stop hook does not apply**: in auto-mode there is no human wait, so
+  the "STOP after AskUserQuestion" pattern is not expected. If the Stop hook reports
+  incomplete work, actually complete the work or perform the bail-out
+- **Loop bounds**: every loop has a maximum number of iterations (see table below).
+  Exceeding the bound without convergence → bail-out
+- **SDD skills are not modifiable**: this skill orchestrates the `sdd-spec`, `sdd-dev`,
+  `verify`, `simplify`, `review` skills but **cannot modify their internal behavior**.
+  The interactive skills (`sdd-discovery`, `sdd-plan`) **must NOT be invoked**: their outputs
+  are produced by the dedicated agents of this skill
 
-| Loop | Bound massimo |
+| Loop | Maximum bound |
 |---|---|
-| Domande di discovery (Q/A tra intervistatore e responder) | 12 |
-| Iterazioni di revisione spec (`sdd-approver` su `MODE: spec`) | 3 |
-| Iterazioni di revisione plan (`sdd-approver` su `MODE: plan`) | 3 |
-| Rientri da `verify` fail | 3 |
+| Discovery questions (Q/A between interviewer and responder) | 12 |
+| Spec review iterations (`sdd-approver` on `MODE: spec`) | 3 |
+| Plan review iterations (`sdd-approver` on `MODE: plan`) | 3 |
+| Re-entries from `verify` fail | 3 |
 
-## Flusso completo
+## Complete flow
 
-### 1. Selezione del task
+### 1. Task selection
 
-**Se `$ARGUMENTS` contiene un TASK_ID**:
-- Lancia l'agent `clickup` con:
+**If `$ARGUMENTS` contains a TASK_ID**:
+- Launch the `clickup` agent with:
   - INTENT: `read`
   - PARAMS: `task_id: <TASK_ID>`
-- Se l'agent restituisce STATUS: error → bail-out con motivo
+- If the agent returns STATUS: error → bail-out with reason
 
-**Se `$ARGUMENTS` e' vuoto**:
-- Leggi `CLICKUP_SETUP_LIST_ID` dal file `.env` nella root del progetto
-- Se la variabile non e' configurata → bail-out (`Configurare CLICKUP_SETUP_LIST_ID in .env`)
-- Lancia l'agent `clickup` con:
+**If `$ARGUMENTS` is empty**:
+- Read `CLICKUP_SETUP_LIST_ID` from the `.env` file in the project root
+- If the variable is not configured → bail-out (`Configure CLICKUP_SETUP_LIST_ID in .env`)
+- Launch the `clickup` agent with:
   - INTENT: `filter`
   - PARAMS: `list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`
-- Se l'agent restituisce STATUS: error → bail-out con motivo
-- Se la lista e' vuota → stop pulito ("Nessun task in SPRINT")
-- Ordina i risultati per `priority` (1=urgent ... 4=low) e prendi il **primo**
-- Lancia l'agent `clickup` con INTENT: `read` per recuperare il contenuto completo del task scelto
+- If the agent returns STATUS: error → bail-out with reason
+- If the list is empty → clean stop ("No task in SPRINT")
+- Sort the results by `priority` (1=urgent ... 4=low) and take the **first** one
+- Launch the `clickup` agent with INTENT: `read` to retrieve the full content of the chosen task
 
-Dall'output estrai: `custom_id`, `name`, `description`, `priority`, `task_id`, `url`.
+From the output extract: `custom_id`, `name`, `description`, `priority`, `task_id`, `url`.
 
-### 2. Creazione del branch
+### 2. Branch creation
 
-Determina il tipo dal titolo/descrizione del task:
+Determine the type from the task title/description:
 - Feature → `feat/`
 - Bug → `fix/`
-- Manutenzione → `chore/`
+- Maintenance → `chore/`
 
-**Base branch**: usa il default del repository (in ordine: `main`, `master`, `develop` —
-prendi il primo che esiste). Nessuna `AskUserQuestion`.
+**Base branch**: use the repository default (in order: `main`, `master`, `develop` —
+take the first that exists). No `AskUserQuestion`.
 
 ```bash
 git checkout <base-branch>
@@ -81,194 +81,194 @@ git pull origin <base-branch>
 git checkout -b <type>/<customId>-<short-description>
 ```
 
-Esempio: `feat/DE-123-add-user-auth`.
+Example: `feat/DE-123-add-user-auth`.
 
-Se la creazione del branch fallisce → bail-out.
+If branch creation fails → bail-out.
 
-### 3. Update stato task
+### 3. Task status update
 
-Lancia l'agent `clickup` con:
+Launch the `clickup` agent with:
 - INTENT: `update`
 - PARAMS: `task_id: <task_id>, status: IN PROGRESS`
 
-### 4. Discovery autonoma a due agenti
+### 4. Autonomous two-agent discovery
 
-Sostituisce l'intervista interattiva di `sdd-discovery`. **Non invocare `/project:sdd-discovery`**:
-quella skill apre `AskUserQuestion` ed e' incompatibile con l'auto-mode.
+Replaces the interactive interview of `sdd-discovery`. **Do not invoke `/project:sdd-discovery`**:
+that skill opens `AskUserQuestion` and is incompatible with auto-mode.
 
-Esegui un loop tra **due ruoli interni a questa skill**:
+Run a loop between **two roles internal to this skill**:
 
-**Ruolo A — Intervistatore** (gestito dalla skill, non come agent separato)
-- Adotta il framework di `sdd-discovery`: 4 fasi `Core Value` → `Happy Path` → `Edge Cases` → `Constraints`
-- Per ogni fase, formula una domanda alla volta con 2-4 opzioni preformulate (closed-first)
-- Massimo 10-12 domande complessive (bound del loop)
+**Role A — Interviewer** (handled by the skill, not as a separate agent)
+- Adopt the `sdd-discovery` framework: 4 phases `Core Value` → `Happy Path` → `Edge Cases` → `Constraints`
+- For each phase, formulate one question at a time with 2-4 pre-formulated options (closed-first)
+- At most 10-12 questions overall (loop bound)
 
-**Ruolo B — Responder** (delegato all'agent `sdd-discovery-responder`)
-- Per ogni domanda, lancia l'agent `sdd-discovery-responder` con:
-  - `TASK_CONTEXT`: campi estratti allo Step 1
-  - `PHASE`: fase corrente
-  - `QUESTION`: domanda formulata dall'intervistatore
-  - `OPTIONS`: opzioni preformulate (incluso "Da definire" quando ha senso)
-  - `HISTORY`: tutte le Q/A gia' scambiate
-- L'agent restituisce un blocco `---DISCOVERY-ANSWER---` con `CHOICE`, `ANSWER`,
+**Role B — Responder** (delegated to the `sdd-discovery-responder` agent)
+- For each question, launch the `sdd-discovery-responder` agent with:
+  - `TASK_CONTEXT`: fields extracted at Step 1
+  - `PHASE`: current phase
+  - `QUESTION`: question formulated by the interviewer
+  - `OPTIONS`: pre-formulated options (including "To be defined" when it makes sense)
+  - `HISTORY`: all the Q/A already exchanged
+- The agent returns a `---DISCOVERY-ANSWER---` block with `CHOICE`, `ANSWER`,
   `RATIONALE`, `GRAY_AREA`
 
-**Convergenza**:
-- Termina quando tutte e 4 le fasi sono coperte con risposte non ambigue **oppure**
-  al raggiungimento del bound (12 Q/A)
-- Se al bound restano fasi scoperte → bail-out
+**Convergence**:
+- End when all 4 phases are covered with unambiguous answers **or**
+  when the bound is reached (12 Q/A)
+- If phases remain uncovered at the bound → bail-out
 
-**Output**: ricostruisci il Discovery Summary nel formato identico a quello di
-`sdd-discovery` (sezioni `Core Value`, `Happy Path`, `Edge Cases and Error Handling`,
-`Constraints and Preferences`, `Existing Components to Reuse`, `Gray Areas`) e tienilo
-in contesto per lo step successivo.
+**Output**: rebuild the Discovery Summary in the format identical to that of
+`sdd-discovery` (sections `Core Value`, `Happy Path`, `Edge Cases and Error Handling`,
+`Constraints and Preferences`, `Existing Components to Reuse`, `Gray Areas`) and keep it
+in context for the next step.
 
-### 5. Generazione spec
+### 5. Spec generation
 
-Invoca `/project:sdd-spec` passando: `TASK_CONTEXT` (custom_id, name, description, url,
-branch) + Discovery Summary prodotto allo Step 4.
+Invoke `/project:sdd-spec` passing: `TASK_CONTEXT` (custom_id, name, description, url,
+branch) + the Discovery Summary produced at Step 4.
 
-La skill `sdd-spec` non e' interattiva e produce `.specs/<customId>-<slug>.md` con
+The `sdd-spec` skill is not interactive and produces `.specs/<customId>-<slug>.md` with
 status `draft`.
 
-### 6. Approvazione spec da agent (loop bounded)
+### 6. Spec approval by agent (bounded loop)
 
-Sostituisce `sdd-plan` (interattivo, vietato in auto-mode).
+Replaces `sdd-plan` (interactive, forbidden in auto-mode).
 
-Inizializza `ITERATION = 1`, `MAX_ITERATIONS = 3`.
+Initialize `ITERATION = 1`, `MAX_ITERATIONS = 3`.
 
 Loop:
-1. Lancia l'agent `sdd-approver` con:
-   - `SPEC_PATH`: path della spec generata
+1. Launch the `sdd-approver` agent with:
+   - `SPEC_PATH`: path of the generated spec
    - `MODE`: `spec`
-   - `DISCOVERY_SUMMARY`: il summary prodotto allo Step 4
+   - `DISCOVERY_SUMMARY`: the summary produced at Step 4
    - `ITERATION`, `MAX_ITERATIONS`
-2. Se `STATUS: approved` → esci dal loop, aggiorna il frontmatter della spec:
+2. If `STATUS: approved` → exit the loop, update the spec frontmatter:
    - `Status: draft` → `Status: approved`
    - `Approved: <YYYY-MM-DD>`
-3. Se `STATUS: changes-requested`:
-   - Applica i `CHANGES_REQUESTED` direttamente al file della spec (Edit/Write)
+3. If `STATUS: changes-requested`:
+   - Apply the `CHANGES_REQUESTED` directly to the spec file (Edit/Write)
    - `ITERATION += 1`
-   - Se `ITERATION > MAX_ITERATIONS` → bail-out con elenco delle violazioni residue
-   - Altrimenti torna al punto 1
-4. Se `STATUS: error` → bail-out
+   - If `ITERATION > MAX_ITERATIONS` → bail-out with the list of remaining violations
+   - Otherwise go back to point 1
+4. If `STATUS: error` → bail-out
 
-### 7. Approvazione plan da agent (loop bounded)
+### 7. Plan approval by agent (bounded loop)
 
-Stesso meccanismo dello Step 6 ma con `MODE: plan`. Bound: 3 iterazioni.
+Same mechanism as Step 6 but with `MODE: plan`. Bound: 3 iterations.
 
-Al termine, la spec resta in stato `approved`.
+At the end, the spec remains in `approved` status.
 
-### 8. Scelta della metodologia da agent
+### 8. Methodology choice by agent
 
-Lancia l'agent `sdd-methodology-picker` con:
-- `SPEC_PATH`: path della spec approvata
-- `TASK_CONTEXT`: campi del task
+Launch the `sdd-methodology-picker` agent with:
+- `SPEC_PATH`: path of the approved spec
+- `TASK_CONTEXT`: task fields
 
-L'agent restituisce `METHODOLOGY` (`tdd` | `bdd` | `none`) e `RATIONALE`. Traccia la
-scelta nel log della skill (non modificare la spec — la metodologia si passa a `sdd-dev`).
+The agent returns `METHODOLOGY` (`tdd` | `bdd` | `none`) and `RATIONALE`. Track the
+choice in the skill log (do not modify the spec — the methodology is passed to `sdd-dev`).
 
-### 9. Sviluppo
+### 9. Development
 
-Invoca `/project:sdd-dev` passando:
-- `SPEC_REF`: path della spec approvata
-- `METHODOLOGY`: la metodologia scelta dall'agent allo Step 8
+Invoke `/project:sdd-dev` passing:
+- `SPEC_REF`: path of the approved spec
+- `METHODOLOGY`: the methodology chosen by the agent at Step 8
 
-`sdd-dev` esegue il piano. Non richiede input umano in auto-mode (la skill ha gia' la
-metodologia esplicita e la spec approvata).
+`sdd-dev` executes the plan. It requires no human input in auto-mode (the skill already has
+the explicit methodology and the approved spec).
 
-### 10. Quality gate automatici
+### 10. Automatic quality gates
 
-Eseguili nell'ordine:
+Run them in order:
 
-1. **simplify** — invoca la skill `simplify` (se presente). In auto-mode, accetta
-   automaticamente le modifiche proposte e committale come
+1. **simplify** — invoke the `simplify` skill (if present). In auto-mode, automatically
+   accept the proposed changes and commit them as
    `refactor(<scope>): simplify implementation`
-2. **verify** — invoca `/project:verify`
-   - Se `STATUS: pass` → procedi
-   - Se `STATUS: pass-with-warnings` → procedi loggando i warning
-   - Se `STATUS: fail` → rientra a Step 9 (sviluppo) con il dettaglio dei requirement
-     mancanti. Bound: 3 rientri totali. Superato il bound → bail-out
-3. **review** — invoca `/project:review`
-   - Se `STATUS: pass` o `pass-with-warnings` → procedi
-   - Se `STATUS: fail` con violazioni auto-risolvibili (es. `any` sostituibili con un
-     tipo concreto evidente dalla spec) → applicale e re-invoca `review` (max 1 rientro)
-   - Se `STATUS: fail` con violazioni non auto-risolvibili → bail-out
+2. **verify** — invoke `/project:verify`
+   - If `STATUS: pass` → proceed
+   - If `STATUS: pass-with-warnings` → proceed, logging the warnings
+   - If `STATUS: fail` → re-enter at Step 9 (development) with the detail of the missing
+     requirements. Bound: 3 total re-entries. Exceeding the bound → bail-out
+3. **review** — invoke `/project:review`
+   - If `STATUS: pass` or `pass-with-warnings` → proceed
+   - If `STATUS: fail` with auto-resolvable violations (e.g. `any` replaceable with a
+     concrete type evident from the spec) → apply them and re-invoke `review` (max 1 re-entry)
+   - If `STATUS: fail` with non-auto-resolvable violations → bail-out
 
-### 11. Push + apertura MR/PR
+### 11. Push + opening the MR/PR
 
-Push del branch:
+Push the branch:
 ```bash
 git push -u origin <branch-name>
 ```
 
-Invoca la skill VCS-ops attiva (`github-ops` per remote GitHub, `gitlab-ops` per remote
-GitLab — self-identify). Titolo e body:
+Invoke the active VCS-ops skill (`github-ops` for GitHub remotes, `gitlab-ops` for GitLab
+remotes — self-identify). Title and body:
 
-- **Titolo**: Conventional Commits con customId
-  - es. `feat(auth): add refresh token rotation [DE-123]`
-- **Body**: include sezioni **What / Why / How to test** + link al task ClickUp + link
-  alla spec. Su GitLab segue il template `.gitlab/merge_request_templates/Default.md`
-  quando presente (vedi `gitlab-ops`)
+- **Title**: Conventional Commits with customId
+  - e.g. `feat(auth): add refresh token rotation [DE-123]`
+- **Body**: includes **What / Why / How to test** sections + link to the ClickUp task + link
+  to the spec. On GitLab it follows the `.gitlab/merge_request_templates/Default.md` template
+  when present (see `gitlab-ops`)
 
-Nessuna `AskUserQuestion` prima dell'apertura: l'autorizzazione e' implicita
-nell'invocazione di `start-task`.
+No `AskUserQuestion` before opening: authorization is implicit in the invocation of
+`start-task`.
 
-### 12. Chiusura
+### 12. Closure
 
-1. Lancia l'agent `clickup` con:
+1. Launch the `clickup` agent with:
    - INTENT: `update`
    - PARAMS: `task_id: <task_id>, status: CODE REVIEW`
-   - Fallback: se `CODE REVIEW` non esiste nella lista, usa `IN REVIEW`
-2. Aggiorna il frontmatter della spec: `Status: approved` → `Status: implemented`
+   - Fallback: if `CODE REVIEW` does not exist in the list, use `IN REVIEW`
+2. Update the spec frontmatter: `Status: approved` → `Status: implemented`
 
 ## Bail-out
 
-Si attiva quando uno step fallisce o un loop non converge entro il bound.
+Triggered when a step fails or a loop does not converge within the bound.
 
-Procedura:
-1. **Non** eliminare il branch locale (utile per debug umano)
-2. Lancia l'agent `clickup` con:
+Procedure:
+1. **Do not** delete the local branch (useful for human debugging)
+2. Launch the `clickup` agent with:
    - INTENT: `update`
    - PARAMS: `task_id: <task_id>, status: BLOCKED`
-3. Lancia l'agent `clickup` con:
+3. Launch the `clickup` agent with:
    - INTENT: `comment`
    - PARAMS: `task_id: <task_id>, text: "⛔ Pipeline start-task (auto-mode) bloccata.\n\n**Step fallito**: <numero>\n**Motivo**: <descrizione>\n**Branch locale**: <branch>\n\nAzioni suggerite:\n- <suggerimento>"`
-4. Esci con errore riportando `task_id`, `custom_id`, branch, motivo
+4. Exit with an error reporting `task_id`, `custom_id`, branch, reason
 
-Recovery (lato umano): risolto il blocco, riporta il task in `SPRINT`. Una nuova
-invocazione di `start-task` ripeschera' il task.
+Recovery (human side): once the blocker is resolved, move the task back to `SPRINT`. A new
+invocation of `start-task` will pick the task up again.
 
-## Output atteso
+## Expected output
 
-- Branch creato con customId nel nome
-- Spec in `.specs/` con status `implemented`
-- Codice implementato seguendo la spec approvata
-- Codice ottimizzato (simplify), verificato vs spec (verify), CONSTITUTION-compliant (review)
-- `REGISTRY.md` aggiornato con le nuove entry
-- Task ClickUp: `SPRINT` → `IN PROGRESS` → `CODE REVIEW`
-- MR/PR aperta (GitHub o GitLab a seconda del provider) con riferimenti a task e spec
-- Nessuna `AskUserQuestion` invocata durante l'intero flusso
+- Branch created with the customId in the name
+- Spec in `.specs/` with status `implemented`
+- Code implemented following the approved spec
+- Code optimized (simplify), verified against the spec (verify), CONSTITUTION-compliant (review)
+- `REGISTRY.md` updated with the new entries
+- ClickUp task: `SPRINT` → `IN PROGRESS` → `CODE REVIEW`
+- MR/PR opened (GitHub or GitLab depending on the provider) with references to the task and spec
+- No `AskUserQuestion` invoked during the entire flow
 
-## Vincoli — riassunto
+## Constraints — summary
 
-- **NON modificare** le skill SDD (`sdd`, `sdd-discovery`, `sdd-spec`, `sdd-plan`,
+- **DO NOT modify** the SDD skills (`sdd`, `sdd-discovery`, `sdd-spec`, `sdd-plan`,
   `sdd-dev`, `verify`, `simplify`, `review`, `tdd`, `bdd`)
-- **NON invocare** in auto-mode le skill interattive (`sdd-discovery`, `sdd-plan`):
-  i loro output sono prodotti rispettivamente dal loop discovery dello Step 4 e
-  dall'agent `sdd-approver`
-- L'auto-mode e' il comportamento di default e unico di `start-task`. La modalita'
-  interattiva e' coperta da `/project:sdd` (immutato)
+- **DO NOT invoke** in auto-mode the interactive skills (`sdd-discovery`, `sdd-plan`):
+  their outputs are produced respectively by the discovery loop of Step 4 and
+  by the `sdd-approver` agent
+- Auto-mode is the default and only behavior of `start-task`. Interactive mode
+  is covered by `/project:sdd` (unchanged)
 
-## Note sulle varianti (Claude / Codex / Gemini)
+## Notes on the variants (Claude / Codex / Gemini)
 
-Gli agent `sdd-discovery-responder`, `sdd-approver` e `sdd-methodology-picker` richiedono
-il supporto a sub-agent isolati. **Questa skill funziona pienamente in Claude Code**, che
-supporta i sub-agent nativamente.
+The `sdd-discovery-responder`, `sdd-approver` and `sdd-methodology-picker` agents require
+support for isolated sub-agents. **This skill works fully in Claude Code**, which
+supports sub-agents natively.
 
-Per le varianti che non supportano sub-agent isolati (es. Codex / Gemini al momento della
-generazione), gli agent vengono eseguiti come prompt strutturati nello stesso contesto:
-il formato di output `---DISCOVERY-ANSWER---`, `---APPROVAL-RESULT---`,
-`---METHODOLOGY-CHOICE---` resta lo stesso, e i builder dedicati (`build-codex.sh`,
-`build-gemini.sh`) decidono come distribuire questi agent. Verifica i limiti specifici
-nel README della variante.
+For variants that do not support isolated sub-agents (e.g. Codex / Gemini at the time of
+generation), the agents are run as structured prompts in the same context:
+the output format `---DISCOVERY-ANSWER---`, `---APPROVAL-RESULT---`,
+`---METHODOLOGY-CHOICE---` stays the same, and the dedicated builders (`build-codex.sh`,
+`build-gemini.sh`) decide how to distribute these agents. Check the specific limits
+in the variant README.

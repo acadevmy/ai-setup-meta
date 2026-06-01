@@ -8,7 +8,10 @@
   "skills": "./skills",
   "agents": [
     "./agents/clickup.md",
-    "./agents/review.md"
+    "./agents/review.md",
+    "./agents/sdd-approver.md",
+    "./agents/sdd-discovery-responder.md",
+    "./agents/sdd-methodology-picker.md"
   ],
   "mcpServers": "./mcp.json",
   "hooks": "./hooks/hooks.cursor.json",
