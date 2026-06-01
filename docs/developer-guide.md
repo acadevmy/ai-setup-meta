@@ -12,16 +12,16 @@ e vuole iniziare a lavorare con il workflow AI-native.
 Il flusso di lavoro quotidiano segue questo ciclo:
 
 ```
-Task su ClickUp (TO DO)
+Task su ClickUp (SPRINT)
        │
        ▼
-/project:start-task DE-123
+/project:sdd DE-123            ← flusso interattivo (consigliato)
   → crea branch feat/DE-123-descrizione
   → task passa a IN PROGRESS
-  → mostra il brief del task
+  → discovery + spec tecnica + approvazione
        │
        ▼
-Scrivi codice con Claude Code
+Sviluppo guidato dalla spec
   → backend: ciclo TDD (Red → Green → Refactor)
   → frontend: ciclo BDD (Given/When/Then)
        │
@@ -44,6 +44,9 @@ Push + Pull Request
        ▼
 Merge → semantic-release (se greenfield)
 ```
+
+> In alternativa, `/project:auto-sdd DE-123` esegue **l'intero** flusso in
+> autonomia — dalla discovery alla PR — senza alcun checkpoint manuale.
 
 ---
 
@@ -80,20 +83,25 @@ Apri Claude Code nella root del tuo progetto:
 claude
 ```
 
-Poi lancia il comando con l'ID del task ClickUp:
+Poi lancia il flusso SDD interattivo con l'ID del task ClickUp:
 
 ```
-/project:start-task DE-123
+/project:sdd DE-123
 ```
 
 Claude Code:
 1. Recupera i dettagli del task da ClickUp (titolo, descrizione, acceptance criteria)
 2. Crea il branch seguendo la convenzione: `feat/DE-123-descrizione-breve`
 3. Aggiorna lo stato del task su ClickUp a **IN PROGRESS**
-4. Ti mostra un riepilogo del task e propone un piano di implementazione
+4. Conduce una discovery interattiva, genera la spec tecnica e te la sottopone
+   per approvazione prima di procedere allo sviluppo
 
-> **Senza ID?** Puoi lanciare `/project:start-task` senza argomenti — Claude Code
+> **Senza ID?** Puoi lanciare `/project:sdd` senza argomenti — Claude Code
 > ti mostrera' i task assegnati a te nello sprint corrente.
+
+> **Tutto in autonomia?** `/project:auto-sdd DE-123` esegue lo stesso flusso
+> end-to-end (discovery → spec → sviluppo → review → PR) **senza** checkpoint
+> interattivi: utile per task ben definiti o esecuzioni unattended (CI, batch).
 
 ### 3.2 Sviluppa con TDD o BDD
 
@@ -176,7 +184,7 @@ glab mr create --source-branch feat/DE-123-descrizione-breve \
                --title "..." --description "..."
 ```
 
-Le skill di workflow (`/dev-setup:start-task`, `/dev-setup:sdd`) richiamano automaticamente la
+Le skill di workflow (`/dev-setup:sdd`, `/dev-setup:auto-sdd`) richiamano automaticamente la
 skill VCS corretta (`github-ops` o `gitlab-ops`) in base al remote `origin`. Su GitLab, il corpo
 dell'MR segue `.gitlab/merge_request_templates/Default.md` se presente nel repo.
 
@@ -242,7 +250,8 @@ sia scritto da te che da Claude Code.
 
 | Comando | Quando usarlo |
 |---|---|
-| `/project:start-task [ID]` | Inizio lavoro su un task ClickUp |
+| `/project:sdd [ID]` | Flusso SDD interattivo su un task ClickUp (spec → approvazione → sviluppo) |
+| `/project:auto-sdd [ID]` | Flusso SDD autonomo end-to-end (fino alla PR, senza checkpoint) |
 | `/project:tdd` | Sviluppo backend con ciclo Red/Green/Refactor |
 | `/project:bdd` | Sviluppo frontend con scenari Given/When/Then |
 | `/project:review` | Code review prima di aprire la PR |

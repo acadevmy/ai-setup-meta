@@ -110,7 +110,8 @@ Puoi subito usare i comandi slash disponibili per il tuo stack.
 
 | Comando | Descrizione |
 |---|---|
-| `/project:start-task` | Prende un task da ClickUp e avvia il flusso di sviluppo (TDD o BDD) |
+| `/project:sdd` | Prende un task da ClickUp e avvia il flusso SDD interattivo (spec → approvazione → sviluppo) |
+| `/project:auto-sdd` | Esegue lo stesso flusso SDD in autonomia end-to-end (fino alla PR, senza checkpoint) |
 | `/project:tdd` | Ciclo Red-Green-Refactor per codice backend |
 | `/project:bdd` | Ciclo Given/When/Then per codice frontend |
 | `/project:review` | Code review del branch corrente con verifica CONSTITUTION |

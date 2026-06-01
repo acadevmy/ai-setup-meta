@@ -185,14 +185,14 @@ when needed — no need to invoke them manually.
 
 | Command | When to use |
 |---|---|
-| `/project:start-task [TASK_ID]` | Quick flow: takes a task and goes directly to development (TDD/BDD) |
-| `/project:sdd [TASK_ID]` | Spec-Driven flow: first generates a technical spec, discusses it, then develops |
+| `/project:sdd [TASK_ID]` | Interactive Spec-Driven Development: generates a technical spec, discusses it at each checkpoint, then develops |
+| `/project:auto-sdd [TASK_ID]` | Autonomous Spec-Driven Development: runs the full SDD flow end-to-end to the MR/PR with no human checkpoints |
 | `/project:sdd-spec [TASK_ID]` | Generates only the technical spec for a task (standalone invocable) |
 | `/project:sdd-plan [SPEC_REF]` | Presents and discusses an existing spec for approval |
 | `/project:sdd-dev <SPEC_REF> [tdd\|bdd\|none]` | Develops following an approved spec |
 
-> Use `/project:start-task` for simple, well-defined tasks.
-> Use `/project:sdd` for complex tasks that benefit from an analysis and specification phase.
+> Use `/project:sdd` to drive the flow interactively, with supervision at each checkpoint.
+> Use `/project:auto-sdd` to run the same flow fully autonomously (e.g. unattended / batch).
 
 ---
 *Version: 1.3.0*

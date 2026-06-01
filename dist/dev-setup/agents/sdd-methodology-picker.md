@@ -1,6 +1,6 @@
 ---
 name: sdd-methodology-picker
-description: Chooses the development methodology (TDD / BDD / none) for an SDD task based on the nature of the work, the spec and the impacted files. Replaces the manual choice in the `start-task` flow in auto-mode.
+description: Chooses the development methodology (TDD / BDD / none) for an SDD task based on the nature of the work, the spec and the impacted files. Replaces the manual choice in the `auto-sdd` flow in auto-mode.
 tools: Read, Glob, Grep, Bash
 model: sonnet
 ---

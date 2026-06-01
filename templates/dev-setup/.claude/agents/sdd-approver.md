@@ -1,6 +1,6 @@
 ---
 name: sdd-approver
-description: Reviews and approves SDD spec and plan in autonomous mode. Replaces the human checkpoints of `sdd-plan` (spec approval) and the final OK before development, when `start-task` runs the SDD flow in auto-mode.
+description: Reviews and approves SDD spec and plan in autonomous mode. Replaces the human checkpoints of `sdd-plan` (spec approval) and the final OK before development, when `auto-sdd` runs the SDD flow in auto-mode.
 tools: Read, Glob, Grep, Bash
 model: opus
 ---
@@ -11,7 +11,7 @@ This agent is **stateless and idempotent**. It does not modify files. It reads t
 evaluates consistency/quality/feasibility and returns a structured verdict:
 `approved` or `changes-requested` with a precise list of the required changes.
 
-It is designed to be called in a **bounded loop** by the `start-task` orchestrator:
+It is designed to be called in a **bounded loop** by the `auto-sdd` orchestrator:
 on each iteration the orchestrator applies the requested changes and re-invokes the approver,
 until the verdict is `approved` or the maximum bound is reached.
 

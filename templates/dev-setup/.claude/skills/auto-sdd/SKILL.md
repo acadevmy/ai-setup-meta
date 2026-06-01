@@ -1,19 +1,22 @@
 ---
-description: "Runs the entire Spec-Driven Development (SDD) flow end-to-end in autonomous mode. Replaces every human checkpoint (discovery, spec/plan approval, methodology choice, final OK, MR opening) with AI agents. Invoking this skill means activating auto-mode — there are no flags."
+name: auto-sdd
+description: Runs the entire Spec-Driven Development (SDD) flow end-to-end in autonomous mode. Replaces every human checkpoint (discovery, spec/plan approval, methodology choice, final OK, MR opening) with AI agents. Invoking this skill means activating auto-mode — there are no flags.
+model: opus
+user-invocable: true
+disable-model-invocation: true
 ---
 
-
-# /project:start-task
+# /project:auto-sdd
 
 Runs the entire Spec-Driven Development (SDD) flow for a ClickUp task in
 **fully autonomous** mode: from task selection to opening the MR/PR, with no
 `AskUserQuestion` directed at the human.
 
-**Invoking `start-task` is equivalent to activating auto-mode**: it is not a flag, it is the
+**Invoking `auto-sdd` is equivalent to activating auto-mode**: it is not a flag, it is the
 intrinsic behavior of the skill. Interactive mode remains available through the
 `sdd` orchestrator (which is not modified).
 
-**Usage**: `/project:start-task [TASK_ID]`
+**Usage**: `/project:auto-sdd [TASK_ID]`
 - With `TASK_ID` (e.g. `DE-123`): processes that task
 - Without arguments: takes the next task in `SPRINT` from the `CLICKUP_SETUP_LIST_ID` list
 
@@ -209,7 +212,7 @@ remotes — self-identify). Title and body:
   when present (see `gitlab-ops`)
 
 No `AskUserQuestion` before opening: authorization is implicit in the invocation of
-`start-task`.
+`auto-sdd`.
 
 ### 12. Closure
 
@@ -230,11 +233,11 @@ Procedure:
    - PARAMS: `task_id: <task_id>, status: BLOCKED`
 3. Launch the `clickup` agent with:
    - INTENT: `comment`
-   - PARAMS: `task_id: <task_id>, text: "⛔ Pipeline start-task (auto-mode) bloccata.\n\n**Step fallito**: <numero>\n**Motivo**: <descrizione>\n**Branch locale**: <branch>\n\nAzioni suggerite:\n- <suggerimento>"`
+   - PARAMS: `task_id: <task_id>, text: "⛔ Pipeline auto-sdd (auto-mode) bloccata.\n\n**Step fallito**: <numero>\n**Motivo**: <descrizione>\n**Branch locale**: <branch>\n\nAzioni suggerite:\n- <suggerimento>"`
 4. Exit with an error reporting `task_id`, `custom_id`, branch, reason
 
 Recovery (human side): once the blocker is resolved, move the task back to `SPRINT`. A new
-invocation of `start-task` will pick the task up again.
+invocation of `auto-sdd` will pick the task up again.
 
 ## Expected output
 
@@ -254,7 +257,7 @@ invocation of `start-task` will pick the task up again.
 - **DO NOT invoke** in auto-mode the interactive skills (`sdd-discovery`, `sdd-plan`):
   their outputs are produced respectively by the discovery loop of Step 4 and
   by the `sdd-approver` agent
-- Auto-mode is the default and only behavior of `start-task`. Interactive mode
+- Auto-mode is the default and only behavior of `auto-sdd`. Interactive mode
   is covered by `/project:sdd` (unchanged)
 
 ## Notes on the variants (Claude / Codex / Gemini)

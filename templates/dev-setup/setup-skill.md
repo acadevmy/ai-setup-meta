@@ -885,8 +885,8 @@ File installati:
   - .claude/settings.json — permessi progetto
 
 Skills disponibili (fornite dal plugin):
-  - /dev-setup:start-task  — flow rapido (branch → TDD/BDD → review → PR)
-  - /dev-setup:sdd         — flow spec-driven (spec → approvazione → sviluppo)
+  - /dev-setup:sdd         — SDD interattivo (spec → approvazione → sviluppo, con checkpoint)
+  - /dev-setup:auto-sdd    — SDD autonomo end-to-end (fino alla PR, senza intervento umano)
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
   - /dev-setup:review      — Code review con CONSTITUTION
@@ -905,7 +905,7 @@ NON modificato (tooling esistente rispettato):
 Prossimi passi:
   1. Compila CLICKUP_SETUP_LIST_ID nel file .env
   2. Verifica MCP: claude mcp list
-  3. Usa /dev-setup:start-task o /dev-setup:sdd per iniziare un task ClickUp
+  3. Usa /dev-setup:sdd (interattivo) o /dev-setup:auto-sdd (autonomo) per iniziare un task ClickUp
 ```
 
 **Per GREENFIELD:**
@@ -928,8 +928,8 @@ Configurazione del progetto:
   - .env.example          — variabili d'ambiente
 
 Skills disponibili (fornite dal plugin):
-  - /dev-setup:start-task  — flow rapido (branch → TDD/BDD → review → PR)
-  - /dev-setup:sdd         — flow spec-driven (spec → approvazione → sviluppo)
+  - /dev-setup:sdd         — SDD interattivo (spec → approvazione → sviluppo, con checkpoint)
+  - /dev-setup:auto-sdd    — SDD autonomo end-to-end (fino alla PR, senza intervento umano)
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
   - /dev-setup:review      — Code review con CONSTITUTION
@@ -940,7 +940,7 @@ Infrastructure: <si|no>
 Prossimi passi:
   1. Copia .env.example in .env e compila le variabili
   2. Verifica MCP: claude mcp list
-  3. Usa /dev-setup:start-task (rapido) o /dev-setup:sdd (spec-driven) per iniziare!
+  3. Usa /dev-setup:sdd (interattivo) o /dev-setup:auto-sdd (autonomo) per iniziare!
 ```
 
 **Nota GREENFIELD Terraform**: se lo stack scelto e' **Infrastructure / Terraform**, il Passo 8 non genera boilerplate Terraform (nessun `.gitignore` Terraform auto-emesso, nessun workflow CI auto-emesso, nessun `versions.tf` scaffold). Lo sviluppatore deve creare manualmente `main.tf`, `variables.tf`, `outputs.tf`, `terraform.tf` (o `versions.tf`) e il blocco `backend "s3"` seguendo le ricette in `profiles/terraform.md`. Aggiungi al riepilogo GREENFIELD:
@@ -966,8 +966,8 @@ Sub-project configurati:
     - REGISTRY.md         — registro feature
 
 Skills disponibili (fornite dal plugin):
-  - /dev-setup:start-task  — flow rapido (branch → TDD/BDD → review → PR)
-  - /dev-setup:sdd         — flow spec-driven (spec → approvazione → sviluppo)
+  - /dev-setup:sdd         — SDD interattivo (spec → approvazione → sviluppo, con checkpoint)
+  - /dev-setup:auto-sdd    — SDD autonomo end-to-end (fino alla PR, senza intervento umano)
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
   - /dev-setup:review      — Code review con CONSTITUTION
@@ -981,7 +981,7 @@ NON modificato (tooling esistente rispettato):
 Prossimi passi:
   1. Compila CLICKUP_SETUP_LIST_ID nel file .env
   2. Verifica MCP: claude mcp list
-  3. Usa /dev-setup:start-task o /dev-setup:sdd per iniziare un task ClickUp
+  3. Usa /dev-setup:sdd (interattivo) o /dev-setup:auto-sdd (autonomo) per iniziare un task ClickUp
 ```
 
 ---
@@ -993,4 +993,4 @@ Prossimi passi:
 - **Tooling esistente**: In modalita' EXISTING, non installare ne' modificare: git hooks, linter, formatter, CI/CD, .gitignore, dipendenze. Innesta solo il workflow AI.
 - **Skills e agents**: NON installare skills e agents nel progetto. Sono forniti dal plugin e disponibili automaticamente come /dev-setup:<skill-name>.
 - **gh CLI**: Necessaria solo per la configurazione MCP (Passo 6) e per operazioni greenfield. Se non presente, il setup puo' comunque completarsi — stampa i comandi MCP da eseguire manualmente.
-- **VCS (GitHub vs GitLab)**: Il Passo 2c rileva il provider dal remote `origin`. Entrambe le skill `github-ops` e `gitlab-ops` sono sempre installate — ciascuna fa self-check all'invocazione e si disattiva se il repo non e' suo. Le skill di workflow (`start-task`, `sdd`) chiamano quella corretta in base al remote corrente.
+- **VCS (GitHub vs GitLab)**: Il Passo 2c rileva il provider dal remote `origin`. Entrambe le skill `github-ops` e `gitlab-ops` sono sempre installate — ciascuna fa self-check all'invocazione e si disattiva se il repo non e' suo. Le skill di workflow (`sdd`, `auto-sdd`) chiamano quella corretta in base al remote corrente.
