@@ -9,10 +9,12 @@ allowed-tools: AskUserQuestion
 
 # /project:sdd
 
-Starts the complete Spec-Driven Development (SDD) flow for a ClickUp task.
-Unlike `/project:start-task` which goes directly to development, this flow
-first produces a **technical specification** and an **implementation plan**, discusses them
-with the developer, and only after approval proceeds with development.
+Starts the complete Spec-Driven Development (SDD) flow for a ClickUp task in
+**interactive** mode: it produces a **technical specification** and an
+**implementation plan**, discusses them with the developer at each checkpoint
+(discovery, spec/plan approval, methodology choice, final OK), and only after
+approval proceeds with development. For the same flow run **fully autonomously**
+end-to-end (no human checkpoints), use `/project:auto-sdd`.
 
 ## CRITICAL — Turn behavior at interactive steps
 

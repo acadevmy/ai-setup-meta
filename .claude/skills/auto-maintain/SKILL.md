@@ -219,7 +219,8 @@ Stampa `[STEP 6 START] Validazione`.
    ```bash
    python3 -c "import json; s=json.load(open('.automaint-state.json')); s['next_step']=7; print(json.dumps(s,indent=2))" > .tmp && mv .tmp .automaint-state.json
    ```
-5. Stampa `[STEP 6 END]`.
+5. Esegui il comand `sh` `build-plugin.sh`
+6. Stampa `[STEP 6 END]`.
 
 ### Step 7 — Commit
 *(Salta se `NEXT_STEP > 7`)*

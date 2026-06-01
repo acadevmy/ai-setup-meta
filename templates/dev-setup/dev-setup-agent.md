@@ -314,7 +314,7 @@ These files are copied exactly as received. Before each download, check whether 
 **Create the directory structure**:
 ```bash
 mkdir -p .claude/skills .claude/agents
-mkdir -p .claude/skills/{start-task,tdd,bdd,review,setup,sdd,sdd-spec,sdd-plan,sdd-dev}
+mkdir -p .claude/skills/{auto-sdd,tdd,bdd,review,setup,sdd,sdd-spec,sdd-plan,sdd-dev}
 mkdir -p .claude/skills/{clickup,github-ops}
 ```
 
@@ -343,8 +343,8 @@ gh api repos/acadevmy/ai-setup-meta/contents/templates/dev-setup/REGISTRY.md -H 
 
 Download and install the appropriate skills based on the project.
 
-**Common skills** (always installed): start-task, review
-**SDD skills** (always installed): sdd, sdd-spec, sdd-plan, sdd-dev
+**Common skills** (always installed): review
+**SDD skills** (always installed): sdd, auto-sdd, sdd-spec, sdd-plan, sdd-dev
 **Shared skills** (always installed): clickup, github-ops
 
 **Methodology skills** (based on project type):
@@ -941,7 +941,7 @@ NOT modified (existing tooling respected):
 Next steps:
   1. Fill in CLICKUP_SETUP_LIST_ID in the .env file
   2. Verify MCP: claude mcp list
-  3. Use /project:start-task or /project:sdd to start a ClickUp task
+  3. Use /project:sdd (interactive) or /project:auto-sdd (autonomous) on a ClickUp task
 ```
 
 **For GREENFIELD:**
@@ -966,7 +966,7 @@ Project configuration:
 Next steps:
   1. Copy .env.example to .env and fill in the variables
   2. Verify MCP: claude mcp list
-  3. Use /project:start-task (quick) or /project:sdd (spec-driven) to get started!
+  3. Use /project:sdd (interactive SDD) or /project:auto-sdd (autonomous SDD) to get started!
 ```
 
 **For MULTI-PROJECT (EXISTING):**
@@ -991,7 +991,7 @@ NOT modified (existing tooling respected):
 Next steps:
   1. Fill in CLICKUP_SETUP_LIST_ID in the .env file
   2. Verify MCP: claude mcp list
-  3. Use /project:start-task or /project:sdd to start a ClickUp task
+  3. Use /project:sdd (interactive) or /project:auto-sdd (autonomous) on a ClickUp task
 ```
 
 ---
