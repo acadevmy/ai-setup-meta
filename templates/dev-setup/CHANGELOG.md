@@ -6,6 +6,17 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [2.0.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.13.0...dev-setup-v2.0.0) (2026-06-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **start-task:** il comando /project:start-task e' stato rinominato in /project:auto-sdd. Aggiornare script o abitudini che invocano start-task.
+
+### Features
+
+* **start-task:** Autonomous SDD auto-mode orchestrator [DE-15620] ([408e09b](https://github.com/acadevmy/ai-setup-meta/commit/408e09bbb276fd84fcc2ab786456e2a71b1b139d))
+
 ## [1.13.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.12.0...dev-setup-v1.13.0) (2026-05-31)
 
 
