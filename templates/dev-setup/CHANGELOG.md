@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [2.1.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v2.0.0...dev-setup-v2.1.0) (2026-06-03)
+
+
+### Features
+
+* Enable auto-sdd model invocation and initialize project resource configuration ([455c044](https://github.com/acadevmy/ai-setup-meta/commit/455c0443eb77f834b122aee35cec2e37dc62ad91))
+
 ## [2.0.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v1.13.0...dev-setup-v2.0.0) (2026-06-01)
 
 
