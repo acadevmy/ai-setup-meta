@@ -3,7 +3,7 @@ name: auto-sdd
 description: Runs the entire Spec-Driven Development (SDD) flow end-to-end in autonomous mode. Replaces every human checkpoint (discovery, spec/plan approval, methodology choice, final OK, MR opening) with AI agents. Invoking this skill means activating auto-mode — there are no flags.
 model: opus
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # /project:auto-sdd
