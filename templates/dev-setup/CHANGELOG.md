@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [2.2.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v2.1.0...dev-setup-v2.2.0) (2026-06-15)
+
+
+### Features
+
+* **constitution:** Forbid z.date() in createZodDto DTOs ([#60](https://github.com/acadevmy/ai-setup-meta/issues/60)) ([f06e9f8](https://github.com/acadevmy/ai-setup-meta/commit/f06e9f845a8a7070f542559f0cb2626c5e7dac6b))
+
 ## [2.1.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v2.0.0...dev-setup-v2.1.0) (2026-06-03)
 
 
