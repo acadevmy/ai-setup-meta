@@ -30,6 +30,29 @@ type User = z.infer<typeof UserSchema>;
 const user = response.data as User;
 ```
 
+**No JSON-Schema-unrepresentable types in DTOs.** A DTO built with `createZodDto`
+(nestjs-zod) must not use `z.date()` — nor other unrepresentable Zod types
+(`z.bigint()`, `z.map()`, `z.set()`, `z.symbol()`). The OpenAPI document is generated
+at boot via `zod.toJSONSchema()`, which throws on these types
+(`Error: Date cannot be represented in JSON Schema`) and crashes the application
+before it starts listening. Represent dates as ISO strings (`z.iso.datetime()`) and
+convert in the entity→view mapper (`date.toISOString()`); the global
+`ZodSerializerInterceptor` validates the output, so the schema type and the runtime
+value must agree.
+
+```typescript
+// ✅ Correct
+export const NotificationViewSchema = z.object({
+  createdAt: z.iso.datetime(), // → { type: "string", format: "date-time" }
+});
+export class NotificationView extends createZodDto(NotificationViewSchema) {}
+// mapper: createdAt: notification.createdAt.toISOString()
+
+// ❌ Forbidden — crashes the app at boot when the OpenAPI doc is built
+const Schema = z.object({ createdAt: z.date() });
+export class View extends createZodDto(Schema) {}
+```
+
 ### 2. TypeScript strict — zero `any`
 The `strict: true` flag is mandatory in every `tsconfig.json`.
 The use of `any` is **forbidden** — use `unknown` and explicit narrowing.
@@ -593,6 +616,6 @@ opportunistically.
 
 ---
 
-*Version: 1.3.0*
-*Updated: 2026-04*
+*Version: 1.4.0*
+*Updated: 2026-06*
 *Next planned review: 2026-07*
