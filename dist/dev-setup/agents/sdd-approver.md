@@ -2,7 +2,7 @@
 name: sdd-approver
 description: Reviews and approves SDD spec and plan in autonomous mode. Replaces the human checkpoints of `sdd-plan` (spec approval) and the final OK before development, when `auto-sdd` runs the SDD flow in auto-mode.
 tools: Read, Glob, Grep, Bash
-model: fable
+model: opus
 effort: max
 ---
 

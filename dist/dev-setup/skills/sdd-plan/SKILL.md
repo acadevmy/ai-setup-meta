@@ -1,7 +1,7 @@
 ---
 name: sdd-plan
 description: Presents the technical spec to the developer for discussion, iteration and approval
-model: fable
+model: opus
 effort: max
 user-invocable: true
 disable-model-invocation: false

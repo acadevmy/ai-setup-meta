@@ -1,7 +1,7 @@
 ---
 name: verify
 description: Verifies that the implementation matches the approved spec (completeness, correctness, coherence)
-model: fable
+model: opus
 effort: max
 user-invocable: true
 disable-model-invocation: false
