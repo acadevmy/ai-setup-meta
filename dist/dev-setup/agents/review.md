@@ -2,7 +2,8 @@
 name: code-reviewer
 description: Performs isolated code review verifying CONSTITUTION compliance and proposing REGISTRY updates. Use when you need to analyze code for quality, compliance and project registry updates.
 tools: Read, Glob, Grep, Bash
-model: sonnet
+model: fable
+effort: max
 ---
 
 ## Core principle

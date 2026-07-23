@@ -1,7 +1,8 @@
 ---
 name: review
 description: Performs code review of the current branch verifying CONSTITUTION compliance and updating REGISTRY
-model: sonnet
+model: fable
+effort: max
 user-invocable: true
 disable-model-invocation: false
 ---

@@ -2,6 +2,7 @@
 name: tdd
 description: Start a TDD cycle (Red-Green-Refactor) for backend development (logic, APIs, services)
 model: opus
+effort: max
 user-invocable: true
 disable-model-invocation: false
 ---

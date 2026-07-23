@@ -1,7 +1,8 @@
 ---
 name: sdd-plan
 description: Presents the technical spec to the developer for discussion, iteration and approval
-model: sonnet
+model: fable
+effort: max
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: AskUserQuestion
