@@ -2,6 +2,7 @@
 name: sdd-dev
 description: Executes development following the approved technical spec, with TDD/BDD or direct development support
 model: opus
+effort: max
 user-invocable: true
 disable-model-invocation: false
 ---

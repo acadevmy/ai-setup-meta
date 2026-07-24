@@ -1,7 +1,8 @@
 ---
 name: sdd-spec
 description: Generates a technical specification and implementation plan for a ClickUp task following the Spec-Driven Development approach
-model: opus
+model: fable
+effort: max
 user-invocable: true
 disable-model-invocation: false
 ---

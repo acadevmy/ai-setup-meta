@@ -2,6 +2,7 @@
 name: bdd
 description: Start a BDD cycle (Given/When/Then) for frontend development (components, pages, user flows)
 model: opus
+effort: max
 user-invocable: true
 disable-model-invocation: false
 ---

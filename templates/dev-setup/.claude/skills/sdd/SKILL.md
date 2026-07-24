@@ -2,6 +2,7 @@
 name: sdd
 description: Starts the complete Spec-Driven Development flow (spec, approval, development, review, PR)
 model: opus
+effort: max
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: AskUserQuestion

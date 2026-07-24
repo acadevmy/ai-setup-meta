@@ -3,6 +3,7 @@ name: sdd-discovery-responder
 description: Answers SDD discovery questions autonomously, picking the best answer based on the codebase, CONSTITUTION, REGISTRY and task description. Replaces the human developer in the discovery interview when `auto-sdd` orchestrates the SDD flow in auto-mode.
 tools: Read, Glob, Grep, Bash
 model: opus
+effort: max
 ---
 
 ## Core principle
