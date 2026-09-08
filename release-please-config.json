@@ -13,6 +13,7 @@
       "changelog-path": "templates/dev-setup/CHANGELOG.md",
       "extra-files": [
         "templates/dev-setup/.env.example",
+        "dist/dev-setup/skills/setup/templates/.env.example",
         {
           "type": "json",
           "path": "dist/dev-setup/.claude-plugin/plugin.json",
@@ -37,5 +38,5 @@
     }
   },
   "plugins": ["sentence-case"],
-  "$comment": "Single-package mode at repo root. Source of truth is .release-please-manifest.json. extra-files propagate the bump into .env.example (marker x-release-please-version), the two dist/ plugin.json files (jsonpath $.version), and the two marketplace.json catalogs (jsonpath filter to the dev-setup plugin entry)."
+  "$comment": "Single-package mode at repo root. Source of truth is .release-please-manifest.json. extra-files propagate the bump into BOTH copies of .env.example (marker x-release-please-version) — the template source and the copy the build makes under dist/dev-setup/skills/setup/templates/, since .env.example is in the manifest required_files — plus the two dist/ plugin.json files (jsonpath $.version) and the two marketplace.json catalogs (jsonpath filter to the dev-setup plugin entry). Every generated file carrying the version must be listed here: a release PR that bumps only some of them is born out of sync with a rebuild, and the dist/ drift check fails on the release PR itself, before the post-merge rebuild step can fix it."
 }
