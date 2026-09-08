@@ -135,6 +135,13 @@ release-please raggruppa le entries per tipo (Features / Bug Fixes / Documentati
 - Non inserire API key, token o segreti in nessun file tracciato da git
 - Non usare `any` in TypeScript, nemmeno nei file di configurazione generati
 - Non fare `force push` su branch condivisi
+- Non leggere `.env` / `.env.local`: sono negati ai file tool e alla sandbox. Se una
+  procedura sembra richiederlo, la procedura e' sbagliata — segnalalo invece di aggirarla
+- Non mettere mai un token in una riga di comando (URL di push, header `curl`, `echo`):
+  finisce in `ps aux` e nei log. Usa `gh`/`glab`, che lo leggono dall'environment
+- Non eseguire `claude` con `--dangerously-skip-permissions` o
+  `--permission-mode bypassPermissions`, e non aggiungere `permissionMode` al frontmatter
+  di un agent: scavalca le `ask` rule, che sono i checkpoint umani
 
 ## Lingua
 
@@ -208,6 +215,10 @@ agent, constitution) processando task ClickUp dedicati e aprendo PR pronte per l
 - Skill orchestrator: `.claude/skills/auto-maintain/SKILL.md`
 - Subagent: `.claude/agents/clickup.md`
 - Quality gate: `/project:validate`
+- Confini: `sandbox` in `.claude/settings.json` (filesystem + rete a livello OS) e le
+  `deny` rule su force push, push diretti sui branch protetti, `--no-verify` e
+  `--dangerously-skip-permissions`. La pipeline gira in auto-mode, **non** con
+  `--dangerously-skip-permissions` e **non** con `permissionMode: dontAsk`.
 
 ### Flusso (per ogni esecuzione)
 1. Pesca il task SPRINT a priorita' piu' alta dalla lista `CLICKUP_MAINTENANCE_LIST_ID`
@@ -236,7 +247,8 @@ Vai su `claude.ai/customize/connectors` e aggiungi il server MCP ClickUp:
 
 Nella Routine su `claude.ai/code/routines`, configura nell'Environment:
 - `CLICKUP_MAINTENANCE_LIST_ID` = `901217493496`
-- `GH_TOKEN` = Personal Access Token GitHub (scope: `repo`, `workflow`)
+- `GH_TOKEN` = Personal Access Token GitHub (scope: `repo`, `workflow`) — lo legge `gh`
+  dall'environment: la pipeline non lo stampa e non lo mette mai in una riga di comando
 
 **3. Crea la Routine**
 
@@ -270,7 +282,11 @@ Il connector ClickUp e' disponibile con autenticazione OAuth: usa i tool
 `mcp__clickup__*` per tutte le operazioni ClickUp senza gestire token.
 ```
 
-**4. Disattiva launchd (non piu' necessario)**
+**4. Disattiva launchd (se era gia' installato)**
+
+Il runner locale (`scripts/auto-maintain-runner.sh`) e' stato rimosso: girava con
+`--dangerously-skip-permissions` e `source .env.local`, e la Routine lo sostituisce.
+Se le sue voci launchd sono ancora caricate:
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.auto-maintain.plist
@@ -327,4 +343,4 @@ Prima di aprire una PR, verifica:
 Questo file viene aggiornato manualmente tramite PR. Non modificarlo direttamente su `main`.
 
 ---
-*Versione: 2.4.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
+*Versione: 2.5.0 — aggiornare il numero di versione ad ogni modifica sostanziale*

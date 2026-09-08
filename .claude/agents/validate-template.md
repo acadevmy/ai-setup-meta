@@ -3,7 +3,6 @@ name: validate-template
 description: Validazione pre-release di un template. Verifica coerenza interna (file obbligatori da manifest, CONSTITUTION sync, segreti, struttura) prima di pubblicare. Usare prima di ogni release.
 tools: Read, Glob, Grep, Bash
 model: haiku
-permissionMode: dontAsk
 ---
 
 ## Nota di distribuzione

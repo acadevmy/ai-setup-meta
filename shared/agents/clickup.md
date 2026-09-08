@@ -3,7 +3,6 @@ name: clickup
 description: Handles all ClickUp operations (read, update, create, filter tasks) in isolation. Use when you need to interact with ClickUp to read tasks, update statuses, create tasks, or filter lists.
 tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments
 model: haiku
-permissionMode: dontAsk
 ---
 
 ## Core principle: CONTENT FIDELITY

@@ -2,7 +2,6 @@
   "permissions": {
     "allow": [
       "Bash(npm *)",
-      "Bash(node *)",
       "Bash(ls *)",
       "Bash(cat *)",
       "Bash(mkdir *)",
@@ -14,6 +13,7 @@
       "Bash(sed *)",
       "Bash(find *)",
       "Bash(diff *)",
+      "Bash(jq *)",
       "Bash(bash scripts/*)",
       "Bash(git *)",
       "Bash(gh *)",
@@ -22,14 +22,54 @@
     ],
     "deny": [
       "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
       "Bash(git push origin main*)",
       "Bash(git push origin master*)",
+      "Bash(git push origin next*)",
       "Bash(git push origin dev*)",
+      "Bash(git push * HEAD:main*)",
+      "Bash(git push * HEAD:master*)",
+      "Bash(git push * HEAD:next*)",
+      "Bash(git commit -n*)",
+      "Bash(git commit * -n*)",
+      "Bash(git commit *--no-verify*)",
+      "Bash(claude --dangerously-skip-permissions*)",
+      "Bash(claude *--dangerously-skip-permissions*)",
+      "Bash(claude *--permission-mode bypassPermissions*)",
       "Bash(npm publish*)",
       "Bash(rm -rf /*)",
-      "Bash(curl * | bash*)",
-      "Bash(wget * | bash*)"
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Edit(**/.env)",
+      "Edit(**/.env.local)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "filesystem": {
+      "denyRead": [".env", ".env.local", "**/.env", "**/.env.local"],
+      "denyWrite": [".env", ".env.local", "**/.env", "**/.env.local"]
+    },
+    "network": {
+      "allowedDomains": [
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com",
+        "raw.githubusercontent.com",
+        "registry.npmjs.org",
+        "api.clickup.com"
+      ]
+    },
+    "credentials": {
+      "files": [
+        { "path": "~/.ssh", "mode": "deny" },
+        { "path": "~/.aws", "mode": "deny" }
+      ]
+    }
   },
   "attribution": {
     "commits": true,

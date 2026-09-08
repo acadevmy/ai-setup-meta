@@ -1,0 +1,21 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "network": {
+      "strictAllowlist": true,
+      "tlsTerminate": {},
+      "allowedDomains": [
+        "api.github.com",
+        "gitlab.com",
+        "registry.npmjs.org"
+      ]
+    },
+    "credentials": {
+      "envVars": [
+        { "name": "GH_TOKEN", "mode": "mask", "injectHosts": ["api.github.com"] },
+        { "name": "GITLAB_TOKEN", "mode": "mask", "injectHosts": ["gitlab.com"] },
+        { "name": "NPM_TOKEN", "mode": "mask", "injectHosts": ["registry.npmjs.org"] }
+      ]
+    }
+  }
+}

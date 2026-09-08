@@ -109,11 +109,11 @@ for BP in $(jq -r '.boilerplate_files[] // empty' "$MANIFEST"); do
   fi
 done
 
-# Settings.json (solo permessi, senza hooks)
+# Settings.json (permessi + sandbox, senza hooks: gli hook li monta il plugin)
 SETTINGS_SRC="$TEMPLATE_DIR/.claude/settings.json"
 if [ -f "$SETTINGS_SRC" ]; then
-  jq '{permissions: .permissions}' "$SETTINGS_SRC" > "$TEMPLATES_DST/settings.json"
-  ok "Settings (solo permessi) estratto"
+  jq '{permissions: .permissions, sandbox: .sandbox}' "$SETTINGS_SRC" > "$TEMPLATES_DST/settings.json"
+  ok "Settings (permessi + sandbox) estratto"
 fi
 
 # ── Copia agents ──────────────────────────────────────────────────────────────
@@ -220,17 +220,6 @@ elif [ "$HAS_HOOKS" = true ]; then
   cat > "$DIST_DIR/hooks/hooks.json" << 'HOOKSJSON'
 {
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/protect-files.sh"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",

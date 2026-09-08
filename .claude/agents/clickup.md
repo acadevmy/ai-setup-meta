@@ -3,7 +3,6 @@ name: clickup
 description: Handles all ClickUp operations (read, update, create, filter tasks, tag) for the meta-repo. Use when you need to interact with ClickUp.
 tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments, mcp__clickup__clickup_add_tag_to_task, mcp__clickup__clickup_remove_tag_from_task
 model: haiku
-permissionMode: dontAsk
 ---
 
 > Questo agent è una variante meta-repo del subagent canonico in

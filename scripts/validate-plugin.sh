@@ -102,7 +102,10 @@ if [ "$OPT_JSON" = true ]; then
   step() { :; }
 fi
 
-TMP_DIR="$(mktemp -d)"
+# Il template esplicito e' necessario sotto sandbox: su macOS un `mktemp -d` nudo
+# usa la temp dir di sistema (_CS_DARWIN_USER_TEMP_DIR) ignorando $TMPDIR, e la
+# sandbox la nega. Con il template, mktemp rispetta $TMPDIR.
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/validate-plugin.XXXXXX")"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 FINDINGS="$TMP_DIR/findings.tsv"   # CHECK_ID \t SCOPE \t FILE \t LINE \t KEY \t MESSAGE

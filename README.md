@@ -133,8 +133,9 @@ ai-setup-meta/
 │       ├── REGISTRY.md
 │       ├── CHANGELOG.md
 │       ├── .claude/
-│       │   ├── settings.json           # Permessi + hooks (sorgente)
-│       │   ├── hooks/                  # protect-files, post-edit, on-compact
+│       │   ├── settings.json           # Permessi + sandbox + hooks (sorgente)
+│       │   ├── settings.user.json      # Snippet user-scope: credential masking
+│       │   ├── hooks/                  # post-edit, on-compact
 │       │   ├── agents/                 # 4 agents specifici del dominio
 │       │   └── skills/                 # 10 workflow skills
 │       └── profiles/
@@ -156,8 +157,7 @@ ai-setup-meta/
 │   │   └── build-claude.sh      # Builder Claude Code (unico target)
 │   ├── validate-plugin.sh       # 12 check statici sulla qualita' delle skill
 │   ├── validate-baseline.txt    # Fail noti, riportati ma non bloccanti in CI
-│   ├── validate-setup-urls.sh   # Link check degli URL citati dalla setup skill
-│   └── auto-maintain-runner.sh  # Runner della pipeline di manutenzione
+│   └── validate-setup-urls.sh   # Link check degli URL citati dalla setup skill
 └── docs/
     ├── developer-guide.md
     ├── workflow.md
