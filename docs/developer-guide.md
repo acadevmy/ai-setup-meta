@@ -1,147 +1,146 @@
-# Guida sviluppatore — Dal setup al primo task
+# Developer guide — from setup to your first task
 
-Guida pratica per lo sviluppatore che ha gia' installato il plugin `dev-setup`
-e vuole iniziare a lavorare con il workflow AI-native.
+A practical guide for a developer who has already installed the `dev-setup` plugin and
+wants to start working with the AI-native workflow.
 
-> **Prerequisito**: aver eseguito `/dev-setup:setup` nella root del progetto.
+> **Prerequisite**: having run `/dev-setup:setup` in the project root.
 
 ---
 
-## 1. Panoramica del workflow
+## 1. Workflow overview
 
-Il flusso di lavoro quotidiano segue questo ciclo:
+The day-to-day flow follows this cycle:
 
 ```
-Task su ClickUp (SPRINT)
+Task on ClickUp (SPRINT)
        │
        ▼
-/project:sdd DE-123            ← flusso interattivo (consigliato)
-  → crea branch feat/DE-123-descrizione
-  → task passa a IN PROGRESS
-  → discovery + spec tecnica + approvazione
+/dev-setup:sdd DE-123          ← interactive flow (recommended)
+  → creates the branch feat/DE-123-description
+  → moves the task to IN PROGRESS
+  → discovery + technical spec + approval
        │
        ▼
-Sviluppo guidato dalla spec
-  → backend: ciclo TDD (Red → Green → Refactor)
-  → frontend: ciclo BDD (Given/When/Then)
+Development driven by the spec
+  → backend: TDD cycle (Red → Green → Refactor)
+  → frontend: BDD cycle (Given/When/Then)
        │
        ▼
-Commit con Conventional Commits
+Commits following Conventional Commits
   feat(auth): add login endpoint [DE-123]
        │
        ▼
-/project:review
-  → verifica CONSTITUTION
-  → aggiorna REGISTRY.md
+/dev-setup:review
+  → checks the CONSTITUTION
+  → updates REGISTRY.md
        │
        ▼
 Push + Pull Request
        │
        ▼
-/project:sync-task
-  → task passa a IN REVIEW
+The sdd flow moves the task to IN REVIEW and posts the PR link
        │
        ▼
-Merge → semantic-release (se greenfield)
+Merge → semantic-release (greenfield projects)
 ```
 
-> In alternativa, `/project:auto-sdd DE-123` esegue **l'intero** flusso in
-> autonomia — dalla discovery alla PR — senza alcun checkpoint manuale.
+> Alternatively, `/dev-setup:auto-sdd DE-123` runs the **whole** flow autonomously —
+> from discovery to the PR — with no manual checkpoint.
 
 ---
 
-## 2. Configurazione rapida (checklist)
+## 2. Quick configuration checklist
 
-Prima di iniziare, verifica che tutto sia a posto:
+Before you start, check that everything is in place:
 
 ```bash
-# Claude Code installato e funzionante
+# Claude Code installed and working
 claude --version
 
-# Autenticazione attiva sul provider del progetto
-gh auth status     # per repo GitHub
-glab auth status   # per repo GitLab (aggiungi --hostname <host> se self-hosted)
+# Authenticated against the project's provider
+gh auth status     # for GitHub repos
+glab auth status   # for GitLab repos (add --hostname <host> when self-hosted)
 
-# MCP servers connessi (solo quelli che il setup ha registrato per questo stack)
+# MCP servers connected (only the ones setup registered for this stack)
 claude mcp list
 
-# AGENTS.md, CLAUDE.md e CONSTITUTION.md presenti nella root del progetto
+# AGENTS.md, CLAUDE.md and CONSTITUTION.md present in the project root
 ls AGENTS.md CLAUDE.md CONSTITUTION.md
 ```
 
-Se manca qualcosa, ri-esegui `/dev-setup:setup` nella root del progetto.
+If something is missing, run `/dev-setup:setup` again in the project root.
 
 ---
 
-## 3. Avviare il primo task
+## 3. Starting your first task
 
-### 3.1 Prendi un task da ClickUp
+### 3.1 Pick a task from ClickUp
 
-Apri Claude Code nella root del tuo progetto:
+Open Claude Code in your project root:
 
 ```bash
 claude
 ```
 
-Poi lancia il flusso SDD interattivo con l'ID del task ClickUp:
+Then start the interactive SDD flow with the ClickUp task id:
 
 ```
-/project:sdd DE-123
+/dev-setup:sdd DE-123
 ```
 
 Claude Code:
-1. Recupera i dettagli del task da ClickUp (titolo, descrizione, acceptance criteria)
-2. Crea il branch seguendo la convenzione: `feat/DE-123-descrizione-breve`
-3. Aggiorna lo stato del task su ClickUp a **IN PROGRESS**
-4. Conduce una discovery interattiva, genera la spec tecnica e te la sottopone
-   per approvazione prima di procedere allo sviluppo
+1. Fetches the task details from ClickUp (title, description, acceptance criteria)
+2. Creates the branch following the convention: `feat/DE-123-short-description`
+3. Moves the ClickUp task to **IN PROGRESS**
+4. Runs an interactive discovery, generates the technical spec and puts it in front of
+   you for approval before any development starts
 
-> **Senza ID?** Puoi lanciare `/project:sdd` senza argomenti — Claude Code
-> ti mostrera' i task assegnati a te nello sprint corrente.
+> **No id?** You can run `/dev-setup:sdd` with no arguments — Claude Code will show you
+> the tasks assigned to you in the current sprint.
 
-> **Tutto in autonomia?** `/project:auto-sdd DE-123` esegue lo stesso flusso
-> end-to-end (discovery → spec → sviluppo → review → PR) **senza** checkpoint
-> interattivi: utile per task ben definiti o esecuzioni unattended (CI, batch).
+> **Fully autonomous?** `/dev-setup:auto-sdd DE-123` runs the same flow end to end
+> (discovery → spec → development → review → PR) **without** interactive checkpoints:
+> useful for well-defined tasks or unattended runs (CI, batch).
 
-### 3.2 Sviluppa con TDD o BDD
+### 3.2 Develop with TDD or BDD
 
-Il tipo di ciclo dipende dal layer su cui lavori:
+Which cycle you use depends on the layer you are working on:
 
-| Layer | Metodologia | Comando | Coverage minimo |
+| Layer | Methodology | Command | Minimum coverage |
 |---|---|---|---|
-| Backend (services, utils) | TDD — Red/Green/Refactor | `/project:tdd` | 80% services, 90% utils |
-| Frontend (componenti UI) | BDD — Given/When/Then | `/project:bdd` | 70% componenti |
-| Controller/API | TDD | `/project:tdd` | 60% controllers |
+| Backend (services, utils) | TDD — Red/Green/Refactor | `/dev-setup:tdd` | 80% services, 90% utils |
+| Frontend (UI components) | BDD — Given/When/Then | `/dev-setup:bdd` | 70% components |
+| Controllers/API | TDD | `/dev-setup:tdd` | 60% controllers |
 
-**Esempio — ciclo TDD per un servizio backend:**
-
-```
-/project:tdd
-```
-
-Claude Code ti guidera' attraverso:
-
-1. **RED** — Scrive il test che fallisce (descrive il comportamento atteso)
-2. **GREEN** — Scrive il codice minimo per far passare il test
-3. **REFACTOR** — Migliora il codice mantenendo i test verdi
-
-Ad ogni passo ti chiede conferma prima di procedere.
-
-**Esempio — ciclo BDD per un componente frontend:**
+**Example — a TDD cycle for a backend service:**
 
 ```
-/project:bdd
+/dev-setup:tdd
 ```
 
-Claude Code ti guidera' attraverso:
+Claude Code walks you through:
 
-1. **Scenario** — Definisce Given/When/Then in linguaggio naturale
-2. **Test** — Scrive il test con Testing Library
-3. **Implementazione** — Crea il componente che soddisfa lo scenario
+1. **RED** — writes the failing test (describing the expected behaviour)
+2. **GREEN** — writes the minimum code that makes the test pass
+3. **REFACTOR** — improves the code while keeping the tests green
 
-### 3.3 Scrivi commit atomici
+It asks for confirmation at each step before moving on.
 
-Ogni commit deve seguire le **Conventional Commits** con l'ID del task:
+**Example — a BDD cycle for a frontend component:**
+
+```
+/dev-setup:bdd
+```
+
+Claude Code walks you through:
+
+1. **Scenario** — defines Given/When/Then in plain language
+2. **Test** — writes the test with Testing Library
+3. **Implementation** — builds the component that satisfies the scenario
+
+### 3.3 Write atomic commits
+
+Every commit follows **Conventional Commits** and carries the task id:
 
 ```
 feat(auth): add JWT token validation [DE-123]
@@ -150,191 +149,188 @@ test(auth): add integration tests for login flow [DE-123]
 refactor(auth): extract token service from controller [DE-123]
 ```
 
-I git hooks (configurati dal setup agent) validano automaticamente:
-- **commitlint** — formato del messaggio di commit
-- **prettier** — formattazione del codice
-- **eslint** — qualita' del codice
+The git hooks (configured by the setup skill) validate automatically:
+- **commitlint** — the commit message format
+- **prettier** — code formatting
+- **eslint** — code quality
 
-Se un hook fallisce, correggi e ricommita. Non usare mai `--no-verify`.
+If a hook fails, fix the problem and commit again. Never use `--no-verify`.
 
-### 3.4 Lancia la review
+### 3.4 Run the review
 
-Quando hai finito di sviluppare:
+Once you have finished developing:
 
 ```
-/project:review
+/dev-setup:review
 ```
 
-Claude Code esegue:
-1. Verifica conformita' alla **CONSTITUTION.md**
-2. Controlla qualita' del codice (duplicazioni, complessita', sicurezza)
-3. Aggiorna il **REGISTRY.md** con i nuovi componenti/servizi/pattern
+Claude Code:
+1. Checks compliance with **CONSTITUTION.md**
+2. Reviews code quality (duplication, complexity, security)
+3. Updates **REGISTRY.md** with the new components/services/patterns
 
-### 3.5 Push e apertura MR/PR
+### 3.5 Push and open the MR/PR
 
 ```bash
-git push -u origin feat/DE-123-descrizione-breve
+git push -u origin feat/DE-123-short-description
 
-# Su GitHub
+# On GitHub
 gh pr create
 
-# Su GitLab (il setup rileva il provider e usa la skill corretta)
-glab mr create --source-branch feat/DE-123-descrizione-breve \
+# On GitLab (setup detects the provider and uses the right skill)
+glab mr create --source-branch feat/DE-123-short-description \
                --target-branch <default-branch> \
                --title "..." --description "..."
 ```
 
-Le skill di workflow (`/dev-setup:sdd`, `/dev-setup:auto-sdd`) richiamano automaticamente la
-skill VCS corretta (`github-ops` o `gitlab-ops`) in base al remote `origin`. Su GitLab, il corpo
-dell'MR segue `.gitlab/merge_request_templates/Default.md` se presente nel repo.
+The workflow skills (`/dev-setup:sdd`, `/dev-setup:auto-sdd`) call the right VCS skill
+(`github-ops` or `gitlab-ops`) based on the `origin` remote. On GitLab, the MR body follows
+`.gitlab/merge_request_templates/Default.md` when the repo has one.
 
-La MR/PR deve avere:
-- **Titolo**: formato Conventional Commits (`feat(scope): descrizione`)
-- **Descrizione**: Cosa / Perche' / Come testare (o il template MR del repo, su GitLab)
-- **Almeno 1 review** approvata prima del merge
-- **Test verdi** in CI
+The MR/PR must have:
+- **Title**: Conventional Commits format (`feat(scope): description`)
+- **Description**: What / Why / How to test (or the repo's MR template, on GitLab)
+- **At least 1 approving review** before the merge
+- **Green tests** in CI
 
-### 3.6 Sincronizza il task
+### 3.6 Keep the task in sync
 
-Dopo aver aperto la PR:
-
-```
-/project:sync-task
-```
-
-Claude Code aggiorna lo stato su ClickUp (es. IN REVIEW) e aggiunge il link alla PR.
+The `sdd` and `auto-sdd` flows update ClickUp themselves once the PR is open: they move the
+task to the review status and post the PR link as a comment. If you opened the PR by hand,
+ask Claude Code to update the task, or move it on the board yourself.
 
 ---
 
-## 4. Regole fondamentali
+## 4. Core rules
 
-Queste regole vengono dalla `CONSTITUTION.md` — sono obbligatorie per tutto il codice,
-sia scritto da te che da Claude Code.
+These rules come from `CONSTITUTION.md` — they are mandatory for all code, whether you
+wrote it or Claude Code did.
 
 ### TypeScript
 
-- `strict: true` sempre attivo — niente `any`, mai
-- Validare tutti i dati esterni con **Zod** (schema-first)
-- Funzioni pure, massimo 40 righe, una responsabilita'
-- Costanti con nome: niente numeri o stringhe magiche
+- `strict: true` always on — no `any`, ever
+- Validate all external data with **Zod** (schema-first)
+- Pure functions, 40 lines at most, one responsibility
+- Named constants: no magic numbers or magic strings
 
-### Architettura
+### Architecture
 
-- Separazione a layer: **Controller → Service → Repository**
-- Niente scorciatoie (il controller non parla direttamente al DB)
-- Dependency Injection: mai `new` per dipendenze pesanti dentro le funzioni
+- Layer separation: **Controller → Service → Repository**
+- No shortcuts (the controller never talks to the DB directly)
+- Dependency Injection: never `new` a heavy dependency inside a function
 
 ### Naming
 
-| Tipo | Convenzione | Esempio |
+| Kind | Convention | Example |
 |---|---|---|
-| Variabili e funzioni | camelCase | `getUserById` |
-| Classi e interfacce | PascalCase | `UserService` |
-| Costanti | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT` |
+| Variables and functions | camelCase | `getUserById` |
+| Classes and interfaces | PascalCase | `UserService` |
+| Constants | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT` |
 
-### Sicurezza
+### Security
 
-- **Zero segreti nel codice** — solo `.env` (gitignored)
-- Validare ogni input con Zod + sanitizzare prima di DB o template
-- `npm audit` ad ogni aggiunta di dipendenza
+- **Zero secrets in the code** — only `.env` (gitignored)
+- Validate every input with Zod and sanitise it before it reaches a DB or a template
+- `npm audit` every time you add a dependency
 
 ### Git
 
-- **Mai push diretto su main** — sempre branch + PR
-- **Commit atomici** — un cambio logico per commit
-- **Conventional Commits** obbligatori con task ID
+- **Never push straight to main** — always a branch and a PR
+- **Atomic commits** — one logical change per commit
+- **Conventional Commits** are mandatory, with the task id
 
 ---
 
-## 5. Comandi slash — reference rapido
+## 5. Slash commands — quick reference
 
-| Comando | Quando usarlo |
+| Command | When to use it |
 |---|---|
-| `/project:sdd [ID]` | Flusso SDD interattivo su un task ClickUp (spec → approvazione → sviluppo) |
-| `/project:auto-sdd [ID]` | Flusso SDD autonomo end-to-end (fino alla PR, senza checkpoint) |
-| `/project:tdd` | Sviluppo backend con ciclo Red/Green/Refactor |
-| `/project:bdd` | Sviluppo frontend con scenari Given/When/Then |
-| `/project:review` | Code review prima di aprire la PR |
-| `/project:sync-task` | Sincronizzare stato task su ClickUp |
+| `/dev-setup:sdd [ID]` | Interactive SDD flow on a ClickUp task (spec → approval → development) |
+| `/dev-setup:auto-sdd [ID]` | Autonomous end-to-end SDD flow (up to the PR, no checkpoints) |
+| `/dev-setup:sdd-discovery` | Structured interview to gather the requirements before the spec |
+| `/dev-setup:tdd` | Backend development with the Red/Green/Refactor cycle |
+| `/dev-setup:bdd` | Frontend development with Given/When/Then scenarios |
+| `/dev-setup:review` | Code review before opening the PR |
 
 ---
 
 ## 6. Troubleshooting
 
-### Il commit viene rifiutato dai git hooks
+### The git hooks reject my commit
 
-Non usare `--no-verify`. Leggi l'errore e correggi:
-- **commitlint**: il messaggio non segue Conventional Commits
-- **prettier**: il codice non e' formattato — salva il file e riprova
-- **eslint**: ci sono errori nel codice — correggili prima di committare
+Do not use `--no-verify`. Read the error and fix it:
+- **commitlint**: the message does not follow Conventional Commits
+- **prettier**: the code is not formatted — save the file and try again
+- **eslint**: there are errors in the code — fix them before committing
 
-### ClickUp non risponde
+### ClickUp does not respond
 
-Al primo utilizzo, ClickUp apre il browser per l'autenticazione OAuth.
-Se la sessione e' scaduta, riavvia Claude Code — il flusso OAuth riparte automaticamente.
+On first use, ClickUp opens the browser for OAuth authentication.
+If the session has expired, restart Claude Code — the OAuth flow starts again on its own.
 
-### Il setup agent non rileva il mio stack
+### The setup skill does not detect my stack
 
-Assicurati che nella root del progetto ci sia:
-- `package.json` con le dipendenze (per Next.js, Angular, React, NestJS)
-- `pubspec.yaml` (per Flutter)
-- `app.json` con `expo` (per React Native/Expo)
+Make sure the project root holds:
+- `package.json` with the dependencies (for Next.js, Angular, React, NestJS)
+- `pubspec.yaml` (for Flutter)
+- `app.json` with `expo` (for React Native/Expo)
 
 ---
 
-## 7. Upgrade del plugin
+## 7. Upgrading the plugin
 
-Quando esce una nuova versione di `dev-setup`, servono due azioni distinte:
+When a new version of `dev-setup` ships, two distinct actions are needed:
 
-**1. Aggiorna il plugin installato** (nuove skill, agents, boilerplate):
+**1. Update the installed plugin** (new skills, agents, boilerplate):
 
 ```bash
-# Nel tuo Claude Code
+# In your Claude Code
 /plugin update dev-setup@acadevmy
 ```
 
-Questo aggiorna skills, agents e template *bundled* del plugin — nessun file nel tuo progetto viene toccato.
+That updates the plugin's *bundled* skills, agents and templates — no file in your project is touched.
 
-**2. Riapplica i template al progetto** (aggiorna i file di governance):
+**2. Reapply the templates to the project** (refresh the governance files):
 
 ```
 /dev-setup:setup
 ```
 
-La skill rileva modalita' **UPDATE** (CONSTITUTION.md + `.claude/settings.json` gia' presenti) e rigenera:
+The skill detects **UPDATE** mode (CONSTITUTION.md + `.claude/settings.json` already present) and regenerates:
 
 - `CONSTITUTION.md`, `AGENTS.md`, `CLAUDE.md`, `REGISTRY.md`
 
-Per ogni file chiede conferma prima di sovrascrivere (**conflict detection**). Accettare sovrascrive integralmente — eventuali modifiche manuali a quei file si perdono. Rifiutare mantiene la versione corrente.
+For each file it asks before overwriting (**conflict detection**). Accepting overwrites the file wholesale — any manual edits to it are lost. Declining keeps the current version.
 
-**Cosa NON viene modificato in UPDATE**:
+**What UPDATE does NOT touch**:
 - Tooling (git hooks, ESLint, Prettier, CI/CD, `.gitignore`)
-- Dipendenze, lock file
-- Codice sorgente, `.env`
+- Dependencies, lock files
+- Source code, `.env`
 
-**Raccomandazione**: tieni eventuali personalizzazioni di team fuori dai file rigenerati (es. in un `TEAM_NOTES.md` o in una sezione aggiuntiva di `REGISTRY.md` che conservi manualmente) — in quel modo l'upgrade e' sempre un accetta-overwrite senza rischi.
+**Recommendation**: keep any team customisation out of the regenerated files (in a `TEAM_NOTES.md`, say, or in an extra section of `REGISTRY.md` that you maintain by hand) — that way an upgrade is always a risk-free accept-overwrite.
 
-**Verifica post-upgrade**:
+**Post-upgrade check**:
 
 ```bash
-# Controlla che il VCS rilevato sia corretto
+# Check that the detected VCS is right
 git remote get-url origin
 
-# Verifica la skill VCS attiva (deve corrispondere al provider del repo)
+# Check the active VCS skill (it must match the repo's provider)
 grep -i 'gh\|glab' AGENTS.md
 ```
 
-Se il progetto e' migrato da GitHub a GitLab (o viceversa), l'UPDATE rileva il nuovo `origin` e genera la `{{VCS_OPS_NOTE}}` corretta.
+If the project moved from GitHub to GitLab (or the other way round), UPDATE detects the new `origin` and generates the right `{{VCS_OPS_NOTE}}`.
 
 ---
 
-## 8. Prossimi passi
+## 8. Next steps
 
-Dopo aver completato il primo task:
+Once you have finished your first task:
 
-1. **Esplora il REGISTRY.md** — capire cosa e' gia' stato costruito nel progetto
-2. **Leggi il profilo stack** del tuo progetto in `AGENTS.md` — contiene regole specifiche
-3. **Usa Context7** — Claude Code accede alla documentazione aggiornata delle librerie via MCP,
-   quindi puoi chiedergli riferimenti precisi senza cercare manualmente
-4. **Figma (opzionale)** — se hai configurato il token, Claude Code puo' leggere i design
-   direttamente dai file Figma e generare componenti coerenti
+1. **Explore REGISTRY.md** — to see what has already been built in the project
+2. **Read your project's stack profile** in `AGENTS.md` — it holds stack-specific rules
+3. **Use `ctx7`** — `AGENTS.md` declares the `ctx7` CLI as the source for up-to-date library
+   documentation (`npx ctx7@latest <command>`), so you can ask for precise references
+   without looking them up by hand
+4. **Figma (optional)** — if the setup registered the Figma MCP, Claude Code can read the
+   designs straight from the Figma files and generate components that match them

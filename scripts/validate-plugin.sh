@@ -1,51 +1,51 @@
 #!/usr/bin/env bash
-# validate-plugin.sh — Check statici sulla qualita' delle skill distribuite.
+# validate-plugin.sh — static checks on the quality of the distributed skills.
 #
-# Uso: bash scripts/validate-plugin.sh [OPZIONI]
+# Usage: bash scripts/validate-plugin.sh [OPTIONS]
 #
-# Opzioni:
-#   --json              Output machine-readable su stdout (chiavi UPPER_SNAKE)
-#   --strict            Ignora la baseline: riporta lo stato reale del repo
-#   --fail-on-stale     Fallisce se la baseline contiene voci gia' risolte
-#   --update-baseline   Riscrive la baseline con i finding correnti
-#   --baseline FILE     Baseline alternativa (default: scripts/validate-baseline.txt)
-#   -h, --help          Questo messaggio
+# Options:
+#   --json              Machine-readable output on stdout (UPPER_SNAKE keys)
+#   --strict            Ignore the baseline: report the repo's real state
+#   --fail-on-stale     Fail if the baseline holds entries already fixed
+#   --update-baseline   Rewrite the baseline with the current findings
+#   --baseline FILE     Alternative baseline (default: scripts/validate-baseline.txt)
+#   -h, --help          This message
 #
-# Exit code: 0 = ok · 1 = finding non baselinati · 2 = errore d'uso o dipendenza
+# Exit code: 0 = ok · 1 = findings not in the baseline · 2 = usage or dependency error
 #
-# Prerequisiti: jq
+# Prerequisites: jq
 #
-# I check (numerazione da DE-16471):
-#   1  SKILL_LINES             SKILL.md > 500 righe
-#   2  SKILL_WORDS             SKILL.md > 500 parole (200 se force-loaded)
-#   3  DESCRIPTION_TRIGGER     description senza clausola trigger ("Use when...")
-#   4  DESCRIPTION_LENGTH      description > 1024 caratteri
-#   5  REFERENCE_DEPTH         reference non linkato direttamente da SKILL.md
-#   6  REFERENCE_INDEX         reference > 100 righe senza indice in testa
-#   7  FORCE_LOAD_REFERENCE    riferimento @path a un file di reference
-#   8  COMMAND_SKILL_DUPLICATE commands/x.md con corpo identico a skills/x/SKILL.md
-#   9  CONSTITUTION_SECTIONS   sezioni citate dalle regole di pruning != heading reali
-#   10 MANIFEST_ORPHAN         asset dichiarato nel manifest e mai referenziato
-#   11 MARKETPLACE_SOURCE      entry di marketplace.json con source o version incoerente
-#   12 LEGACY_RUNTIME_RESIDUE  riferimento a Cursor/Codex/Gemini negli artefatti
+# The checks (numbering from DE-16471):
+#   1  SKILL_LINES             SKILL.md over 500 lines
+#   2  SKILL_WORDS             SKILL.md over 500 words (200 when force-loaded)
+#   3  DESCRIPTION_TRIGGER     description with no trigger clause ("Use when...")
+#   4  DESCRIPTION_LENGTH      description over 1024 characters
+#   5  REFERENCE_DEPTH         reference not linked directly from SKILL.md
+#   6  REFERENCE_INDEX         reference over 100 lines with no index at the top
+#   7  FORCE_LOAD_REFERENCE    an @path reference to a reference file
+#   8  COMMAND_SKILL_DUPLICATE commands/x.md whose body matches skills/x/SKILL.md
+#   9  CONSTITUTION_SECTIONS   sections cited by the pruning rules != real headings
+#   10 MANIFEST_ORPHAN         asset declared in the manifest and never referenced
+#   11 MARKETPLACE_SOURCE      marketplace.json entry with an inconsistent source or version
+#   12 LEGACY_RUNTIME_RESIDUE  a reference to Cursor/Codex/Gemini in the artefacts
 #
-# I check 11 e 12 non sono nella lista originale: sono guardie di regressione
-# sui difetti rimossi dalla catena (la entry `pm-setup` rotta, DE-16471; il
-# supporto Cursor/Codex/Gemini, DE-16489).
-# ---8<--- fine del messaggio di --help
+# Checks 11 and 12 are not in the original list: they are regression guards on
+# defects the chain removed (the broken `pm-setup` entry, DE-16471; the
+# Cursor/Codex/Gemini support, DE-16489).
+# ---8<--- end of the --help message
 #
-# Note di scoping:
-#   - Il check 2 usa il budget ridotto (200) solo per le skill force-loaded via
-#     `@path` da AGENTS/rules/profili: sono le uniche sempre in contesto.
-#   - Il check 10 si applica solo agli asset che la prosa deve tirare dentro
-#     (profiles, boilerplate, required_files). Skill e agent dichiarati nel
-#     manifest sono entry point registrati dal runtime: non essere citati da
-#     altra prosa non e' un difetto. Il campo legacy `agent` non e' piu' letto:
-#     l'agent di dominio e' stato sostituito dalla setup skill (PR 2).
-#   - Il check 12 cerca la stringa nuda: e' la stessa grep del criterio di
-#     accettazione di DE-16489. Se in futuro una regola legittima deve usare
-#     una di quelle parole (es. pagination cursor-based), si restringe il
-#     pattern del check — non si baselina il finding.
+# Scoping notes:
+#   - Check 2 applies the reduced budget (200) only to skills force-loaded with
+#     `@path` from AGENTS/rules/profiles: they are the only ones always in context.
+#   - Check 10 applies only to the assets the prose has to pull in (profiles,
+#     boilerplate, required_files). Skills and agents declared in the manifest are
+#     entry points the runtime registers: not being cited by other prose is not a
+#     defect. The legacy `agent` field is no longer read: the domain agent was
+#     replaced by the setup skill (PR 2).
+#   - Check 12 greps for the bare string: the same grep as the DE-16489 acceptance
+#     criterion. If some legitimate rule ever has to use one of those words (say,
+#     cursor-based pagination), narrow the check's pattern — do not baseline the
+#     finding.
 
 set -euo pipefail
 
@@ -61,8 +61,8 @@ MAX_SKILL_WORDS_FORCE_LOADED=200
 MAX_DESCRIPTION_CHARS=1024
 MAX_REFERENCE_LINES=100
 
-# Clausole accettate come trigger nella description (check 3).
-TRIGGER_PATTERN='use when|use this when|usa quando|usare quando|da usare quando'
+# Clauses accepted as a trigger in the description (check 3).
+TRIGGER_PATTERN='use when|use this when'
 
 OPT_JSON=false
 OPT_STRICT=false
@@ -70,8 +70,8 @@ OPT_FAIL_ON_STALE=false
 OPT_UPDATE_BASELINE=false
 BASELINE_FILE="${SCRIPT_DIR}/validate-baseline.txt"
 
-# Header del file fino alla sentinella: l'elenco dei check cresce, i numeri di
-# riga no.
+# The file header up to the sentinel: the list of checks grows, the line numbers
+# do not.
 usage() {
   awk 'NR == 1 { next } /^# ---8<---/ { exit } /^#/ { sub(/^# ?/, ""); print }' \
     "${BASH_SOURCE[0]}"
@@ -85,34 +85,37 @@ while [ $# -gt 0 ]; do
     --strict)          OPT_STRICT=true ;;
     --fail-on-stale)   OPT_FAIL_ON_STALE=true ;;
     --update-baseline) OPT_UPDATE_BASELINE=true ;;
-    --baseline)        shift; [ $# -gt 0 ] || die "--baseline richiede un percorso"; BASELINE_FILE="$1" ;;
+    --baseline)        shift; [ $# -gt 0 ] || die "--baseline needs a path"; BASELINE_FILE="$1" ;;
     -h|--help)         usage; exit 0 ;;
-    *)                 die "opzione non riconosciuta: $1 (usa --help)" ;;
+    *)                 die "unrecognised option: $1 (see --help)" ;;
   esac
   shift
 done
 
-command -v jq >/dev/null 2>&1 || die "jq non trovato. Installa con: brew install jq"
+command -v jq >/dev/null 2>&1 || die "jq not found. Install it with: brew install jq"
 
-# In modalita' --json l'output umano dei builder (ok/warn/step) va soppresso:
-# stdout deve contenere solo il JSON.
+# In --json mode the builders' human output (ok/warn/step) has to be suppressed:
+# stdout must hold nothing but the JSON.
 if [ "$OPT_JSON" = true ]; then
   ok()   { :; }
   warn() { :; }
   step() { :; }
 fi
 
-TMP_DIR="$(mktemp -d)"
+# The explicit template is needed under the sandbox: on macOS a bare `mktemp -d`
+# uses the system temp dir (_CS_DARWIN_USER_TEMP_DIR) and ignores $TMPDIR, which
+# the sandbox denies. With a template, mktemp honours $TMPDIR.
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/validate-plugin.XXXXXX")"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 FINDINGS="$TMP_DIR/findings.tsv"   # CHECK_ID \t SCOPE \t FILE \t LINE \t KEY \t MESSAGE
-SKILLS="$TMP_DIR/skills.tsv"       # SCOPE \t NAME \t SKILL_MD \t SKILL_DIR (vuoto se non applicabile)
+SKILLS="$TMP_DIR/skills.tsv"       # SCOPE \t NAME \t SKILL_MD \t SKILL_DIR (empty when not applicable)
 : > "$FINDINGS"
 : > "$SKILLS"
 
 # ── Helper ───────────────────────────────────────────────────────────────────
 
-# Percorso relativo alla root del repo (i finding sono sempre repo-relative).
+# Path relative to the repo root (findings are always repo-relative).
 rel() { echo "${1#"${REPO_ROOT}"/}"; }
 
 # add_finding CHECK_ID SCOPE FILE LINE KEY MESSAGE
@@ -120,18 +123,18 @@ add_finding() {
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$6" >> "$FINDINGS"
 }
 
-# Blocco frontmatter YAML (fra la prima e la seconda riga `---`).
+# The YAML frontmatter block (between the first and second `---` line).
 frontmatter() {
   awk 'NR==1 && $0!="---" { exit } NR==1 { next } /^---[[:space:]]*$/ { exit } { print }' "$1"
 }
 
-# Valore di una chiave scalare del frontmatter, incluse le continuation righe
-# indentate (per description: > e description: | multi-riga).
+# The value of a scalar frontmatter key, including indented continuation lines
+# (for multi-line description: > and description: |).
 fm_value() {
   frontmatter "$1" | awk -v key="$2" '
     $0 ~ "^" key ":" {
       sub("^" key ":[[:space:]]*", "")
-      # Scalari folded/literal: il valore vero sta nelle righe successive.
+      # Folded/literal scalars: the real value lives on the following lines.
       if ($0 == ">" || $0 == "|" || $0 == ">-" || $0 == "|-") { $0 = "" }
       val = $0
       while ((getline line) > 0) {
@@ -145,7 +148,7 @@ fm_value() {
     }'
 }
 
-# Corpo del file dopo il frontmatter (tutto il file se non c'e' frontmatter).
+# The file body after the frontmatter (the whole file when there is none).
 body_after_frontmatter() {
   if [ "$(head -1 "$1")" = "---" ]; then
     awk 'NR==1 { next } !seen && /^---[[:space:]]*$/ { seen=1; next } seen' "$1"
@@ -154,22 +157,22 @@ body_after_frontmatter() {
   fi
 }
 
-# Corpo normalizzato per il confronto del check 8: via righe vuote e
-# whitespace di coda, cosi' la differenza e' di contenuto e non di formattazione.
+# Body normalised for check 8's comparison: blank lines and trailing whitespace
+# stripped, so a difference is one of content and not of formatting.
 norm_body() {
   body_after_frontmatter "$1" | sed 's/[[:space:]]*$//' | grep -v '^$' || true
 }
 
-# Token che assomigliano a percorsi .md dentro un file.
+# Tokens that look like .md paths inside a file.
 md_links() {
   grep -o -E '[A-Za-z0-9_][A-Za-z0-9_./-]*\.md' "$1" 2>/dev/null | sed 's|^\./||' | sort -u || true
 }
 
-# ── Inventario skill ─────────────────────────────────────────────────────────
-# Superficie distribuita: templates/<t>/.claude/skills/, shared/skills/ e la
-# setup skill (che il build monta come skills/setup/SKILL.md).
-# Superficie meta: .claude/skills/ del meta-repo, non distribuita ma soggetta
-# alla stessa igiene.
+# ── Skill inventory ──────────────────────────────────────────────────────────
+# Distributed surface: templates/<t>/.claude/skills/, shared/skills/ and the setup
+# skill (which the build mounts as skills/setup/SKILL.md).
+# Meta surface: the meta-repo's .claude/skills/, not distributed but held to the
+# same hygiene.
 collect_skills() {
   local d f name
   for d in "$REPO_ROOT"/templates/*/.claude/skills/*/; do
@@ -180,7 +183,7 @@ collect_skills() {
     f="${d}SKILL.md"; [ -f "$f" ] || continue
     printf 'DISTRIBUTED\t%s\t%s\t%s\n' "$(basename "$d")" "$(rel "$f")" "$(rel "${d%/}")" >> "$SKILLS"
   done
-  # setup-skill.md vive nella root del template: nessuna dir di reference propria.
+  # setup-skill.md lives in the template root: it has no reference dir of its own.
   for f in "$REPO_ROOT"/templates/*/setup-skill.md; do
     [ -f "$f" ] || continue
     printf 'DISTRIBUTED\tsetup\t%s\t\n' "$(rel "$f")" >> "$SKILLS"
@@ -191,8 +194,8 @@ collect_skills() {
   done
 }
 
-# Una skill e' "sempre caricata" se qualcuno la force-loada con @path da
-# AGENTS/rules/profili: solo in quel caso il corpo entra in ogni sessione.
+# A skill is "always loaded" when something force-loads it with @path from
+# AGENTS/rules/profiles: only then does its body enter every session.
 is_force_loaded() {
   local skill_md="$1"
   grep -r -q -E "@[A-Za-z0-9_./-]*$(basename "$(dirname "$skill_md")")/SKILL\.md" \
@@ -203,9 +206,9 @@ is_force_loaded() {
     2>/dev/null
 }
 
-# ── Check 1-4: budget e frontmatter delle skill ──────────────────────────────
+# ── Checks 1-4: skill budgets and frontmatter ────────────────────────────────
 check_skill_budget_and_frontmatter() {
-  step "Check 1-4 — budget righe/parole e frontmatter delle skill"
+  step "Checks 1-4 — line/word budgets and skill frontmatter"
   local scope name skill_md skill_dir abs lines words desc budget
   while IFS=$'\t' read -r scope name skill_md skill_dir; do
     [ -n "${skill_md:-}" ] || continue
@@ -232,7 +235,7 @@ check_skill_budget_and_frontmatter() {
     else
       if ! printf '%s' "$desc" | grep -q -i -E "$TRIGGER_PATTERN"; then
         add_finding DESCRIPTION_TRIGGER "$scope" "$skill_md" 0 "$skill_md" \
-          "description senza clausola trigger (attese: Use when / Usa quando)"
+          "description with no trigger clause (expected: Use when / Use this when)"
       fi
       if [ "${#desc}" -gt "$MAX_DESCRIPTION_CHARS" ]; then
         add_finding DESCRIPTION_LENGTH "$scope" "$skill_md" 0 "$skill_md" \
@@ -242,9 +245,9 @@ check_skill_budget_and_frontmatter() {
   done < "$SKILLS"
 }
 
-# ── Check 5-6: struttura dei file di reference ───────────────────────────────
+# ── Checks 5-6: structure of the reference files ─────────────────────────────
 check_references() {
-  step "Check 5-6 — profondita' e indice dei file di reference"
+  step "Checks 5-6 — depth and index of the reference files"
   local scope name skill_md skill_dir abs_dir refs ref rel_ref direct linked_from other
   while IFS=$'\t' read -r scope name skill_md skill_dir; do
     [ -n "${skill_dir:-}" ] || continue
@@ -261,7 +264,7 @@ check_references() {
       [ -n "$ref" ] || continue
       rel_ref="${ref#"${abs_dir}"/}"
 
-      # Linkato direttamente da SKILL.md? (path relativo o solo basename)
+      # Linked directly from SKILL.md? (relative path or bare basename)
       if grep -q -x -F "$rel_ref" "$direct" || grep -q -x -F "$(basename "$ref")" "$direct"; then
         : # profondita' 1, ok
       else
@@ -274,10 +277,10 @@ check_references() {
         done <<< "$refs"
         if [ -n "$linked_from" ]; then
           add_finding REFERENCE_DEPTH "$scope" "$(rel "$ref")" 0 "$(rel "$ref")" \
-            "raggiungibile solo via $linked_from (profondita' >= 2 da SKILL.md)"
+            "reachable only through $linked_from (depth >= 2 from SKILL.md)"
         else
           add_finding REFERENCE_DEPTH "$scope" "$(rel "$ref")" 0 "$(rel "$ref")" \
-            "non raggiungibile: nessun link da SKILL.md ne' da altri reference"
+            "unreachable: no link from SKILL.md nor from any other reference"
         fi
       fi
 
@@ -289,8 +292,8 @@ check_references() {
   done < "$SKILLS"
 }
 
-# Indice in testa: un heading Index/Indice/Contents/Sommario oppure almeno due
-# voci di lista che linkano ad anchor o ad altri .md, nelle prime 40 righe.
+# An index at the top: an Index/Indice/Contents/Sommario heading, or at least two
+# list entries linking to anchors or other .md files, within the first 40 lines.
 has_index() {
   local head40
   head40=$(head -40 "$1")
@@ -303,9 +306,9 @@ has_index() {
   return 1
 }
 
-# ── Check 7: force-load di un file di reference ──────────────────────────────
+# ── Check 7: force-loading a reference file ──────────────────────────────────
 check_force_load() {
-  step "Check 7 — force-load @path verso file di reference"
+  step "Check 7 — @path force-loads pointing at reference files"
   local f line no token target
   while IFS= read -r f; do
     [ -n "$f" ] || continue
@@ -315,22 +318,22 @@ check_force_load() {
       token=$(printf '%s' "${line#*:}" | grep -o -E '@[A-Za-z0-9_./-]+\.md' | head -1)
       [ -n "$token" ] || continue
       target="${token#@}"
-      # Un force-load conta come difetto solo se punta dentro una skill e non
-      # e' la SKILL.md stessa: quello e' contenuto che deve restare on-demand.
+      # A force-load counts as a defect only when it points inside a skill and is
+      # not the SKILL.md itself: that is content meant to stay on-demand.
       case "$target" in
         */SKILL.md) continue ;;
         */skills/*|reference/*|references/*)
           add_finding FORCE_LOAD_REFERENCE DISTRIBUTED "$(rel "$f")" "$no" "$(rel "$f"):$target" \
-            "force-load '$token': i file di reference vanno linkati, non iniettati"
+            "force-load '$token': reference files are meant to be linked, not injected"
           ;;
       esac
     done < <(grep -n -E '(^|[[:space:]])@[A-Za-z0-9_./-]+\.md' "$f" 2>/dev/null || true)
   done < <(find "$REPO_ROOT/templates" "$REPO_ROOT/shared" -type f -name '*.md' 2>/dev/null | sort)
 }
 
-# ── Check 8: comandi duplicati delle skill ───────────────────────────────────
+# ── Check 8: commands duplicating a skill ────────────────────────────────────
 check_command_duplicates() {
-  step "Check 8 — commands/ con corpo identico alla skill omonima"
+  step "Check 8 — commands/ whose body matches the skill of the same name"
   local cmd name skill_md
   while IFS= read -r cmd; do
     [ -n "$cmd" ] || continue
@@ -339,18 +342,18 @@ check_command_duplicates() {
     [ -n "$skill_md" ] || continue
     if diff -q <(norm_body "$cmd") <(norm_body "$REPO_ROOT/$skill_md") >/dev/null 2>&1; then
       add_finding COMMAND_SKILL_DUPLICATE DISTRIBUTED "$(rel "$cmd")" 0 "$(rel "$cmd")" \
-        "corpo identico a $skill_md: duplica la superficie pubblica"
+        "body identical to $skill_md: it duplicates the public surface"
     fi
   done < <(find "$REPO_ROOT/dist" "$REPO_ROOT/templates" -type d -name commands -exec find {} -type f -name '*.md' \; 2>/dev/null | sort)
 }
 
-# ── Check 9: sezioni della Costituzione citate dalle regole di pruning ───────
-# Ogni regola "se <feature> non rilevato -> rimuovi Sezione <N>" viene
-# confrontata con il titolo reale dell'heading `## <N>.` della CONSTITUTION.
-# E' il check che avrebbe intercettato il pruning su §VII (Nuxt) al posto di
-# §VIII (Mobile).
+# ── Check 9: Constitution sections cited by the pruning rules ────────────────
+# Every "if <feature> not detected -> remove Section <N>" rule is compared against
+# the real title of the CONSTITUTION's `## <N>.` heading.
+# This is the check that would have caught the pruning aimed at §VII (Nuxt)
+# instead of §VIII (Mobile).
 check_constitution_sections() {
-  step "Check 9 — sezioni citate dalle regole di pruning vs heading reali"
+  step "Check 9 — sections cited by the pruning rules vs the real headings"
   local tdir tname constitution headings src no text roman title feature expected
   for constitution in "$REPO_ROOT"/templates/*/CONSTITUTION.md; do
     [ -f "$constitution" ] || continue
@@ -366,8 +369,8 @@ check_constitution_sections() {
         [ -n "$line" ] || continue
         no="${line%%:*}"; text="${line#*:}"
 
-        # Solo righe che rimuovono una sezione, e solo la prima sezione citata:
-        # le successive sono i marcatori di confine (`## VIII.`) della regola.
+        # Only lines that remove a section, and only the first section cited:
+        # the later ones are the rule's boundary markers (`## VIII.`).
         printf '%s' "$text" | grep -q -i -E 'rimuov|remove|prun' || continue
         roman=$(printf '%s' "$text" | grep -o -E '(Sezione|Section|§)[[:space:]]*[IVXLC]+' | head -1 \
           | grep -o -E '[IVXLC]+$' || true)
@@ -376,7 +379,7 @@ check_constitution_sections() {
         title=$(awk -F'\t' -v r="$roman" '$1==r { print $2; exit }' "$headings")
         if [ -z "$title" ]; then
           add_finding CONSTITUTION_SECTIONS DISTRIBUTED "$(rel "$src")" "$no" "$(rel "$src"):$roman" \
-            "cita la Sezione $roman che non esiste in $(rel "$constitution")"
+            "cites Section $roman, which does not exist in $(rel "$constitution")"
           continue
         fi
 
@@ -386,15 +389,15 @@ check_constitution_sections() {
         [ -n "$expected" ] || continue
         if ! printf '%s' "$title" | grep -q -i -F "$expected"; then
           add_finding CONSTITUTION_SECTIONS DISTRIBUTED "$(rel "$src")" "$no" "$(rel "$src"):$roman" \
-            "regola '$feature' punta alla Sezione $roman ('$title'), attesa una sezione '$expected'"
+            "rule '$feature' points at Section $roman ('$title'), expected a '$expected' section"
         fi
       done < <(grep -n -E '(Sezione|Section|§)[[:space:]]*[IVXLC]+' "$src" 2>/dev/null || true)
     done
   done
 }
 
-# Feature di stack citata dalla regola di pruning. L'ordine e' una priorita':
-# 'mobile' vince su 'frontend' perche' le regole mobile citano entrambi.
+# The stack feature the pruning rule cites. The order is a priority: 'mobile' wins
+# over 'frontend' because the mobile rules mention both.
 detect_feature() {
   local text
   text=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
@@ -415,13 +418,13 @@ expected_section_keyword() {
   esac
 }
 
-# ── Check 10: asset dichiarati nel manifest e mai referenziati ───────────────
+# ── Check 10: manifest assets that nothing references ────────────────────────
 check_manifest_orphans() {
-  step "Check 10 — asset del manifest non referenziati da nessuna skill"
+  step "Check 10 — manifest assets no skill references"
   local manifest tdir tname corpus declared decl abs base cf referenced
-  # Corpus = la prosa che il runtime carica davvero: skill e agent. Restano
-  # fuori CHANGELOG e template di documentazione, che citano asset senza
-  # caricarli (e terrebbero in vita voci morte del manifest).
+  # Corpus = the prose the runtime actually loads: skills and agents. CHANGELOGs
+  # and documentation templates stay out, because they cite assets without loading
+  # them (and would keep dead manifest entries alive).
   corpus="$TMP_DIR/corpus.txt"
   {
     awk -F'\t' '{ print $3 }' "$SKILLS"
@@ -445,11 +448,11 @@ check_manifest_orphans() {
       abs="$tdir/$decl"
       if [ ! -e "$abs" ]; then
         add_finding MANIFEST_ORPHAN DISTRIBUTED "$(rel "$manifest")" 0 "$(rel "$manifest"):$decl" \
-          "dichiara 'templates/$tname/$decl' che non esiste"
+          "declares 'templates/$tname/$decl', which does not exist"
         continue
       fi
       base="$(basename "$decl")"
-      # Referenziato se la prosa di una skill/agent lo nomina (anche solo per basename).
+      # Referenced when a skill's or agent's prose names it (even by basename alone).
       referenced=false
       while IFS= read -r cf; do
         [ -n "$cf" ] || continue
@@ -458,19 +461,19 @@ check_manifest_orphans() {
       done < "$corpus"
       if [ "$referenced" = false ]; then
         add_finding MANIFEST_ORPHAN DISTRIBUTED "$(rel "$manifest")" 0 "$(rel "$manifest"):$decl" \
-          "'$decl' dichiarato nel manifest ma mai citato da una skill: rimuoverlo o referenziarlo"
+          "'$decl' is declared in the manifest but no skill cites it: remove it or reference it"
       fi
     done < "$declared"
   done
 }
 
-# ── Check 11: integrita' del catalogo marketplace ────────────────────────────
-# Claude Code e' l'unico target di build (DE-16489): un solo catalogo da
-# verificare, `.claude-plugin/marketplace.json`.
+# ── Check 11: marketplace catalogue integrity ────────────────────────────────
+# Claude Code is the only build target (DE-16489): one catalogue to check,
+# `.claude-plugin/marketplace.json`.
 CATALOG_DIR=".claude-plugin"
 
 check_marketplace() {
-  step "Check 11 — source e version delle entry di marketplace.json"
+  step "Check 11 — source and version of the marketplace.json entries"
   local catalog mp name source version src_dir plugin_json plugin_version
   catalog="$REPO_ROOT/$CATALOG_DIR/marketplace.json"
   [ -f "$catalog" ] || return 0
@@ -480,12 +483,12 @@ check_marketplace() {
     [ -n "$name" ] || continue
     case "$source" in
       ./*) src_dir="$REPO_ROOT/${source#./}" ;;
-      *)   continue ;;  # source remoti: non verificabili offline
+      *)   continue ;;  # remote sources: not verifiable offline
     esac
 
     if [ ! -d "$src_dir" ]; then
       add_finding MARKETPLACE_SOURCE DISTRIBUTED "$mp" 0 "$mp:$name" \
-        "entry '$name' punta a '$source' che non esiste"
+        "entry '$name' points at '$source', which does not exist"
       continue
     fi
 
@@ -504,16 +507,16 @@ check_marketplace() {
   done < <(jq -r '.plugins[]? | [.name, .source // "", .version // ""] | @tsv' "$catalog")
 }
 
-# ── Check 12: residui dei runtime non piu' supportati ────────────────────────
-# Cursor, Codex e Gemini sono stati rimossi con DE-16489: builder, artefatti in
-# dist/ e catalogo dedicato. Il check e' la grep del criterio di accettazione,
-# resa permanente perche' il supporto non rientri di soppiatto da una PR.
-# Esclusi: i CHANGELOG (storia della release, non superficie del plugin) e i due
-# file di questo controllo, che contengono i pattern per definizione.
+# ── Check 12: residue of the runtimes no longer supported ────────────────────
+# Cursor, Codex and Gemini were removed by DE-16489: builders, dist/ artefacts and
+# the dedicated catalogue. This check is the acceptance criterion's grep, made
+# permanent so the support cannot creep back in through a PR.
+# Excluded: the CHANGELOGs (release history, not plugin surface) and this check's
+# own two files, which hold the patterns by definition.
 LEGACY_RUNTIME_PATTERN='cursor|codex|gemini'
 
 check_legacy_runtime_residue() {
-  step "Check 12 — residui di Cursor/Codex/Gemini negli artefatti"
+  step "Check 12 — Cursor/Codex/Gemini residue in the artefacts"
   local f line no text
   while IFS= read -r f; do
     [ -n "$f" ] || continue
@@ -526,15 +529,15 @@ check_legacy_runtime_residue() {
       no="${line%%:*}"
       text="$(printf '%s' "${line#*:}" | sed 's/^[[:space:]]*//')"
       add_finding LEGACY_RUNTIME_RESIDUE DISTRIBUTED "$(rel "$f")" "$no" "$(rel "$f"):$no" \
-        "riferimento a un runtime rimosso (DE-16489): $text"
+        "reference to a removed runtime (DE-16489): $text"
     done < <(grep -n -i -E "$LEGACY_RUNTIME_PATTERN" "$f" 2>/dev/null || true)
   done < <(find "$REPO_ROOT/scripts" "$REPO_ROOT/templates" "$REPO_ROOT/dist" \
              "$REPO_ROOT/.claude-plugin" -type f 2>/dev/null | sort)
 }
 
-# ── Esecuzione ───────────────────────────────────────────────────────────────
+# ── Run ──────────────────────────────────────────────────────────────────────
 collect_skills
-[ -s "$SKILLS" ] || die "nessuna skill trovata: eseguire dalla root del repo"
+[ -s "$SKILLS" ] || die "no skill found: run this from the repo root"
 
 check_skill_budget_and_frontmatter
 check_references
@@ -561,18 +564,18 @@ comm -23 "$BASELINE_KEYS" "$CURRENT_KEYS" > "$STALE_KEYS"
 
 if [ "$OPT_UPDATE_BASELINE" = true ]; then
   {
-    echo "# validate-baseline.txt — fail noti di scripts/validate-plugin.sh."
+    echo "# validate-baseline.txt — known failures of scripts/validate-plugin.sh."
     echo "#"
-    echo "# Una riga per finding: CHECK_ID <TAB> KEY. Le voci qui elencate sono"
-    echo "# riportate ma non fanno fallire la CI. Ogni PR che risolve un difetto"
-    echo "# rimuove la riga corrispondente: la baseline si svuota, non cresce."
+    echo "# One line per finding: CHECK_ID <TAB> KEY. The entries listed here are"
+    echo "# reported but do not fail CI. Every PR that fixes a defect removes the"
+    echo "# matching line: the baseline shrinks, it does not grow."
     echo "# Rigenerare con: bash scripts/validate-plugin.sh --update-baseline"
     echo "#"
     echo "# Stato reale del repo: bash scripts/validate-plugin.sh --strict"
     echo ""
     cat "$CURRENT_KEYS"
   } > "$BASELINE_FILE"
-  ok "Baseline riscritta: $(rel "$BASELINE_FILE") ($(wc -l < "$CURRENT_KEYS" | tr -d ' ') voci)"
+  ok "Baseline rewritten: $(rel "$BASELINE_FILE") ($(wc -l < "$CURRENT_KEYS" | tr -d ' ') entries)"
   exit 0
 fi
 
@@ -625,7 +628,7 @@ fi
 
 echo ""
 if [ "$NEW" -gt 0 ]; then
-  step "Finding nuovi ($NEW) — non presenti in baseline"
+  step "New findings ($NEW) — not in the baseline"
   while IFS=$'\t' read -r cid scope file line key msg; do
     [ -n "${cid:-}" ] || continue
     if [ "$line" != "0" ]; then
@@ -637,7 +640,7 @@ if [ "$NEW" -gt 0 ]; then
 fi
 
 if [ "$STALE" -gt 0 ]; then
-  step "Baseline stale ($STALE) — difetti risolti, rimuovere le righe da $(rel "$BASELINE_FILE")"
+  step "Stale baseline ($STALE) — defects fixed, remove the lines from $(rel "$BASELINE_FILE")"
   while IFS=$'\t' read -r cid key; do
     [ -n "${cid:-}" ] || continue
     echo -e "${YELLOW}⚠${NC}  $cid\t$key"
@@ -645,10 +648,10 @@ if [ "$STALE" -gt 0 ]; then
 fi
 
 echo ""
-echo "Finding totali: $TOTAL · baselinati: $BASELINED · nuovi: $NEW · baseline stale: $STALE"
+echo "Findings: $TOTAL total · $BASELINED baselined · $NEW new · $STALE stale baseline"
 if [ "$EXIT_CODE" -eq 0 ]; then
-  ok "Nessun finding nuovo. Validazione passata."
+  ok "No new finding. Validation passed."
 else
-  echo -e "${RED}✗${NC} Validazione fallita. Correggi i finding nuovi (o aggiorna la baseline se sono debito accettato)."
+  echo -e "${RED}✗${NC} Validation failed. Fix the new findings (or update the baseline if they are accepted debt)."
 fi
 exit "$EXIT_CODE"

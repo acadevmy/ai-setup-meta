@@ -21,3 +21,4 @@ logs/
 
 # File di stato della pipeline auto-maintain (temporaneo, non va in repo)
 .automaint-state.json
+.automaint-pr-body.md

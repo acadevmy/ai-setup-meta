@@ -1,12 +1,12 @@
 name: Release Please
 
-# Su ogni push su main, release-please calcola il bump dai conventional commits
-# dall'ultimo tag dev-setup-v* e apre/aggiorna una "release PR" running.
-# Al merge della release PR, release-please crea il tag annotato + GitHub Release.
+# On every push to main, release-please computes the bump from the conventional
+# commits since the last dev-setup-v* tag and opens or updates a running "release PR".
+# When that PR is merged, release-please creates the annotated tag + GitHub Release.
 #
-# Configurazione:
-#   - release-please-config.json (root): tipo release, extra-files, changelog path
-#   - .release-please-manifest.json (root): versione corrente (source of truth)
+# Configuration:
+#   - release-please-config.json (root): release type, extra-files, changelog path
+#   - .release-please-manifest.json (root): the current version (source of truth)
 #
 # Convenzione commit: vedi AGENTS.md → "Tipi e impatto sulla release"
 
@@ -22,8 +22,8 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      # Necessario per lo step "Rebuild dist": senza checkout girerebbe in un
-      # workspace vuoto. release-please-action non ne ha bisogno (usa le API).
+      # Needed by the "Rebuild dist" step: without a checkout it would run in an
+      # empty workspace. release-please-action does not need it (it uses the APIs).
       - uses: actions/checkout@v4
 
       - uses: googleapis/release-please-action@v4
@@ -33,17 +33,16 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Se la release PR e' stata mergeata in questo run, ricostruisce dist/
-      # con la nuova versione e committa direttamente su main. Necessario
-      # perche' release-please bumpa solo il campo `version` di plugin.json,
-      # ma le skill/agents in dist/ vanno rebuildate solo se sono cambiate
-      # (in pratica non cambiano per un release commit puro — ma il rebuild
-      # garantisce idempotenza e cattura eventuali drift).
-      # Il package e' configurato sul path root (`.`): release-please v4 emette
-      # gli output del root component SENZA prefisso di path (`release_created`,
-      # `tag_name`). Il confronto con 'true' e' obbligatorio: negli `if` di
-      # GitHub Actions ogni stringa non vuota e' truthy, quindi la sola
-      # `outputs.release_created` farebbe partire lo step anche con 'false'.
+      # If the release PR was merged in this run, rebuild dist/ at the new version
+      # and commit straight to main. This is needed because release-please only bumps
+      # the `version` field of plugin.json, while the skills/agents under dist/ are
+      # rebuilt only when they change (in practice they do not for a pure release
+      # commit — but the rebuild keeps things idempotent and catches any drift).
+      # The package is configured on the root path (`.`): release-please v4 emits the
+      # root component's outputs WITHOUT a path prefix (`release_created`,
+      # `tag_name`). Comparing against 'true' is mandatory: in GitHub Actions `if`
+      # expressions every non-empty string is truthy, so the
+      # bare `outputs.release_created` would fire the step even when it is 'false'.
       - name: Rebuild dist after release publish
         if: ${{ steps.release.outputs.release_created == 'true' }}
         run: |

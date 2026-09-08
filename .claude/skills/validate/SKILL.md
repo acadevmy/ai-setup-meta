@@ -1,6 +1,6 @@
 ---
 name: validate
-description: Validazione pre-release del plugin: riferimenti dei manifest e check statici sulla qualita' delle skill. Usa quando devi verificare il repo prima di una PR o di una release, o quando la CI segnala un finding.
+description: Pre-release validation of the plugin: manifest references and static checks on skill quality. Use when you need to verify the repo before a PR or a release, or when CI reports a finding.
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: Bash, Read, Edit
@@ -8,38 +8,38 @@ allowed-tools: Bash, Read, Edit
 
 # /project:validate
 
-Esegue i due gate statici del meta-repo. Sono gli stessi comandi che gira la CI
-(`.github/workflows/ci.yml`, job `static-checks`): se passano qui, passano la'.
+Runs the meta-repo's two static gates. They are the same commands CI runs
+(`.github/workflows/ci.yml`, job `static-checks`): if they pass here, they pass there.
 
-## Procedura
+## Procedure
 
-1. Riferimenti dei manifest — ogni file dichiarato esiste:
+1. Manifest references — every declared file exists:
 
    ```bash
    bash scripts/validate-setup-urls.sh
    ```
 
-2. Check statici sulla qualita' delle skill (12 check, vedi l'header dello script):
+2. Static checks on skill quality (12 checks, see the script header):
 
    ```bash
    bash scripts/validate-plugin.sh --fail-on-stale
    ```
 
-3. Riporta l'esito distinguendo le tre categorie di output:
-   - **finding nuovi** → da correggere in questa PR, sono il motivo del fallimento;
-   - **finding baselinati** → debito noto censito in `scripts/validate-baseline.txt`;
-   - **baseline stale** → difetti risolti: rimuovi le righe corrispondenti dalla
-     baseline nella stessa PR che li ha risolti.
+3. Report the outcome, keeping the three output categories apart:
+   - **new findings** → to fix in this PR; they are the reason the gate failed;
+   - **baselined findings** → known debt recorded in `scripts/validate-baseline.txt`;
+   - **stale baseline** → defects that have been fixed: remove the matching lines from
+     the baseline in the same PR that fixed them.
 
-## Opzioni utili
+## Useful options
 
-- `--strict` — ignora la baseline e mostra lo stato reale del repo.
-- `--json` — output machine-readable (chiavi UPPER_SNAKE) per altri script.
-- `--update-baseline` — riscrive la baseline. **Solo** per debito accettato
-  esplicitamente: la baseline si svuota con le PR della catena, non cresce.
+- `--strict` — ignore the baseline and show the repo's real state.
+- `--json` — machine-readable output (UPPER_SNAKE keys) for other scripts.
+- `--update-baseline` — rewrite the baseline. **Only** for debt that has been accepted
+  explicitly: the baseline shrinks with the PRs of the chain, it does not grow.
 
-## Regole
+## Rules
 
-- Non allargare la baseline per far passare la CI: un finding nuovo si corregge.
-- Se un check produce un falso positivo, la correzione va nello script, non
-  nella baseline.
+- Do not widen the baseline to make CI pass: a new finding gets fixed.
+- If a check produces a false positive, the fix belongs in the script, not in the
+  baseline.

@@ -1,9 +1,9 @@
 # Changelog
 
 <!--
-release-please gestisce questo file dal release v1.7.0 in avanti.
-Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
-Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
+release-please owns this file from release v1.7.0 onwards.
+The `[X.Y.Z]` sections are generated from the conventional commits since the last tag.
+Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
 ## [2.3.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v2.3.0...dev-setup-v2.3.1) (2026-09-08)

@@ -1,101 +1,100 @@
-# Workflow operativo
+# Operating workflow
 
-Guida pratica su come Claude Code opera nel meta-repo e come il maintainer
-interagisce con esso giorno per giorno.
+A practical guide to how Claude Code works inside the meta-repo, and how the maintainer
+deals with it day to day.
 
-> **Ambito**: questo documento descrive il workflow **di manutenzione del plugin stesso**
-> (il meta-repo `ai-setup-meta` e' ospitato su GitHub). Gli utenti finali del plugin
-> possono lavorare su progetti GitHub **o** GitLab — vedi
-> [developer-guide.md](./developer-guide.md) per quel lato. I comandi `gh` qui sotto
-> riguardano solo il release del plugin.
+> **Scope**: this document describes the workflow for **maintaining the plugin itself**
+> (the `ai-setup-meta` meta-repo is hosted on GitHub). End users of the plugin may work on
+> GitHub **or** GitLab projects — see [developer-guide.md](./developer-guide.md) for that
+> side. The `gh` commands below only concern releasing the plugin.
 
-## Ciclo di vita tipico di una modifica
+## The typical life of a change
 
 ```
-Contributor (umano o agent) apre branch su feat/<scope>
+A contributor (human or agent) opens a branch on feat/<scope>
          │
          ▼
-  Modifica i sorgenti in templates/, shared/, scripts/
-  seguendo le regole di CONSTITUTION.md e AGENTS.md
+  Edits the sources under templates/, shared/, scripts/
+  following the rules in CONSTITUTION.md and AGENTS.md
          │
          ▼
-  /project:validate  — check statici sulla qualita' delle skill
+  /project:validate  — static checks on skill quality
          │
          ▼
-  Conventional commit subject (feat:/fix:/feat!:/docs:/...) +
-  push branch + apre PR
-  - build-verify.yml controlla che dist/ sia in sync
+  Conventional commit subject (feat:/fix:/feat!:/docs:/…) +
+  push the branch + open a PR
+  - build-verify.yml checks that dist/ is in sync
          │
          ▼
-  Review + squash-merge su main (build-verify verde)
+  Review + squash-merge into main (build-verify green)
          │
          ▼
-  release-please.yml automatico su push su main:
-  - parse dei conventional commits dall'ultimo tag dev-setup-v*
-  - calcola bump type (major/minor/patch) o niente (per docs:/chore:/ecc.)
-  - se ci sono commit rilevanti, apre/aggiorna una "release PR" running:
-      - bump versione in templates/dev-setup/.env.example (marker x-release-please-version)
-      - bump version in dist/dev-setup/.claude-plugin/plugin.json
-      - aggiorna .release-please-manifest.json
-      - genera/aggiorna sezione "## [X.Y.Z]" in templates/dev-setup/CHANGELOG.md
-        (raggruppata per Features / Bug Fixes / Documentation / ecc.)
+  release-please.yml runs automatically on push to main:
+  - parses the conventional commits since the last dev-setup-v* tag
+  - computes the bump type (major/minor/patch) or nothing (for docs:/chore:/…)
+  - if there are relevant commits, opens or updates a running "release PR":
+      - bumps the version in templates/dev-setup/.env.example (x-release-please-version marker)
+      - bumps the version in dist/dev-setup/.claude-plugin/plugin.json
+      - updates .release-please-manifest.json
+      - generates or updates the "## [X.Y.Z]" section in templates/dev-setup/CHANGELOG.md
+        (grouped by Features / Bug Fixes / Documentation / …)
          │
          ▼
-  Maintainer rivede la release PR (puo' attendere accumulo di piu'
-  PR feature — release-please aggiorna la PR ad ogni push su main)
+  The maintainer reviews the release PR (they can wait for several feature
+  PRs to pile up — release-please updates the PR on every push to main)
          │
          ▼
-  Merge della release PR su main
+  The release PR is merged into main
          │
          ▼
-  release-please.yml di nuovo:
-  - tag annotato dev-setup-vX.Y.Z
-  - GitHub Release con il diff della sezione CHANGELOG come body
-  - rebuild di dist/ e commit ("chore(dist): rebuild after release ...")
+  release-please.yml again:
+  - annotated tag dev-setup-vX.Y.Z
+  - a GitHub Release whose body is the diff of the CHANGELOG section
+  - rebuilds dist/ and commits it ("chore(dist): rebuild after release …")
 ```
 
-> **Nota sulle skill helper**: le skill `/project:*` sono strumenti **opzionali** del meta-repo (vivono in `.claude/skills/`). Non sono parte del CI. Servono al contributor per fare modifiche guidate (es. aggiornare la CONSTITUTION mantenendo coerenza fra root e template). Il contributor puo' anche modificare i file a mano — il flow di release dipende solo dai conventional commits, non da come sono stati creati i cambi. Vedi [`AGENTS.md → Skill disponibili`](../AGENTS.md#skill-disponibili) per la lista completa e la descrizione di ognuna.
+> **A note on the helper skills**: the `/project:*` skills are **optional** meta-repo tools (they live in `.claude/skills/`). They are not part of CI. They exist so a contributor can make guided changes (for example updating the CONSTITUTION while keeping the root and the template coherent). A contributor can equally well edit the files by hand — the release flow depends only on the conventional commits, not on how the changes were produced. See [`AGENTS.md → Available skills`](../AGENTS.md#available-skills) for the full list and what each one does.
 
-## Come funziona il release
+## How the release works
 
-Il release flow usa [release-please](https://github.com/googleapis/release-please) (action ufficiale Google, battle-tested). Su ogni push su `main`, l'action analizza i conventional commits dall'ultimo tag e:
+The release flow uses [release-please](https://github.com/googleapis/release-please) (Google's official, battle-tested action). On every push to `main` the action reads the conventional commits since the last tag and:
 
-- Apre o aggiorna una "release PR" running con bump versione + CHANGELOG generato
-- Al merge della release PR, crea tag annotato + GitHub Release
+- Opens or updates a running "release PR" with the version bump and a generated CHANGELOG
+- On merging that release PR, creates the annotated tag and the GitHub Release
 
-Niente push diretto su `main`, niente trigger manuale, niente bash custom. Due workflow:
+No direct push to `main`, no manual trigger, no custom bash. Two workflows:
 
-1. **`release-please.yml`** — gira su ogni push su `main`. Action: `googleapis/release-please-action@v4`.
-2. **`build-verify.yml`** — gira su ogni PR. Verifica che `dist/` sia in sync con la sorgente.
+1. **`release-please.yml`** — runs on every push to `main`. Action: `googleapis/release-please-action@v4`.
+2. **`build-verify.yml`** — runs on every PR. Checks that `dist/` is in sync with the source.
 
-### Configurazione release-please
+### release-please configuration
 
-- **`release-please-config.json`** (root) — definisce il package, gli `extra-files` da bumpare, il path del CHANGELOG. Single-package mode con root come scope.
-- **`.release-please-manifest.json`** (root) — versione corrente. release-please la aggiorna automaticamente; non editare a mano.
+- **`release-please-config.json`** (root) — defines the package, the `extra-files` to bump and the CHANGELOG path. Single-package mode with the root as scope.
+- **`.release-please-manifest.json`** (root) — the current version. release-please updates it automatically; do not edit it by hand.
 
-`extra-files` configurati per il bump della versione:
+The `extra-files` configured for the version bump:
 
-- `templates/dev-setup/.env.example` — riconosciuto via marker comment `# x-release-please-version`
-- `dist/dev-setup/skills/setup/templates/.env.example` — la copia che il build monta sotto `dist/` (stesso marker)
+- `templates/dev-setup/.env.example` — recognised through the `# x-release-please-version` marker comment
+- `dist/dev-setup/skills/setup/templates/.env.example` — the copy the build places under `dist/` (same marker)
 - `dist/dev-setup/.claude-plugin/plugin.json` — JSON path `$.version`
 - `.claude-plugin/marketplace.json` — JSON path `$.plugins[?(@.name == 'dev-setup')].version`
 
-Ogni file generato che porta la versione deve stare in questa lista: una release PR che ne bumpa solo una parte nasce fuori sync rispetto a un rebuild, e il drift check di `dist/` diventa rosso sulla release PR stessa.
+Every generated file carrying the version has to be on this list: a release PR that bumps only some of them is born out of sync with a rebuild, and the `dist/` drift check goes red on the release PR itself.
 
-Claude Code e' l'unico target di build (DE-16489): il manifest e il catalogo `.cursor-plugin/` non esistono piu'.
+Claude Code is the only build target (DE-16489): the `.cursor-plugin/` manifest and catalogue no longer exist.
 
-### Verifica del build (PR check)
+### Build verification (PR check)
 
-`build-verify.yml` gira su ogni PR che tocca `templates/`, `shared/`, `scripts/builders/`, marketplace files, o `dist/`:
+`build-verify.yml` runs on every PR that touches `templates/`, `shared/`, `scripts/builders/`, the marketplace files, or `dist/`:
 
-- Esegue `bash scripts/build-plugin.sh <template>`
-- Fallisce se `git diff` rileva differenze rispetto a `dist/` committato
+- Runs `bash scripts/build-plugin.sh <template>`
+- Fails if `git diff` finds any difference against the committed `dist/`
 
-Cattura il caso in cui qualcuno modifica `templates/` ma dimentica di rebuildare `dist/`.
+It catches the case where someone edits `templates/` and forgets to rebuild `dist/`.
 
-### Override manuale del bump type
+### Overriding the bump type by hand
 
-release-please ha un comando per forzare il release type tramite "release-as" footer in un commit:
+release-please lets you force the release type with a "release-as" footer in a commit:
 
 ```
 feat(profile): add some feature
@@ -103,72 +102,61 @@ feat(profile): add some feature
 Release-As: 2.0.0
 ```
 
-In alternativa puoi scrivere `release-please-action`-style annotations (vedi [docs ufficiali](https://github.com/googleapis/release-please#how-do-i-change-the-version-number)).
+Alternatively you can write `release-please-action`-style annotations (see the [official docs](https://github.com/googleapis/release-please#how-do-i-change-the-version-number)).
 
-## Operazioni frequenti
+## Common operations
 
-### Aggiungere una regola alla Costituzione
+### Adding a rule to the Constitution
 ```bash
-git checkout -b feat/constitution-nuova-regola
-# Modifica templates/dev-setup/CONSTITUTION.md, poi:
+git checkout -b feat/constitution-new-rule
+# Edit templates/dev-setup/CONSTITUTION.md, then:
 bash scripts/build-plugin.sh dev-setup
 ```
 
-### Aggiornare le versioni di una libreria
+### Updating a library's versions
 ```bash
-git checkout -b chore/aggiornamento-stack-web
-# Modifica il profilo in templates/dev-setup/profiles/, poi:
+git checkout -b chore/update-web-stack
+# Edit the profile under templates/dev-setup/profiles/, then:
 bash scripts/build-plugin.sh dev-setup
 ```
 
-### Rigenerare il plugin dopo una modifica ai sorgenti
+### Rebuilding the plugin after a source change
 ```bash
 bash scripts/build-plugin.sh dev-setup
-# Verifica e commita il contenuto di dist/dev-setup/ aggiornato
+# Check and commit the refreshed contents of dist/dev-setup/
 ```
 
-### Rilasciare una nuova versione del plugin
+### Releasing a new version of the plugin
 
-Niente azioni esplicite richieste:
+Nothing explicit is required:
 
-1. Mergea le tue PR feature/fix con commit conventional (`feat:`, `fix:`, ecc.). release-please apre o aggiorna automaticamente una release PR ad ogni push su `main`.
-2. Quando vuoi pubblicare, mergea la release PR. release-please crea tag e GitHub Release in automatico.
+1. Merge your feature/fix PRs with conventional commits (`feat:`, `fix:`, …). release-please opens or updates a release PR automatically on every push to `main`.
+2. When you want to publish, merge the release PR. release-please creates the tag and the GitHub Release on its own.
 
-Per forzare una versione specifica (override): aggiungi `Release-As: X.Y.Z` nel footer di un commit.
+To force a specific version (an override): add `Release-As: X.Y.Z` to a commit footer.
 
-## Setup iniziale del repo di distribuzione
+## Rules for the maintainer
 
-La prima volta che si esegue `release-template.sh`, lo script:
-1. Verifica se il repo `GITHUB_ORG/GITHUB_DIST_REPO` esiste su GitHub
-2. Se non esiste, offre di crearlo automaticamente con `gh repo create`
-3. Pubblica la prima versione
+1. **Never work on `main` directly** — always a branch and a PR
+2. **Read every PR Claude opens** before approving it — the responsibility stays human
+3. **Do not approve PRs that touch `CONSTITUTION.md`** without a careful review
+4. **Update `AGENTS.md`** whenever the team's tools, profiles or processes change
+5. **Test `/dev-setup:setup`** on a clean project before every minor/major release
+6. **Never edit the template repo directly** — always go through the meta-repo
 
-## Regole per il maintainer
+## Handling Claude Code mistakes
 
-1. **Non operare mai su `main` direttamente** — sempre branch + PR
-2. **Leggere ogni PR di Claude** prima di approvarla — la responsabilita' resta umana
-3. **Non approvare PR che modificano `CONSTITUTION.md`** senza una review attenta
-4. **Aggiornare `AGENTS.md`** se cambiano strumenti, profili o processi del team
-5. **Testare `/dev-setup:setup`** su un progetto pulito prima di ogni release minor/major
-6. **Non modificare mai il repo template direttamente** — usare sempre il meta-repo
+If Claude Code does something unexpected:
 
-## Gestione degli errori di Claude Code
+1. **Do not merge the PR** — close it without merging
+2. Work out what went wrong in `AGENTS.md` or in the slash commands
+3. Fix the instructions and try again
+4. If the problem keeps coming back, open a PR to improve the prompt
 
-Se Claude Code fa qualcosa di inatteso:
+## Recommended branch protection (GitHub Settings)
 
-1. **Non fare merge della PR** — chiuderla senza merge
-2. Analizzare cosa e' andato storto nell'`AGENTS.md` o nei comandi slash
-3. Correggere le istruzioni e riprovare
-4. Se il problema e' ricorrente, aprire una PR per migliorare il prompt
-
-## Branch protection consigliata (GitHub Settings)
-
-### Per il meta-repo (`ai-setup-meta`)
 - Require a pull request before merging
 - Require approvals: 1
 - Dismiss stale pull request approvals when new commits are pushed
-- Require status checks to pass (se configurate GitHub Actions)
+- Require status checks to pass (once the GitHub Actions are configured)
 - Do not allow bypassing the above settings
-
-### Per il repo di distribuzione (`dev-setup-template`)
-- Nessuna branch protection necessaria — il repo viene aggiornato solo dallo script di release

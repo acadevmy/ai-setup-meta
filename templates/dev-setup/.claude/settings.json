@@ -3,10 +3,8 @@
     "allow": [
       "Bash(git *)",
       "Bash(npm *)",
-      "Bash(npx *)",
       "Bash(yarn *)",
       "Bash(pnpm *)",
-      "Bash(node *)",
       "Bash(ls *)",
       "Bash(cat *)",
       "Bash(mkdir *)",
@@ -21,35 +19,131 @@
       "Bash(jq *)",
       "Bash(gh *)",
       "Bash(glab *)",
-      "Bash(claude *)",
       "mcp__clickup__*",
-      "mcp__context7__*",
       "mcp__figma__*"
+    ],
+    "ask": [
+      "Bash(gh pr create*)",
+      "Bash(glab mr create*)",
+      "mcp__clickup__clickup_create_*",
+      "mcp__clickup__clickup_update_*",
+      "mcp__clickup__clickup_delete_*",
+      "mcp__clickup__clickup_move_*",
+      "mcp__clickup__clickup_merge_*",
+      "mcp__clickup__clickup_add_*",
+      "mcp__clickup__clickup_remove_*"
     ],
     "deny": [
       "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
       "Bash(git push origin main*)",
-      "Bash(git commit*--no-verify*)",
+      "Bash(git push origin master*)",
+      "Bash(git push origin next*)",
+      "Bash(git push origin develop*)",
+      "Bash(git push * HEAD:main*)",
+      "Bash(git push * HEAD:master*)",
+      "Bash(git push * HEAD:next*)",
+      "Bash(git push * HEAD:develop*)",
+      "Bash(git commit -n*)",
+      "Bash(git commit * -n*)",
+      "Bash(git commit *--no-verify*)",
+      "Bash(claude --dangerously-skip-permissions*)",
+      "Bash(claude *--dangerously-skip-permissions*)",
+      "Bash(claude *--permission-mode bypassPermissions*)",
       "Bash(npm publish*)",
       "Bash(pnpm publish*)",
       "Bash(yarn publish*)",
       "Bash(rm -rf /*)",
-      "Bash(curl * | bash*)",
-      "Bash(wget * | bash*)"
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.*.local)",
+      "Read(**/.env.development)",
+      "Read(**/.env.production)",
+      "Read(**/.env.staging)",
+      "Read(**/.env.test)",
+      "Edit(**/.env)",
+      "Edit(**/.env.local)",
+      "Edit(**/.env.*.local)",
+      "Edit(**/.env.development)",
+      "Edit(**/.env.production)",
+      "Edit(**/.env.staging)",
+      "Edit(**/.env.test)",
+      "Edit(**/package-lock.json)",
+      "Edit(**/pnpm-lock.yaml)",
+      "Edit(**/yarn.lock)",
+      "Edit(**/.git/**)"
     ]
   },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "filesystem": {
+      "denyRead": [
+        ".env",
+        ".env.local",
+        ".env.development",
+        ".env.production",
+        ".env.staging",
+        ".env.test",
+        "**/.env",
+        "**/.env.local",
+        "**/.env.*.local",
+        "**/.env.development",
+        "**/.env.production",
+        "**/.env.staging",
+        "**/.env.test"
+      ],
+      "denyWrite": [
+        ".env",
+        ".env.local",
+        ".env.development",
+        ".env.production",
+        ".env.staging",
+        ".env.test",
+        "**/.env",
+        "**/.env.local",
+        "**/.env.*.local",
+        "**/.env.development",
+        "**/.env.production",
+        "**/.env.staging",
+        "**/.env.test",
+        "**/package-lock.json",
+        "**/pnpm-lock.yaml",
+        "**/yarn.lock"
+      ]
+    },
+    "network": {
+      "allowedDomains": [
+        "registry.npmjs.org",
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com"
+      ]
+    },
+    "credentials": {
+      "files": [
+        { "path": "~/.ssh", "mode": "deny" },
+        { "path": "~/.aws", "mode": "deny" },
+        { "path": "~/.kube", "mode": "deny" }
+      ],
+      "envVars": [
+        { "name": "GH_TOKEN", "mode": "deny" },
+        { "name": "GITHUB_TOKEN", "mode": "deny" },
+        { "name": "GITLAB_TOKEN", "mode": "deny" },
+        { "name": "GLAB_TOKEN", "mode": "deny" },
+        { "name": "CI_JOB_TOKEN", "mode": "deny" },
+        { "name": "NPM_TOKEN", "mode": "deny" },
+        { "name": "CLICKUP_API_TOKEN", "mode": "deny" },
+        { "name": "AWS_ACCESS_KEY_ID", "mode": "deny" },
+        { "name": "AWS_SECRET_ACCESS_KEY", "mode": "deny" },
+        { "name": "AWS_SESSION_TOKEN", "mode": "deny" }
+      ]
+    }
+  },
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/protect-files.sh"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",

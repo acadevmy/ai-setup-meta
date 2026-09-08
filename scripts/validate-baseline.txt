@@ -1,8 +1,8 @@
-# validate-baseline.txt — fail noti di scripts/validate-plugin.sh.
+# validate-baseline.txt — known failures of scripts/validate-plugin.sh.
 #
-# Una riga per finding: CHECK_ID <TAB> KEY. Le voci qui elencate sono
-# riportate ma non fanno fallire la CI. Ogni PR che risolve un difetto
-# rimuove la riga corrispondente: la baseline si svuota, non cresce.
+# One line per finding: CHECK_ID <TAB> KEY. The entries listed here are
+# reported but do not fail CI. Every PR that fixes a defect removes the
+# matching line: the baseline shrinks, it does not grow.
 # Rigenerare con: bash scripts/validate-plugin.sh --update-baseline
 #
 # Stato reale del repo: bash scripts/validate-plugin.sh --strict

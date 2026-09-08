@@ -3,13 +3,12 @@ name: clickup
 description: Handles all ClickUp operations (read, update, create, filter tasks, tag) for the meta-repo. Use when you need to interact with ClickUp.
 tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments, mcp__clickup__clickup_add_tag_to_task, mcp__clickup__clickup_remove_tag_from_task
 model: haiku
-permissionMode: dontAsk
 ---
 
-> Questo agent è una variante meta-repo del subagent canonico in
-> `shared/agents/clickup.md`. Allinea sempre comportamento e formato di output
-> a quella sorgente. Le uniche differenze sono i tool `add_tag_to_task` /
-> `remove_tag_from_task` necessari alla pipeline `auto-maintain`.
+> This agent is a meta-repo variant of the canonical subagent in
+> `shared/agents/clickup.md`. Always keep its behaviour and output format aligned
+> with that source. The only differences are the `add_tag_to_task` /
+> `remove_tag_from_task` tools the `auto-maintain` pipeline needs.
 
 ## Core principle: CONTENT FIDELITY
 
@@ -64,8 +63,8 @@ Do NOT use abbreviated names — they will fail.
 ### Intent: `update`
 1. Validate the status transition against the workflow (see below)
 2. If the transition is not valid, return STATUS: error with the reason.
-   **Eccezione**: se `status` corrisponde allo status attuale (no-op), accetta la chiamata se serve solo a postare un commento.
-3. Call `mcp__clickup__clickup_update_task` with task_id and status (skip se no-op)
+   **Exception**: if `status` matches the current status (a no-op), accept the call when it only serves to post a comment.
+3. Call `mcp__clickup__clickup_update_task` with task_id and status (skip it on a no-op)
 4. If `comment` is provided, call `mcp__clickup__clickup_create_task_comment`
 5. Return the updated task
 
@@ -101,7 +100,7 @@ Do NOT use abbreviated names — they will fail.
 SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
                 ^                  |
                 |                  v
-                +------------- BLOCKED  (terminale fino a recovery manuale)
+                +------------- BLOCKED  (terminal until a human resolves the blocker)
 ```
 
 ### Valid transitions
@@ -112,11 +111,11 @@ SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 | SPRINT | BLOCKED | Bail-out before work could start (e.g. preflight failed after lock attempt) |
 | IN PROGRESS | IN REVIEW | PR opened |
 | IN PROGRESS | CODE REVIEW | PR opened (alternative naming) |
-| IN PROGRESS | BLOCKED | Bail-out durante l'elaborazione automatica |
+| IN PROGRESS | BLOCKED | Bail-out during an automated run |
 | IN REVIEW | DONE | After merge |
 | CODE REVIEW | DONE | After merge |
-| BLOCKED | SPRINT | Recovery: il task torna in coda per essere ripreso dalla pipeline |
-| BLOCKED | IN PROGRESS | Recovery: ripresa manuale da parte dell'umano |
+| BLOCKED | SPRINT | Recovery: the task goes back in the queue for the pipeline |
+| BLOCKED | IN PROGRESS | Recovery: a human resumes the work directly |
 
 Any other transition is invalid. Return an error with the allowed transitions.
 

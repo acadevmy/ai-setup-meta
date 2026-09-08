@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# measure-session-zero.sh — misura i token di prompt di una sessione zero.
+# measure-session-zero.sh — measures the prompt tokens of a session zero.
 #
-# Apre una sessione `claude -p` con un prompt minimo e riporta la dimensione del
-# prompt inviato: e' la baseline con cui confrontare l'effetto di una modifica al
-# plugin (server MCP registrati, skill, regole, AGENTS.md).
+# It opens a `claude -p` session with a minimal prompt and reports the size of the
+# prompt sent: the baseline to compare a plugin change against (registered MCP
+# servers, skills, rules, AGENTS.md).
 #
-# Uso:
-#   scripts/measure-session-zero.sh --dir <progetto> [--mcp-config <file>]
-#                                   [--tool-search on|off] [--model <nome>] [--json]
+# Usage:
+#   scripts/measure-session-zero.sh --dir <project> [--mcp-config <file>]
+#                                   [--tool-search on|off] [--model <name>] [--json]
 #
-# Il totale e' input_tokens + cache_creation_input_tokens + cache_read_input_tokens:
-# la somma non dipende dallo stato della cache, quindi due run sono confrontabili.
+# The total is input_tokens + cache_creation_input_tokens + cache_read_input_tokens:
+# that sum does not depend on the cache state, so two runs are comparable.
 #
-# Nota: con --mcp-config i server sono gli unici caricati (--strict-mcp-config), ma i
-# server che richiedono OAuth risultano `needs-auth` in modalita' non interattiva e non
-# contribuiscono tool definition. Controlla MCP_SERVERS nell'output prima di leggere i
-# numeri.
+# Note: with --mcp-config those servers are the only ones loaded (--strict-mcp-config),
+# but servers that need OAuth come back as `needs-auth` in non-interactive mode and
+# contribute no tool definitions. Check MCP_SERVERS in the output before reading the
+# numbers.
 
 set -euo pipefail
 
@@ -25,7 +25,7 @@ TOOL_SEARCH="on"
 MODEL="sonnet"
 AS_JSON=false
 
-die() { echo "errore: $*" >&2; exit 1; }
+die() { echo "error: $*" >&2; exit 1; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -35,32 +35,32 @@ while [ $# -gt 0 ]; do
     --model)       MODEL="${2:-}"; shift 2 ;;
     --json)        AS_JSON=true; shift ;;
     -h|--help)     sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *)             die "argomento non riconosciuto: $1" ;;
+    *)             die "unrecognised argument: $1" ;;
   esac
 done
 
-command -v claude >/dev/null 2>&1 || die "claude CLI non trovata in PATH"
-command -v jq >/dev/null 2>&1 || die "jq non trovato in PATH"
-[ -d "$DIR" ] || die "directory non trovata: $DIR"
+command -v claude >/dev/null 2>&1 || die "claude CLI not found on PATH"
+command -v jq >/dev/null 2>&1 || die "jq not found on PATH"
+[ -d "$DIR" ] || die "directory not found: $DIR"
 
 case "$TOOL_SEARCH" in
   on)  unset ENABLE_TOOL_SEARCH ;;
   off) export ENABLE_TOOL_SEARCH=false ;;
-  *)   die "--tool-search accetta 'on' oppure 'off' (ricevuto: $TOOL_SEARCH)" ;;
+  *)   die "--tool-search takes 'on' or 'off' (got: $TOOL_SEARCH)" ;;
 esac
 
 ARGS=(-p "Rispondi esattamente: OK" --output-format stream-json --verbose --model "$MODEL")
 if [ -n "$MCP_CONFIG" ]; then
-  [ -f "$MCP_CONFIG" ] || die "file --mcp-config non trovato: $MCP_CONFIG"
+  [ -f "$MCP_CONFIG" ] || die "--mcp-config file not found: $MCP_CONFIG"
   ARGS+=(--strict-mcp-config --mcp-config "$MCP_CONFIG")
 fi
 
-STREAM=$(cd "$DIR" && claude "${ARGS[@]}" 2>/dev/null) || die "la sessione claude e' fallita"
-[ -n "$STREAM" ] || die "nessun output dalla sessione claude"
+STREAM=$(cd "$DIR" && claude "${ARGS[@]}" 2>/dev/null) || die "the claude session failed"
+[ -n "$STREAM" ] || die "no output from the claude session"
 
 RESULT=$(printf '%s\n' "$STREAM" | jq -c 'select(.type == "result")' | tail -1)
 INIT=$(printf '%s\n' "$STREAM" | jq -c 'select(.subtype == "init")' | tail -1)
-[ -n "$RESULT" ] || die "la sessione non ha prodotto un messaggio di result"
+[ -n "$RESULT" ] || die "the session produced no result message"
 
 OUT=$(jq -n \
   --argjson result "$RESULT" \

@@ -29,6 +29,7 @@
     "CONSTITUTION.md",
     ".env.example",
     ".claude/settings.json",
+    ".claude/settings.user.json",
     ".gitignore"
   ]
 }

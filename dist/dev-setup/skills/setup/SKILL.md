@@ -21,7 +21,7 @@ All template files are available under:
 ${CLAUDE_SKILL_DIR}/templates/
 ```
 
-It contains: AGENTS.template.md, CONSTITUTION.md, REGISTRY.md, .env.example, .gitignore, settings.json, profiles/
+It contains: AGENTS.template.md, CONSTITUTION.md, REGISTRY.md, .env.example, .gitignore, settings.json, settings.user.json, profiles/
 
 ---
 
@@ -317,13 +317,34 @@ Read the selected profile from `${CLAUDE_SKILL_DIR}/templates/profiles/`:
 
 These files are copied exactly. Before every write, check whether the destination file already exists (**conflict detection**): if it does, tell the developer and keep the existing one, skipping the write.
 
-**settings.json** (project permissions):
+**settings.json** (project permissions + Bash sandbox):
 If `.claude/settings.json` does **not** exist:
 ```bash
 mkdir -p .claude
 ```
 Read `${CLAUDE_SKILL_DIR}/templates/settings.json` and write it to `.claude/settings.json`.
 If it **already exists**: tell the developer and keep the existing one.
+
+The file carries a `sandbox` block that turns on OS-level filesystem and network
+isolation for every Bash command Claude runs (Seatbelt on macOS, bubblewrap on
+Linux/WSL2). It denies reads and writes of the `.env` family, denies reads of
+`~/.ssh`, `~/.aws` and `~/.kube`, unsets the usual token variables inside
+sandboxed commands, and pre-allows a small set of network domains that Step 3.4
+adapts to this project. **The file that follows this step is the security
+boundary of the project: from here on, you cannot read or write `.env`, and
+neither can the shell commands you run.** That is intentional — Steps 6 and 7
+below are written to work without ever touching it.
+
+`.claude/settings.user.json` is **not** installed here: it is a user-scope
+snippet, handled in Step 3.5.
+
+**If the project's own test or dev command loads one of the denied files**, the
+sandbox will break it — the deny covers every sandboxed command, not just the ones
+Claude writes. Tell the developer, and fix it by deleting that filename from
+`sandbox.filesystem.denyRead` in `.claude/settings.json`. A `denyRead` entry cannot
+be re-opened from another settings file: `.claude/settings.local.json` can only add
+denies, never remove them. The `credentials.envVars` block stays either way, so the
+token variables remain unset inside sandboxed commands.
 
 **REGISTRY.md**:
 
@@ -369,17 +390,30 @@ The `.claude/settings.json` template lists all three Node package managers (`Bas
 
 **Allowlist changes** (only if the PM is detected and unambiguous):
 
-- `pnpm` → keep `Bash(pnpm *)`, add `Bash(pnpx *)` if not already present, remove `Bash(npm *)` and `Bash(yarn *)`. **Keep `Bash(npx *)`** — it is universal, used by the `ctx7` CLI (`npx ctx7@latest`), by official codemods (`npx @next/codemod@latest`), and by many one-shot tool READMEs. Removing `npx` breaks those flows for no real gain.
-- `yarn` → keep `Bash(yarn *)` and `Bash(npx *)`, remove `Bash(npm *)` and `Bash(pnpm *)`.
-- `npm` → keep `Bash(npm *)` and `Bash(npx *)`, remove `Bash(yarn *)` and `Bash(pnpm *)`.
+- `pnpm` → keep `Bash(pnpm *)`, remove `Bash(npm *)` and `Bash(yarn *)`.
+- `yarn` → keep `Bash(yarn *)`, remove `Bash(npm *)` and `Bash(pnpm *)`.
+- `npm` → keep `Bash(npm *)`, remove `Bash(yarn *)` and `Bash(pnpm *)`.
 
-**Leave the deny array intact**: do NOT touch the `deny` array. `Bash(npm publish*)`, `Bash(pnpm publish*)`, `Bash(yarn publish*)` all stay — an accidental `publish` through the "wrong" PM is still an event worth blocking.
+**Do not add `Bash(npx *)`, `Bash(pnpx *)`, `Bash(node *)` or `Bash(claude *)`.**
+They were removed from the template on purpose: each of them executes arbitrary
+code chosen at call time, so an allow rule for them is an allow rule for
+everything — including `claude --dangerously-skip-permissions`. One-shot tools
+such as `npx ctx7@latest` or `npx @next/codemod@latest` still work: with the
+sandbox on, a command that stays inside the filesystem and network boundary runs
+without a prompt anyway (`sandbox.autoAllowBashIfSandboxed`), and one that leaves
+it is exactly the case that deserves a prompt.
+
+**Leave the deny and ask arrays intact**: do NOT touch them. `Bash(npm publish*)`,
+`Bash(pnpm publish*)`, `Bash(yarn publish*)` all stay — an accidental `publish`
+through the "wrong" PM is still an event worth blocking — and the `ask` entries
+are the human checkpoints on `gh pr create` / `glab mr create` and on ClickUp
+writes.
 
 **Implementation (jq, idempotent, preserves the rest of the file)**:
 
 ```bash
 # Detected PM == "pnpm"
-jq '.permissions.allow |= ((. - ["Bash(npm *)", "Bash(yarn *)"]) | if any(. == "Bash(pnpx *)") then . else . + ["Bash(pnpx *)"] end)' \
+jq '.permissions.allow -= ["Bash(npm *)", "Bash(yarn *)"]' \
   .claude/settings.json > .claude/settings.json.tmp \
   && mv .claude/settings.json.tmp .claude/settings.json
 
@@ -400,6 +434,165 @@ jq '.permissions.allow -= ["Bash(yarn *)", "Bash(pnpm *)"]' \
 - Unambiguous PM detected: `allowlist tightened to <pm>-only commands per detected lock file (<lockfile>)`
 - Multiple lock files: `multiple lock files detected (<list>) — allowlist left as default; consider committing to a single PM`
 - No lock file but `node` detected: `no lock file present — allowlist left as default; the team should run \`<pm> install\` and re-run setup to tighten`
+
+---
+
+#### 3.4 — Compose the sandbox network allowlist
+
+The template ships a deliberately small `sandbox.network.allowedDomains`. Rewrite
+it from what Steps 2 and 2c detected, so the project pre-allows the registries and
+the forge it actually uses and nothing else.
+
+**Skip if** `.claude/settings.json` already existed at 3.2 and was not overwritten.
+
+Start from an empty list and add the rows that apply:
+
+| Condition | Domains to add |
+|---|---|
+| `node` among the detected languages | `registry.npmjs.org` |
+| Package manager is `yarn` | `registry.yarnpkg.com` |
+| `python` detected | `pypi.org`, `files.pythonhosted.org` |
+| `dart` / Flutter detected | `pub.dev`, `storage.googleapis.com` |
+| `go` detected | `proxy.golang.org`, `sum.golang.org` |
+| Terraform detected | `registry.terraform.io`, `releases.hashicorp.com` |
+| `{VCS}` == `github` | `github.com`, `api.github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com` |
+| `{VCS}` == `gitlab`, host `gitlab.com` | `gitlab.com` |
+| `{VCS}` == `gitlab`, self-hosted | the host from the remote URL (e.g. `gitlab.company.internal`) |
+| `CLICKUP_SETUP_LIST_ID` set (see Step 6.1) | `api.clickup.com` |
+
+**Implementation (jq, replaces the list wholesale)**:
+
+```bash
+# Example: Node + pnpm project on GitHub with ClickUp configured
+DOMAINS='["registry.npmjs.org","github.com","api.github.com","codeload.github.com","objects.githubusercontent.com","raw.githubusercontent.com","api.clickup.com"]'
+jq --argjson d "$DOMAINS" '.sandbox.network.allowedDomains = $d' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+```
+
+A domain missing from the list is not a hard failure: the first time a sandboxed
+command needs it, Claude Code asks the developer, and answering "Yes, and don't ask
+again" records it in `.claude/settings.local.json`. The list only removes the
+prompts the project is guaranteed to hit. (Step 3.5 changes that prompt into a
+deny.)
+
+**Report in the Step 9 summary** (a single line):
+`sandbox network allowlist: <n> domains (<pm registry>, <vcs host>[, api.clickup.com])`
+
+---
+
+#### 3.5 — Credential masking (user scope, optional)
+
+Three sandbox keys are ignored when they come from a repository's
+`.claude/settings.json` or `.claude/settings.local.json`, because they widen what
+a project can do to the developer's machine: `sandbox.credentials.*` entries with
+`"mode": "mask"`, `sandbox.network.tlsTerminate`, and
+`sandbox.network.strictAllowlist`. Shipping them in the project template would
+produce a config that reads as protection and enforces nothing — so they live in
+`~/.claude/settings.json` instead, and the developer installs them.
+
+**You must not write `~/.claude/settings.json` yourself.** It is a protected path:
+print the command and let the developer run it.
+
+Ask the developer with `AskUserQuestion`:
+
+```
+question: "How do gh/glab/npm authenticate on this machine?"
+options:
+  - label: "Interactive login"    (gh auth login / glab auth login — no token in the environment)
+  - label: "Environment token"    (GH_TOKEN / GITLAB_TOKEN / NPM_TOKEN exported in the shell)
+```
+
+- **Interactive login** → nothing to install. The project settings already unset those
+  variables inside sandboxed commands, and the CLIs keep working from their own
+  credential store. Report it in the Step 9 summary and move on.
+- **Environment token** → the project settings would break those CLIs inside the
+  sandbox, because `"mode": "deny"` unsets the variable. Replace deny with masking:
+  the command sees a per-session placeholder, and the sandbox proxy swaps in the real
+  value only on requests to the host you name. Two edits, in this order:
+
+  1. Drop the masked variables from the project deny list — **`deny` wins over `mask`
+     in every scope**, so a leftover deny entry silently disables the mask:
+
+     ```bash
+     jq '.sandbox.credentials.envVars |= map(select(.name as $n | ["GH_TOKEN","GITLAB_TOKEN","NPM_TOKEN"] | index($n) | not))' \
+       .claude/settings.json > .claude/settings.json.tmp \
+       && mv .claude/settings.json.tmp .claude/settings.json
+     ```
+     Keep the entries for the variables the project does not authenticate with.
+
+  2. Give the developer this command to merge the snippet into their user settings
+     (it is `${CLAUDE_SKILL_DIR}/templates/settings.user.json`, printed here so they
+     can review it before running anything):
+
+     ```bash
+     jq -s '.[0] * .[1]' ~/.claude/settings.json <snippet-path> > /tmp/cc-settings.json \
+       && mv /tmp/cc-settings.json ~/.claude/settings.json
+     ```
+
+     Trim the snippet to the variables and hosts that apply before printing it — an
+     `injectHosts` entry authorizes the proxy to send a real credential to that host.
+
+     The snippet also sets `network.strictAllowlist`, which turns "prompt for an
+     unknown domain" into "deny it". Tell the developer they can drop that key to keep
+     the prompt.
+
+**Report in the Step 9 summary** (a single line):
+- Interactive login: `credential masking not needed — gh/glab authenticate from their own store`
+- Environment token: `credential masking snippet printed for ~/.claude/settings.json (GH_TOKEN, ...); project deny entries removed for the masked variables`
+
+---
+
+#### 3.6 — Git over the sandbox: SSH remotes
+
+Sandboxed commands reach the network **only** through the sandbox's HTTP(S) proxy.
+There is no raw TCP and no DNS for anything else, so a `git fetch` or `git push` against
+an `ssh://` or `git@host:` remote fails inside the sandbox — the hostname does not even
+resolve. This is a property of the sandbox, not of the deny rules: it applies to every
+project whose `origin` is an SSH URL.
+
+Check the remote read in Step 2c:
+
+```bash
+git remote get-url origin
+```
+
+If it starts with `git@` or `ssh://`, tell the developer and let them pick with
+`AskUserQuestion`:
+
+```
+question: "origin is an SSH remote. Inside the Bash sandbox, git cannot reach it. How do you want to handle it?"
+options:
+  - label: "Switch to HTTPS"   (recommended — the forge CLI holds the credentials)
+  - label: "Keep SSH"          (git network commands run outside the sandbox)
+```
+
+- **Switch to HTTPS** → print these for the developer to run; the credential helper keeps
+  the token out of the URL and out of `ps`:
+
+  ```bash
+  # GitHub
+  gh auth login && gh auth setup-git
+  git remote set-url origin https://github.com/<org>/<repo>.git
+
+  # GitLab
+  glab auth login
+  git config --global credential.helper '!glab auth git-credential'
+  git remote set-url origin https://<host>/<group>/<repo>.git
+  ```
+
+  Make sure the HTTPS host is in the `sandbox.network.allowedDomains` written at Step 3.4.
+
+- **Keep SSH** → nothing to change. `git fetch`/`git push` will hit a sandbox violation and
+  Claude Code will retry them outside the sandbox, which sends them through the normal
+  permission flow: in Manual mode the developer confirms each one. The `deny` rules on
+  force push and on the protected branches still apply — they are permission rules, and
+  they are evaluated whether or not the command runs sandboxed.
+
+**Report in the Step 9 summary** (a single line):
+- HTTPS remote: `origin already on HTTPS — git works inside the sandbox`
+- Switched: `switch origin to HTTPS: <command printed>`
+- Kept SSH: `origin left on SSH — git network commands will run unsandboxed, with a confirmation each time`
 
 ---
 
@@ -659,15 +852,18 @@ Check whether the `claude` CLI is available with `command -v claude`. If it is n
 #### 6.1 — ClickUp (user scope, only with the task list configured)
 
 ClickUp is only useful if the team tracks tasks in ClickUp. Look for `CLICKUP_SETUP_LIST_ID`
-in this order: environment variable, the project's `.env`, the plugin's `userConfig`.
+in this order: environment variable, the plugin's `userConfig`. **Do not read the project's
+`.env`** — Step 3.2 denied it to you and to your shell commands, and one list ID is not
+worth pulling a file of secrets into the context window. If neither source has it, treat it
+as absent.
 
 - **Set** → check with `claude mcp list` whether `clickup` is already configured. If it is not:
   ```bash
   claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp
   ```
 - **Empty or absent** → do **not** register the server. Report in the Step 9 summary:
-  "ClickUp MCP not configured: set `CLICKUP_SETUP_LIST_ID` in `.env`, then run
-  `claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp`".
+  "ClickUp MCP not configured: set `CLICKUP_SETUP_LIST_ID` in `.env` (Step 7 left the key in
+  `.env.example`), then run `claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp`".
 
 #### 6.2 — Library documentation: the `ctx7` CLI, not MCP
 
@@ -699,21 +895,29 @@ On first use, Figma will ask for authorization via the browser (like ClickUp).
 
 ---
 
-### Step 7 — Set up the .env file
+### Step 7 — Declare the environment variables in .env.example
 
-1. If `.env` exists and already contains `CLICKUP_SETUP_LIST_ID` → do nothing
-2. If `.env` exists but does **not** contain `CLICKUP_SETUP_LIST_ID` → append:
+**You never read or write `.env`.** Step 3.2 denied it at two levels — the file tools
+refuse it and the sandbox refuses it to your shell commands — so the real file stays the
+developer's. Work on `.env.example`, which is tracked, carries no values, and is
+explicitly excluded from those deny rules.
+
+1. If `.env.example` exists and already contains `CLICKUP_SETUP_LIST_ID` → do nothing
+2. If `.env.example` exists but does **not** contain `CLICKUP_SETUP_LIST_ID` → append:
    ```
 
    # ClickUp — task list ID (added by setup)
    CLICKUP_SETUP_LIST_ID=
    ```
-3. If `.env` does not exist but `.env.example` does and does not contain `CLICKUP_SETUP_LIST_ID` → append as above to `.env.example`
-4. If neither `.env` nor `.env.example` exists → create `.env.example` with:
+3. If `.env.example` does not exist → create it with:
    ```
    # ClickUp — task list ID
    CLICKUP_SETUP_LIST_ID=
    ```
+
+In every case, close with one line for the Step 9 summary telling the developer to copy
+the key into their own `.env`:
+`CLICKUP_SETUP_LIST_ID declared in .env.example — copy it into .env and fill it in (setup cannot write .env)`
 
 ---
 
@@ -940,7 +1144,7 @@ Installed files:
   - AGENTS.md             — instructions for AI agents (cross-tool standard)
   - CONSTITUTION.md       — governance rules
   - REGISTRY.md           — feature and service registry
-  - .claude/settings.json — project permissions
+  - .claude/settings.json — project permissions + Bash sandbox
 
 Available skills (provided by the plugin):
   - /dev-setup:sdd         — interactive SDD (spec → approval → development, with checkpoints)
@@ -961,7 +1165,8 @@ NOT modified (existing tooling respected):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
 
 Next steps:
-  1. Fill in CLICKUP_SETUP_LIST_ID in the .env file
+  1. Copy CLICKUP_SETUP_LIST_ID from .env.example into .env and fill it in
+     (setup cannot write .env: the sandbox denies it)
   2. Check MCP: claude mcp list
   3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to start a ClickUp task
 ```
@@ -975,7 +1180,7 @@ Project configuration:
   - AGENTS.md               — instructions for AI agents (cross-tool standard)
   - CONSTITUTION.md         — governance rules
   - REGISTRY.md             — feature and service registry
-  - .claude/settings.json   — project permissions
+  - .claude/settings.json   — project permissions + Bash sandbox
   - .husky/                 — git hooks (lint + commit)
   - .lintstagedrc.json      — lint-staged (used by the pre-commit hook)
   - eslint.config.base.mjs  — ESLint base (flat config)
@@ -1017,7 +1222,7 @@ Files at the root:
   - CLAUDE.md             — entry point for Claude Code
   - AGENTS.md             — general rules + workspace map
   - CONSTITUTION.md       — governance rules
-  - .claude/settings.json — project permissions
+  - .claude/settings.json — project permissions + Bash sandbox
 
 Configured sub-projects:
   <sub-project-path>/:
@@ -1039,7 +1244,8 @@ NOT modified (existing tooling respected):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
 
 Next steps:
-  1. Fill in CLICKUP_SETUP_LIST_ID in the .env file
+  1. Copy CLICKUP_SETUP_LIST_ID from .env.example into .env and fill it in
+     (setup cannot write .env: the sandbox denies it)
   2. Check MCP: claude mcp list
   3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to start a ClickUp task
 ```
@@ -1048,7 +1254,8 @@ Next steps:
 
 ## Important notes
 
-- **Verbatim**: settings.json and REGISTRY.md must be written exactly as read from the plugin. Do not generate the content of these files — read it and copy it.
+- **Verbatim**: settings.json and REGISTRY.md must be written exactly as read from the plugin. Do not generate the content of these files — read it and copy it. Steps 3.3, 3.4 and 3.5 then narrow settings.json with `jq`; that is the only editing it gets.
+- **Secrets**: `.env` and its per-environment variants are denied to the file tools and to sandboxed shell commands, and the usual token variables are unset inside the sandbox. Nothing in this procedure needs them. If a step ever appears to require reading `.env`, that step is wrong — report it instead of working around the deny.
 - **Conflict detection**: always ask before overwriting existing files.
 - **Existing tooling**: in EXISTING mode, do not install or modify: git hooks, linter, formatter, CI/CD, .gitignore, dependencies. Graft only the AI workflow.
 - **Skills and agents**: do NOT install skills and agents into the project. They are provided by the plugin and available automatically as /dev-setup:<skill-name>.

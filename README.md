@@ -1,141 +1,141 @@
 # ai-setup-meta
 
-Repository di governance AI. Contiene i template multi-dominio, gli asset condivisi (agents, skills, profili)
-e il sistema **plugin + marketplace** che li distribuisce ai progetti degli sviluppatori.
+AI governance repository. It holds the multi-domain templates, the shared assets (agents, skills, profiles)
+and the **plugin + marketplace** system that distributes them to developer projects.
 
-## Setup per sviluppatori
+## Setup for developers
 
 ### Claude Code
 
-Per aggiungere il workflow AI-Native a qualsiasi progetto (nuovo o esistente):
+To add the AI-native workflow to any project, new or existing:
 
 ```bash
-# 1. Aggiungi il marketplace Acadevmy (una tantum)
+# 1. Add the Acadevmy marketplace (one-off)
 /plugin marketplace add acadevmy/ai-setup-meta
 
-# 2. Installa il plugin dev-setup
+# 2. Install the dev-setup plugin
 /plugin install dev-setup@acadevmy
 
-# 3. Avvia il setup nel tuo progetto
+# 3. Run the setup in your project
 /dev-setup:setup
 ```
 
-L'agente analizzera' il progetto e applichera' tutto in modo adattivo:
-- **Progetto esistente**: innesta solo il workflow AI (CONSTITUTION, AGENT, skills, MCP) senza toccare il tooling
-- **Progetto nuovo (greenfield)**: setup completo con quality tools, profilo stack, MCP
+The agent reads the project and adapts what it installs:
+- **Existing project**: it grafts on the AI workflow only (CONSTITUTION, AGENT, skills, MCP) without touching your tooling
+- **New project (greenfield)**: full setup with quality tools, stack profile and MCP
 
-**Prerequisiti**: `git`, `claude` CLI. Opzionale: `gh` CLI (per MCP ClickUp e operazioni greenfield).
+**Prerequisites**: `git`, the `claude` CLI. Optional: the `gh` CLI (for the ClickUp MCP and greenfield work).
 
-### Costo di contesto della sessione
+### Session context cost
 
-Il plugin **non** dichiara server MCP propri: quelli che dipendono dallo stack (Figma) o
-dalla configurazione del team (ClickUp) li registra `/dev-setup:setup` a livello di
-progetto, e solo se servono (Passo 6 della setup skill). Per la documentazione delle
-librerie il default e' la CLI `ctx7`, non il server Context7: la CLI fa lo stesso lavoro
-senza pagare le tool definition in ogni sessione.
+The plugin declares **no** MCP servers of its own: the ones that depend on the stack (Figma)
+or on the team's configuration (ClickUp) are registered by `/dev-setup:setup` at project
+scope, and only when they are needed (Step 6 of the setup skill). For library documentation
+the default is the `ctx7` CLI rather than the Context7 server: the CLI does the same job
+without paying for the tool definitions in every session.
 
-**Rete di sicurezza — `ENABLE_TOOL_SEARCH`.** Claude Code tiene le tool definition MCP
-fuori dal contesto e le carica a richiesta (*tool search*, attivo di default). Con quel
-meccanismo attivo un server da 58 tool costa ~1.000 token a sessione zero invece di
-~31.000. La variabile serve quando il default non si applica — `ANTHROPIC_BASE_URL` verso
-un proxy non first-party, `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`, deployment Foundry su
-Azure, modelli Agent Platform pre-4.5:
+**Safety net — `ENABLE_TOOL_SEARCH`.** Claude Code keeps MCP tool definitions out of the
+context and loads them on demand (*tool search*, on by default). With that in place a
+58-tool server costs ~1,000 tokens at session zero instead of ~31,000. The variable matters
+when the default does not apply — `ANTHROPIC_BASE_URL` pointing at a non-first-party proxy,
+`CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`, Foundry deployments on Azure, pre-4.5 Agent
+Platform models:
 
-| Valore | Effetto |
+| Value | Effect |
 |---|---|
-| non impostata | tool search attivo, con i fallback sopra |
-| `true` | sempre attivo (il beta header passa anche dai proxy) |
-| `auto` | si attiva quando le definition deferibili arrivano al 10% della finestra |
-| `auto:N` | come `auto` con soglia N% (es. `auto:5`) |
-| `false` | disattivato: tutte le definition entrano in contesto a ogni turno |
+| unset | tool search on, with the fallbacks above |
+| `true` | always on (the beta header passes through proxies too) |
+| `auto` | turns on when the deferrable definitions reach 10% of the window |
+| `auto:N` | like `auto` with an N% threshold (e.g. `auto:5`) |
+| `false` | off: every definition enters the context on every turn |
 
-Si imposta come variabile d'ambiente o nel blocco `env` di `settings.json`. Misure con
-`scripts/measure-session-zero.sh` (fixture backend puro, sonnet, `--strict-mcp-config`):
+Set it as an environment variable or in the `env` block of `settings.json`. Measured with
+`scripts/measure-session-zero.sh` (pure backend fixture, sonnet, `--strict-mcp-config`):
 
-| Server MCP registrati | tool | tool search attivo | tool search disattivo |
+| MCP servers registered | tools | tool search on | tool search off |
 |---|---|---|---|
-| nessuno | 0 | 35.479 | 51.282 |
-| clickup | 58 | 36.525 | 82.030 |
-| clickup + figma + context7 | 101 | 37.512 | 120.956 |
+| none | 0 | 35,479 | 51,282 |
+| clickup | 58 | 36,525 | 82,030 |
+| clickup + figma + context7 | 101 | 37,512 | 120,956 |
 
-I valori assoluti includono la configurazione globale di chi misura (CLAUDE.md utente,
-skill e plugin installati): confrontabili sono le differenze fra due run nello stesso
-ambiente, non i totali fra macchine diverse.
+The absolute values include the measuring machine's own global configuration (user
+CLAUDE.md, installed skills and plugins): what is comparable is the difference between two
+runs in the same environment, not the totals across different machines.
 
-**Override di modello nelle skill**: nessuna skill distribuita imposta `model:`. Il
-frontmatter `model:` sposta il modello del loop principale e la cache del prompt e'
-model-scoped, quindi ogni cambio nella catena paga un prefisso freddo — e l'override
-resta attivo anche nei turni successivi all'uso della skill. Le skill differenziano solo
-`effort`; il modello lo scegli tu per la sessione.
+**Model overrides in skills**: no distributed skill sets `model:`. The `model:` frontmatter
+moves the main loop's model, and the prompt cache is model-scoped, so every switch along
+the chain pays for a cold prefix — and the override stays active in the turns *after* the
+skill runs. The skills only differentiate `effort`; you pick the model for the session.
 
-### Altri tool (Cursor, Codex, Copilot…)
+### Other tools (Cursor, Codex, Copilot…)
 
-Il plugin ha un solo target di build: **Claude Code**. I builder dedicati agli altri
-runtime sono stati rimossi, perche' le skill del plugin seguono lo standard aperto
-[Agent Skills](https://agentskills.io): una `SKILL.md` conforme e' leggibile dagli
-altri tool **senza conversione**.
+The plugin has a single build target: **Claude Code**. The builders for the other runtimes
+have been removed, because the plugin's skills follow the open
+[Agent Skills](https://agentskills.io) standard: a conforming `SKILL.md` is readable by the
+other tools **without conversion**.
 
-Chi lavora in un altro editor punta il proprio tool alle `SKILL.md` di
-`dist/dev-setup/skills/` (o le copia nella cartella skill del progetto). Rispetto al
-plugin dedicato di prima non si perde nulla di funzionante: gli hook erano lo schema
-di Claude Code con una variabile rinominata — inerti fuori da Claude Code — e i
-`commands/` erano copie letterali dei corpi delle skill.
+If you work in another editor, point your tool at the `SKILL.md` files under
+`dist/dev-setup/skills/` (or copy them into the project's skills directory). Nothing that
+worked is lost compared to the dedicated plugin we used to ship: its hooks were the Claude
+Code schema with one variable renamed — inert outside Claude Code — and its `commands/`
+were literal copies of the skill bodies.
 
-## Architettura
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      ai-setup-meta                          │
-│  (questo repo — sorgente di verita' E marketplace)          │
+│  (this repo — source of truth AND marketplace)              │
 │                                                             │
-│  templates/     — sorgente dei template per dominio         │
-│  shared/        — agents e skills condivisi                 │
-│  dist/          — plugin built (generati da build script)   │
-│  marketplace.json — indice plugin per Claude Code           │
+│  templates/     — source of the per-domain templates        │
+│  shared/        — shared agents and skills                  │
+│  dist/          — built plugins (generated by build script) │
+│  marketplace.json — plugin index for Claude Code            │
 │                                                             │
-│  Ogni modifica a main passa per PR obbligatoria.            │
+│  Every change to main goes through a mandatory PR.          │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          │  /plugin marketplace add
                          │  /plugin install dev-setup@acadevmy
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│            Repo progetto sviluppatore                        │
+│              Developer project repo                          │
 │                                                             │
 │  /dev-setup:setup                                           │
-│  → Rileva modalita' (UPDATE/GREENFIELD/EXISTING)            │
-│  → Auto-detect stack                                        │
-│  → Installa CONSTITUTION, AGENTS.md, CLAUDE.md, REGISTRY    │
-│  → Configura i soli MCP che lo stack usa (Passo 6)          │
-│  → Skills disponibili via plugin                            │
+│  → Detects the mode (UPDATE/GREENFIELD/EXISTING)            │
+│  → Auto-detects the stack                                   │
+│  → Installs CONSTITUTION, AGENTS.md, CLAUDE.md, REGISTRY    │
+│  → Registers only the MCPs the stack uses (Step 6)          │
+│  → Skills available through the plugin                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Struttura del meta-repo
+## Meta-repo layout
 
 ```
 ai-setup-meta/
 ├── .claude-plugin/
-│   └── marketplace.json         # Indice plugin per Claude Code
-├── shared/                      # Asset comuni distribuiti ai template
+│   └── marketplace.json         # Plugin index for Claude Code
+├── shared/                      # Common assets distributed to the templates
 │   ├── agents/
 │   │   └── clickup.md
 │   └── skills/
 │       ├── clickup/
 │       ├── github-ops/
 │       └── gitlab-ops/
-├── templates/                   # Sorgente dei template per dominio
+├── templates/                   # Source of the per-domain templates
 │   └── dev-setup/
-│       ├── manifest.json               # Dipendenze da shared/ e file specifici
-│       ├── setup-skill.md              # Setup skill (logica di bootstrap)
-│       ├── AGENTS.template.md          # Template per AGENTS.md generato
+│       ├── manifest.json               # Dependencies on shared/ and the domain files
+│       ├── setup-skill.md              # Setup skill (bootstrap logic)
+│       ├── AGENTS.template.md          # Template for the generated AGENTS.md
 │       ├── CONSTITUTION.md
 │       ├── REGISTRY.md
 │       ├── CHANGELOG.md
 │       ├── .claude/
-│       │   ├── settings.json           # Permessi + hooks (sorgente)
-│       │   ├── hooks/                  # protect-files, post-edit, on-compact
-│       │   ├── agents/                 # 4 agents specifici del dominio
+│       │   ├── settings.json           # Permissions + sandbox + hooks (source)
+│       │   ├── settings.user.json      # User-scope snippet: credential masking
+│       │   ├── hooks/                  # post-edit, on-compact
+│       │   ├── agents/                 # 4 domain-specific agents
 │       │   └── skills/                 # 10 workflow skills
 │       └── profiles/
 │           ├── web-frontend.md
@@ -143,111 +143,110 @@ ai-setup-meta/
 │           ├── mobile.md
 │           ├── nextjs.md
 │           └── terraform.md
-├── dist/                        # Plugin built (generati, committati)
-│   └── dev-setup/               # Plugin Claude Code
-│       ├── .claude-plugin/      # Manifest del plugin
-│       ├── skills/              # 14 skills (10 del template + 3 shared + setup)
-│       ├── agents/              # 5 agents (4 del template + clickup shared)
+├── dist/                        # Built plugins (generated, committed)
+│   └── dev-setup/               # Claude Code plugin
+│       ├── .claude-plugin/      # Plugin manifest
+│       ├── skills/              # 14 skills (10 from the template + 3 shared + setup)
+│       ├── agents/              # 5 agents (4 from the template + the shared clickup)
 │       └── hooks/               # hooks.json + hooks/scripts/
 ├── scripts/
-│   ├── build-plugin.sh          # Orchestratore: legge manifest, invoca il builder
+│   ├── build-plugin.sh          # Orchestrator: reads the manifest, calls the builder
 │   ├── builders/
-│   │   ├── common.sh            # Funzioni condivise (ok, warn, fail, step)
-│   │   └── build-claude.sh      # Builder Claude Code (unico target)
-│   ├── validate-plugin.sh       # 12 check statici sulla qualita' delle skill
-│   ├── validate-baseline.txt    # Fail noti, riportati ma non bloccanti in CI
-│   ├── validate-setup-urls.sh   # Link check degli URL citati dalla setup skill
-│   └── auto-maintain-runner.sh  # Runner della pipeline di manutenzione
+│   │   ├── common.sh            # Shared helpers (ok, warn, fail, step)
+│   │   └── build-claude.sh      # Claude Code builder (the only target)
+│   ├── validate-plugin.sh       # 12 static checks on skill quality
+│   ├── validate-baseline.txt    # Known failures, reported but non-blocking in CI
+│   └── validate-setup-urls.sh   # Link check for the URLs the setup skill cites
 └── docs/
     ├── developer-guide.md
     ├── workflow.md
-    └── legacy/                  # Materiale archiviato, fuori dal prodotto
+    └── legacy/                  # Archived material, outside the product
 ```
 
-## Build e release
+## Build and release
 
 ```bash
-# Build plugin (genera dist/dev-setup/)
+# Build the plugin (generates dist/dev-setup/)
 bash scripts/build-plugin.sh dev-setup
 
-# Validazione plugin
+# Validate the plugin
 claude plugin validate dist/dev-setup/
 bash scripts/validate-plugin.sh --strict
 
-# Test locale
+# Try it locally
 claude --plugin-dir dist/dev-setup/
 ```
 
-Il **release e' automatico**: [release-please](https://github.com/googleapis/release-please)
-calcola il bump dai conventional commit mergiati su `main`, apre una release PR e — al merge
-di quella — crea tag e GitHub Release. Nessuno script di release da lanciare a mano.
-Per forzare una versione: `Release-As: X.Y.Z` nel footer di un commit.
+**Releases are automatic**: [release-please](https://github.com/googleapis/release-please)
+computes the bump from the conventional commits merged into `main`, opens a release PR and —
+when that PR is merged — creates the tag and the GitHub Release. There is no release script
+to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 
-## Regole operative
+## Operating rules
 
-- **Nessun push diretto su `main`** — nemmeno dall'agente. Sempre PR.
-- **La `CONSTITUTION.md`** nel template e' la sorgente di verita' per quel dominio.
-- **Le API key non entrano mai nel repo** — solo in `.env.local` (gitignored) o nei secret GitHub.
-- `dist/` e' generato da `build-plugin.sh` ma committato (il marketplace punta li').
+- **No direct pushes to `main`** — not even from the agent. Always a PR.
+- **The template's `CONSTITUTION.md`** is the source of truth for that domain.
+- **API keys never enter the repo** — only `.env.local` (gitignored) or GitHub secrets.
+- `dist/` is generated by `build-plugin.sh` but committed (the marketplace points at it).
 
-## Skills distribuite dal plugin dev-setup
+## Skills the dev-setup plugin distributes
 
-### Flusso consigliato
+### Recommended flow
 
 ```
-/dev-setup:setup          ← una tantum, bootstrap del progetto
+/dev-setup:setup          ← one-off, project bootstrap
        │
        ▼
-/dev-setup:sdd-discovery  ← intervista strutturata per raccogliere requisiti
+/dev-setup:sdd-discovery  ← structured interview to gather the requirements
        │
        ▼
-/dev-setup:sdd-spec       ← genera specifica tecnica dal discovery
+/dev-setup:sdd-spec       ← generates the technical spec from the discovery
        │
        ▼
-/dev-setup:sdd-plan       ← presenta la spec per discussione e approvazione
+/dev-setup:sdd-plan       ← presents the spec for discussion and approval
        │
        ▼
-/dev-setup:sdd-dev        ← sviluppo guidato dalla spec approvata (TDD/BDD)
+/dev-setup:sdd-dev        ← development driven by the approved spec (TDD/BDD)
        │
        ▼
-/dev-setup:review         ← code review con conformita' CONSTITUTION
+/dev-setup:review         ← code review against the CONSTITUTION
 ```
 
-> **`/dev-setup:sdd`** orchestra l'intero flusso in un unico comando:
+> **`/dev-setup:sdd`** orchestrates the whole flow in a single command:
 > task selection → branch → discovery → spec → approval → dev → simplify → verify → review → PR.
 >
 
 ### Workflow skills
 
-| Skill | Descrizione |
+| Skill | Description |
 |---|---|
-| `/dev-setup:setup` | Bootstrap AI-Native (rileva stack, installa governance) |
-| `/dev-setup:sdd` | Flow Spec-Driven completo: task → discovery → spec → approval → dev → review → PR |
-| `/dev-setup:sdd-discovery` | Intervista strutturata per raccogliere requisiti prima della spec |
-| `/dev-setup:sdd-spec` | Genera specifica tecnica |
-| `/dev-setup:sdd-plan` | Presenta spec per discussione |
-| `/dev-setup:sdd-dev` | Sviluppo da spec approvata |
+| `/dev-setup:setup` | AI-native bootstrap (detects the stack, installs the governance) |
+| `/dev-setup:sdd` | Full spec-driven flow: task → discovery → spec → approval → dev → review → PR |
+| `/dev-setup:sdd-discovery` | Structured interview to gather the requirements before the spec |
+| `/dev-setup:sdd-spec` | Generates the technical spec |
+| `/dev-setup:sdd-plan` | Presents the spec for discussion |
+| `/dev-setup:sdd-dev` | Development from the approved spec |
 
 ### Methodology skills
 
-| Skill | Descrizione |
+| Skill | Description |
 |---|---|
 | `/dev-setup:tdd` | Test-Driven Development (Red-Green-Refactor) |
 | `/dev-setup:bdd` | Behavior-Driven Development (Given/When/Then) |
-| Nessuna | Sviluppo diretto senza ciclo test-first |
-| `/dev-setup:review` | Code review con conformita' CONSTITUTION |
+| None | Direct development, no test-first cycle |
+| `/dev-setup:review` | Code review against the CONSTITUTION |
 
 ### Shared skills
 
-| Skill | Descrizione |
+| Skill | Description |
 |---|---|
-| `/dev-setup:clickup` | Operazioni ClickUp via MCP |
-| `/dev-setup:github-ops` | Branch, PR, release su GitHub (`gh` CLI). Si auto-disattiva se il repo non punta a GitHub. |
-| `/dev-setup:gitlab-ops` | Branch, MR, release su GitLab (`glab` CLI). Legge `.gitlab/merge_request_templates/Default.md` quando presente. Si auto-disattiva se il repo non punta a GitLab. |
+| `/dev-setup:clickup` | ClickUp operations over MCP |
+| `/dev-setup:github-ops` | Branches, PRs, releases on GitHub (`gh` CLI). Stands down if the repo does not point at GitHub. |
+| `/dev-setup:gitlab-ops` | Branches, MRs, releases on GitLab (`glab` CLI). Reads `.gitlab/merge_request_templates/Default.md` when present. Stands down if the repo does not point at GitLab. |
 
 ### Agents
 
-| Agent | Ruolo |
+| Agent | Role |
 |---|---|
-| **review** | Code review, conformita' CONSTITUTION, aggiorna REGISTRY |
-| **clickup** | CRUD ClickUp generico (passthrough MCP) |
+| **review** | Code review, CONSTITUTION compliance, updates the REGISTRY |
+| **clickup** | Generic ClickUp CRUD (MCP passthrough) |
