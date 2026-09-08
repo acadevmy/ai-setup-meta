@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build-plugin.sh — Orchestratore: legge manifest.json e invoca i builder specifici
+# build-plugin.sh — Orchestratore: legge manifest.json e invoca il builder
 #
 # Uso: bash scripts/build-plugin.sh [template-name]
 #
@@ -7,9 +7,7 @@
 #
 # Struttura builder:
 #   scripts/builders/common.sh       — Funzioni condivise (ok, warn, fail, step)
-#   scripts/builders/build-claude.sh — Build plugin Claude Code (sempre eseguito)
-#   scripts/builders/build-gemini.sh — Build variante Gemini CLI (se gemini_support)
-#   scripts/builders/build-codex.sh  — Build variante Codex CLI (se codex_support)
+#   scripts/builders/build-claude.sh — Build plugin Claude Code (unico target)
 
 set -euo pipefail
 
@@ -70,26 +68,11 @@ ok "Manifest letto: $NAME v$VERSION"
 step "Creazione struttura plugin in dist/$TEMPLATE_NAME/"
 rm -rf "$DIST_DIR"
 
-# ── 1. Build Claude Code (sempre) ────────────────────────────────────────────
+# ── Build Claude Code (unico target) ─────────────────────────────────────────
+# DE-16489: i builder per gli altri runtime sono stati rimossi. Una SKILL.md
+# conforme allo standard Agent Skills e' leggibile altrove senza conversione,
+# quindi non c'e' niente da convertire.
 bash "$BUILDERS_DIR/build-claude.sh"
-
-# ── 2. Build Gemini CLI (se abilitato) ────────────────────────────────────────
-GEMINI_SUPPORT=$(jq -r '.gemini_support // false' "$MANIFEST")
-if [ "$GEMINI_SUPPORT" = "true" ]; then
-  bash "$BUILDERS_DIR/build-gemini.sh"
-fi
-
-# ── 3. Build Codex CLI (se abilitato) ────────────────────────────────────────
-CODEX_SUPPORT=$(jq -r '.codex_support // false' "$MANIFEST")
-if [ "$CODEX_SUPPORT" = "true" ]; then
-  bash "$BUILDERS_DIR/build-codex.sh"
-fi
-
-# ── 4. Build Cursor (se abilitato) ───────────────────────────────────────────
-CURSOR_SUPPORT=$(jq -r '.cursor_support // false' "$MANIFEST")
-if [ "$CURSOR_SUPPORT" = "true" ]; then
-  bash "$BUILDERS_DIR/build-cursor.sh"
-fi
 
 # ── Riepilogo ─────────────────────────────────────────────────────────────────
 echo ""
@@ -108,24 +91,6 @@ HOOK_COUNT=$(find "$DIST_DIR/hooks/scripts" -name "*.sh" 2>/dev/null | wc -l | t
 echo "  Skills: $SKILL_COUNT"
 echo "  Agents: $AGENT_COUNT"
 echo "  Hooks:  $HOOK_COUNT"
-
-if [ "$GEMINI_SUPPORT" = "true" ]; then
-  echo "  Gemini: GEMINI.md generato"
-fi
-
-if [ "$CODEX_SUPPORT" = "true" ]; then
-  echo "  Codex:  AGENTS.md + plugin generato"
-fi
-
-if [ "$CURSOR_SUPPORT" = "true" ]; then
-  CMD_COUNT=$(find "$DIST_DIR/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
-  echo "  Cursor: plugin.json + mcp.json + $CMD_COUNT commands generati"
-  echo ""
-  echo "  Test locale Cursor:"
-  echo "    ln -s \$(pwd)/dist/$TEMPLATE_NAME ~/.cursor/plugins/local/$TEMPLATE_NAME"
-  echo "    # poi: Developer → Reload Window in Cursor"
-fi
-
 echo ""
 echo "  Validazione: claude plugin validate dist/$TEMPLATE_NAME/"
 echo "  Test locale:  claude --plugin-dir dist/$TEMPLATE_NAME/"

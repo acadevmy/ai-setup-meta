@@ -19,7 +19,7 @@ Esegue i due gate statici del meta-repo. Sono gli stessi comandi che gira la CI
    bash scripts/validate-setup-urls.sh
    ```
 
-2. Check statici sulla qualita' delle skill (11 check, vedi l'header dello script):
+2. Check statici sulla qualita' delle skill (12 check, vedi l'header dello script):
 
    ```bash
    bash scripts/validate-plugin.sh --fail-on-stale

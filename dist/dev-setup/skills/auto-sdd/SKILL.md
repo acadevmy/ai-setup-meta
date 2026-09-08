@@ -263,16 +263,3 @@ task up again.
   by the `sdd-approver` agent
 - Auto-mode is the default and only behavior of `auto-sdd`. Interactive mode
   is covered by `/project:sdd` (unchanged)
-
-## Notes on the variants (Claude / Codex / Gemini)
-
-The `sdd-discovery-responder`, `sdd-approver` and `sdd-methodology-picker` agents require
-support for isolated sub-agents. **This skill works fully in Claude Code**, which
-supports sub-agents natively.
-
-For variants that do not support isolated sub-agents (e.g. Codex / Gemini at the time of
-generation), the agents are run as structured prompts in the same context:
-the output format `---DISCOVERY-ANSWER---`, `---APPROVAL-RESULT---`,
-`---METHODOLOGY-CHOICE---` stays the same, and the dedicated builders (`build-codex.sh`,
-`build-gemini.sh`) decide how to distribute these agents. Check the specific limits
-in the variant README.

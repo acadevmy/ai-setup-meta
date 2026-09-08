@@ -27,9 +27,12 @@
 #   9  CONSTITUTION_SECTIONS   sezioni citate dalle regole di pruning != heading reali
 #   10 MANIFEST_ORPHAN         asset dichiarato nel manifest e mai referenziato
 #   11 MARKETPLACE_SOURCE      entry di marketplace.json con source o version incoerente
+#   12 LEGACY_RUNTIME_RESIDUE  riferimento a Cursor/Codex/Gemini negli artefatti
 #
-# Il check 11 non e' nella lista originale: guardia di regressione sulla entry
-# `pm-setup` rotta rimossa in questa stessa PR.
+# I check 11 e 12 non sono nella lista originale: sono guardie di regressione
+# sui difetti rimossi dalla catena (la entry `pm-setup` rotta, DE-16471; il
+# supporto Cursor/Codex/Gemini, DE-16489).
+# ---8<--- fine del messaggio di --help
 #
 # Note di scoping:
 #   - Il check 2 usa il budget ridotto (200) solo per le skill force-loaded via
@@ -39,6 +42,10 @@
 #     manifest sono entry point registrati dal runtime: non essere citati da
 #     altra prosa non e' un difetto. Il campo legacy `agent` non e' piu' letto:
 #     l'agent di dominio e' stato sostituito dalla setup skill (PR 2).
+#   - Il check 12 cerca la stringa nuda: e' la stessa grep del criterio di
+#     accettazione di DE-16489. Se in futuro una regola legittima deve usare
+#     una di quelle parole (es. pagination cursor-based), si restringe il
+#     pattern del check — non si baselina il finding.
 
 set -euo pipefail
 
@@ -63,8 +70,11 @@ OPT_FAIL_ON_STALE=false
 OPT_UPDATE_BASELINE=false
 BASELINE_FILE="${SCRIPT_DIR}/validate-baseline.txt"
 
+# Header del file fino alla sentinella: l'elenco dei check cresce, i numeri di
+# riga no.
 usage() {
-  sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  awk 'NR == 1 { next } /^# ---8<---/ { exit } /^#/ { sub(/^# ?/, ""); print }' \
+    "${BASH_SOURCE[0]}"
 }
 
 die() { echo "validate-plugin: $1" >&2; exit 2; }
@@ -454,42 +464,72 @@ check_manifest_orphans() {
   done
 }
 
-# ── Check 11: integrita' dei cataloghi marketplace ───────────────────────────
+# ── Check 11: integrita' del catalogo marketplace ────────────────────────────
+# Claude Code e' l'unico target di build (DE-16489): un solo catalogo da
+# verificare, `.claude-plugin/marketplace.json`.
+CATALOG_DIR=".claude-plugin"
+
 check_marketplace() {
   step "Check 11 — source e version delle entry di marketplace.json"
-  local catalog dir_key mp name source version src_dir plugin_json plugin_version
-  for catalog in "$REPO_ROOT"/.claude-plugin/marketplace.json "$REPO_ROOT"/.cursor-plugin/marketplace.json; do
-    [ -f "$catalog" ] || continue
-    dir_key="$(basename "$(dirname "$catalog")")"
-    mp="$(rel "$catalog")"
+  local catalog mp name source version src_dir plugin_json plugin_version
+  catalog="$REPO_ROOT/$CATALOG_DIR/marketplace.json"
+  [ -f "$catalog" ] || return 0
+  mp="$(rel "$catalog")"
 
-    while IFS=$'\t' read -r name source version; do
-      [ -n "$name" ] || continue
-      case "$source" in
-        ./*) src_dir="$REPO_ROOT/${source#./}" ;;
-        *)   continue ;;  # source remoti: non verificabili offline
-      esac
+  while IFS=$'\t' read -r name source version; do
+    [ -n "$name" ] || continue
+    case "$source" in
+      ./*) src_dir="$REPO_ROOT/${source#./}" ;;
+      *)   continue ;;  # source remoti: non verificabili offline
+    esac
 
-      if [ ! -d "$src_dir" ]; then
-        add_finding MARKETPLACE_SOURCE DISTRIBUTED "$mp" 0 "$mp:$name" \
-          "entry '$name' punta a '$source' che non esiste"
-        continue
-      fi
+    if [ ! -d "$src_dir" ]; then
+      add_finding MARKETPLACE_SOURCE DISTRIBUTED "$mp" 0 "$mp:$name" \
+        "entry '$name' punta a '$source' che non esiste"
+      continue
+    fi
 
-      plugin_json="$src_dir/$dir_key/plugin.json"
-      if [ ! -f "$plugin_json" ]; then
-        add_finding MARKETPLACE_SOURCE DISTRIBUTED "$mp" 0 "$mp:$name" \
-          "entry '$name': manca $dir_key/plugin.json in '$source'"
-        continue
-      fi
+    plugin_json="$src_dir/$CATALOG_DIR/plugin.json"
+    if [ ! -f "$plugin_json" ]; then
+      add_finding MARKETPLACE_SOURCE DISTRIBUTED "$mp" 0 "$mp:$name" \
+        "entry '$name': manca $CATALOG_DIR/plugin.json in '$source'"
+      continue
+    fi
 
-      plugin_version="$(jq -r '.version // empty' "$plugin_json")"
-      if [ -n "$version" ] && [ -n "$plugin_version" ] && [ "$version" != "$plugin_version" ]; then
-        add_finding MARKETPLACE_SOURCE DISTRIBUTED "$mp" 0 "$mp:$name" \
-          "entry '$name' dichiara v$version, plugin.json dice v$plugin_version"
-      fi
-    done < <(jq -r '.plugins[]? | [.name, .source // "", .version // ""] | @tsv' "$catalog")
-  done
+    plugin_version="$(jq -r '.version // empty' "$plugin_json")"
+    if [ -n "$version" ] && [ -n "$plugin_version" ] && [ "$version" != "$plugin_version" ]; then
+      add_finding MARKETPLACE_SOURCE DISTRIBUTED "$mp" 0 "$mp:$name" \
+        "entry '$name' dichiara v$version, plugin.json dice v$plugin_version"
+    fi
+  done < <(jq -r '.plugins[]? | [.name, .source // "", .version // ""] | @tsv' "$catalog")
+}
+
+# ── Check 12: residui dei runtime non piu' supportati ────────────────────────
+# Cursor, Codex e Gemini sono stati rimossi con DE-16489: builder, artefatti in
+# dist/ e catalogo dedicato. Il check e' la grep del criterio di accettazione,
+# resa permanente perche' il supporto non rientri di soppiatto da una PR.
+# Esclusi: i CHANGELOG (storia della release, non superficie del plugin) e i due
+# file di questo controllo, che contengono i pattern per definizione.
+LEGACY_RUNTIME_PATTERN='cursor|codex|gemini'
+
+check_legacy_runtime_residue() {
+  step "Check 12 — residui di Cursor/Codex/Gemini negli artefatti"
+  local f line no text
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case "$f" in
+      */CHANGELOG.md) continue ;;
+      "$SCRIPT_DIR"/validate-plugin.sh|"$BASELINE_FILE") continue ;;
+    esac
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      no="${line%%:*}"
+      text="$(printf '%s' "${line#*:}" | sed 's/^[[:space:]]*//')"
+      add_finding LEGACY_RUNTIME_RESIDUE DISTRIBUTED "$(rel "$f")" "$no" "$(rel "$f"):$no" \
+        "riferimento a un runtime rimosso (DE-16489): $text"
+    done < <(grep -n -i -E "$LEGACY_RUNTIME_PATTERN" "$f" 2>/dev/null || true)
+  done < <(find "$REPO_ROOT/scripts" "$REPO_ROOT/templates" "$REPO_ROOT/dist" \
+             "$REPO_ROOT/.claude-plugin" -type f 2>/dev/null | sort)
 }
 
 # ── Esecuzione ───────────────────────────────────────────────────────────────
@@ -503,6 +543,7 @@ check_command_duplicates
 check_constitution_sections
 check_manifest_orphans
 check_marketplace
+check_legacy_runtime_residue
 
 sort -o "$FINDINGS" "$FINDINGS"
 
