@@ -1,0 +1,14 @@
+{
+  "FRAMEWORKS": "nextjs",
+  "HAS_FRONTEND": "true",
+  "HAS_INFRA": "false",
+  "HAS_MOBILE": "false",
+  "HOOK_MANAGER": "husky",
+  "LANG": "node",
+  "LINT_CMD": "pnpm run lint",
+  "MONOREPO": "",
+  "PKG_MANAGER": "pnpm",
+  "TEST_CMD": "pnpm run test",
+  "TYPECHECK_CMD": "pnpm run typecheck",
+  "VCS": "none"
+}

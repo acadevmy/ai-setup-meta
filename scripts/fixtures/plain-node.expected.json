@@ -1,0 +1,14 @@
+{
+  "FRAMEWORKS": "",
+  "HAS_FRONTEND": "false",
+  "HAS_INFRA": "false",
+  "HAS_MOBILE": "false",
+  "HOOK_MANAGER": "",
+  "LANG": "node",
+  "LINT_CMD": "",
+  "MONOREPO": "",
+  "PKG_MANAGER": "npm",
+  "TEST_CMD": "",
+  "TYPECHECK_CMD": "",
+  "VCS": "none"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "acme-workspace",
+  "private": true,
+  "devDependencies": {
+    "@nx/workspace": "^20.0.0",
+    "lefthook": "^1.8.0",
+    "nx": "^20.0.0"
+  }
+}

@@ -3,11 +3,51 @@
   "description": "Setup AI-native per progetti di sviluppo software",
   "author": "Acadevmy",
   "setup_skill": "setup-skill.md",
-  "shared_agents": ["clickup.md"],
-  "shared_skills": ["clickup", "github-ops", "gitlab-ops"],
-  "template_agents": ["review.md", "sdd-discovery-responder.md", "sdd-approver.md", "sdd-methodology-picker.md"],
-  "template_skills": ["auto-sdd", "review", "tdd", "bdd", "sdd", "sdd-discovery", "sdd-spec", "sdd-plan", "sdd-dev", "verify"],
-  "profiles": ["web-frontend.md", "backend-node.md", "mobile.md", "terraform.md", "nextjs.md"],
+  "shared_agents": [
+    "clickup.md"
+  ],
+  "shared_skills": [
+    "clickup",
+    "github-ops",
+    "gitlab-ops"
+  ],
+  "template_agents": [
+    "review.md",
+    "sdd-discovery-responder.md",
+    "sdd-approver.md",
+    "sdd-methodology-picker.md"
+  ],
+  "template_skills": [
+    "auto-sdd",
+    "review",
+    "tdd",
+    "bdd",
+    "sdd",
+    "sdd-discovery",
+    "sdd-spec",
+    "sdd-plan",
+    "sdd-dev",
+    "verify"
+  ],
+  "plugin_scripts": [
+    "common.sh",
+    "detect-stack.sh",
+    "sdd-start.sh",
+    "check-prerequisites.sh",
+    "render-template.sh"
+  ],
+  "hooks": [
+    "gate-commit.sh",
+    "post-edit.sh",
+    "on-compact.sh"
+  ],
+  "profiles": [
+    "web-frontend.md",
+    "backend-node.md",
+    "mobile.md",
+    "terraform.md",
+    "nextjs.md"
+  ],
   "boilerplate_files": [
     ".commitlintrc.json",
     ".lintstagedrc.json",

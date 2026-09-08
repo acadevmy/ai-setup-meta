@@ -19,6 +19,9 @@ node_modules/
 # Log dei run automatici
 logs/
 
-# File di stato della pipeline auto-maintain (temporaneo, non va in repo)
+# Work directory of scripts/test-plugin-scripts.sh
+.tmp-script-tests/
+
+# Auto-maintain pipeline state files (temporary, never committed)
 .automaint-state.json
 .automaint-pr-body.md

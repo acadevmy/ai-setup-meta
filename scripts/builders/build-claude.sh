@@ -17,6 +17,7 @@ mkdir -p "$DIST_DIR/.claude-plugin"
 mkdir -p "$DIST_DIR/skills/setup/templates/profiles"
 mkdir -p "$DIST_DIR/agents"
 mkdir -p "$DIST_DIR/hooks/scripts"
+mkdir -p "$DIST_DIR/scripts"
 
 ok "Directory layout created"
 
@@ -191,13 +192,50 @@ jq -n \
 
 ok "plugin.json generated"
 
+# ── Copy the plugin scripts ──────────────────────────────────────────────────
+#
+# The deterministic work the agent used to re-derive from prose on every run
+# (DE-16476): detect-stack, sdd-start, check-prerequisites, render-template.
+# They land at $DIST_DIR/scripts/, which is what ${CLAUDE_PLUGIN_ROOT}/scripts
+# resolves to at runtime.
+step "Copying the plugin scripts"
+
+SCRIPTS_SRC="$TEMPLATE_DIR/.claude/scripts"
+
+for SCRIPT in $(jq -r '.plugin_scripts[]? // empty' "$MANIFEST"); do
+  SRC="$SCRIPTS_SRC/$SCRIPT"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$DIST_DIR/scripts/$SCRIPT"
+    chmod +x "$DIST_DIR/scripts/$SCRIPT"
+    ok "Script: $SCRIPT"
+  else
+    warn "Script not found: $SCRIPT"
+  fi
+done
+
 # ── Copy the hooks ───────────────────────────────────────────────────────────
 step "Generating the hooks"
 
 HOOKS_SRC="$TEMPLATE_DIR/.claude/hooks"
 HAS_HOOKS=false
 
-if [ -d "$HOOKS_SRC" ]; then
+# The manifest is authoritative when it lists the hooks; otherwise every *.sh
+# in the hooks directory ships.
+MANIFEST_HOOKS=$(jq -r '.hooks[]? // empty' "$MANIFEST")
+
+if [ -n "$MANIFEST_HOOKS" ]; then
+  for HOOK in $MANIFEST_HOOKS; do
+    SRC="$HOOKS_SRC/$HOOK"
+    if [ -f "$SRC" ]; then
+      cp "$SRC" "$DIST_DIR/hooks/scripts/$HOOK"
+      chmod +x "$DIST_DIR/hooks/scripts/$HOOK"
+      ok "Hook script: $HOOK"
+      HAS_HOOKS=true
+    else
+      warn "Hook not found: $HOOK"
+    fi
+  done
+elif [ -d "$HOOKS_SRC" ]; then
   for SCRIPT in "$HOOKS_SRC"/*.sh; do
     [ -f "$SCRIPT" ] || continue
     cp "$SCRIPT" "$DIST_DIR/hooks/scripts/"
@@ -220,6 +258,18 @@ elif [ "$HAS_HOOKS" = true ]; then
   cat > "$DIST_DIR/hooks/hooks.json" << 'HOOKSJSON'
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",

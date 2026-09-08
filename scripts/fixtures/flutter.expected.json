@@ -1,0 +1,14 @@
+{
+  "FRAMEWORKS": "flutter",
+  "HAS_FRONTEND": "false",
+  "HAS_INFRA": "false",
+  "HAS_MOBILE": "true",
+  "HOOK_MANAGER": "",
+  "LANG": "flutter",
+  "LINT_CMD": "dart analyze",
+  "MONOREPO": "",
+  "PKG_MANAGER": "pub",
+  "TEST_CMD": "flutter test",
+  "TYPECHECK_CMD": "flutter analyze",
+  "VCS": "none"
+}

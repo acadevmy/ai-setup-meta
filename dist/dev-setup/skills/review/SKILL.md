@@ -12,15 +12,25 @@ Perform a code review of the modified code in the current branch via the Review 
 
 ## Procedure
 
-### 1. Launch the Review Agent
+### 1. Resolve the base branch
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
+```
+
+Use its `MERGE_BASE` (the fork point), `TASK_ID` and `SPEC`. Never assume `main`:
+on a project targeting `next` that reviews the whole delta between the two
+long-lived branches.
+
+### 2. Launch the Review Agent
 
 Launch the `review` agent with:
-- BASE_BRANCH: `main`
+- BASE_BRANCH: the `MERGE_BASE` from the previous step
 - CONSTITUTION_PATH: `./CONSTITUTION.md`
 - REGISTRY_PATH: `./REGISTRY.md`
-- TASK_ID: extracted from the current branch name (e.g. `feat/DE-123-desc` → `DE-123`), if present
+- TASK_ID: the `TASK_ID` from the previous step, if present
 
-### 2. Analyze the result
+### 3. Analyze the result
 
 Parse the `---REVIEW-RESULT---` output returned by the agent.
 
@@ -38,7 +48,7 @@ Parse the `---REVIEW-RESULT---` output returned by the agent.
 - Confirm that the code is compliant
 - Proceed to the next step
 
-### 3. Apply REGISTRY updates
+### 4. Apply REGISTRY updates
 
 If the agent returned non-empty REGISTRY_UPDATES:
 
@@ -50,14 +60,12 @@ If the agent returned non-empty REGISTRY_UPDATES:
    - Find the existing entry in the section and update the modified fields
 4. Commit the update: `docs(registry): update REGISTRY.md`
 
-### 4. Track the outcome in the spec
+### 5. Track the outcome in the spec
 
-Locate the spec for the current task:
-- Extract the customId from the current branch name (e.g. `feat/DE-123-desc` → `DE-123`)
-- Find `.specs/<customId>-*.md`
-- If no spec exists, skip this step (the review was likely invoked outside the SDD flow)
+Take the spec from `SPEC` (step 1). If it is empty, skip this step — the review
+was invoked outside the SDD flow.
 
-Update the `## Review phase` section of the spec with:
+Update the spec's `## Review phase` section with:
 - `State`: `completed`
 - `Date`: today's date, as `YYYY-MM-DD`
 - `Outcome`: the STATUS the Review Agent returned (`pass`, `pass-with-warnings`, `fail`)
@@ -65,9 +73,11 @@ Update the `## Review phase` section of the spec with:
 - `Warnings`: a short list of the warnings with their rationale (e.g. `W-1: missing test for X`), or `none`
 - `REGISTRY updates`: the number of entries applied + a short add/update summary per section, or `none`
 
-Overwrite the existing section and leave the rest of the spec untouched. If REGISTRY commits have already been made (`docs(registry): update REGISTRY.md`), put the spec update in an extra commit `docs(spec): track review outcome`, or fold it into the same REGISTRY commit while the stage is still open.
+Overwrite that section only, leaving the rest of the spec untouched. If the
+REGISTRY commit is already made, add `docs(spec): track review outcome`;
+otherwise fold both into it.
 
-### 5. Final report
+### 6. Final report
 
 Show a summary:
 ```

@@ -39,7 +39,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     if [ -f "${REPO_ROOT}/${file}" ]; then
       printf '%b\n' "${GREEN}OK${NC}  ${file}"
     else
-      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
       errors=$((errors + 1))
     fi
 
@@ -52,7 +52,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     if [ -f "${REPO_ROOT}/${file}" ]; then
       printf '%b\n' "${GREEN}OK${NC}  ${file}"
     else
-      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
       errors=$((errors + 1))
     fi
   done
@@ -63,7 +63,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     if [ -f "${REPO_ROOT}/${file}" ]; then
       printf '%b\n' "${GREEN}OK${NC}  ${file}"
     else
-      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
       errors=$((errors + 1))
     fi
   done
@@ -74,7 +74,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     if [ -f "${REPO_ROOT}/${file}" ]; then
       printf '%b\n' "${GREEN}OK${NC}  ${file}"
     else
-      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
       errors=$((errors + 1))
     fi
   done
@@ -85,7 +85,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     if [ -f "${REPO_ROOT}/${file}" ]; then
       printf '%b\n' "${GREEN}OK${NC}  ${file}"
     else
-      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
       errors=$((errors + 1))
     fi
   done
@@ -96,7 +96,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     if [ -f "${REPO_ROOT}/${file}" ]; then
       printf '%b\n' "${GREEN}OK${NC}  ${file}"
     else
-      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
       errors=$((errors + 1))
     fi
   done
@@ -107,7 +107,29 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     if [ -f "${REPO_ROOT}/${file}" ]; then
       printf '%b\n' "${GREEN}OK${NC}  ${file}"
     else
-      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
+      errors=$((errors + 1))
+    fi
+  done
+
+  # Plugin scripts (the deterministic helpers shipped at dist/<name>/scripts/)
+  for script in $(python3 -c "import json; [print(s) for s in json.load(open('$manifest')).get('plugin_scripts',[])]" 2>/dev/null); do
+    file="templates/$TEMPLATE_NAME/.claude/scripts/$script"
+    if [ -f "${REPO_ROOT}/${file}" ]; then
+      printf '%b\n' "${GREEN}OK${NC}  ${file}"
+    else
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
+      errors=$((errors + 1))
+    fi
+  done
+
+  # Hooks
+  for hook in $(python3 -c "import json; [print(h) for h in json.load(open('$manifest')).get('hooks',[])]" 2>/dev/null); do
+    file="templates/$TEMPLATE_NAME/.claude/hooks/$hook"
+    if [ -f "${REPO_ROOT}/${file}" ]; then
+      printf '%b\n' "${GREEN}OK${NC}  ${file}"
+    else
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
       errors=$((errors + 1))
     fi
   done
@@ -118,7 +140,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     if [ -f "${REPO_ROOT}/${file}" ]; then
       printf '%b\n' "${GREEN}OK${NC}  ${file}"
     else
-      printf '%b\n' "${RED}MANCANTE${NC}  ${file}"
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
       errors=$((errors + 1))
     fi
   done
@@ -127,8 +149,8 @@ done
 echo ""
 
 if [ "$errors" -gt 0 ]; then
-  printf '%b\n' "${RED}${errors} file mancanti. Correggi prima di pubblicare.${NC}"
+  printf '%b\n' "${RED}${errors} missing file(s). Fix them before publishing.${NC}"
   exit 1
 else
-  printf '%b\n' "${GREEN}Tutti i file presenti. Setup valido.${NC}"
+  printf '%b\n' "${GREEN}Every referenced file is present. Setup valid.${NC}"
 fi
