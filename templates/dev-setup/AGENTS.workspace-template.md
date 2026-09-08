@@ -144,9 +144,11 @@ ctx7 docs <libraryId> <query>    # fetch docs
 Detect with `command -v ctx7`. If missing, invoke via `npx ctx7@latest <command>`.
 
 **Fallback — Context7 MCP**: use `mcp__context7__resolve-library-id` +
-`mcp__context7__query-docs` when the CLI is not available in the environment.
+`mcp__context7__query-docs` only if this project registered the server. The setup does
+not install it: `npx ctx7@latest` covers the case where the CLI is missing from PATH.
 
-Rationale: the CLI is faster, streams output, and does not consume MCP tool-call budget.
+Rationale: the CLI is faster, streams output, and costs no MCP tool definitions in the
+context of every session.
 
 ## Language
 

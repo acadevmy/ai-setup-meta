@@ -26,6 +26,48 @@ L'agente analizzera' il progetto e applichera' tutto in modo adattivo:
 
 **Prerequisiti**: `git`, `claude` CLI. Opzionale: `gh` CLI (per MCP ClickUp e operazioni greenfield).
 
+### Costo di contesto della sessione
+
+Il plugin **non** dichiara server MCP propri: quelli che dipendono dallo stack (Figma) o
+dalla configurazione del team (ClickUp) li registra `/dev-setup:setup` a livello di
+progetto, e solo se servono (Passo 6 della setup skill). Per la documentazione delle
+librerie il default e' la CLI `ctx7`, non il server Context7: la CLI fa lo stesso lavoro
+senza pagare le tool definition in ogni sessione.
+
+**Rete di sicurezza — `ENABLE_TOOL_SEARCH`.** Claude Code tiene le tool definition MCP
+fuori dal contesto e le carica a richiesta (*tool search*, attivo di default). Con quel
+meccanismo attivo un server da 58 tool costa ~1.000 token a sessione zero invece di
+~31.000. La variabile serve quando il default non si applica — `ANTHROPIC_BASE_URL` verso
+un proxy non first-party, `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`, deployment Foundry su
+Azure, modelli Agent Platform pre-4.5:
+
+| Valore | Effetto |
+|---|---|
+| non impostata | tool search attivo, con i fallback sopra |
+| `true` | sempre attivo (il beta header passa anche dai proxy) |
+| `auto` | si attiva quando le definition deferibili arrivano al 10% della finestra |
+| `auto:N` | come `auto` con soglia N% (es. `auto:5`) |
+| `false` | disattivato: tutte le definition entrano in contesto a ogni turno |
+
+Si imposta come variabile d'ambiente o nel blocco `env` di `settings.json`. Misure con
+`scripts/measure-session-zero.sh` (fixture backend puro, sonnet, `--strict-mcp-config`):
+
+| Server MCP registrati | tool | tool search attivo | tool search disattivo |
+|---|---|---|---|
+| nessuno | 0 | 35.479 | 51.282 |
+| clickup | 58 | 36.525 | 82.030 |
+| clickup + figma + context7 | 101 | 37.512 | 120.956 |
+
+I valori assoluti includono la configurazione globale di chi misura (CLAUDE.md utente,
+skill e plugin installati): confrontabili sono le differenze fra due run nello stesso
+ambiente, non i totali fra macchine diverse.
+
+**Override di modello nelle skill**: nessuna skill distribuita imposta `model:`. Il
+frontmatter `model:` sposta il modello del loop principale e la cache del prompt e'
+model-scoped, quindi ogni cambio nella catena paga un prefisso freddo — e l'override
+resta attivo anche nei turni successivi all'uso della skill. Le skill differenziano solo
+`effort`; il modello lo scegli tu per la sessione.
+
 ### Altri tool (Cursor, Codex, Copilot…)
 
 Il plugin ha un solo target di build: **Claude Code**. I builder dedicati agli altri
@@ -64,7 +106,7 @@ di Claude Code con una variabile rinominata — inerti fuori da Claude Code — 
 │  → Rileva modalita' (UPDATE/GREENFIELD/EXISTING)            │
 │  → Auto-detect stack                                        │
 │  → Installa CONSTITUTION, AGENTS.md, CLAUDE.md, REGISTRY    │
-│  → Configura MCP (ClickUp, Context7, Figma)                │
+│  → Configura i soli MCP che lo stack usa (Passo 6)          │
 │  → Skills disponibili via plugin                            │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -106,8 +148,7 @@ ai-setup-meta/
 │       ├── .claude-plugin/      # Manifest del plugin
 │       ├── skills/              # 14 skills (10 del template + 3 shared + setup)
 │       ├── agents/              # 5 agents (4 del template + clickup shared)
-│       ├── hooks/               # hooks.json + hooks/scripts/
-│       └── .mcp.json            # MCP config
+│       └── hooks/               # hooks.json + hooks/scripts/
 ├── scripts/
 │   ├── build-plugin.sh          # Orchestratore: legge manifest, invoca il builder
 │   ├── builders/
@@ -117,8 +158,6 @@ ai-setup-meta/
 │   ├── validate-baseline.txt    # Fail noti, riportati ma non bloccanti in CI
 │   ├── validate-setup-urls.sh   # Link check degli URL citati dalla setup skill
 │   └── auto-maintain-runner.sh  # Runner della pipeline di manutenzione
-├── mcp/
-│   └── mcp.json.example
 └── docs/
     ├── developer-guide.md
     ├── workflow.md

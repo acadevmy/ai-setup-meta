@@ -1,7 +1,6 @@
 ---
 name: sdd-discovery
 description: Structured discovery interview to gather complete requirements before the technical spec. Use when you need to analyze a task in depth before generating the SDD spec.
-model: opus
 effort: max
 user-invocable: true
 disable-model-invocation: false

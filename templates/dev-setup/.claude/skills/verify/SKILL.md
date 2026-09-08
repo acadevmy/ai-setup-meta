@@ -1,8 +1,7 @@
 ---
 name: verify
 description: Verifies that the implementation matches the approved spec (completeness, correctness, coherence)
-model: opus
-effort: max
+effort: high
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: AskUserQuestion
