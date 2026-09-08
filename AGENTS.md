@@ -21,23 +21,24 @@ ai-base-setup/
 │   └── skills/             # Skill riutilizzabili (es. clickup, github-ops)
 │
 ├── templates/              # Template per dominio
-│   └── <dominio>/          # Es. dev-setup, pm-setup
+│   └── <dominio>/          # Es. dev-setup
 │       ├── manifest.json   # Dichiara dipendenze da shared/ e file specifici
-│       ├── <dominio>-setup-agent.md  # Agent di dominio (logica di bootstrap)
-│       ├── CONSTITUTION.md # Copia da root (se manifest.copy_constitution=true)
+│       ├── setup-skill.md  # Setup skill del dominio (logica di bootstrap)
+│       ├── CONSTITUTION.md # Sorgente di verita' delle regole del dominio
 │       ├── profiles/       # Profili stack specifici del dominio
 │       └── .claude/        # Agent e skill specifici del dominio
 │
-├── dist/                   # Cio' che viene RILASCIATO
-│   ├── setup.md            # Dispatcher leggero (selezione dominio)
-│   └── agents/             # Agent di dominio (copiati da templates/)
+├── dist/                   # Cio' che viene RILASCIATO (generato da build-plugin.sh)
+│   └── <dominio>/          # Plugin buildato: skills/, agents/, hooks/, .claude-plugin/
 │
 ├── .claude/                # SOLO strumenti del meta-repo
-│   ├── agents/             # validate-template.md
-│   ├── commands/           # Comandi invocabili (/project:build-plugin, release-plugin)
-│   └── skills/             # generate-setup, release, sync-profiles, update-constitution, validate
+│   ├── agents/             # validate-template.md, clickup.md
+│   ├── commands/           # Comandi invocabili (/project:build-plugin)
+│   └── skills/             # auto-maintain, validate
 │
-└── scripts/                # Script sh (build-plugin, release-plugin, validate-setup-urls, validate-plugin)
+├── docs/legacy/            # Materiale archiviato, fuori dal prodotto e dalla CI
+│
+└── scripts/                # Script sh (build-plugin, builders/, validate-setup-urls, validate-plugin)
 ```
 
 ## Stack del team
@@ -176,20 +177,19 @@ Gli agent sono sub-processi isolati con il proprio contesto.
 
 | Skill | Descrizione |
 |---|---|
-| `/project:generate-setup` | Genera un template (multi-dominio, guidato da manifest) |
-| `/project:update-constitution` | Aggiorna CONSTITUTION e propaga ai template |
-| `/project:sync-profiles` | Sincronizza i profili stack nel template di dominio |
 | `/project:auto-maintain` | Pipeline autonoma: pesca un task ClickUp dalla lista di manutenzione e apre PR (vedi sezione dedicata) |
 | `/project:validate` | Validazione pre-release: riferimenti dei manifest + 11 check statici sulla qualita' delle skill |
 
 ### Comandi (`/project:<nome>`)
 
-Comandi che invocano script sh sottostanti per operazioni di build/release/validazione.
+Comandi che invocano script sh sottostanti per operazioni di build/validazione.
 
 | Comando | Descrizione |
 |---|---|
 | `/project:build-plugin` | Build del plugin da manifest.json → `dist/` |
-| `/project:release-plugin` | Release completa: bump, build, changelog, tag, push, GitHub Release |
+
+Il release non ha un comando: lo calcola release-please dai conventional commit
+(vedi "Tipi e impatto sulla release" sopra).
 
 ### Shared skills (in `shared/`, distribuite ai template)
 
@@ -327,4 +327,4 @@ Prima di aprire una PR, verifica:
 Questo file viene aggiornato manualmente tramite PR. Non modificarlo direttamente su `main`.
 
 ---
-*Versione: 2.3.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
+*Versione: 2.4.0 — aggiornare il numero di versione ad ogni modifica sostanziale*

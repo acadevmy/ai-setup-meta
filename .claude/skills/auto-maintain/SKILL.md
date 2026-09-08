@@ -175,8 +175,8 @@ Analizza `TASK_DESC` per dedurre il tipo di modifica. Tipi supportati:
 | `mcp-update` | "MCP", "server context", "claude mcp add" | `templates/<dom>/.mcp.json`, doc relativa |
 | `profile-update` | "profilo", "stack", "Next.js/Angular/Flutter" | `templates/<dom>/profiles/` |
 | `agent-update` | "agent", "subagent" | `templates/<dom>/.claude/agents/`, `shared/agents/` |
-| `constitution-update` | "constitution", "regola", "vincolo" | `CONSTITUTION.md` (root) |
-| `manifest-update` | "manifest", "shared_agents", "copy_constitution" | `templates/<dom>/manifest.json` |
+| `constitution-update` | "constitution", "regola", "vincolo" | `templates/<dom>/CONSTITUTION.md` |
+| `manifest-update` | "manifest", "shared_agents", "required_files" | `templates/<dom>/manifest.json` |
 | `docs-update` | "AGENTS.md", "README", "documentazione" | `AGENTS.md`, `README.md`, `docs/` |
 
 Se nessun tipo è deducibile con confidenza ragionevole: **bail-out** (vedi sezione "Bail-out").
@@ -282,7 +282,7 @@ Stampa `[STEP 8 START] Push + PR`.
    <istruzioni di verifica concrete, es.:
     - eseguire `/project:validate`
     - ispezionare i file <path>
-    - rigenerare un template con `/project:generate-setup <dominio>`>
+    - rigenerare il plugin con `bash scripts/build-plugin.sh <dominio>`>
 
    ### File toccati
    - <path1>

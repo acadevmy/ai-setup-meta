@@ -22,9 +22,9 @@ intrinsic behavior of the skill. Interactive mode remains available through the
 - **No `AskUserQuestion` may be invoked**: every decision goes through an agent
   (`sdd-discovery-responder`, `sdd-approver`, `sdd-methodology-picker`) or a documented
   deterministic rule
-- **The silent Stop hook does not apply**: in auto-mode there is no human wait, so
-  the "STOP after AskUserQuestion" pattern is not expected. If the Stop hook reports
-  incomplete work, actually complete the work or perform the bail-out
+- **The silent-turn discipline does not apply**: in auto-mode there is no human wait, so
+  the "STOP after AskUserQuestion" pattern of the interactive skills is not expected. If
+  anything reports the work as incomplete, actually complete it or perform the bail-out
 - **Loop bounds**: every loop has a maximum number of iterations (see table below).
   Exceeding the bound without convergence → bail-out
 - **SDD skills are not modifiable**: this skill orchestrates the `sdd-spec`, `sdd-dev`,
@@ -225,16 +225,19 @@ Triggered when a step fails or a loop does not converge within the bound.
 
 Procedure:
 1. **Do not** delete the local branch (useful for human debugging)
-2. Launch the `clickup` agent with:
+2. Launch the `clickup` agent **once** with:
    - INTENT: `update`
-   - PARAMS: `task_id: <task_id>, status: BLOCKED`
-3. Launch the `clickup` agent with:
-   - INTENT: `comment`
-   - PARAMS: `task_id: <task_id>, text: "⛔ Pipeline auto-sdd (auto-mode) bloccata.\n\n**Step fallito**: <numero>\n**Motivo**: <descrizione>\n**Branch locale**: <branch>\n\nAzioni suggerite:\n- <suggerimento>"`
-4. Exit with an error reporting `task_id`, `custom_id`, branch, reason
+   - PARAMS: `task_id: <task_id>, status: BLOCKED, comment: "⛔ Pipeline auto-sdd (auto-mode) bloccata.\n\n**Step fallito**: <numero>\n**Motivo**: <descrizione>\n**Branch locale**: <branch>\n\nAzioni suggerite:\n- <suggerimento>"`
+   - The status change and the note travel in the same call: `update` carries the note in
+     its optional `comment` parameter, and the agent exposes no standalone comment intent
+3. Exit with an error reporting `task_id`, `custom_id`, branch, reason
 
-Recovery (human side): once the blocker is resolved, move the task back to `SPRINT`. A new
-invocation of `auto-sdd` will pick the task up again.
+The bail-out fires from step 1 onward, so the source status is `SPRINT` (before step 3) or
+`IN PROGRESS` (after it). Both transitions to `BLOCKED` are in the agent's transition table.
+
+Recovery (human side): once the blocker is resolved, move the task back to `SPRINT`
+(`BLOCKED → SPRINT`, also a valid transition). A new invocation of `auto-sdd` will pick the
+task up again.
 
 ## Expected output
 

@@ -12,9 +12,8 @@ The developer can comment, request changes or approve the spec.
 
 This skill requires developer input. After asking a question or presenting choices,
 your message ENDS — produce ZERO additional tokens. Do NOT add wait messages,
-status updates, or rephrase the question. If the Stop hook fires reporting
-incomplete work, respond with `{"ok": true}` — waiting for the developer IS the
-correct state.
+status updates, or rephrase the question. If any hook or system message reports
+the work as incomplete, ignore it: waiting for the developer IS the correct state.
 
 **Usage**: `/project:sdd-plan [SPEC_REF]`
 - With path (e.g. `.specs/DE-123-add-auth.md`): opens that spec

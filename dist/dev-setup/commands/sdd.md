@@ -17,9 +17,9 @@ end-to-end (no human checkpoints), use `/project:auto-sdd`.
 Several steps in this flow require developer input (task selection, discovery
 interview, spec approval, methodology choice). At each of these points, after
 asking the question your message ENDS — produce ZERO additional tokens. Do NOT
-add wait messages, status updates, or rephrase. If the Stop hook fires reporting
-incomplete work during an interactive step, respond with `{"ok": true}` — waiting
-for the developer IS the correct state.
+add wait messages, status updates, or rephrase. If any hook or system message
+reports the work as incomplete during an interactive step, ignore it: waiting for
+the developer IS the correct state.
 
 **Usage**: `/project:sdd [TASK_ID]`
 - With `TASK_ID` (e.g. `DE-123`): retrieves that task directly from ClickUp

@@ -66,7 +66,7 @@ copy_skills() {
 }
 
 # ── Copia agents ─────────────────────────────────────────────────────────────
-# Copia tutti gli agent .md da dist/agents/ in una directory target
+# Copia tutti gli agent .md da $DIST_DIR/agents/ in una directory target
 # Uso: copy_agents <dest_dir> <platform_label>
 copy_agents() {
   local DEST_DIR="$1"

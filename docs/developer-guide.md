@@ -1,9 +1,9 @@
 # Guida sviluppatore — Dal setup al primo task
 
-Guida pratica per lo sviluppatore che ha appena completato l'onboarding
+Guida pratica per lo sviluppatore che ha gia' installato il plugin `dev-setup`
 e vuole iniziare a lavorare con il workflow AI-native.
 
-> **Prerequisito**: aver completato tutti i passi descritti in [onboarding.md](onboarding.md).
+> **Prerequisito**: aver eseguito `/dev-setup:setup` nella root del progetto.
 
 ---
 
@@ -69,7 +69,7 @@ claude mcp list
 ls AGENTS.md CLAUDE.md CONSTITUTION.md
 ```
 
-Se manca qualcosa, torna alla guida di [onboarding.md](onboarding.md).
+Se manca qualcosa, ri-esegui `/dev-setup:setup` nella root del progetto.
 
 ---
 
@@ -259,50 +259,7 @@ sia scritto da te che da Claude Code.
 
 ---
 
-## 6. Struttura progetto tipo
-
-Dopo il setup, il tuo progetto avra' questi file AI-native:
-
-```
-progetto/
-├── CONSTITUTION.md          # Regole inviolabili (non modificare)
-├── AGENTS.md                # Istruzioni per agenti AI (standard cross-tool)
-├── CLAUDE.md                # Entry point per Claude Code (importa AGENTS.md)
-├── REGISTRY.md              # Indice di componenti, servizi, pattern, ADR
-├── .env                     # Segreti locali (gitignored)
-├── .claude/
-│   ├── settings.json        # Permessi Claude Code
-│   ├── skills/              # Comandi /project:*
-│   ├── agents/              # Sub-agenti (clickup, review)
-│   └── hooks/               # Automazioni (protect-files, post-edit, on-compact)
-├── mcp/
-│   └── mcp.json             # Server MCP configurati (gitignored)
-└── .husky/                  # Git hooks (solo greenfield)
-    ├── pre-commit           # prettier + eslint
-    └── commit-msg           # commitlint
-```
-
-**File che non devi mai modificare manualmente:**
-- `CONSTITUTION.md` — gestita dal meta-repo
-- `.claude/hooks/*` — gestiti dal meta-repo
-- `.claude/agents/*` — gestiti dal meta-repo
-
-**File che devi mantenere aggiornato:**
-- `REGISTRY.md` — si aggiorna anche via `/project:review`, ma puoi integrare manualmente
-
----
-
-## 7. Troubleshooting
-
-### Claude Code non vede i server MCP
-
-```bash
-# Verifica che il file mcp.json esista
-ls mcp/mcp.json
-
-# Se manca, ricrealo dal template
-cp mcp/mcp.json.example mcp/mcp.json
-```
+## 6. Troubleshooting
 
 ### Il commit viene rifiutato dai git hooks
 
@@ -325,7 +282,7 @@ Assicurati che nella root del progetto ci sia:
 
 ---
 
-## 8. Upgrade del plugin
+## 7. Upgrade del plugin
 
 Quando esce una nuova versione di `dev-setup`, servono due azioni distinte:
 
@@ -371,7 +328,7 @@ Se il progetto e' migrato da GitHub a GitLab (o viceversa), l'UPDATE rileva il n
 
 ---
 
-## 9. Prossimi passi
+## 8. Prossimi passi
 
 Dopo aver completato il primo task:
 

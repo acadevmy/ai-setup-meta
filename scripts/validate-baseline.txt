@@ -18,11 +18,7 @@ COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/sdd-spec.md
 COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/sdd.md
 COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/tdd.md
 COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/verify.md
-CONSTITUTION_SECTIONS	templates/dev-setup/setup-skill.md:VII
 DESCRIPTION_TRIGGER	.claude/skills/auto-maintain/SKILL.md
-DESCRIPTION_TRIGGER	.claude/skills/generate-setup/SKILL.md
-DESCRIPTION_TRIGGER	.claude/skills/sync-profiles/SKILL.md
-DESCRIPTION_TRIGGER	.claude/skills/update-constitution/SKILL.md
 DESCRIPTION_TRIGGER	shared/skills/clickup/SKILL.md
 DESCRIPTION_TRIGGER	shared/skills/github-ops/SKILL.md
 DESCRIPTION_TRIGGER	shared/skills/gitlab-ops/SKILL.md
@@ -36,8 +32,6 @@ DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/sdd/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/tdd/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/verify/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/setup-skill.md
-MANIFEST_ORPHAN	templates/dev-setup/manifest.json:dev-setup-agent.md
-MANIFEST_ORPHAN	templates/dev-setup/manifest.json:profiles/web-frontend-nuxt.md
 SKILL_LINES	templates/dev-setup/setup-skill.md
 SKILL_WORDS	.claude/skills/auto-maintain/SKILL.md
 SKILL_WORDS	shared/skills/gitlab-ops/SKILL.md

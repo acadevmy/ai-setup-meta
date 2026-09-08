@@ -35,9 +35,10 @@
 #   - Il check 2 usa il budget ridotto (200) solo per le skill force-loaded via
 #     `@path` da AGENTS/rules/profili: sono le uniche sempre in contesto.
 #   - Il check 10 si applica solo agli asset che la prosa deve tirare dentro
-#     (profiles, boilerplate, required_files, agent di dominio). Skill e agent
-#     dichiarati nel manifest sono entry point registrati dal runtime: non
-#     essere citati da altra prosa non e' un difetto.
+#     (profiles, boilerplate, required_files). Skill e agent dichiarati nel
+#     manifest sono entry point registrati dal runtime: non essere citati da
+#     altra prosa non e' un difetto. Il campo legacy `agent` non e' piu' letto:
+#     l'agent di dominio e' stato sostituito dalla setup skill (PR 2).
 
 set -euo pipefail
 
@@ -424,7 +425,6 @@ check_manifest_orphans() {
 
     declared="$TMP_DIR/declared-$tname.txt"
     {
-      jq -r '.agent // empty' "$manifest"
       jq -r '.profiles[]? | "profiles/" + .' "$manifest"
       jq -r '.boilerplate_files[]? | "boilerplate/" + .' "$manifest"
       jq -r '.required_files[]?' "$manifest"
