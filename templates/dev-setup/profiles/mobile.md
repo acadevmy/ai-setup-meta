@@ -1,8 +1,12 @@
 # Profile: Mobile
 
-Stack: **Flutter 3.24+** (Dart 3.4+) and **React Native** with **Expo** (SDK 51+)
+Stack: **Flutter 3.47+** (Dart 3.13+) and **React Native** with **Expo** (SDK 57+)
 State: Riverpod (preferred) / BLoC (Flutter) — Zustand/Jotai (React Native)
 Testing: flutter_test (Flutter) — Jest + React Native Testing Library (RN)
+
+> Versions verified on pub.dev and npm on 2026-09-08. When bumping them,
+> re-check the peer ranges: they are the constraint that decides whether the
+> install succeeds on the first try.
 
 ---
 
@@ -63,27 +67,33 @@ lib/
 
 ```yaml
 dependencies:
-  flutter_riverpod: ^2.5.0   # alternative: flutter_bloc ^8.1.0
-  riverpod_annotation: ^2.3.0
-  freezed_annotation: ^2.4.0
-  json_annotation: ^4.9.0
-  dio: ^5.4.0
-  go_router: ^14.0.0
-  get_it: ^7.7.0
+  flutter_riverpod: ^3.4.0   # alternative: flutter_bloc ^9.1.0
+  riverpod_annotation: ^4.0.0
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
+  dio: ^5.11.0
+  go_router: ^18.0.0
+  get_it: ^9.2.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  riverpod_generator: ^2.4.0
-  custom_lint: ^0.6.0
-  riverpod_lint: ^2.3.0
-  bloc_test: ^9.1.0       # if using BLoC
-  freezed: ^2.5.0
-  json_serializable: ^6.8.0
-  build_runner: ^2.4.0
-  flutter_lints: ^4.0.0
-  mocktail: ^1.0.0
+  riverpod_generator: ^4.0.0
+  custom_lint: ^0.8.0
+  riverpod_lint: ^3.1.0
+  bloc_test: ^10.0.0      # if using BLoC
+  freezed: ^4.0.0
+  json_serializable: ^6.14.0
+  build_runner: ^2.16.0
+  flutter_lints: ^6.0.0
+  mocktail: ^1.0.5
 ```
+
+Riverpod 3 and freezed 4 are **breaking majors** over the 2.x this profile used
+to declare: on an existing project do not raise the pins inside an unrelated PR
+(CONSTITUTION §50, scoped Boy Scout Rule). `flutter_riverpod` 3.x pairs with
+`riverpod_annotation`/`riverpod_generator` 4.x and `riverpod_lint` 3.x — the
+three numbers differ by upstream choice, not by mistake.
 
 ### Flutter linting configuration (analysis_options.yaml)
 
@@ -125,7 +135,8 @@ linter:
    - add `build_runner`, `freezed`, `json_serializable`, `riverpod_generator`
    - add `part '*.g.dart'` / `part '*.freezed.dart'` in model/provider files
 3. **Architecture**
-   - create features with `presentation/application/domain/data` layers
+   - create features with the three layers `presentation/domain/data`
+     (CONSTITUTION §32 — dependency rule: dependencies point only inward)
    - keep datasources in the `data` layer, not in UI
 4. **State and mutations**
    - use `@riverpod` + `AsyncNotifier` for fetch/mutations
@@ -175,23 +186,77 @@ src/
 ```json
 {
   "dependencies": {
-    "expo": "~51.0.0",
-    "expo-router": "~3.5.0",
-    "zod": "^3.23.0",
-    "zustand": "^4.5.0",
-    "react-query": "^5.0.0"
+    "expo": "~57.0.0",
+    "expo-router": "~57.0.0",
+    "react": "^19.2.0",
+    "react-native": "^0.87.0",
+    "zod": "^4.5.0",
+    "zustand": "^5.0.0",
+    "@tanstack/react-query": "^5.102.0"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
-    "@testing-library/react-native": "^12.5.0",
-    "@types/jest": "^29.5.0",
-    "semantic-release": "^24.0.0",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^10.0.0",
-    "conventional-changelog-conventionalcommits": "^8.0.0"
+    "typescript": "^5.9.3",
+    "eslint": "^9.39.0",
+    "eslint-config-expo": "^57.0.0",
+    "typescript-eslint": "^8.70.0",
+    "@eslint/js": "^9.39.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.0",
+    "prettier-plugin-tailwindcss": "^0.8.0",
+    "jest": "^30.5.0",
+    "jest-expo": "~57.0.0",
+    "@testing-library/react-native": "^14.0.0",
+    "@types/jest": "^30.0.0",
+    "semantic-release": "^25.0.0",
+    "@semantic-release/changelog": "^7.0.0",
+    "@semantic-release/git": "^11.0.0",
+    "@semantic-release/npm": "^13.1.0",
+    "@semantic-release/github": "^12.0.0",
+    "@semantic-release/gitlab": "^13.3.0",
+    "conventional-changelog-conventionalcommits": "^10.4.0"
   }
 }
+```
+
+**Notes on the pins**
+
+- `react-query` **does not exist** past 3.x: the package has been called
+  `@tanstack/react-query` since 2022. This profile's old `react-query: ^5.0.0`
+  was unresolvable and made the install fail.
+- `expo`, `expo-router` and `jest-expo` track the SDK number and must be raised
+  together (`npx expo install --fix` realigns them).
+- `eslint` stays on **9.x** for the same reason as the web-frontend profile
+  (the React plugins' peer ceiling).
+- Of the two VCS-specific semantic-release plugins keep **only the one for your provider**.
+
+### ESLint (flat config)
+
+```javascript
+// eslint.config.mjs
+import expoConfig from 'eslint-config-expo/flat.js';
+
+import base from './eslint.config.base.mjs';
+
+const config = [...base, ...expoConfig];
+
+export default config;
+```
+
+### Jest
+
+The config is `jest.config.mjs` (with `jest.config.ts` Jest demands `ts-node`)
+and uses the `jest-expo` preset:
+
+```javascript
+// jest.config.mjs
+export default {
+  preset: 'jest-expo',
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  // Without collectCoverageFrom the threshold is computed only over files the
+  // tests touch, and CONSTITUTION §12 gates nothing.
+  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.spec.{ts,tsx}', '!src/**/*.d.ts'],
+  coverageThreshold: { global: { lines: 70, functions: 70, branches: 60 } },
+};
 ```
 
 ### React Native rules
@@ -200,10 +265,3 @@ src/
 - Use Expo Router for navigation
 - Every screen has a test with `@testing-library/react-native`
 - Network logic lives in custom hooks or TanStack Query — never in components
-
----
-
-## Additional slash commands (both frameworks)
-
-- `/project:new-screen` — scaffolds a screen with tests (Flutter or RN)
-- `/project:new-feature` — scaffolds a complete feature with layer structure

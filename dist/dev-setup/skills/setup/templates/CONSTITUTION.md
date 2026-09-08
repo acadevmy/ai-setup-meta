@@ -221,7 +221,12 @@ Feature: User login
 [optional footer: BREAKING CHANGE, closes #issue]
 ```
 
-Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`
+Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`,
+`ci`, `build`, `revert`
+
+`revert` is allowed because `git revert` generates it; `build` because
+`@commitlint/config-conventional` declares it. Both are enforced by
+`.commitlintrc.json` in the boilerplate.
 
 ```
 feat(auth): add refresh token rotation
@@ -289,7 +294,10 @@ not directly in the generated files.
 ### 23. Tailwind — utility-first, no custom CSS
 - Use Tailwind classes
 - Avoid custom CSS files unless strictly necessary
-- Variants and themes: via `tailwind.config.ts`, not inline
+- Variants and themes: declared once in the stylesheet, never inline. Tailwind 4
+  is CSS-first — the theme lives in an `@theme` block in the entry stylesheet and
+  `tailwind.config.ts` no longer exists. On Tailwind 3 the same rule points to
+  `tailwind.config.ts`.
 
 ---
 
@@ -616,6 +624,6 @@ opportunistically.
 
 ---
 
-*Version: 1.4.0*
-*Updated: 2026-06*
-*Next planned review: 2026-07*
+*Version: 1.5.0*
+*Updated: 2026-09*
+*Next planned review: 2026-12*

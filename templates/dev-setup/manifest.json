@@ -10,10 +10,13 @@
   "profiles": ["web-frontend.md", "backend-node.md", "mobile.md", "terraform.md", "nextjs.md"],
   "boilerplate_files": [
     ".commitlintrc.json",
+    ".lintstagedrc.json",
     ".prettierrc.json",
+    ".prettierrc.tailwind.json",
     ".releaserc.github.json",
     ".releaserc.gitlab.json",
-    ".eslintrc.base.json",
+    "eslint.config.base.mjs",
+    ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
     ".gitlab-ci.yml",
     ".gitignore"
