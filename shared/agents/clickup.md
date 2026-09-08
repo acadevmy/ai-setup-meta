@@ -80,6 +80,9 @@ Do NOT use abbreviated names like `clickup_get_task` — they will fail.
 
 ```
 SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
+   |            ^  |
+   |            |  v
+   +--------- BLOCKED  (terminal until a human resolves the blocker)
 ```
 
 ### Valid transitions
@@ -87,12 +90,19 @@ SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 | From | To | When |
 |----|---|--------|
 | SPRINT | IN PROGRESS | Work begins |
+| SPRINT | BLOCKED | Bail-out before work could start |
 | IN PROGRESS | IN REVIEW | PR opened |
 | IN PROGRESS | CODE REVIEW | Alternative to IN REVIEW |
+| IN PROGRESS | BLOCKED | Bail-out during an automated run |
 | IN REVIEW | DONE | After merge |
 | CODE REVIEW | DONE | After merge |
+| BLOCKED | SPRINT | Recovery: the task goes back in the queue for the pipeline |
+| BLOCKED | IN PROGRESS | Recovery: a human resumes the work directly |
 
 Any other transition is invalid. Return an error with the allowed transitions.
+
+A bail-out is a single `update` call: the status change to `BLOCKED` and the explanatory
+note travel together in the `comment` parameter. There is no standalone comment intent.
 
 ## Output format
 

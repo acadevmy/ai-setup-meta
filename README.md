@@ -90,18 +90,19 @@ in `dist/<template>/gemini/`. Per la guida completa vedi
 
 ```
 ai-setup-meta/
-├── marketplace.json             # Indice plugin per Claude Code
+├── .claude-plugin/
+│   └── marketplace.json         # Indice plugin per Claude Code
 ├── shared/                      # Asset comuni distribuiti ai template
 │   ├── agents/
 │   │   └── clickup.md
 │   └── skills/
 │       ├── clickup/
-│       └── github-ops/
+│       ├── github-ops/
+│       └── gitlab-ops/
 ├── templates/                   # Sorgente dei template per dominio
 │   └── dev-setup/
 │       ├── manifest.json               # Dipendenze da shared/ e file specifici
 │       ├── setup-skill.md              # Setup skill (logica di bootstrap)
-│       ├── dev-setup-agent.md          # Agent legacy (reference)
 │       ├── AGENTS.template.md          # Template per AGENTS.md generato
 │       ├── CONSTITUTION.md
 │       ├── REGISTRY.md
@@ -109,25 +110,24 @@ ai-setup-meta/
 │       ├── .claude/
 │       │   ├── settings.json           # Permessi + hooks (sorgente)
 │       │   ├── hooks/                  # protect-files, post-edit, on-compact
-│       │   └── skills/                 # 9 workflow skills
+│       │   ├── agents/                 # 4 agents specifici del dominio
+│       │   └── skills/                 # 10 workflow skills
 │       └── profiles/
 │           ├── web-frontend.md
 │           ├── backend-node.md
-│           └── mobile.md
+│           ├── mobile.md
+│           ├── nextjs.md
+│           └── terraform.md
 ├── dist/                        # Plugin built (generati, committati)
-│   ├── dev-setup/               # Plugin Claude + Cursor (root condivisa)
-│   │   ├── .claude-plugin/      # Manifest Claude Code
-│   │   ├── .cursor-plugin/      # Manifest Cursor
-│   │   ├── skills/              # 13 skills (condiviso Claude + Cursor)
-│   │   ├── agents/              # 2 agents (condiviso Claude + Cursor)
-│   │   ├── hooks/               # hooks.json (Claude) + hooks.cursor.json (Cursor)
-│   │   ├── commands/            # Commands Cursor (generati da skills)
-│   │   ├── .mcp.json            # MCP config Claude
-│   │   └── mcp.json             # MCP config Cursor (type rimosso)
-│   └── pm-setup/                # Plugin PM multi-piattaforma
-│       ├── .claude-plugin/      # Claude Code
-│       ├── gemini/              # Gemini CLI (comandi .toml, mcp-remote)
-│       └── codex/               # Codex CLI (SKILL.md nativi, config.toml)
+│   └── dev-setup/               # Plugin Claude + Cursor (root condivisa)
+│       ├── .claude-plugin/      # Manifest Claude Code
+│       ├── .cursor-plugin/      # Manifest Cursor
+│       ├── skills/              # 14 skills (10 del template + 3 shared + setup)
+│       ├── agents/              # 5 agents (4 del template + clickup shared)
+│       ├── hooks/               # hooks.json (Claude) + hooks.cursor.json (Cursor)
+│       ├── commands/            # 11 commands Cursor (generati da skills)
+│       ├── .mcp.json            # MCP config Claude
+│       └── mcp.json             # MCP config Cursor (type rimosso)
 ├── scripts/
 │   ├── build-plugin.sh          # Orchestratore: legge manifest, invoca i builder
 │   ├── builders/
@@ -136,15 +136,16 @@ ai-setup-meta/
 │   │   ├── build-gemini.sh      # Builder Gemini CLI (se gemini_support)
 │   │   ├── build-codex.sh       # Builder Codex CLI (se codex_support)
 │   │   └── build-cursor.sh      # Builder Cursor (se cursor_support)
-│   ├── release-plugin.sh        # Release: version bump + build + tag + push
-│   ├── init-meta.sh
-│   └── validate-setup-urls.sh
+│   ├── validate-plugin.sh       # 11 check statici sulla qualita' delle skill
+│   ├── validate-baseline.txt    # Fail noti, riportati ma non bloccanti in CI
+│   ├── validate-setup-urls.sh   # Link check degli URL citati dalla setup skill
+│   └── auto-maintain-runner.sh  # Runner della pipeline di manutenzione
 ├── mcp/
 │   └── mcp.json.example
 └── docs/
-    ├── onboarding.md
     ├── developer-guide.md
-    └── workflow.md
+    ├── workflow.md
+    └── legacy/                  # Materiale archiviato, fuori dal prodotto
 ```
 
 ## Build e release
@@ -155,13 +156,16 @@ bash scripts/build-plugin.sh dev-setup
 
 # Validazione plugin
 claude plugin validate dist/dev-setup/
+bash scripts/validate-plugin.sh --strict
 
 # Test locale
 claude --plugin-dir dist/dev-setup/
-
-# Release (version bump + build + changelog + tag + push + GitHub Release)
-bash scripts/release-plugin.sh patch dev-setup
 ```
+
+Il **release e' automatico**: [release-please](https://github.com/googleapis/release-please)
+calcola il bump dai conventional commit mergiati su `main`, apre una release PR e — al merge
+di quella — crea tag e GitHub Release. Nessuno script di release da lanciare a mano.
+Per forzare una versione: `Release-As: X.Y.Z` nel footer di un commit.
 
 ## Regole operative
 

@@ -26,7 +26,7 @@ Esegui tutti i check in sequenza. Ogni check produce un risultato PASS o FAIL.
 
 Leggi `required_files` dal manifest. Verifica che TUTTI esistano in `<TEMPLATE_PATH>/`.
 
-Verifica anche che esista il file agent di dominio: `<TEMPLATE_PATH>/<manifest.agent>`.
+Verifica anche che esista la setup skill: `<TEMPLATE_PATH>/<manifest.setup_skill>`.
 
 Se manca anche un solo file, il check FAIL. Elenca i file mancanti.
 
@@ -80,9 +80,10 @@ Se manca anche una sola entry, il check FAIL.
 ### Check 5: manifest.json valido
 
 Verifica che `<TEMPLATE_PATH>/manifest.json`:
-- Contenga tutti i campi obbligatori: `name`, `description`, `agent`, `shared_agents`, `shared_skills`, `template_skills`, `required_files`
-- Il campo `agent` punti a un file esistente in `<TEMPLATE_PATH>/`
+- Contenga tutti i campi obbligatori: `name`, `description`, `setup_skill`, `shared_agents`, `shared_skills`, `template_skills`, `required_files`
+- Il campo `setup_skill` punti a un file esistente in `<TEMPLATE_PATH>/`
 - I valori di `shared_agents` e `shared_skills` corrispondano a file in `shared/`
+- Non contenga il campo legacy `agent`: l'agent di dominio e' stato sostituito dalla setup skill (l'ultimo, `dev-setup-agent.md`, e' archiviato in `docs/legacy/`)
 
 ### Check 6: CHANGELOG aggiornato
 

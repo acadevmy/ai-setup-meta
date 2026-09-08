@@ -6,8 +6,8 @@ interagisce con esso giorno per giorno.
 > **Ambito**: questo documento descrive il workflow **di manutenzione del plugin stesso**
 > (il meta-repo `ai-setup-meta` e' ospitato su GitHub). Gli utenti finali del plugin
 > possono lavorare su progetti GitHub **o** GitLab — vedi
-> [developer-guide.md](./developer-guide.md) e [onboarding.md](./onboarding.md) per quel
-> lato. I comandi `gh` qui sotto riguardano solo il release del plugin.
+> [developer-guide.md](./developer-guide.md) per quel lato. I comandi `gh` qui sotto
+> riguardano solo il release del plugin.
 
 ## Ciclo di vita tipico di una modifica
 
@@ -15,15 +15,11 @@ interagisce con esso giorno per giorno.
 Contributor (umano o agent) apre branch su feat/<scope>
          │
          ▼
-  (opzionale) Avvia Claude Code e usa una skill helper
-  per il tipo di modifica:
-    /project:update-constitution  — aggiornare CONSTITUTION e
-                                    propagare al template
-    /project:sync-profiles        — sincronizzare profili stack
-    /project:generate-setup       — rigenerare il setup template
-  (Le skill modificano i file in templates/, shared/, ecc.
-   secondo le regole di CONSTITUTION.md. Il contributor commita
-   manualmente le modifiche con conventional commits.)
+  Modifica i sorgenti in templates/, shared/, scripts/
+  seguendo le regole di CONSTITUTION.md e AGENTS.md
+         │
+         ▼
+  /project:validate  — check statici sulla qualita' delle skill
          │
          ▼
   Conventional commit subject (feat:/fix:/feat!:/docs:/...) +
@@ -111,28 +107,21 @@ In alternativa puoi scrivere `release-please-action`-style annotations (vedi [do
 ### Aggiungere una regola alla Costituzione
 ```bash
 git checkout -b feat/constitution-nuova-regola
-claude
-# In Claude Code:
-/project:update-constitution
-# Descrivere la modifica quando richiesto
+# Modifica templates/dev-setup/CONSTITUTION.md, poi:
+bash scripts/build-plugin.sh dev-setup
 ```
 
 ### Aggiornare le versioni di una libreria
 ```bash
 git checkout -b chore/aggiornamento-stack-web
-claude
-# In Claude Code:
-/project:sync-profiles
-# Scegliere il profilo da aggiornare
+# Modifica il profilo in templates/dev-setup/profiles/, poi:
+bash scripts/build-plugin.sh dev-setup
 ```
 
-### Rigenerare il setup agent
+### Rigenerare il plugin dopo una modifica ai sorgenti
 ```bash
-git checkout -b chore/regen-setup
-claude
-# In Claude Code:
-/project:generate-setup
-# Verifica e commita il dist/setup.md aggiornato
+bash scripts/build-plugin.sh dev-setup
+# Verifica e commita il contenuto di dist/dev-setup/ aggiornato
 ```
 
 ### Rilasciare una nuova versione del plugin
@@ -157,7 +146,7 @@ La prima volta che si esegue `release-template.sh`, lo script:
 2. **Leggere ogni PR di Claude** prima di approvarla — la responsabilita' resta umana
 3. **Non approvare PR che modificano `CONSTITUTION.md`** senza una review attenta
 4. **Aggiornare `AGENTS.md`** se cambiano strumenti, profili o processi del team
-5. **Testare `/project:setup`** su un progetto pulito prima di ogni release minor/major
+5. **Testare `/dev-setup:setup`** su un progetto pulito prima di ogni release minor/major
 6. **Non modificare mai il repo template direttamente** — usare sempre il meta-repo
 
 ## Gestione degli errori di Claude Code

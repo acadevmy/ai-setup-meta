@@ -26,36 +26,41 @@ For each modified file, read the full content for context.
 
 ### 2. Verify CONSTITUTION compliance
 
-Check each applicable rule:
+**Read `CONSTITUTION_PATH` before judging.** The list below is a reading order, not a
+substitute for the document: cite every finding by the rule's own name and the section
+it lives in, exactly as the CONSTITUTION numbers them (e.g. "Schema-first, §I.1"). Never
+invent a numbering of your own, and never carry over a number from a previous review —
+a rule that has moved section must be cited where it is now.
 
-**Rule 1 — Schema-first**
-- Are external data (user input, API responses, env vars) validated with the project's schema validator?
-- Zod for TypeScript, Pydantic for Python, struct tags for Go, freezed for Dart
+Checks, in the order the CONSTITUTION presents them:
 
-**Rule 2 — Strict typing**
-- Look for `any` in TypeScript, `# type: ignore` in Python, `interface{}` in Go
-- These are violations, not warnings
+**§I — Core Principles**
+- *Schema-first*: is every external datum (user input, API response, env var) validated
+  with the project's schema validator? Zod for TypeScript, Pydantic for Python, struct
+  tags for Go, freezed for Dart
+- *Strict typing*: look for `any` in TypeScript, `# type: ignore` in Python,
+  `interface{}` in Go — these are violations, not warnings
+- *Explicit error handling*: empty `catch` blocks, `except: pass`, swallowed errors
+- *Pure and small functions*: over the line budget the CONSTITUTION sets is a violation;
+  unnecessary side effects are warnings
+- *No magic numbers or magic strings*: hardcoded values without a named constant are
+  violations. Exception: 0, 1, -1, empty strings, booleans
 
-**Rule 3 — Error handling**
-- Look for empty `catch` blocks, `except: pass`, ignored errors
-- Every error must be handled explicitly
+**§II — Structure and Architecture**
+- *Layer separation*: Controller / Service / Repository, no layer skipped
+- *Dependency Injection*: no heavy dependency instantiated with `new` inside a function
+- *SOLID principles*
+- *Descriptive names*: English, descriptive, following the project's conventions
 
-**Rule 4 — Pure and small functions**
-- Functions exceeding 40 lines are violations
-- Unnecessary side effects are warnings
+**§III — Testing**
+- *Testing methodology*: the methodology is decided by the CONSTITUTION per layer (TDD
+  for backend logic, BDD for frontend) — verify the diff followed the one that applies
+- *Minimum coverage*: check the thresholds in the table, per layer
+- *Test structure*: every new code file needs its corresponding test file; a missing test
+  is a violation
 
-**Rule 5 — Magic numbers/strings**
-- Hardcoded values without a named constant are violations
-- Exception: 0, 1, -1, empty strings, booleans
-
-**Rule 6-8 — Architecture**
-- Layer separation (Controller/Service/Repository)
-- Dependency Injection respected
-- Naming conventions (English, descriptive)
-
-**Rule 9 — TDD**
-- For each new code file, a corresponding test file must exist
-- Missing tests are a violation
+Sections beyond §III apply by stack (frontend, mobile, IaC): read the ones the diff
+actually touches and check them the same way.
 
 ### 3. Verify quality
 
@@ -100,7 +105,8 @@ ALWAYS return in this exact format:
 ---REVIEW-RESULT---
 STATUS: pass | fail | pass-with-warnings
 VIOLATIONS:
-  - [RULE <N>] <file>:<line> — <violation description>
+  - [<rule name>, <section>] <file>:<line> — <violation description>
+    (e.g. `[Schema-first, §I.1] src/api/user.ts:42 — response cast without validation`)
 WARNINGS:
   - <file>:<line> — <improvement suggestion>
 REGISTRY_UPDATES:

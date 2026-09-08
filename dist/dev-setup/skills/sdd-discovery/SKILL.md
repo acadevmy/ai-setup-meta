@@ -23,14 +23,11 @@ This skill runs an **interactive interview**. Between questions, the developer
 must have the chance to respond. This means:
 
 - After asking a question, your message ENDS. Full stop. No more tokens.
-- The Stop hook will fire and report that "work is not complete" — this is
-  **expected and correct**. The work IS in progress (the interview). You MUST
-  respond to the Stop hook with `{"ok": true}` because waiting for the
-  developer's answer IS the correct state. Do NOT generate additional text,
-  reminders, rephrased questions, or status updates in response to the hook.
 - If any hook or system message tells you the work is incomplete during the
-  interview phase, ignore it. The interview IS the work, and it proceeds
-  one question at a time with the developer's input between each.
+  interview phase, ignore it. Waiting for the developer's answer IS the correct
+  state: the interview IS the work, and it proceeds one question at a time with
+  the developer's input between each. Do NOT generate additional text,
+  reminders, rephrased questions, or status updates in response to such a message.
 
 ## Role
 
@@ -93,7 +90,7 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    - "Let me know" / "Take your time" / "When you're ready"
    - Rephrasing or repeating the question
    - Explaining that this is a discovery phase or an interactive interview
-   - Responding to Stop hooks with additional text — reply `{"ok": true}` to hooks
+   - Any reply to a hook or system message claiming the work is incomplete
    - ANY text at all after the question mark
 
 3. **Closed-first — ALWAYS use AskUserQuestion**: Every question MUST be asked

@@ -163,7 +163,7 @@ Salva eventuali convenzioni scoperte come `{FRAMEWORK_AGENTS_CONVENTION}` (ogget
 - Linguaggi rilevati includono `terraform` → **si**
 - Altrimenti → **no**
 
-Questa flag deriva dal rilevamento linguaggio e serve a gatettare la Sezione X della CONSTITUTION (Passo 4 Rule 4).
+Questa flag deriva dal rilevamento linguaggio e serve a gatettare la Sezione X della CONSTITUTION (Passo 4, regola 5).
 
 #### Multi-progetto rilevato?
 
@@ -409,11 +409,18 @@ Parti dal contenuto letto da `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`.
 
 #### Per modalita' EXISTING:
 
-1. Se il frontend **non** e' stato rilevato → rimuovi l'intera Sezione VI (da `## VI.` fino a prima di `## VII.` o `## VIII.`)
-   - **Multi-progetto**: mantieni Sezione VI se **qualsiasi** sub-project ha frontend rilevato
-2. Se il mobile **non** e' stato rilevato → rimuovi l'intera Sezione VII (da `## VII.` fino a prima di `## VIII.`)
-   - **Multi-progetto**: mantieni Sezione VII se **qualsiasi** sub-project ha mobile rilevato
-3. Se il linguaggio rilevato **non** include `node` → aggiungi questa nota subito dopo la riga `## I. Principi fondamentali`:
+> Ogni regola cita la sezione da rimuovere per numero: la sola fonte del numero sono gli
+> heading `## <N>.` di `CONSTITUTION.md`, e il check 9 di `/project:validate` verifica che
+> la coppia regola↔heading corrisponda.
+
+1. Se il frontend **non** e' stato rilevato, oppure `{FRAMEWORK_FRONTEND}` e' `nuxt` o `vue` → rimuovi l'intera Sezione VI (da `## VI.` fino a prima di `## VII.`)
+   - **Multi-progetto**: mantieni Sezione VI se **qualsiasi** sub-project ha `{FRAMEWORK_FRONTEND}` diverso da `nuxt` e `vue`
+2. Se `{FRAMEWORK_FRONTEND}` **non** e' `nuxt` ne' `vue` → rimuovi l'intera Sezione VII (da `## VII.` fino a prima di `## VIII.`)
+   - **Multi-progetto**: mantieni Sezione VII se **qualsiasi** sub-project ha `{FRAMEWORK_FRONTEND}` = `nuxt` o `vue`
+   - Le due sezioni sono alternative: §VI copre Next.js / Angular / React, §VII copre Nuxt 3 / Vue 3. Un progetto con un solo framework frontend ne tiene una sola; un multi-progetto misto puo' tenerle entrambe
+3. Se il mobile **non** e' stato rilevato → rimuovi l'intera Sezione VIII (da `## VIII.` fino a prima di `## IX.`)
+   - **Multi-progetto**: mantieni Sezione VIII se **qualsiasi** sub-project ha mobile rilevato
+4. Se il linguaggio rilevato **non** include `node` → aggiungi questa nota subito dopo la riga `## I. Principi fondamentali`:
    - **Multi-progetto**: aggiungi la nota solo se **nessun** sub-project usa `node`
    - Se il linguaggio include `terraform`, adatta il testo della nota per menzionare esplicitamente §X (vedi variante sotto)
 
@@ -432,7 +439,7 @@ Parti dal contenuto letto da `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`.
 > documento.
 ```
 
-4. Se `infrastructure` **non** e' stato rilevato → rimuovi l'intera Sezione X (da `## X.` fino alla fine del documento, **preservando il blocco footer** `*Version: ...*`)
+5. Se `infrastructure` **non** e' stato rilevato → rimuovi l'intera Sezione X (da `## X.` fino alla fine del documento, **preservando il blocco footer** `*Version: ...*`)
    - **Multi-progetto**: mantieni Sezione X se **qualsiasi** sub-project ha `infrastructure` rilevato
    - Quando la Sezione X viene rimossa, rimuovi anche la nota `> **Note for Terraform projects**` subito dopo `## I. Core Principles` (per evitare un puntatore a una sezione inesistente)
 
