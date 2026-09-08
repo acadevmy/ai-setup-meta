@@ -178,7 +178,7 @@ Gli agent sono sub-processi isolati con il proprio contesto.
 | Skill | Descrizione |
 |---|---|
 | `/project:auto-maintain` | Pipeline autonoma: pesca un task ClickUp dalla lista di manutenzione e apre PR (vedi sezione dedicata) |
-| `/project:validate` | Validazione pre-release: riferimenti dei manifest + 11 check statici sulla qualita' delle skill |
+| `/project:validate` | Validazione pre-release: riferimenti dei manifest + 12 check statici sulla qualita' delle skill |
 
 ### Comandi (`/project:<nome>`)
 

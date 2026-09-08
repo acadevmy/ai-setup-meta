@@ -103,19 +103,6 @@ Verifica che `<TEMPLATE_PATH>/REGISTRY.md` contenga:
 
 Se la struttura e' incompleta o ci sono placeholder, il check FAIL.
 
-### Check 8: Cursor output valido (solo se cursor_support=true)
-
-Leggi `cursor_support` dal manifest. Se e' `false` o assente, salta questo check con SKIP.
-
-Se `cursor_support=true`, verifica in `dist/<TEMPLATE_NAME>/`:
-- Presenza `dist/<TEMPLATE_NAME>/.cursor-plugin/plugin.json`
-- Presenza `dist/<TEMPLATE_NAME>/mcp.json`
-- Il file `mcp.json` NON contiene il campo `type` in nessun server MCP (campo Claude-specific)
-- Presenza `dist/<TEMPLATE_NAME>/commands/` con almeno 1 file `.md`
-- Presenza `dist/<TEMPLATE_NAME>/hooks/hooks.cursor.json`
-- Il file `.cursor-plugin/plugin.json` NON contiene il campo `userConfig` (campo Claude-specific)
-
-Se qualsiasi condizione non e' soddisfatta, il check FAIL con dettaglio del file mancante o campo errato.
 
 ## Formato output
 
@@ -135,10 +122,9 @@ CHECKS:
   - [PASS] manifest-valid: Manifest completo e coerente
   - [PASS] changelog-version: v2.0.0 corrisponde
   - [PASS] registry-structure: Struttura valida, nessun placeholder
-  - [SKIP] cursor-output: cursor_support=false, check saltato
 FAILURES:
   - constitution-present: CONSTITUTION.md mancante o vuoto nel template
-SUMMARY: 8/9 check superati (1 saltato)
+SUMMARY: 8/9 check superati
 ---END---
 ```
 

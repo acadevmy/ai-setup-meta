@@ -35,7 +35,7 @@ Contributor (umano o agent) apre branch su feat/<scope>
   - calcola bump type (major/minor/patch) o niente (per docs:/chore:/ecc.)
   - se ci sono commit rilevanti, apre/aggiorna una "release PR" running:
       - bump versione in templates/dev-setup/.env.example (marker x-release-please-version)
-      - bump version in dist/dev-setup/.{claude,cursor}-plugin/plugin.json
+      - bump version in dist/dev-setup/.claude-plugin/plugin.json
       - aggiorna .release-please-manifest.json
       - genera/aggiorna sezione "## [X.Y.Z]" in templates/dev-setup/CHANGELOG.md
         (raggruppata per Features / Bug Fixes / Documentation / ecc.)
@@ -76,10 +76,13 @@ Niente push diretto su `main`, niente trigger manuale, niente bash custom. Due w
 `extra-files` configurati per il bump della versione:
 
 - `templates/dev-setup/.env.example` — riconosciuto via marker comment `# x-release-please-version`
+- `dist/dev-setup/skills/setup/templates/.env.example` — la copia che il build monta sotto `dist/` (stesso marker)
 - `dist/dev-setup/.claude-plugin/plugin.json` — JSON path `$.version`
-- `dist/dev-setup/.cursor-plugin/plugin.json` — JSON path `$.version`
+- `.claude-plugin/marketplace.json` — JSON path `$.plugins[?(@.name == 'dev-setup')].version`
 
-I file `.claude-plugin/marketplace.json` e `.cursor-plugin/marketplace.json` non hanno il campo `version` per plugin: Claude Code/Cursor leggono la versione da `dist/<plugin>/.{claude,cursor}-plugin/plugin.json` come fallback.
+Ogni file generato che porta la versione deve stare in questa lista: una release PR che ne bumpa solo una parte nasce fuori sync rispetto a un rebuild, e il drift check di `dist/` diventa rosso sulla release PR stessa.
+
+Claude Code e' l'unico target di build (DE-16489): il manifest e il catalogo `.cursor-plugin/` non esistono piu'.
 
 ### Verifica del build (PR check)
 

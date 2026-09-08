@@ -627,7 +627,7 @@ Cosi' l'agente AI che lavora nell'applicazione vede subito quali librerie usa, d
 ### Passo 5b — Genera CLAUDE.md
 
 Claude Code legge `CLAUDE.md`, non `AGENTS.md`. Per garantire compatibilita' con Claude Code
-e al tempo stesso mantenere `AGENTS.md` come standard cross-tool (Codex, Copilot, Cursor, ecc.),
+e al tempo stesso mantenere `AGENTS.md` come standard cross-tool,
 genera un `CLAUDE.md` che referenzia `AGENTS.md`:
 
 ```markdown

@@ -26,35 +26,18 @@ L'agente analizzera' il progetto e applichera' tutto in modo adattivo:
 
 **Prerequisiti**: `git`, `claude` CLI. Opzionale: `gh` CLI (per MCP ClickUp e operazioni greenfield).
 
-### Cursor
+### Altri tool (Cursor, Codex, Copilot…)
 
-Il plugin `dev-setup` è distribuito nativamente anche per Cursor. Per installarlo localmente:
+Il plugin ha un solo target di build: **Claude Code**. I builder dedicati agli altri
+runtime sono stati rimossi, perche' le skill del plugin seguono lo standard aperto
+[Agent Skills](https://agentskills.io): una `SKILL.md` conforme e' leggibile dagli
+altri tool **senza conversione**.
 
-```bash
-# 1. Build del plugin (se non è già aggiornato)
-bash scripts/build-plugin.sh dev-setup
-
-# 2. Installa il plugin locale in Cursor
-ln -s $(pwd)/dist/dev-setup ~/.cursor/plugins/local/dev-setup
-
-# 3. Ricarica Cursor
-# Developer → Reload Window
-```
-
-Il plugin Cursor condivide skills e agents con la versione Claude. Aggiunge:
-- `commands/` — invocabili da Cursor con `/skill-name`
-- `mcp.json` — MCP servers (ClickUp, Figma, Context7) compatibili con Cursor
-- `hooks/hooks.cursor.json` — hooks con path variable Cursor-native
-
-**Prerequisiti**: Cursor, `jq`.
-
-### Gemini CLI
-
-I template che supportano Gemini (attualmente `pm-setup`) distribuiscono comandi `.toml`
-in `dist/<template>/gemini/`. Per la guida completa vedi
-[dist/pm-setup/gemini/README.md](dist/pm-setup/gemini/README.md).
-
-**Prerequisiti**: `gemini` CLI, Node.js 18+, account ClickUp.
+Chi lavora in un altro editor punta il proprio tool alle `SKILL.md` di
+`dist/dev-setup/skills/` (o le copia nella cartella skill del progetto). Rispetto al
+plugin dedicato di prima non si perde nulla di funzionante: gli hook erano lo schema
+di Claude Code con una variabile rinominata — inerti fuori da Claude Code — e i
+`commands/` erano copie letterali dei corpi delle skill.
 
 ## Architettura
 
@@ -119,24 +102,18 @@ ai-setup-meta/
 │           ├── nextjs.md
 │           └── terraform.md
 ├── dist/                        # Plugin built (generati, committati)
-│   └── dev-setup/               # Plugin Claude + Cursor (root condivisa)
-│       ├── .claude-plugin/      # Manifest Claude Code
-│       ├── .cursor-plugin/      # Manifest Cursor
+│   └── dev-setup/               # Plugin Claude Code
+│       ├── .claude-plugin/      # Manifest del plugin
 │       ├── skills/              # 14 skills (10 del template + 3 shared + setup)
 │       ├── agents/              # 5 agents (4 del template + clickup shared)
-│       ├── hooks/               # hooks.json (Claude) + hooks.cursor.json (Cursor)
-│       ├── commands/            # 11 commands Cursor (generati da skills)
-│       ├── .mcp.json            # MCP config Claude
-│       └── mcp.json             # MCP config Cursor (type rimosso)
+│       ├── hooks/               # hooks.json + hooks/scripts/
+│       └── .mcp.json            # MCP config
 ├── scripts/
-│   ├── build-plugin.sh          # Orchestratore: legge manifest, invoca i builder
+│   ├── build-plugin.sh          # Orchestratore: legge manifest, invoca il builder
 │   ├── builders/
 │   │   ├── common.sh            # Funzioni condivise (ok, warn, fail, step)
-│   │   ├── build-claude.sh      # Builder Claude Code (sempre eseguito)
-│   │   ├── build-gemini.sh      # Builder Gemini CLI (se gemini_support)
-│   │   ├── build-codex.sh       # Builder Codex CLI (se codex_support)
-│   │   └── build-cursor.sh      # Builder Cursor (se cursor_support)
-│   ├── validate-plugin.sh       # 11 check statici sulla qualita' delle skill
+│   │   └── build-claude.sh      # Builder Claude Code (unico target)
+│   ├── validate-plugin.sh       # 12 check statici sulla qualita' delle skill
 │   ├── validate-baseline.txt    # Fail noti, riportati ma non bloccanti in CI
 │   ├── validate-setup-urls.sh   # Link check degli URL citati dalla setup skill
 │   └── auto-maintain-runner.sh  # Runner della pipeline di manutenzione

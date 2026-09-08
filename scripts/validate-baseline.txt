@@ -7,17 +7,6 @@
 #
 # Stato reale del repo: bash scripts/validate-plugin.sh --strict
 
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/auto-sdd.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/bdd.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/gitlab-ops.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/review.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/sdd-dev.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/sdd-discovery.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/sdd-plan.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/sdd-spec.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/sdd.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/tdd.md
-COMMAND_SKILL_DUPLICATE	dist/dev-setup/commands/verify.md
 DESCRIPTION_TRIGGER	.claude/skills/auto-maintain/SKILL.md
 DESCRIPTION_TRIGGER	shared/skills/clickup/SKILL.md
 DESCRIPTION_TRIGGER	shared/skills/github-ops/SKILL.md
