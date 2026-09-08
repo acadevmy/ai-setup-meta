@@ -111,25 +111,25 @@ List of main test cases to implement.>
 - ...
 
 ## Simplify phase
-<Stato di esecuzione della skill `simplify` dopo lo sviluppo.
-Da compilare dal flusso `/project:sdd-dev` (step Simplify) al termine dell'esecuzione.>
+<Run state of the `simplify` skill after development.
+Filled in by the `/dev-setup:sdd-dev` flow (Simplify step) once it finishes.>
 
-- **Stato**: pending | completata | skipped
-- **Data**: <YYYY-MM-DD quando eseguita, altrimenti "—">
-- **Esito**: <`changes-applied` | `no-changes` | `skipped` quando completata, altrimenti "—">
-- **Modifiche applicate**: <elenco sintetico dei file/refactor applicati, oppure "nessuna">
-- **Note**: <eventuali osservazioni, file fuori scope, motivi di skip>
+- **State**: pending | completed | skipped
+- **Date**: <YYYY-MM-DD when it ran, otherwise "—">
+- **Outcome**: <`changes-applied` | `no-changes` | `skipped` once completed, otherwise "—">
+- **Changes applied**: <short list of the files/refactors applied, or "none">
+- **Notes**: <any observations, out-of-scope files, reasons for skipping>
 
 ## Review phase
-<Stato di esecuzione della skill `/project:review` dopo lo sviluppo.
-Da compilare dal flusso `/project:review` al termine dell'esecuzione.>
+<Run state of the `/dev-setup:review` skill after development.
+Filled in by the `/dev-setup:review` flow once it finishes.>
 
-- **Stato**: pending | completata
-- **Data**: <YYYY-MM-DD quando eseguita, altrimenti "—">
-- **Esito**: <`pass` | `pass-with-warnings` | `fail` quando completata, altrimenti "—">
-- **Violazioni**: <numero di violazioni CONSTITUTION rilevate, oppure 0>
-- **Warning**: <elenco sintetico W-1, W-2, ... con motivazione, oppure "nessuno">
-- **REGISTRY updates**: <numero entry applicate + breve riassunto add/update per sezione, oppure "nessuna">
+- **State**: pending | completed
+- **Date**: <YYYY-MM-DD when it ran, otherwise "—">
+- **Outcome**: <`pass` | `pass-with-warnings` | `fail` once completed, otherwise "—">
+- **Violations**: <number of CONSTITUTION violations found, or 0>
+- **Warnings**: <short list W-1, W-2, … with the rationale, or "none">
+- **REGISTRY updates**: <number of entries applied + a short add/update summary per section, or "none">
 
 ## Notes
 <Risks, open questions, additional considerations, useful references.>
@@ -141,7 +141,7 @@ Da compilare dal flusso `/project:review` al termine dell'esecuzione.>
 - The implementation plan must be ordered by dependencies (foundations first, then features)
 - Reuse components and patterns already present in REGISTRY.md
 - Test cases must cover the listed requirements
-- Le sezioni `## Simplify phase` e `## Review phase` devono essere generate sempre con stato `pending` (placeholder "—" nei campi data/esito): verranno compilate automaticamente dai flussi `/project:sdd-dev` e `/project:review` al termine dell'esecuzione
+- The `## Simplify phase` and `## Review phase` sections are always generated with state `pending` (a "—" placeholder in the date/outcome fields): the `/dev-setup:sdd-dev` and `/dev-setup:review` flows fill them in once they finish
 
 ### 6. Show the spec
 

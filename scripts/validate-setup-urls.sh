@@ -2,10 +2,10 @@
 set -euo pipefail
 
 # ============================================================
-# validate-setup-urls.sh — Verifica che tutti i file referenziati
-# dagli agent di setup esistano nel repository.
-# Legge i manifest.json dei template per costruire la lista.
-# Esegui: bash scripts/validate-setup-urls.sh
+# validate-setup-urls.sh — checks that every file the setup skills reference
+# actually exists in the repository.
+# It reads the templates' manifest.json files to build the list.
+# Run with: bash scripts/validate-setup-urls.sh
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,13 +17,13 @@ NC='\033[0m'
 
 errors=0
 
-echo "Verifico file referenziati dal setup..."
+echo "Checking the files the setup references..."
 echo ""
 
-# dist/ e' generato dal build (/project:build-plugin) — non validato qui
-# Eseguire il build e la sua validazione separatamente prima della release
+# dist/ is produced by the build (/project:build-plugin) — not validated here.
+# Run the build and its own validation separately before a release.
 
-# Per ogni template con manifest.json
+# For every template that has a manifest.json
 for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
   [ -f "$manifest" ] || continue
   TEMPLATE_DIR=$(dirname "$manifest")
@@ -32,7 +32,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
   echo ""
   echo "--- Template: $TEMPLATE_NAME ---"
 
-  # Agent di dominio
+  # Domain agent
   AGENT=$(python3 -c "import json; print(json.load(open('$manifest'))['agent'])" 2>/dev/null || echo "")
   if [ -n "$AGENT" ]; then
     file="templates/$TEMPLATE_NAME/$AGENT"
@@ -43,7 +43,7 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
       errors=$((errors + 1))
     fi
 
-    # dist/ agent copy validata dal build, non qui
+    # the dist/ copy of the agent is validated by the build, not here
   fi
 
   # Shared agents

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# common.sh — Funzioni condivise di output (ok, warn, fail, step)
+# common.sh — shared output helpers (ok, warn, fail, step)
 #
-# Importato (source) da build-claude.sh e dagli script di validazione.
-# Non eseguire direttamente.
+# Sourced by build-claude.sh and by the validation scripts.
+# Not meant to be run directly.
 
-# ── Colori e output ──────────────────────────────────────────────────────────
+# ── Colours and output ───────────────────────────────────────────────────────
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'

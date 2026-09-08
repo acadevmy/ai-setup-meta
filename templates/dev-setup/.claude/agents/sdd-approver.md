@@ -105,8 +105,8 @@ SUMMARY: <overall evaluation in one line>
 - **No new features**: the approver cannot add requirements not present in the
   discovery. If it detects a gap, it reports it as `changes-requested` on `Requirements` with
   a reference to the Discovery Summary.
-- **Language**: write violations and suggestions in Italian (developer-facing, per the
-  CONSTITUTION language rules).
+- **Language**: write violations and suggestions in English, like everything else the
+  agent produces (see the CONSTITUTION language rules).
 
 ## Error handling
 

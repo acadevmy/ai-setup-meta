@@ -58,14 +58,14 @@ Locate the spec for the current task:
 - If no spec exists, skip this step (the review was likely invoked outside the SDD flow)
 
 Update the `## Review phase` section of the spec with:
-- `Stato`: `completata`
-- `Data`: data odierna in formato `YYYY-MM-DD`
-- `Esito`: il valore di STATUS restituito dal Review Agent (`pass`, `pass-with-warnings`, `fail`)
-- `Violazioni`: numero di violazioni CONSTITUTION rilevate
-- `Warning`: elenco sintetico dei warning con motivazione (es. `W-1: missing test for X`), oppure `nessuno`
-- `REGISTRY updates`: numero di entry applicate + breve riassunto add/update per sezione, oppure `nessuna`
+- `State`: `completed`
+- `Date`: today's date, as `YYYY-MM-DD`
+- `Outcome`: the STATUS the Review Agent returned (`pass`, `pass-with-warnings`, `fail`)
+- `Violations`: the number of CONSTITUTION violations found
+- `Warnings`: a short list of the warnings with their rationale (e.g. `W-1: missing test for X`), or `none`
+- `REGISTRY updates`: the number of entries applied + a short add/update summary per section, or `none`
 
-Sovrascrivi la sezione esistente preservando il resto dello spec. Se sono già stati prodotti commit di REGISTRY (`docs(registry): update REGISTRY.md`), includi l'aggiornamento dello spec in un commit aggiuntivo `docs(spec): track review outcome` oppure aggiungilo allo stesso commit di REGISTRY se la stage è ancora aperta.
+Overwrite the existing section and leave the rest of the spec untouched. If REGISTRY commits have already been made (`docs(registry): update REGISTRY.md`), put the spec update in an extra commit `docs(spec): track review outcome`, or fold it into the same REGISTRY commit while the stage is still open.
 
 ### 5. Final report
 
@@ -84,4 +84,4 @@ Spec updated: <yes/no>
 - CONSTITUTION compliance report
 - `REGISTRY.md` updated with new entries (if any)
 - Commit `docs(registry): update REGISTRY.md` (if registry changes)
-- Spec file aggiornato con la sezione `## Review phase` compilata (se lo spec esiste)
+- Spec file updated with the `## Review phase` section filled in (when the spec exists)

@@ -304,28 +304,28 @@ not directly in the generated files.
 ## VII. Frontend (Nuxt 3 / Vue 3)
 
 ### 24. Composition API only
-- `<script setup lang="ts">` è obbligatorio — no Options API
-- Props e emits tipizzati con `defineProps<T>()` e `defineEmits<E>()`
-- No business logic nel template — estrai in composables (`composables/useXxx.ts`)
+- `<script setup lang="ts">` is mandatory — no Options API
+- Type props and emits with `defineProps<T>()` and `defineEmits<E>()`
+- No business logic in the template — extract it into composables (`composables/useXxx.ts`)
 
 ### 25. Data fetching with `useFetch` / `useAsyncData`
-- Usa `useFetch` / `useAsyncData` / `$fetch` — **mai** fetch dentro `onMounted` o `watch`
-- Fornisci una `key` esplicita quando il fetch è condizionale o parametrizzato
-- Non chiamare backend esterni direttamente dai componenti — passa sempre da `server/api/*`
-  (proxy con validazione Zod lato server)
+- Use `useFetch` / `useAsyncData` / `$fetch` — **never** fetch inside `onMounted` or `watch`
+- Provide an explicit `key` when the fetch is conditional or parameterised
+- Do not call external backends straight from components — always go through `server/api/*`
+  (a proxy with server-side Zod validation)
 
 ### 26. Global state with Pinia
-- Stato condiviso solo in Pinia stores (`stores/*.ts`), registrati via `@pinia/nuxt`
-- No `provide/inject` ad-hoc per stato condiviso tra componenti distanti
-- Getters e actions con tipi di ritorno espliciti — nessun `any` implicito
+- Shared state lives in Pinia stores only (`stores/*.ts`), registered via `@pinia/nuxt`
+- No ad-hoc `provide/inject` for state shared between distant components
+- Getters and actions carry explicit return types — no implicit `any`
 
 ### 27. SSR awareness and Nuxt auto-imports
-- Il default è SSR: gatta ogni API browser-only con `import.meta.client` o `<ClientOnly>`
-- Componenti multi-word (`UserCard.vue`, non `Card.vue`) per evitare conflitti con elementi HTML
-- Auto-imports di Nuxt attivi: non importare manualmente `ref`, `computed`, `useRoute`,
-  `useFetch`, `navigateTo`, ecc.
-- Per i test usa `@nuxt/test-utils` (`environment: 'nuxt'` in Vitest) in modo che gli
-  auto-imports funzionino
+- SSR is the default: gate every browser-only API with `import.meta.client` or `<ClientOnly>`
+- Multi-word components (`UserCard.vue`, not `Card.vue`) to avoid clashing with HTML elements
+- Nuxt auto-imports are on: do not import `ref`, `computed`, `useRoute`, `useFetch`,
+  `navigateTo` and friends by hand
+- For tests use `@nuxt/test-utils` (`environment: 'nuxt'` in Vitest) so the auto-imports
+  keep working
 
 ---
 

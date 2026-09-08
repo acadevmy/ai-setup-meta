@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# build-claude.sh — Builder per Claude Code plugin
+# build-claude.sh — Claude Code plugin builder
 #
-# Genera la struttura plugin Claude Code in $DIST_DIR.
-# Variabili richieste dall'orchestratore:
+# Generates the Claude Code plugin layout under $DIST_DIR.
+# Variables the orchestrator has to provide:
 #   ROOT_DIR, TEMPLATE_DIR, MANIFEST, DIST_DIR, NAME, DESCRIPTION, VERSION, AUTHOR
 #
-# Importa common.sh per le funzioni condivise.
+# Sources common.sh for the shared helpers.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 step "Build Claude Code plugin"
 
-# ── Crea struttura ───────────────────────────────────────────────────────────
+# ── Create the layout ────────────────────────────────────────────────────────
 mkdir -p "$DIST_DIR/.claude-plugin"
 mkdir -p "$DIST_DIR/skills/setup/templates/profiles"
 mkdir -p "$DIST_DIR/agents"
 mkdir -p "$DIST_DIR/hooks/scripts"
 
-ok "Struttura directory creata"
+ok "Directory layout created"
 
-# ── Copia shared skills ──────────────────────────────────────────────────────
-step "Copia skills condivise"
+# ── Copy the shared skills ───────────────────────────────────────────────────
+step "Copying the shared skills"
 
 for SKILL in $(jq -r '.shared_skills[]' "$MANIFEST"); do
   SRC="$ROOT_DIR/shared/skills/$SKILL"
@@ -31,12 +31,12 @@ for SKILL in $(jq -r '.shared_skills[]' "$MANIFEST"); do
     cp -r "$SRC"/* "$DST/"
     ok "Shared skill: $SKILL"
   else
-    warn "Shared skill non trovata: $SKILL"
+    warn "Shared skill not found: $SKILL"
   fi
 done
 
-# ── Copia template skills ────────────────────────────────────────────────────
-step "Copia skills del template"
+# ── Copy the template skills ─────────────────────────────────────────────────
+step "Copying the template skills"
 
 for SKILL in $(jq -r '.template_skills[]' "$MANIFEST"); do
   SRC="$TEMPLATE_DIR/.claude/skills/$SKILL"
@@ -46,22 +46,22 @@ for SKILL in $(jq -r '.template_skills[]' "$MANIFEST"); do
     cp -r "$SRC"/* "$DST/"
     ok "Template skill: $SKILL"
   else
-    warn "Template skill non trovata: $SKILL"
+    warn "Template skill not found: $SKILL"
   fi
 done
 
-# ── Crea setup skill ─────────────────────────────────────────────────────────
-step "Creazione setup skill"
+# ── Build the setup skill ────────────────────────────────────────────────────
+step "Building the setup skill"
 
 SETUP_SKILL_SRC="$TEMPLATE_DIR/setup-skill.md"
 if [ -f "$SETUP_SKILL_SRC" ]; then
   cp "$SETUP_SKILL_SRC" "$DIST_DIR/skills/setup/SKILL.md"
-  ok "Setup skill copiata"
+  ok "Setup skill copied"
 else
-  fail "File sorgente setup-skill.md non trovato in $TEMPLATE_DIR/"
+  fail "Source file setup-skill.md not found in $TEMPLATE_DIR/"
 fi
 
-# Bundle template files per la setup skill
+# Bundle the template files the setup skill needs
 TEMPLATES_DST="$DIST_DIR/skills/setup/templates"
 
 for FILE in $(jq -r '.required_files[]' "$MANIFEST"); do
@@ -71,11 +71,11 @@ for FILE in $(jq -r '.required_files[]' "$MANIFEST"); do
     cp "$SRC" "$TEMPLATES_DST/$BASENAME"
     ok "Template file: $FILE"
   else
-    warn "Required file non trovato: $FILE"
+    warn "Required file not found: $FILE"
   fi
 done
 
-# File di governance non nel required_files
+# Governance files that are not in required_files
 for EXTRA in "CONSTITUTION.md" "REGISTRY.md"; do
   SRC="$TEMPLATE_DIR/$EXTRA"
   if [ -f "$SRC" ] && [ ! -f "$TEMPLATES_DST/$EXTRA" ]; then
@@ -84,18 +84,18 @@ for EXTRA in "CONSTITUTION.md" "REGISTRY.md"; do
   fi
 done
 
-# Profili
+# Profiles
 for PROFILE in $(jq -r '.profiles[]' "$MANIFEST"); do
   SRC="$TEMPLATE_DIR/profiles/$PROFILE"
   if [ -f "$SRC" ]; then
     cp "$SRC" "$TEMPLATES_DST/profiles/$PROFILE"
-    ok "Profilo: $PROFILE"
+    ok "Profile: $PROFILE"
   else
-    warn "Profilo non trovato: $PROFILE"
+    warn "Profile not found: $PROFILE"
   fi
 done
 
-# Boilerplate files (greenfield config, scaricati verbatim a runtime dal setup-agent)
+# Boilerplate files (greenfield config, read verbatim at runtime by the setup skill)
 mkdir -p "$TEMPLATES_DST/boilerplate"
 for BP in $(jq -r '.boilerplate_files[] // empty' "$MANIFEST"); do
   SRC="$TEMPLATE_DIR/boilerplate/$BP"
@@ -105,19 +105,19 @@ for BP in $(jq -r '.boilerplate_files[] // empty' "$MANIFEST"); do
     cp "$SRC" "$DST"
     ok "Boilerplate: $BP"
   else
-    warn "Boilerplate non trovato: $BP"
+    warn "Boilerplate not found: $BP"
   fi
 done
 
-# Settings.json (permessi + sandbox, senza hooks: gli hook li monta il plugin)
+# Settings.json (permissions + sandbox, no hooks: the plugin mounts those itself)
 SETTINGS_SRC="$TEMPLATE_DIR/.claude/settings.json"
 if [ -f "$SETTINGS_SRC" ]; then
   jq '{permissions: .permissions, sandbox: .sandbox}' "$SETTINGS_SRC" > "$TEMPLATES_DST/settings.json"
-  ok "Settings (permessi + sandbox) estratto"
+  ok "Settings (permissions + sandbox) extracted"
 fi
 
-# ── Copia agents ──────────────────────────────────────────────────────────────
-step "Copia agents"
+# ── Copy the agents ───────────────────────────────────────────────────────────
+step "Copying the agents"
 
 for AGENT in $(jq -r '.shared_agents[]' "$MANIFEST"); do
   SRC="$ROOT_DIR/shared/agents/$AGENT"
@@ -125,7 +125,7 @@ for AGENT in $(jq -r '.shared_agents[]' "$MANIFEST"); do
     cp "$SRC" "$DIST_DIR/agents/$AGENT"
     ok "Shared agent: $AGENT"
   else
-    warn "Shared agent non trovato: $AGENT"
+    warn "Shared agent not found: $AGENT"
   fi
 done
 
@@ -135,16 +135,16 @@ for AGENT in $(jq -r '.template_agents[]' "$MANIFEST"); do
     cp "$SRC" "$DIST_DIR/agents/$AGENT"
     ok "Template agent: $AGENT"
   else
-    warn "Template agent non trovato: $AGENT"
+    warn "Template agent not found: $AGENT"
   fi
 done
 
-# ── Genera plugin.json ───────────────────────────────────────────────────────
-step "Generazione plugin.json"
+# ── Generate plugin.json ─────────────────────────────────────────────────────
+step "Generating plugin.json"
 
-# Il plugin dichiara server MCP solo se il template ne fornisce una .mcp.json.
-# I server che dipendono dallo stack (figma) o dalla configurazione del team
-# (clickup) li registra la setup skill a livello progetto/utente: vedi Passo 6.
+# The plugin declares MCP servers only if the template ships a .mcp.json.
+# The servers that depend on the stack (figma) or on the team's configuration
+# (clickup) are registered by the setup skill at project/user scope: see Step 6.
 MCP_SRC="$TEMPLATE_DIR/.mcp.json"
 if [ -f "$MCP_SRC" ]; then
   MCP_REF='"./.mcp.json"'
@@ -189,10 +189,10 @@ jq -n \
   }
   | if .mcpServers == null then del(.mcpServers) else . end' > "$DIST_DIR/.claude-plugin/plugin.json"
 
-ok "plugin.json generato"
+ok "plugin.json generated"
 
-# ── Copia hooks ──────────────────────────────────────────────────────────────
-step "Generazione hooks"
+# ── Copy the hooks ───────────────────────────────────────────────────────────
+step "Generating the hooks"
 
 HOOKS_SRC="$TEMPLATE_DIR/.claude/hooks"
 HAS_HOOKS=false
@@ -215,7 +215,7 @@ if [ "$SETTINGS_HOOKS" != "{}" ] && [ -n "$SETTINGS_HOOKS" ]; then
       gsub("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/"; "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/")
     else . end)' | \
     jq '{hooks: .}' > "$DIST_DIR/hooks/hooks.json"
-  ok "hooks.json generato con path plugin"
+  ok "hooks.json generated with plugin paths"
 elif [ "$HAS_HOOKS" = true ]; then
   cat > "$DIST_DIR/hooks/hooks.json" << 'HOOKSJSON'
 {
@@ -245,24 +245,24 @@ elif [ "$HAS_HOOKS" = true ]; then
   }
 }
 HOOKSJSON
-  ok "hooks.json generato (fallback)"
+  ok "hooks.json generated (fallback)"
 else
   echo '{"hooks": {}}' > "$DIST_DIR/hooks/hooks.json"
-  ok "hooks.json generato (vuoto — template senza hooks)"
+  ok "hooks.json generated (empty — the template has no hooks)"
 fi
 
-# ── Copia .mcp.json ──────────────────────────────────────────────────────────
-step "Server MCP del plugin"
+# ── Copy .mcp.json ───────────────────────────────────────────────────────────
+step "The plugin's MCP servers"
 
 if [ -f "$MCP_SRC" ]; then
   cp "$MCP_SRC" "$DIST_DIR/.mcp.json"
-  ok ".mcp.json copiato dal template ($(jq -r '.mcpServers | keys | join(", ")' "$MCP_SRC"))"
+  ok ".mcp.json copied from the template ($(jq -r '.mcpServers | keys | join(", ")' "$MCP_SRC"))"
 else
-  ok "nessun server MCP nel plugin — li registra la setup skill per progetto"
+  ok "no MCP server in the plugin — the setup skill registers them per project"
 fi
 
-# ── Aggiorna marketplace.json ────────────────────────────────────────────────
-step "Aggiornamento marketplace.json"
+# ── Update marketplace.json ──────────────────────────────────────────────────
+step "Updating marketplace.json"
 
 MARKETPLACE="$ROOT_DIR/.claude-plugin/marketplace.json"
 mkdir -p "$ROOT_DIR/.claude-plugin"
@@ -273,12 +273,12 @@ if [ -f "$MARKETPLACE" ]; then
     jq --arg name "$NAME" --arg ver "$VERSION" --arg desc "$DESCRIPTION" \
       '(.plugins[] | select(.name == $name)) |= (.version = $ver | .description = $desc)' \
       "$MARKETPLACE" > "${MARKETPLACE}.tmp" && mv "${MARKETPLACE}.tmp" "$MARKETPLACE"
-    ok "Plugin aggiornato in marketplace.json"
+    ok "Plugin updated in marketplace.json"
   else
     jq --arg name "$NAME" --arg ver "$VERSION" --arg desc "$DESCRIPTION" --arg src "./dist/$NAME" \
       '.plugins += [{"name": $name, "source": $src, "version": $ver, "description": $desc}]' \
       "$MARKETPLACE" > "${MARKETPLACE}.tmp" && mv "${MARKETPLACE}.tmp" "$MARKETPLACE"
-    ok "Plugin aggiunto a marketplace.json"
+    ok "Plugin added to marketplace.json"
   fi
 else
   cat > "$MARKETPLACE" << MKJSON
@@ -300,5 +300,5 @@ else
   ]
 }
 MKJSON
-  ok "marketplace.json creato"
+  ok "marketplace.json created"
 fi

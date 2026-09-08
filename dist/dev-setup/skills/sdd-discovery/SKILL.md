@@ -101,7 +101,7 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    - Analyze the task context, project stack, and conversation so far
    - Formulate your question as a closed choice with 2-4 options
    - Each option should be a realistic, informed suggestion based on context
-   - Always include a "Da definire" option when the developer might not have decided yet
+   - Always include a "To be defined" option when the developer might not have decided yet
    - The system automatically adds an "Other" option for free-text input
 
    **How to convert open-ended questions to closed ones**:
@@ -114,13 +114,13 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    ```json
    AskUserQuestion({
      "questions": [{
-       "question": "Qual e' l'obiettivo principale del sistema di notifiche?",
+       "question": "What is the main goal of the notification system?",
        "header": "Core Value",
        "options": [
-         { "label": "Ridurre ritardi", "description": "Gli utenti oggi non si accorgono di eventi importanti in tempo, causando ritardi nelle risposte." },
-         { "label": "Sostituire email", "description": "Le notifiche email non vengono lette. Serve un canale piu' immediato (push/in-app)." },
-         { "label": "Engagement", "description": "Aumentare il coinvolgimento degli utenti riportandoli nell'app quando succede qualcosa di rilevante." },
-         { "label": "Da definire", "description": "Non ancora deciso, lo segno come gray area." }
+         { "label": "Cut delays", "description": "Users do not notice important events in time today, which delays their responses." },
+         { "label": "Replace email", "description": "Email notifications go unread. A more immediate channel is needed (push/in-app)." },
+         { "label": "Engagement", "description": "Increase engagement by pulling users back into the app when something relevant happens." },
+         { "label": "To be defined", "description": "Not decided yet — recording it as a gray area." }
        ],
        "multiSelect": false
      }]
@@ -131,13 +131,13 @@ you prefer. If you don't have an answer for something yet, just say "to be defin
    ```json
    AskUserQuestion({
      "questions": [{
-       "question": "Cosa deve succedere se l'invio della notifica push fallisce?",
+       "question": "What should happen when sending a push notification fails?",
        "header": "Error handling",
        "options": [
-         { "label": "Retry automatico", "description": "Il sistema riprova fino a 3 volte con backoff esponenziale." },
-         { "label": "Fallback email", "description": "Se il push fallisce, invia una email come fallback." },
-         { "label": "Log silenzioso", "description": "Logga l'errore senza ritentare. L'utente vedra' la notifica in-app al prossimo accesso." },
-         { "label": "Da definire", "description": "Non ancora deciso, lo segno come gray area." }
+         { "label": "Automatic retry", "description": "The system retries up to 3 times with exponential backoff." },
+         { "label": "Email fallback", "description": "If the push fails, send an email instead." },
+         { "label": "Silent log", "description": "Log the error without retrying. The user sees the in-app notification on their next visit." },
+         { "label": "To be defined", "description": "Not decided yet — recording it as a gray area." }
        ],
        "multiSelect": false
      }]
