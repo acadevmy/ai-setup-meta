@@ -6,6 +6,16 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [2.3.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v2.3.0...dev-setup-v2.3.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* **dist:** Sync bundled .env.example to 2.3.0 [DE-16471] ([cb2499e](https://github.com/acadevmy/ai-setup-meta/commit/cb2499e1d8c1a492c4d9c9ab8ef6bcf836b11e3a))
+* **marketplace:** Remove broken pm-setup entry [DE-16471] ([b4c89b6](https://github.com/acadevmy/ai-setup-meta/commit/b4c89b633b40e46c5a700ab0c3025ac5c10e606a))
+* **release:** Add checkout and correct release-please output keys [DE-16471] ([5aa41dc](https://github.com/acadevmy/ai-setup-meta/commit/5aa41dc97ed3b837d8357e51c5da7eb86f9ce1ec))
+* **release:** CI safety net and release pipeline repair [DE-16471] ([570ad04](https://github.com/acadevmy/ai-setup-meta/commit/570ad048a6d3faa99892173bffa28ea8ad52e320))
+
 ## [2.3.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v2.2.0...dev-setup-v2.3.0) (2026-07-24)
 
 
