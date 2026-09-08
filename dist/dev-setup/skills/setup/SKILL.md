@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Setup AI-Native per progetti di sviluppo software. Rileva modalita' (UPDATE/GREENFIELD/EXISTING), auto-detecta lo stack e configura il progetto con governance, MCP e workflow.
+description: AI-Native setup for software development projects. Detects the mode (UPDATE/GREENFIELD/EXISTING), auto-detects the stack and configures the project with governance, MCP and workflow.
 model: opus
 user-invocable: true
 disable-model-invocation: true
@@ -9,233 +9,233 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 # Dev Setup
 
-Skill per innestare il workflow AI-Native in progetti di sviluppo software.
-Le risorse sono bundled nel plugin — nessun download remoto necessario.
+Skill that grafts the AI-Native workflow onto software development projects.
+Resources are bundled in the plugin — no remote download needed.
 
 ---
 
-## Risorse locali
+## Local resources
 
-Tutti i file template sono disponibili in:
+All template files are available under:
 ```
 ${CLAUDE_SKILL_DIR}/templates/
 ```
 
-Contiene: AGENTS.template.md, CONSTITUTION.md, REGISTRY.md, .env.example, .gitignore, settings.json, profiles/
+It contains: AGENTS.template.md, CONSTITUTION.md, REGISTRY.md, .env.example, .gitignore, settings.json, profiles/
 
 ---
 
-## Strategia di lettura
+## Reading strategy
 
-I file si dividono in due categorie:
+Files fall into two categories:
 
-- **Verbatim**: letti dal plugin e scritti direttamente nella destinazione finale (REGISTRY, settings, .gitignore, .env.example). Prima della scrittura si verifica il conflict detection.
-- **Con trasformazione**: letti dal plugin, trasformati in memoria, poi scritti nella destinazione finale. Riguarda: CONSTITUTION (rimozione sezioni), AGENT template (sostituzione placeholder), profili (estrazione configurazioni).
+- **Verbatim**: read from the plugin and written straight to their final destination (REGISTRY, settings, .gitignore, .env.example). Conflict detection runs before every write.
+- **Transformed**: read from the plugin, transformed in memory, then written to their final destination. This covers: CONSTITUTION (section removal), the AGENT template (placeholder substitution), profiles (configuration extraction).
 
-**IMPORTANTE**: Skills e agents NON vengono installati nel progetto. Sono forniti dal plugin stesso e disponibili automaticamente.
-
----
-
-## Procedura completa
-
-Esegui i passi seguenti **nell'ordine indicato**. Non saltare nessun passo.
-
-### Passo 1 — Rileva la modalita'
-
-Analizza il progetto corrente per determinare la modalita' operativa:
-
-1. **UPDATE** — Se esistono gia' `CONSTITUTION.md` E `.claude/settings.json` nella root del progetto, il setup e' stato gia' eseguito. Chiedi allo sviluppatore: "Il setup e' gia' stato eseguito. Vuoi aggiornare i file dal repository sorgente?" Se risponde no, fermati.
-
-2. **GREENFIELD** — Se NON esiste nessuno di questi file nella root del progetto: `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, `pubspec.yaml`, `Cargo.toml`, e non ci sono file sorgente significativi (nessun file `.ts`, `.js`, `.py`, `.go`, `.dart`, `.rs` al di fuori di config). Il progetto e' vuoto o appena inizializzato.
-
-3. **EXISTING** — In tutti gli altri casi. Il progetto ha codice esistente.
-
-Comunica la modalita' rilevata allo sviluppatore prima di procedere.
+**IMPORTANT**: skills and agents are NOT installed into the project. They are provided by the plugin itself and available automatically.
 
 ---
 
-### Passo 2 — Auto-detection stack (solo modalita' EXISTING)
+## Full procedure
 
-Se la modalita' e' EXISTING, analizza il progetto per rilevare:
+Run the following steps **in the order given**. Do not skip any step.
 
-#### Linguaggio
-- `package.json` presente → **node**
-- `pyproject.toml` o `requirements.txt` o `setup.py` presente → **python**
-- `go.mod` presente → **go**
-- `pubspec.yaml` presente → **flutter**
-- `Cargo.toml` presente → **rust**
-- Qualsiasi file `*.tf` nella root o in una subdirectory diretta (profondita' ≤ 2) → **terraform**
-- Nessuno dei precedenti → **unknown**
+### Step 1 — Detect the mode
 
-Possono coesistere piu' linguaggi (es. node + python, oppure node + terraform per un monorepo full-stack).
+Analyze the current project to determine the operating mode:
+
+1. **UPDATE** — If both `CONSTITUTION.md` and `.claude/settings.json` already exist in the project root, setup has already run. Ask the developer: "Setup has already run. Do you want to update the files from the source repository?" If they say no, stop.
+
+2. **GREENFIELD** — If none of these files exist in the project root: `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, `pubspec.yaml`, `Cargo.toml`, and there are no significant source files (no `.ts`, `.js`, `.py`, `.go`, `.dart`, `.rs` file outside config). The project is empty or just initialized.
+
+3. **EXISTING** — In every other case. The project has existing code.
+
+Report the detected mode to the developer before proceeding.
+
+---
+
+### Step 2 — Stack auto-detection (EXISTING mode only)
+
+If the mode is EXISTING, analyze the project to detect:
+
+#### Language
+- `package.json` present → **node**
+- `pyproject.toml` or `requirements.txt` or `setup.py` present → **python**
+- `go.mod` present → **go**
+- `pubspec.yaml` present → **flutter**
+- `Cargo.toml` present → **rust**
+- Any `*.tf` file in the root or in a direct subdirectory (depth ≤ 2) → **terraform**
+- None of the above → **unknown**
+
+Several languages can coexist (e.g. node + python, or node + terraform for a full-stack monorepo).
 
 #### Test runner
-Cerca nell'ordine:
-1. `package.json` con script `test` → se contiene `vitest` usa `npx vitest`, altrimenti `npm test`
-2. `pytest.ini` o `pyproject.toml` con `[tool.pytest]` → `pytest`
+Look in this order:
+1. `package.json` with a `test` script → if it contains `vitest` use `npx vitest`, otherwise `npm test`
+2. `pytest.ini` or `pyproject.toml` with `[tool.pytest]` → `pytest`
 3. `go.mod` → `go test ./...`
 4. `pubspec.yaml` → `flutter test`
 5. `Cargo.toml` → `cargo test`
-6. Linguaggi rilevati includono `terraform` → `terraform validate` (nota: Terraform non ha un test runner classico; `terraform validate` e' il piu' vicino built-in. Il profilo `terraform.md` documenta `terraform test` 1.6+ e Terratest come opzioni)
-7. Nessuno trovato → `non rilevato`
+6. Detected languages include `terraform` → `terraform validate` (note: Terraform has no classic test runner; `terraform validate` is the closest built-in. The `terraform.md` profile documents `terraform test` 1.6+ and Terratest as options)
+7. None found → `not detected`
 
 #### Linter
-Cerca nell'ordine:
-1. File `.eslintrc*` o `eslint.config*` o `eslint` in `package.json` → se c'e' script `lint` usa `npm run lint`, altrimenti `npx eslint .`
-2. `pyproject.toml` con `[tool.ruff]` → `ruff check .`
-3. `.flake8` o `setup.cfg` con `[flake8]` → `flake8`
+Look in this order:
+1. An `.eslintrc*` or `eslint.config*` file, or `eslint` in `package.json` → if there is a `lint` script use `npm run lint`, otherwise `npx eslint .`
+2. `pyproject.toml` with `[tool.ruff]` → `ruff check .`
+3. `.flake8` or `setup.cfg` with `[flake8]` → `flake8`
 4. `.golangci.yml` → `golangci-lint run`
 5. `analysis_options.yaml` → `dart analyze`
 6. `Cargo.toml` → `cargo clippy`
-7. Linguaggi rilevati includono `terraform` → `terraform fmt -check -recursive`
-8. Nessuno trovato → `non rilevato`
+7. Detected languages include `terraform` → `terraform fmt -check -recursive`
+8. None found → `not detected`
 
-#### Tool di validazione
-1. `pubspec.yaml` presente → **freezed + json_serializable** (modelli immutabili e serializzazione schema-driven, no Zod)
-2. `package.json` con: `zod` → **Zod**, `joi` → **Joi**, `yup` → **Yup**, `class-validator` → **class-validator**
-3. `pyproject.toml` o `requirements.txt` con `pydantic` → **Pydantic**
-4. Nessuno trovato → `non rilevato`
+#### Validation tool
+1. `pubspec.yaml` present → **freezed + json_serializable** (immutable models and schema-driven serialization, no Zod)
+2. `package.json` with: `zod` → **Zod**, `joi` → **Joi**, `yup` → **Yup**, `class-validator` → **class-validator**
+3. `pyproject.toml` or `requirements.txt` with `pydantic` → **Pydantic**
+4. None found → `not detected`
 
-#### Frontend rilevato?
-- `package.json` contiene `next`, `react`, `@angular/core`, `vue`, `nuxt`, o `svelte` → **si**
-- Oppure: esistono file `.tsx`, `.jsx`, o `.vue` in `src/` → **si**
-- Altrimenti → **no**
+#### Frontend detected?
+- `package.json` contains `next`, `react`, `@angular/core`, `vue`, `nuxt`, or `svelte` → **yes**
+- Or: `.tsx`, `.jsx`, or `.vue` files exist under `src/` → **yes**
+- Otherwise → **no**
 
-#### Framework frontend rilevato?
-Solo se "Frontend rilevato?" → **si**. Identifica il framework principale e la versione (usato dal Passo 5 per pattern framework-specifici come il blocco AGENTS.md di Next.js).
+#### Frontend framework detected?
+Only if "Frontend detected?" → **yes**. Identify the main framework and its version (used by Step 5 for framework-specific patterns such as the Next.js AGENTS.md block).
 
-- `package.json` contiene `next` → **nextjs**
-- `package.json` contiene `nuxt` → **nuxt**
-- `package.json` contiene `@angular/core` → **angular**
-- `package.json` contiene `vue` (senza `nuxt`) → **vue**
-- `package.json` contiene `svelte` → **svelte**
-- `package.json` contiene `react` (senza `next`/`@angular/core`/`vue`/`nuxt`/`svelte`) → **react**
-- Altrimenti → `non rilevato`
+- `package.json` contains `next` → **nextjs**
+- `package.json` contains `nuxt` → **nuxt**
+- `package.json` contains `@angular/core` → **angular**
+- `package.json` contains `vue` (without `nuxt`) → **vue**
+- `package.json` contains `svelte` → **svelte**
+- `package.json` contains `react` (without `next`/`@angular/core`/`vue`/`nuxt`/`svelte`) → **react**
+- Otherwise → `not detected`
 
-Quando il framework e' rilevato, leggi anche la versione da `dependencies.<pkg>` o `devDependencies.<pkg>` e parsa il major.minor (es. `"next": "^16.0.7"` → `16.0`; `"next": "~17.2.0"` → `17.2`). Salva come `{FRAMEWORK_FRONTEND}` e `{FRAMEWORK_FRONTEND_VERSION}`.
+When the framework is detected, also read the version from `dependencies.<pkg>` or `devDependencies.<pkg>` and parse major.minor (e.g. `"next": "^16.0.7"` → `16.0`; `"next": "~17.2.0"` → `17.2`). Save as `{FRAMEWORK_FRONTEND}` and `{FRAMEWORK_FRONTEND_VERSION}`.
 
-#### Verifica convenzioni AI-tooling correnti (per ogni framework rilevato)
+#### Check current AI-tooling conventions (for every detected framework)
 
-Lo stato dell'arte delle convenzioni `AGENTS.md` (e equivalenti) cambia velocemente — i profile hard-coded in `profiles/<framework>.md` riflettono lo stato al rilascio del plugin, ma framework nuovi e versioni recenti introducono pattern aggiuntivi che il plugin non conosce ancora. Per ogni framework rilevato (`{FRAMEWORK_FRONTEND}`, framework backend se applicabile, framework infrastruttura come Terraform, ecc.) interroga la documentazione corrente per scoprire convenzioni AI-tooling.
+The state of the art for `AGENTS.md` conventions (and equivalents) moves fast — the profiles hard-coded in `profiles/<framework>.md` reflect the state at plugin release, but new frameworks and recent versions introduce extra patterns the plugin does not know about yet. For every detected framework (`{FRAMEWORK_FRONTEND}`, the backend framework if applicable, infrastructure frameworks such as Terraform, and so on) query the current documentation to discover AI-tooling conventions.
 
-**Strategia di lookup** (in ordine, prima fonte che produce risultato vince):
+**Lookup strategy** (in order; the first source that produces a result wins):
 
-1. **`ctx7` CLI** in PATH, oppure via `npx ctx7@latest` se non installata:
-   - `ctx7 library <framework>` per risolvere l'ID (es. `/vercel/next.js`)
-   - `ctx7 docs <id> "AGENTS.md convention bundled docs agent rules"` per la query
-2. **Context7 MCP**, solo se il progetto lo ha registrato (non e' nella configurazione di default, vedi Passo 6.2): `mcp__context7__resolve-library-id` + `mcp__context7__query-docs` con la stessa query
-3. **WebSearch** se ctx7/Context7 non sono disponibili: query `"AGENTS.md convention <framework> <major>.<minor>"` (es. `"AGENTS.md convention next.js 16.2"`), preferendo risultati dal dominio ufficiale del framework
-4. **Skip** se nessuna fonte e' raggiungibile (ambiente offline) — procedi con i soli profile hard-coded e segnala la skip nel riepilogo del Passo 9
+1. **`ctx7` CLI** on PATH, or via `npx ctx7@latest` if not installed:
+   - `ctx7 library <framework>` to resolve the ID (e.g. `/vercel/next.js`)
+   - `ctx7 docs <id> "AGENTS.md convention bundled docs agent rules"` for the query
+2. **Context7 MCP**, only if the project registered it (it is not in the default configuration, see Step 6.2): `mcp__context7__resolve-library-id` + `mcp__context7__query-docs` with the same query
+3. **WebSearch** if neither ctx7 nor Context7 is available: query `"AGENTS.md convention <framework> <major>.<minor>"` (e.g. `"AGENTS.md convention next.js 16.2"`), preferring results from the framework's official domain
+4. **Skip** if no source is reachable (offline environment) — proceed with the hard-coded profiles alone and report the skip in the Step 9 summary
 
-**Cosa cercare**, per ciascun framework:
+**What to look for**, for each framework:
 
-- Esiste una convenzione `AGENTS.md` ufficialmente supportata dal framework (es. il blocco `BEGIN:nextjs-agent-rules` di Next.js)?
-- Quali marker / sezioni vengono gestite automaticamente dal framework (es. da un comando `<framework> upgrade`)?
-- Path dei docs bundled (se applicabile, es. `node_modules/<framework>/dist/docs/`)
-- Codemod o tooling correlato per progetti esistenti (es. `npx @next/codemod@latest agents-md`)
-- Versione minima del framework che supporta la convenzione
+- Is there an `AGENTS.md` convention officially supported by the framework (e.g. the `BEGIN:nextjs-agent-rules` block in Next.js)?
+- Which markers / sections does the framework manage automatically (e.g. through a `<framework> upgrade` command)?
+- Path of the bundled docs (if applicable, e.g. `node_modules/<framework>/dist/docs/`)
+- Codemods or related tooling for existing projects (e.g. `npx @next/codemod@latest agents-md`)
+- Minimum framework version that supports the convention
 
-**Precedenza delle fonti**:
+**Source precedence**:
 
-- Profile hard-coded (`profiles/<framework>.md`) → fonte primaria per framework documentati al rilascio plugin (deterministico, predicibile)
-- Verifica runtime → fonte aggiuntiva per framework non ancora documentati nel plugin **o** per versioni piu' recenti che hanno introdotto nuove convenzioni
+- Hard-coded profile (`profiles/<framework>.md`) → primary source for frameworks documented at plugin release (deterministic, predictable)
+- Runtime check → additional source for frameworks not yet documented in the plugin **or** for newer versions that introduced new conventions
 
-Salva eventuali convenzioni scoperte come `{FRAMEWORK_AGENTS_CONVENTION}` (oggetto strutturato con: nome marker, contenuto del blocco, fonte, link doc) — il Passo 5 le applica come framework-specific block injection con la stessa strategia documentata per Next.js.
+Save any discovered convention as `{FRAMEWORK_AGENTS_CONVENTION}` (a structured object with: marker name, block content, source, doc link) — Step 5 applies them as a framework-specific block injection using the same strategy documented for Next.js.
 
-**Output al developer**: una riga nel riepilogo del Passo 9 per ogni framework verificato, formato:
+**Output to the developer**: one line in the Step 9 summary per checked framework, in this format:
 ```
-- <framework> <version>: convenzione <name> trovata via <source> → <azione applicata>
-- <framework> <version>: nessuna convenzione AI-tooling documentata → nessuna azione
-- <framework> <version>: verifica saltata (offline) → applicato solo profile hard-coded
+- <framework> <version>: convention <name> found via <source> → <action applied>
+- <framework> <version>: no documented AI-tooling convention → no action
+- <framework> <version>: check skipped (offline) → hard-coded profile only
 ```
 
-#### Mobile rilevato?
-- `pubspec.yaml` presente → **si**
-- `package.json` contiene `react-native` o `expo` → **si**
-- Altrimenti → **no**
+#### Mobile detected?
+- `pubspec.yaml` present → **yes**
+- `package.json` contains `react-native` or `expo` → **yes**
+- Otherwise → **no**
 
-#### Framework mobile rilevato?
-- `pubspec.yaml` presente → **flutter**
-- altrimenti, `package.json` contiene `react-native` o `expo` → **react-native**
-- altrimenti → `non rilevato`
+#### Mobile framework detected?
+- `pubspec.yaml` present → **flutter**
+- otherwise, `package.json` contains `react-native` or `expo` → **react-native**
+- otherwise → `not detected`
 
-#### Infrastructure rilevato?
-- Linguaggi rilevati includono `terraform` → **si**
-- Altrimenti → **no**
+#### Infrastructure detected?
+- Detected languages include `terraform` → **yes**
+- Otherwise → **no**
 
-Questa flag deriva dal rilevamento linguaggio e serve a gatettare la Sezione X della CONSTITUTION (Passo 4, regola 5).
+This flag derives from language detection and is used to gate Section X of the CONSTITUTION (Step 4, rule 5).
 
-#### Multi-progetto rilevato?
+#### Multi-project detected?
 
-**Fase 1 — Monorepo tool**:
-- `nx.json` presente → **si** (Nx)
-- `turbo.json` presente → **si** (Turborepo)
-- `pnpm-workspace.yaml` presente → **si** (pnpm workspace)
-- `lerna.json` presente → **si** (Lerna)
-- Root `package.json` contiene campo `workspaces` → **si** (Yarn/npm workspaces)
+**Phase 1 — Monorepo tool**:
+- `nx.json` present → **yes** (Nx)
+- `turbo.json` present → **yes** (Turborepo)
+- `pnpm-workspace.yaml` present → **yes** (pnpm workspace)
+- `lerna.json` present → **yes** (Lerna)
+- Root `package.json` contains a `workspaces` field → **yes** (Yarn/npm workspaces)
 
-**Enumerazione sub-project** (in ordine di priorita', il primo che produce risultati e' quello buono):
-1. `pnpm-workspace.yaml` → leggi `packages:` (lista di glob)
-2. Root `package.json` → leggi campo `workspaces` (array di glob)
-3. `lerna.json` → leggi `packages` (lista di glob)
-4. `nx.json` → leggi `projects` SOLO se il campo esiste (legacy, Nx ≤ 17). Da Nx 18+ il campo non e' piu' presente: i progetti sono dedotti da `package.json`/`project.json` sotto i path workspace ("inferred projects" model). In questo caso usa una delle fonti precedenti.
-5. `turbo.json` → i progetti sono dedotti dai workspace di pnpm/yarn/npm; Turborepo non mantiene una lista propria.
+**Sub-project enumeration** (in priority order; the first one that produces results is the one to use):
+1. `pnpm-workspace.yaml` → read `packages:` (a list of globs)
+2. Root `package.json` → read the `workspaces` field (an array of globs)
+3. `lerna.json` → read `packages` (a list of globs)
+4. `nx.json` → read `projects` ONLY if the field exists (legacy, Nx ≤ 17). From Nx 18+ the field is gone: projects are inferred from `package.json`/`project.json` under the workspace paths (the "inferred projects" model). In that case use one of the previous sources.
+5. `turbo.json` → projects are inferred from the pnpm/yarn/npm workspaces; Turborepo keeps no list of its own.
 
-Espandi i glob in directory effettive contenenti `package.json`. Cross-check opzionale: se il CLI Nx e' disponibile in `node_modules/.bin` o in PATH, lancia `pnpm nx show projects` (o `npx nx show projects`) e confronta l'elenco dedotto con l'output del CLI.
+Expand the globs into actual directories containing a `package.json`. Optional cross-check: if the Nx CLI is available in `node_modules/.bin` or on PATH, run `pnpm nx show projects` (or `npx nx show projects`) and compare the inferred list against the CLI output.
 
-Per ogni sub-project, leggi il suo `package.json`:
-- `name` → identificatore del progetto (usato sia per la display path che per il wrapping dei comandi, vedi sotto)
-- `scripts` → comandi disponibili (`dev`, `build`, `test`, `lint`, ...)
-- `dependencies` / `devDependencies` → driver per la rilevazione stack
-- Eventuale campo `nx` (per-target inputs/outputs/cache) → informativo, non cambia l'invocazione
+For each sub-project, read its `package.json`:
+- `name` → the project identifier (used both for the display path and for command wrapping, see below)
+- `scripts` → available commands (`dev`, `build`, `test`, `lint`, ...)
+- `dependencies` / `devDependencies` → drivers for stack detection
+- Any `nx` field (per-target inputs/outputs/cache) → informational, it does not change the invocation
 
-**Fase 2 — Detection strutturale** (solo se Fase 1 non ha trovato nulla):
-- Cerca nelle directory di primo livello file indicatori di progetto: `package.json`, `pubspec.yaml`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`
-- Se **2 o piu'** directory contengono almeno un indicatore → **si** (multi-progetto)
-- Ignora directory comuni non-progetto: `node_modules`, `.git`, `.claude`, `dist`, `build`, `coverage`, `.github`, `.husky`
+**Phase 2 — Structural detection** (only if Phase 1 found nothing):
+- Look in the top-level directories for project marker files: `package.json`, `pubspec.yaml`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`
+- If **2 or more** directories contain at least one marker → **yes** (multi-project)
+- Ignore common non-project directories: `node_modules`, `.git`, `.claude`, `dist`, `build`, `coverage`, `.github`, `.husky`
 
-**Se multi-progetto rilevato** (da Fase 1 o Fase 2):
-1. Per ogni sub-project trovato, esegui la auto-detection stack (Linguaggio, Test runner, Linter, Tool di validazione, Frontend rilevato?, Mobile rilevato?) nella directory del sub-project, leggendo il suo `package.json` (se presente) per `scripts`, `dependencies`, `devDependencies`.
-2. **Wrapping dell'invocazione**: in modalita' multi-progetto i comandi devono essere lanciabili dalla root del workspace, non solo dalla cartella del sub-project. Quando popoli `{{TEST_COMMAND}}` / `{{LINT_COMMAND}}` (e qualunque altro comando) nel template per-progetto, usa la forma wrappata corrispondente al monorepo tool rilevato:
-   - **Nx** → `nx run <name>:<target>` (preferito quando il target e' definito in `nx.json` `targetDefaults` o in `package.json` `nx.targets`); fallback `pnpm --filter <name> <script>` (o l'equivalente del package manager)
-   - **pnpm workspace** (senza Nx) → `pnpm --filter <name> <script>`
+**If multi-project is detected** (from Phase 1 or Phase 2):
+1. For every sub-project found, run stack auto-detection (Language, Test runner, Linter, Validation tool, Frontend detected?, Mobile detected?) inside the sub-project directory, reading its `package.json` (if present) for `scripts`, `dependencies`, `devDependencies`.
+2. **Command wrapping**: in multi-project mode the commands must be runnable from the workspace root, not only from the sub-project folder. When populating `{{TEST_COMMAND}}` / `{{LINT_COMMAND}}` (and any other command) in the per-project template, use the wrapped form matching the detected monorepo tool:
+   - **Nx** → `nx run <name>:<target>` (preferred when the target is defined in `nx.json` `targetDefaults` or in `package.json` `nx.targets`); fallback `pnpm --filter <name> <script>` (or the package manager equivalent)
+   - **pnpm workspace** (without Nx) → `pnpm --filter <name> <script>`
    - **Yarn workspace** → `yarn workspace <name> <script>`
    - **npm workspace** → `npm run <script> --workspace=<name>`
    - **Lerna** → `lerna run <script> --scope=<name>`
-   - Sub-project non-Node (es. Terraform sotto `iac/`) → comando raw, eseguito dalla directory del sub-project (nessun wrapping).
-3. Mostra il riepilogo allo sviluppatore e chiedi conferma prima di procedere.
+   - Non-Node sub-projects (e.g. Terraform under `iac/`) → raw command, run from the sub-project directory (no wrapping).
+3. Show the summary to the developer and ask for confirmation before proceeding.
 
-**Mostra il riepilogo della detection allo sviluppatore.**
+**Show the detection summary to the developer.**
 
-Per progetto singolo:
+For a single project:
 ```
-Stack rilevato:
-  Linguaggi:     node
-  Test runner:   npm test
-  Linter:        npm run lint
-  Validazione:   Zod
-  Frontend:      si
-  Mobile:        no
+Detected stack:
+  Languages:      node
+  Test runner:    npm test
+  Linter:         npm run lint
+  Validation:     Zod
+  Frontend:       yes
+  Mobile:         no
   Infrastructure: no
 ```
 
-Per multi-progetto (i comandi sono gia' wrappati per essere eseguiti dalla root del workspace):
+For multi-project (commands are already wrapped so they run from the workspace root):
 ```
-Stack rilevato:
-  Multi-progetto: si (Nx + pnpm workspace)
-  Sub-project:
-    applications/web/   — node, frontend: si, test: pnpm --filter web test, lint: pnpm --filter web lint
+Detected stack:
+  Multi-project:  yes (Nx + pnpm workspace)
+  Sub-projects:
+    applications/web/   — node, frontend: yes, test: pnpm --filter web test, lint: pnpm --filter web lint
     applications/api/   — node, frontend: no, test: pnpm --filter api test, lint: pnpm --filter api lint
-    iac/                — terraform, infrastructure: si, test: terraform validate, lint: terraform fmt -check -recursive
+    iac/                — terraform, infrastructure: yes, test: terraform validate, lint: terraform fmt -check -recursive
 
-Confermi questi sub-project? (si/no)
+Do you confirm these sub-projects? (yes/no)
 ```
 
 ---
 
-### Passo 2b — Selezione stack (solo modalita' GREENFIELD)
+### Step 2b — Stack selection (GREENFIELD mode only)
 
-Se la modalita' e' GREENFIELD, chiedi allo sviluppatore di scegliere lo stack:
+If the mode is GREENFIELD, ask the developer to pick the stack:
 
 1. **Web Frontend** — Next.js / Angular / React + ShadCN/UI + Tailwind
 2. **Backend Node** — Node.js / NestJS + Prisma + Zod
@@ -243,299 +243,299 @@ Se la modalita' e' GREENFIELD, chiedi allo sviluppatore di scegliere lo stack:
 4. **Full-stack** — Frontend + Backend (monorepo)
 5. **Infrastructure / Terraform** — HCL, remote state (S3 default), AWS/Azure/GCP
 
-Se sceglie **Mobile**, chiedi anche:
+If they pick **Mobile**, also ask:
 - **Flutter**
 - **React Native (Expo)**
 
-Se sceglie **Infrastructure / Terraform**: imposta `languages=[terraform]`, `infrastructure=yes`. **Nota importante**: il Passo 8 (setup greenfield) **non** applica boilerplate Terraform-specifico in questa versione (nessun `.gitignore` Terraform auto-generato, nessun workflow CI Terraform auto-emesso, nessun `versions.tf` scaffold). Il profilo `terraform.md` contiene le ricette CI e il backend S3 come testo di riferimento da copiare. Comunica questa limitazione allo sviluppatore nel riepilogo del Passo 9.
+If they pick **Infrastructure / Terraform**: set `languages=[terraform]`, `infrastructure=yes`. **Important note**: Step 8 (greenfield setup) does **not** apply Terraform-specific boilerplate in this version (no auto-generated Terraform `.gitignore`, no auto-emitted Terraform CI workflow, no `versions.tf` scaffold). The `terraform.md` profile carries the CI recipes and the S3 backend as reference text to copy. Report this limitation to the developer in the Step 9 summary.
 
 ---
 
-### Passo 2c — Rilevamento VCS
+### Step 2c — VCS detection
 
-Determina il provider Git del progetto. Il risultato guida i Passi 5, 8.4, 8.6 e 9.
+Determine the project's Git provider. The result drives Steps 5, 8.4, 8.6 and 9.
 
-1. Prova a leggere l'URL del remote:
+1. Try reading the remote URL:
    ```bash
    git -C <project-root> remote get-url origin 2>/dev/null
    ```
-   Se `origin` non esiste, usa il primo remote disponibile (`git remote | head -1`).
+   If `origin` does not exist, use the first available remote (`git remote | head -1`).
 
-2. Se non esiste `.git` o non c'e' nessun remote configurato:
+2. If there is no `.git` or no remote configured:
    - `vcs = none`
-   - Comunica allo sviluppatore: "Nessun remote Git rilevato. I file VCS-specifici (CI, `.releaserc.json`) non verranno installati."
-   - Salta al Passo 3.
+   - Tell the developer: "No Git remote detected. VCS-specific files (CI, `.releaserc.json`) will not be installed."
+   - Skip to Step 3.
 
-3. Altrimenti, normalizza l'URL in minuscolo e classifica:
-   - Contiene `github.com` → `vcs = github`
-   - Contiene `gitlab` (qualsiasi host, es. `gitlab.com`, `gitlab.company.internal`) → `vcs = gitlab`
-   - Nessuno dei due → vai al punto 4 (probe CLI).
+3. Otherwise, lowercase the URL and classify:
+   - Contains `github.com` → `vcs = github`
+   - Contains `gitlab` (any host, e.g. `gitlab.com`, `gitlab.company.internal`) → `vcs = gitlab`
+   - Neither → go to point 4 (CLI probe).
 
-4. **Probe CLI** per host self-hosted ambigui (es. `git@git.company.com:...`):
-   - Estrai l'hostname dall'URL (gestisci sia HTTPS sia SSH).
-   - Esegui `gh auth status --hostname <host> 2>/dev/null` e `glab auth status --hostname <host> 2>/dev/null`.
-   - Se esattamente uno dei due riconosce l'host → `vcs = <quello>`.
-   - Se nessuno o entrambi → chiedi allo sviluppatore con `AskUserQuestion`:
+4. **CLI probe** for ambiguous self-hosted instances (e.g. `git@git.company.com:...`):
+   - Extract the hostname from the URL (handle both HTTPS and SSH).
+   - Run `gh auth status --hostname <host> 2>/dev/null` and `glab auth status --hostname <host> 2>/dev/null`.
+   - If exactly one of them recognizes the host → `vcs = <that one>`.
+   - If neither or both do → ask the developer with `AskUserQuestion`:
      ```
-     question: "Quale provider Git usa questo progetto?"
-     options: [ {label: "GitHub"}, {label: "GitLab"}, {label: "Altro / nessuno"} ]
+     question: "Which Git provider does this project use?"
+     options: [ {label: "GitHub"}, {label: "GitLab"}, {label: "Other / none"} ]
      ```
-   - Se sceglie "Altro / nessuno" → `vcs = other` (stesso trattamento di `none` per i file VCS-specifici).
+   - If they pick "Other / none" → `vcs = other` (treated the same as `none` for VCS-specific files).
 
-5. Comunica allo sviluppatore il VCS rilevato prima di procedere. Salva il valore — verra' referenziato come `{VCS}` nei passi successivi.
+5. Report the detected VCS to the developer before proceeding. Save the value — it is referenced as `{VCS}` in the following steps.
 
 ---
 
-### Passo 3 — Installa risorse dal plugin
+### Step 3 — Install resources from the plugin
 
-Leggi i file template dal plugin e installali nel progetto.
+Read the template files from the plugin and install them into the project.
 
-#### 3.1 — File con trasformazione (letti in memoria)
+#### 3.1 — Transformed files (read into memory)
 
-Questi file richiedono adattamento. Leggili dal plugin:
+These files need adapting. Read them from the plugin:
 
-**CONSTITUTION.md** (verra' adattato al Passo 4):
-Leggi `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`
+**CONSTITUTION.md** (will be adapted in Step 4):
+Read `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`
 
-**AGENTS template** (verra' processato al Passo 5):
+**AGENTS template** (will be processed in Step 5):
 
-Per progetto singolo:
-Leggi `${CLAUDE_SKILL_DIR}/templates/AGENTS.template.md`
+For a single project:
+Read `${CLAUDE_SKILL_DIR}/templates/AGENTS.template.md`
 
-Per multi-progetto (o stack fullstack):
-Leggi `${CLAUDE_SKILL_DIR}/templates/AGENTS.workspace-template.md`
-Leggi `${CLAUDE_SKILL_DIR}/templates/AGENTS.project-template.md`
+For multi-project (or the fullstack stack):
+Read `${CLAUDE_SKILL_DIR}/templates/AGENTS.workspace-template.md`
+Read `${CLAUDE_SKILL_DIR}/templates/AGENTS.project-template.md`
 
-**Profilo stack** (solo GREENFIELD, verra' applicato al Passo 8.5):
-Leggi il profilo selezionato da `${CLAUDE_SKILL_DIR}/templates/profiles/`:
+**Stack profile** (GREENFIELD only, applied in Step 8.5):
+Read the selected profile from `${CLAUDE_SKILL_DIR}/templates/profiles/`:
 - Web Frontend: `profiles/web-frontend.md`
 - Backend Node: `profiles/backend-node.md`
 - Mobile: `profiles/mobile.md`
-- Full-stack: leggi sia `profiles/web-frontend.md` che `profiles/backend-node.md`
+- Full-stack: read both `profiles/web-frontend.md` and `profiles/backend-node.md`
 
-#### 3.2 — File verbatim (direttamente a destinazione)
+#### 3.2 — Verbatim files (straight to destination)
 
-Questi file vengono copiati esattamente. Prima di ogni scrittura, verifica se il file di destinazione esiste gia' (**conflict detection**): se esiste, informa lo sviluppatore e mantieni quello esistente saltando la scrittura.
+These files are copied exactly. Before every write, check whether the destination file already exists (**conflict detection**): if it does, tell the developer and keep the existing one, skipping the write.
 
-**settings.json** (permessi progetto):
-Se `.claude/settings.json` **non** esiste:
+**settings.json** (project permissions):
+If `.claude/settings.json` does **not** exist:
 ```bash
 mkdir -p .claude
 ```
-Leggi `${CLAUDE_SKILL_DIR}/templates/settings.json` e scrivilo in `.claude/settings.json`.
-Se **esiste gia'**: informa lo sviluppatore e mantieni quello esistente.
+Read `${CLAUDE_SKILL_DIR}/templates/settings.json` and write it to `.claude/settings.json`.
+If it **already exists**: tell the developer and keep the existing one.
 
 **REGISTRY.md**:
 
-Per progetto singolo:
-Se `REGISTRY.md` **non** esiste (o lo sviluppatore conferma la sovrascrittura):
-Leggi `${CLAUDE_SKILL_DIR}/templates/REGISTRY.md` e scrivilo in `REGISTRY.md`.
+For a single project:
+If `REGISTRY.md` does **not** exist (or the developer confirms the overwrite):
+Read `${CLAUDE_SKILL_DIR}/templates/REGISTRY.md` and write it to `REGISTRY.md`.
 
-Per multi-progetto:
-Genera un `REGISTRY.md` per ogni sub-project confermato. Non generare REGISTRY.md alla root.
-Leggi `${CLAUDE_SKILL_DIR}/templates/REGISTRY.md` e scrivilo in `<sub-project-path>/REGISTRY.md`.
+For multi-project:
+Generate one `REGISTRY.md` per confirmed sub-project. Do not generate a REGISTRY.md at the root.
+Read `${CLAUDE_SKILL_DIR}/templates/REGISTRY.md` and write it to `<sub-project-path>/REGISTRY.md`.
 
 **.gitignore**:
-Se `.gitignore` **non** esiste:
-Leggi `${CLAUDE_SKILL_DIR}/templates/.gitignore` e scrivilo in `.gitignore`.
+If `.gitignore` does **not** exist:
+Read `${CLAUDE_SKILL_DIR}/templates/.gitignore` and write it to `.gitignore`.
 
 **.env.example**:
-Se `.env.example` **non** esiste:
-Leggi `${CLAUDE_SKILL_DIR}/templates/.env.example` e scrivilo in `.env.example`.
+If `.env.example` does **not** exist:
+Read `${CLAUDE_SKILL_DIR}/templates/.env.example` and write it to `.env.example`.
 
-**IMPORTANTE**: Scrivi i file letti **esattamente come ricevuti**, senza modifiche. Non riformattare, non aggiustare, non migliorare. Il contenuto deve essere verbatim.
+**IMPORTANT**: write the files you read **exactly as received**, with no changes. Do not reformat, do not adjust, do not improve. The content must be verbatim.
 
-**Verifica**: controlla che i file scritti non siano vuoti. Se un file e' vuoto, informa lo sviluppatore e fermati.
+**Check**: verify that the written files are not empty. If a file is empty, tell the developer and stop.
 
 ---
 
-#### 3.3 — Adatta allowlist al package manager rilevato
+#### 3.3 — Adapt the allowlist to the detected package manager
 
-Il template di `.claude/settings.json` elenca tutti e tre i Node package manager (`Bash(npm *)`, `Bash(pnpm *)`, `Bash(yarn *)`) nell'array `allow`, perche' al rilascio del plugin non sappiamo quale userai. Se il progetto ha un lock file univoco, restringi l'allowlist al PM in uso — un agente non deve invocare `yarn install` in un progetto pnpm e bypassare le convenzioni di workspace/hoisting.
+The `.claude/settings.json` template lists all three Node package managers (`Bash(npm *)`, `Bash(pnpm *)`, `Bash(yarn *)`) in the `allow` array, because at plugin release we do not know which one you will use. If the project has a single unambiguous lock file, narrow the allowlist to the PM in use — an agent must not invoke `yarn install` in a pnpm project and bypass the workspace/hoisting conventions.
 
-**Skip se**:
-- `.claude/settings.json` esisteva gia' al momento del 3.2 e non e' stato sovrascritto (la conflict detection l'ha lasciato intatto — non spettano a te modifiche post-hoc).
-- Linguaggi rilevati al Passo 2 NON includono `node` (es. progetto Python/Go/Terraform puro): le 3 entry restano per supportare eventuale `npx <tool>` puntuale.
+**Skip if**:
+- `.claude/settings.json` already existed at 3.2 and was not overwritten (conflict detection left it intact — post-hoc edits are not yours to make).
+- The languages detected in Step 2 do NOT include `node` (e.g. a pure Python/Go/Terraform project): the 3 entries stay to support the occasional `npx <tool>`.
 
-**Detection del package manager**:
+**Package manager detection**:
 
-| Lock file rilevato in root | Package manager |
+| Lock file found in root | Package manager |
 |---|---|
 | `pnpm-lock.yaml` | **pnpm** |
 | `yarn.lock` | **yarn** |
 | `package-lock.json` | **npm** |
-| Piu' di un lock file | **ambiguo** — non toccare l'allowlist, segnala l'anomalia nel riepilogo del Passo 9 |
-| Nessun lock file (`package.json` esiste ma il progetto non e' ancora stato `install`-ato) | **nessuno** — lascia tutte e tre le entry, segnala nel riepilogo del Passo 9 |
+| More than one lock file | **ambiguous** — do not touch the allowlist, report the anomaly in the Step 9 summary |
+| No lock file (`package.json` exists but the project has not been `install`-ed yet) | **none** — leave all three entries, report it in the Step 9 summary |
 
-**Modifiche all'allowlist** (solo se PM rilevato e univoco):
+**Allowlist changes** (only if the PM is detected and unambiguous):
 
-- `pnpm` → mantieni `Bash(pnpm *)`, aggiungi `Bash(pnpx *)` se non gia' presente, rimuovi `Bash(npm *)` e `Bash(yarn *)`. **Mantieni `Bash(npx *)`** — e' universale, usato dalla CLI di `ctx7` (`npx ctx7@latest`), dai codemod ufficiali (`npx @next/codemod@latest`), e da molti README di tool one-shot. Rimuovere `npx` rompe questi flussi senza guadagno reale.
-- `yarn` → mantieni `Bash(yarn *)` e `Bash(npx *)`, rimuovi `Bash(npm *)` e `Bash(pnpm *)`.
-- `npm` → mantieni `Bash(npm *)` e `Bash(npx *)`, rimuovi `Bash(yarn *)` e `Bash(pnpm *)`.
+- `pnpm` → keep `Bash(pnpm *)`, add `Bash(pnpx *)` if not already present, remove `Bash(npm *)` and `Bash(yarn *)`. **Keep `Bash(npx *)`** — it is universal, used by the `ctx7` CLI (`npx ctx7@latest`), by official codemods (`npx @next/codemod@latest`), and by many one-shot tool READMEs. Removing `npx` breaks those flows for no real gain.
+- `yarn` → keep `Bash(yarn *)` and `Bash(npx *)`, remove `Bash(npm *)` and `Bash(pnpm *)`.
+- `npm` → keep `Bash(npm *)` and `Bash(npx *)`, remove `Bash(yarn *)` and `Bash(pnpm *)`.
 
-**Deny array intatto**: NON toccare l'array `deny`. `Bash(npm publish*)`, `Bash(pnpm publish*)`, `Bash(yarn publish*)` rimangono tutti — una `publish` accidentale via il PM "sbagliato" e' comunque un evento da bloccare.
+**Leave the deny array intact**: do NOT touch the `deny` array. `Bash(npm publish*)`, `Bash(pnpm publish*)`, `Bash(yarn publish*)` all stay — an accidental `publish` through the "wrong" PM is still an event worth blocking.
 
-**Implementazione (jq, idempotente, preserva il resto del file)**:
+**Implementation (jq, idempotent, preserves the rest of the file)**:
 
 ```bash
-# Rilevato PM == "pnpm"
+# Detected PM == "pnpm"
 jq '.permissions.allow |= ((. - ["Bash(npm *)", "Bash(yarn *)"]) | if any(. == "Bash(pnpx *)") then . else . + ["Bash(pnpx *)"] end)' \
   .claude/settings.json > .claude/settings.json.tmp \
   && mv .claude/settings.json.tmp .claude/settings.json
 
-# Rilevato PM == "yarn"
+# Detected PM == "yarn"
 jq '.permissions.allow -= ["Bash(npm *)", "Bash(pnpm *)"]' \
   .claude/settings.json > .claude/settings.json.tmp \
   && mv .claude/settings.json.tmp .claude/settings.json
 
-# Rilevato PM == "npm"
+# Detected PM == "npm"
 jq '.permissions.allow -= ["Bash(yarn *)", "Bash(pnpm *)"]' \
   .claude/settings.json > .claude/settings.json.tmp \
   && mv .claude/settings.json.tmp .claude/settings.json
 ```
 
-`jq` e' gia' una dipendenza dichiarata del plugin (vedi `scripts/build-plugin.sh`), quindi e' ragionevole assumerlo presente.
+`jq` is already a declared dependency of the plugin (see `scripts/build-plugin.sh`), so assuming it is present is reasonable.
 
-**Riporta nel riepilogo del Passo 9** (una sola riga):
-- PM univoco rilevato: `allowlist tightened to <pm>-only commands per detected lock file (<lockfile>)`
-- Lock file multipli: `multiple lock files detected (<list>) — allowlist left as default; consider committing to a single PM`
-- Nessun lock file ma `node` rilevato: `no lock file present — allowlist left as default; the team should run \`<pm> install\` and re-run setup to tighten`
-
----
-
-### Passo 4 — Adatta CONSTITUTION.md
-
-Parti dal contenuto letto da `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`.
-
-#### Per modalita' EXISTING:
-
-> Ogni regola cita la sezione da rimuovere per numero: la sola fonte del numero sono gli
-> heading `## <N>.` di `CONSTITUTION.md`, e il check 9 di `/project:validate` verifica che
-> la coppia regola↔heading corrisponda.
-
-1. Se il frontend **non** e' stato rilevato, oppure `{FRAMEWORK_FRONTEND}` e' `nuxt` o `vue` → rimuovi l'intera Sezione VI (da `## VI.` fino a prima di `## VII.`)
-   - **Multi-progetto**: mantieni Sezione VI se **qualsiasi** sub-project ha `{FRAMEWORK_FRONTEND}` diverso da `nuxt` e `vue`
-2. Se `{FRAMEWORK_FRONTEND}` **non** e' `nuxt` ne' `vue` → rimuovi l'intera Sezione VII (da `## VII.` fino a prima di `## VIII.`)
-   - **Multi-progetto**: mantieni Sezione VII se **qualsiasi** sub-project ha `{FRAMEWORK_FRONTEND}` = `nuxt` o `vue`
-   - Le due sezioni sono alternative: §VI copre Next.js / Angular / React, §VII copre Nuxt 3 / Vue 3. Un progetto con un solo framework frontend ne tiene una sola; un multi-progetto misto puo' tenerle entrambe
-3. Se il mobile **non** e' stato rilevato → rimuovi l'intera Sezione VIII (da `## VIII.` fino a prima di `## IX.`)
-   - **Multi-progetto**: mantieni Sezione VIII se **qualsiasi** sub-project ha mobile rilevato
-4. Se il linguaggio rilevato **non** include `node` → aggiungi questa nota subito dopo la riga `## I. Principi fondamentali`:
-   - **Multi-progetto**: aggiungi la nota solo se **nessun** sub-project usa `node`
-   - Se il linguaggio include `terraform`, adatta il testo della nota per menzionare esplicitamente §X (vedi variante sotto)
-
-**Nota standard** (nessun Terraform):
-```
-> **Nota**: Le regole specifiche a TypeScript/Zod si applicano ai progetti TypeScript.
-> Per altri linguaggi, applicare il principio equivalente (validazione schema-first
-> con lo strumento appropriato del proprio stack, strict typing nativo del linguaggio).
-```
-
-**Nota con Terraform** (linguaggi includono `terraform` e non includono `node`):
-```
-> **Nota**: Le regole specifiche a TypeScript/Zod si applicano ai progetti TypeScript.
-> Per altri linguaggi, applicare il principio equivalente. Per progetti Terraform / HCL,
-> le regole IaC sono codificate in **§X (Infrastructure as Code)** piu' avanti in questo
-> documento.
-```
-
-5. Se `infrastructure` **non** e' stato rilevato → rimuovi l'intera Sezione X (da `## X.` fino alla fine del documento, **preservando il blocco footer** `*Version: ...*`)
-   - **Multi-progetto**: mantieni Sezione X se **qualsiasi** sub-project ha `infrastructure` rilevato
-   - Quando la Sezione X viene rimossa, rimuovi anche la nota `> **Note for Terraform projects**` subito dopo `## I. Core Principles` (per evitare un puntatore a una sezione inesistente)
-
-#### Per modalita' GREENFIELD:
-
-Copia il file verbatim (nessuna modifica).
-
-#### Per modalita' UPDATE:
-
-Sovrascrivi il CONSTITUTION.md esistente con la versione letta dal plugin, applicando le stesse regole di EXISTING basandoti sulla detection del Passo 2.
-
-**Conflict detection**: Se `CONSTITUTION.md` esiste gia' nel progetto, chiedi allo sviluppatore prima di sovrascrivere.
-
-Scrivi il risultato in `CONSTITUTION.md` nella root del progetto.
+**Report in the Step 9 summary** (a single line):
+- Unambiguous PM detected: `allowlist tightened to <pm>-only commands per detected lock file (<lockfile>)`
+- Multiple lock files: `multiple lock files detected (<list>) — allowlist left as default; consider committing to a single PM`
+- No lock file but `node` detected: `no lock file present — allowlist left as default; the team should run \`<pm> install\` and re-run setup to tighten`
 
 ---
 
-### Passo 5 — Genera AGENTS.md
+### Step 4 — Adapt CONSTITUTION.md
 
-#### 5A — Progetto singolo (non multi-progetto)
+Start from the content read from `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`.
 
-Leggi il contenuto da `${CLAUDE_SKILL_DIR}/templates/AGENTS.template.md` e sostituisci i placeholder.
-Il template e' unico per tutte le modalita': cambia solo la fonte dei valori.
+#### For EXISTING mode:
 
-**Valori placeholder per modalita' EXISTING:**
+> Every rule names the section to remove by number: the only source of that number are the
+> `## <N>.` headings in `CONSTITUTION.md`, and check 9 of `/project:validate` verifies that
+> the rule↔heading pair matches.
 
-- `{{STACK_DESCRIPTION}}` → descrizione compatta dello stack rilevato. Formato: `Stack rilevato: linguaggi[, test: comando_test][, linter: comando_lint][, validazione: tool]`
-  - Esempio: `Stack rilevato: **node**, test: npm test, linter: npm run lint, validazione: Zod`
-  - Se test/linter/validazione sono `non rilevato`, omettili dalla stringa
-  - Aggiungi nota: `> Questo stack e' stato rilevato automaticamente. Se non e' corretto, aggiorna questa sezione manualmente.`
-- `{{TEST_COMMAND}}` → il comando test rilevato (es. `npm test`, `pytest`, `non rilevato`)
-- `{{LINT_COMMAND}}` → il comando linter rilevato (es. `npm run lint`, `ruff check .`, `non rilevato`)
-- `{{TYPECHECK_COMMAND}}` → il comando di type-check rilevato. Per progetti Node con `tsconfig.json`, leggi `package.json.scripts.typecheck` o `package.json.scripts['type-check']`; se mancano, usa `tsc --noEmit`. Per altri stack, lascia `non rilevato`.
-- `{{QUALITY_COVERAGE_TARGET}}` → soglia di coverage. Default: `80%` con commento `(industry baseline; adjust if your team has set a different bar)`. Se il `package.json` o il config del test runner espone una soglia esplicita, usa quella.
-- `{{VCS_OPS_NOTE}}` → riga informativa sul provider Git rilevato al Passo 2c. Scegli una delle seguenti in base a `{VCS}`:
+1. If the frontend was **not** detected, or `{FRAMEWORK_FRONTEND}` is `nuxt` or `vue` → remove the whole Section VI (from `## VI.` up to just before `## VII.`)
+   - **Multi-project**: keep Section VI if **any** sub-project has a `{FRAMEWORK_FRONTEND}` other than `nuxt` and `vue`
+2. If `{FRAMEWORK_FRONTEND}` is **neither** `nuxt` nor `vue` → remove the whole Section VII (from `## VII.` up to just before `## VIII.`)
+   - **Multi-project**: keep Section VII if **any** sub-project has `{FRAMEWORK_FRONTEND}` = `nuxt` or `vue`
+   - The two sections are alternatives: §VI covers Next.js / Angular / React, §VII covers Nuxt 3 / Vue 3. A project with a single frontend framework keeps only one; a mixed multi-project may keep both
+3. If mobile was **not** detected → remove the whole Section VIII (from `## VIII.` up to just before `## IX.`)
+   - **Multi-project**: keep Section VIII if **any** sub-project has mobile detected
+4. If the detected language does **not** include `node` → add this note right after the `## I. Core Principles` line:
+   - **Multi-project**: add the note only if **no** sub-project uses `node`
+   - If the language includes `terraform`, adapt the note text to mention §X explicitly (see the variant below)
+
+**Standard note** (no Terraform):
+```
+> **Note**: TypeScript/Zod-specific rules apply to TypeScript projects.
+> For other languages, apply the equivalent principle (schema-first validation
+> with the appropriate tool for your stack, the language's native strict typing).
+```
+
+**Note with Terraform** (languages include `terraform` and do not include `node`):
+```
+> **Note**: TypeScript/Zod-specific rules apply to TypeScript projects.
+> For other languages, apply the equivalent principle. For Terraform / HCL projects,
+> the IaC rules are codified in **§X (Infrastructure as Code)** later in this
+> document.
+```
+
+5. If `infrastructure` was **not** detected → remove the whole Section X (from `## X.` to the end of the document, **preserving the footer block** `*Version: ...*`)
+   - **Multi-project**: keep Section X if **any** sub-project has `infrastructure` detected
+   - When Section X is removed, also remove the `> **Note for Terraform projects**` note right after `## I. Core Principles` (to avoid a pointer to a section that no longer exists)
+
+#### For GREENFIELD mode:
+
+Copy the file verbatim (no changes).
+
+#### For UPDATE mode:
+
+Overwrite the existing CONSTITUTION.md with the version read from the plugin, applying the same rules as EXISTING based on the Step 2 detection.
+
+**Conflict detection**: if `CONSTITUTION.md` already exists in the project, ask the developer before overwriting.
+
+Write the result to `CONSTITUTION.md` in the project root.
+
+---
+
+### Step 5 — Generate AGENTS.md
+
+#### 5A — Single project (not multi-project)
+
+Read the content from `${CLAUDE_SKILL_DIR}/templates/AGENTS.template.md` and substitute the placeholders.
+The template is the same for every mode: only the source of the values changes.
+
+**Placeholder values for EXISTING mode:**
+
+- `{{STACK_DESCRIPTION}}` → a compact description of the detected stack. Format: `Detected stack: languages[, test: test_command][, linter: lint_command][, validation: tool]`
+  - Example: `Detected stack: **node**, test: npm test, linter: npm run lint, validation: Zod`
+  - If test/linter/validation are `not detected`, omit them from the string
+  - Add the note: `> This stack was detected automatically. If it is wrong, update this section manually.`
+- `{{TEST_COMMAND}}` → the detected test command (e.g. `npm test`, `pytest`, `not detected`)
+- `{{LINT_COMMAND}}` → the detected linter command (e.g. `npm run lint`, `ruff check .`, `not detected`)
+- `{{TYPECHECK_COMMAND}}` → the detected type-check command. For Node projects with a `tsconfig.json`, read `package.json.scripts.typecheck` or `package.json.scripts['type-check']`; if they are missing, use `tsc --noEmit`. For other stacks, leave `not detected`.
+- `{{QUALITY_COVERAGE_TARGET}}` → the coverage threshold. Default: `80%` with the comment `(industry baseline; adjust if your team has set a different bar)`. If `package.json` or the test runner config exposes an explicit threshold, use that one.
+- `{{VCS_OPS_NOTE}}` → an informational line about the Git provider detected in Step 2c. Pick one of the following based on `{VCS}`:
   - `github` → `> GitHub operations (branch, PR, commit) are performed with the \`gh\` CLI.`
   - `gitlab` → `` > GitLab operations (branch, MR, commit) are performed with the `glab` CLI. MR descriptions follow `.gitlab/merge_request_templates/Default.md` when present. ``
   - `none` / `other` → `` > Git operations via the `git` CLI. No remote provider configured. ``
 
-**Project Identity (interattivo, modalita' EXISTING e GREENFIELD):**
+**Project Identity (interactive, EXISTING and GREENFIELD modes):**
 
-Emetti UNA singola domanda batch con tre sotto-campi e raccogli le risposte. Lascia `{{TODO: <hint>}}` per i campi vuoti — non improvvisare valori.
+Ask ONE single batched question with three sub-fields and collect the answers. Leave `{{TODO: <hint>}}` for empty fields — do not invent values.
 
-> Domanda da porre allo sviluppatore:
+> Question to ask the developer:
 >
-> "Per popolare la sezione `Project Identity` di AGENTS.md mi servono tre informazioni brevi (premi Invio per saltare un campo, lo lascio come TODO):
-> - **Name**: nome corto del progetto (es. 'Acme Web App')
-> - **Purpose**: una frase su cosa fa il progetto
-> - **Primary users**: chi lo usa (es. 'consumer travelers', 'internal ops')"
+> "To fill in the `Project Identity` section of AGENTS.md I need three short pieces of information (press Enter to skip a field and I will leave it as a TODO):
+> - **Name**: the project's short name (e.g. 'Acme Web App')
+> - **Purpose**: one sentence on what the project does
+> - **Primary users**: who uses it (e.g. 'consumer travelers', 'internal ops')"
 
-Sostituzioni:
-- `{{PROJECT_NAME}}` → risposta del developer, oppure `{{TODO: short app name}}`
-- `{{PROJECT_PURPOSE}}` → risposta del developer, oppure `{{TODO: one-sentence purpose}}`
-- `{{PROJECT_PRIMARY_USERS}}` → risposta del developer, oppure `{{TODO: who uses this app}}`
+Substitutions:
+- `{{PROJECT_NAME}}` → the developer's answer, or `{{TODO: short app name}}`
+- `{{PROJECT_PURPOSE}}` → the developer's answer, or `{{TODO: one-sentence purpose}}`
+- `{{PROJECT_PRIMARY_USERS}}` → the developer's answer, or `{{TODO: who uses this app}}`
 
-**Infrastructure (auto-detect + TODO, modalita' EXISTING e GREENFIELD):**
+**Infrastructure (auto-detect + TODO, EXISTING and GREENFIELD modes):**
 
-Tenta auto-detection nell'ordine sotto; tutto cio' che non e' rilevabile diventa `{{TODO: <hint>}}`:
+Attempt auto-detection in the order below; anything not detectable becomes `{{TODO: <hint>}}`:
 
-- `{{INFRA_VCS_CI}}` → combina:
-  - VCS: parsa l'URL del remote da `.git/config` (`gitlab.com` → `GitLab`, `github.com` → `GitHub`, `bitbucket.org` → `Bitbucket`, `dev.azure.com` → `Azure DevOps`)
-  - CI: presenza di `.gitlab-ci.yml` → `GitLab CI`; `.github/workflows/` → `GitHub Actions`; `.circleci/config.yml` → `CircleCI`; `bitbucket-pipelines.yml` → `Bitbucket Pipelines`; `azure-pipelines.yml` → `Azure Pipelines`; `Jenkinsfile` → `Jenkins`
-  - Risultato: `<VCS> + <CI>` (es. `GitLab + GitLab CI`). Se VCS rilevato e CI no, scrivi `<VCS>, CI: {{TODO: which CI provider}}`.
-- `{{INFRA_SECRETS}}` → presenza di `dotenv-vault.json` o `.env.vault` → `dotenv-vault`; `*.tfstate` con backend `vault` → `HashiCorp Vault`; `aws-secretsmanager` o `aws ssm` riferimenti in IaC/CI → `AWS Secrets Manager` / `AWS Parameter Store`. Altrimenti `{{TODO: secrets manager (e.g. dotenv-vault, AWS SSM, Vault)}}`.
-- `{{INFRA_HOSTING}}` → euristica leggera dal CI: rileva nomi di provider in step di deploy (`vercel`, `netlify`, `aws-eks`, `kubectl`, `gcloud run`, `firebase deploy`). Altrimenti `{{TODO: hosting/deploy target}}`.
-- `{{INFRA_OBSERVABILITY}}` → presenza di `datadog.yaml` / dipendenza `dd-trace` → `Datadog`; `sentry.client.config.*` o `@sentry/*` in package.json → `Sentry`; `newrelic.{yml,json}` → `New Relic`. Altrimenti `{{TODO: observability tool}}`.
+- `{{INFRA_VCS_CI}}` → combine:
+  - VCS: parse the remote URL from `.git/config` (`gitlab.com` → `GitLab`, `github.com` → `GitHub`, `bitbucket.org` → `Bitbucket`, `dev.azure.com` → `Azure DevOps`)
+  - CI: presence of `.gitlab-ci.yml` → `GitLab CI`; `.github/workflows/` → `GitHub Actions`; `.circleci/config.yml` → `CircleCI`; `bitbucket-pipelines.yml` → `Bitbucket Pipelines`; `azure-pipelines.yml` → `Azure Pipelines`; `Jenkinsfile` → `Jenkins`
+  - Result: `<VCS> + <CI>` (e.g. `GitLab + GitLab CI`). If the VCS is detected but the CI is not, write `<VCS>, CI: {{TODO: which CI provider}}`.
+- `{{INFRA_SECRETS}}` → presence of `dotenv-vault.json` or `.env.vault` → `dotenv-vault`; `*.tfstate` with a `vault` backend → `HashiCorp Vault`; `aws-secretsmanager` or `aws ssm` references in IaC/CI → `AWS Secrets Manager` / `AWS Parameter Store`. Otherwise `{{TODO: secrets manager (e.g. dotenv-vault, AWS SSM, Vault)}}`.
+- `{{INFRA_HOSTING}}` → a light heuristic from the CI: detect provider names in deploy steps (`vercel`, `netlify`, `aws-eks`, `kubectl`, `gcloud run`, `firebase deploy`). Otherwise `{{TODO: hosting/deploy target}}`.
+- `{{INFRA_OBSERVABILITY}}` → presence of `datadog.yaml` / a `dd-trace` dependency → `Datadog`; `sentry.client.config.*` or `@sentry/*` in package.json → `Sentry`; `newrelic.{yml,json}` → `New Relic`. Otherwise `{{TODO: observability tool}}`.
 
-**Boundaries (semi-auto, modalita' EXISTING e GREENFIELD):**
+**Boundaries (semi-automatic, EXISTING and GREENFIELD modes):**
 
-- `{{BOUNDARIES_ALWAYS}}` → seed automatico con i comandi di qualita' rilevati, formato bullet list:
-  - `- Run \`{{TEST_COMMAND}}\` before commit` (omettilo se `{{TEST_COMMAND}}` e' `non rilevato`)
-  - `- Run \`{{LINT_COMMAND}}\` before commit` (omettilo se `{{LINT_COMMAND}}` e' `non rilevato`)
-  - `- Run \`{{TYPECHECK_COMMAND}}\` before commit` (omettilo se `{{TYPECHECK_COMMAND}}` e' `non rilevato`)
-  - Se tutti tre sono `non rilevato`, lascia `{{TODO: list always-do actions for this project}}`
+- `{{BOUNDARIES_ALWAYS}}` → seeded automatically with the detected quality commands, as a bullet list:
+  - `- Run \`{{TEST_COMMAND}}\` before commit` (omit it if `{{TEST_COMMAND}}` is `not detected`)
+  - `- Run \`{{LINT_COMMAND}}\` before commit` (omit it if `{{LINT_COMMAND}}` is `not detected`)
+  - `- Run \`{{TYPECHECK_COMMAND}}\` before commit` (omit it if `{{TYPECHECK_COMMAND}}` is `not detected`)
+  - If all three are `not detected`, leave `{{TODO: list always-do actions for this project}}`
 - `{{BOUNDARIES_ASK_FIRST}}` → `{{TODO: list actions that require explicit go-ahead (e.g. adding new dependencies, schema migrations, brand-color changes)}}`
-- `{{BOUNDARIES_NEVER_EXTRA}}` → vuota di default (la lista `Never Do` di base e' gia' nel template; aggiungi qui solo le proibizioni specifiche del progetto). Esempio se rilevi un repo con prod ref non standard: `- Push to <branch-name> without explicit go-ahead`.
+- `{{BOUNDARIES_NEVER_EXTRA}}` → empty by default (the base `Never Do` list is already in the template; add only project-specific prohibitions here). Example if you detect a repo with a non-standard prod ref: `- Push to <branch-name> without explicit go-ahead`.
 
-**Valori placeholder per modalita' GREENFIELD:**
+**Placeholder values for GREENFIELD mode:**
 
-In base allo stack scelto nel Passo 2b:
+Based on the stack chosen in Step 2b:
 
 | Stack | `{{STACK_DESCRIPTION}}` | `{{TEST_COMMAND}}` | `{{LINT_COMMAND}}` |
 |---|---|---|---|
-| Web Frontend | `**Web Frontend**: Next.js 14+ / Angular 17+ / React 18+, ShadCN/UI, Tailwind CSS, Zod, Jest + Testing Library` | `npm test` | `npm run lint` |
-| Backend Node | `**Backend Node**: Node.js 20+, NestJS 10+, Zod + class-validator, Jest + Supertest, Prisma` | `npm test` | `npm run lint` |
-| Mobile (Flutter) | `**Mobile**: Flutter 3.24+ (BLoC/Riverpod)` | `flutter test` | `dart analyze` |
-| Mobile (React Native) | `**Mobile**: React Native con Expo (Zustand/Jotai)` | `npm test` | `npm run lint` |
-| Infrastructure (Terraform) | `**Infrastructure**: Terraform — segui la versione pinnata del repo, remote state con locking + encryption at rest, HashiCorp style guide` | `terraform validate` | `terraform fmt -check -recursive` |
+| Web Frontend | `**Web Frontend**: Next.js 16+ / Angular 22+ / React 19+, ShadCN/UI, Tailwind CSS 4, Zod 4, Jest + Testing Library` | `npm test` | `npm run lint` |
+| Backend Node | `**Backend Node**: Node.js 24+, NestJS 11+, Zod 4 via nestjs-zod, Jest + Supertest, Prisma` | `npm test` | `npm run lint` |
+| Mobile (Flutter) | `**Mobile**: Flutter 3.47+ (BLoC/Riverpod)` | `flutter test` | `dart analyze` |
+| Mobile (React Native) | `**Mobile**: React Native with Expo (Zustand/Jotai)` | `npm test` | `npm run lint` |
+| Infrastructure (Terraform) | `**Infrastructure**: Terraform — follow the repo's pinned version, remote state with locking + encryption at rest, HashiCorp style guide` | `terraform validate` | `terraform fmt -check -recursive` |
 
-**Per modalita' UPDATE:** Rigenera come per EXISTING o GREENFIELD (a seconda dello stato del progetto).
+**For UPDATE mode:** regenerate as for EXISTING or GREENFIELD (depending on the project's state).
 
-**Conflict detection**: Se `AGENTS.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
+**Conflict detection**: if `AGENTS.md` already exists, ask the developer before overwriting.
 
-**Framework-specific block — Next.js (`AGENTS.md` bundled-docs convention)**:
+**Framework-specific block — Next.js (the `AGENTS.md` bundled-docs convention)**:
 
-Se `{FRAMEWORK_FRONTEND}` == `nextjs`, prepend il blocco canonico Next.js al `AGENTS.md` generato, **prima** di tutto il contenuto derivato dal template:
+If `{FRAMEWORK_FRONTEND}` == `nextjs`, prepend the canonical Next.js block to the generated `AGENTS.md`, **before** all the template-derived content:
 
 ```md
 <!-- BEGIN:nextjs-agent-rules -->
@@ -548,221 +548,221 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 
 ```
 
-I marker `BEGIN:nextjs-agent-rules` / `END:nextjs-agent-rules` delimitano una sezione gestita da `next upgrade` (Next.js 16.2+): tutto cio' che e' tra i marker viene riscritto agli upgrade, tutto cio' che e' fuori e' preservato. Tenere il contenuto del plugin sotto il `END` marker garantisce che `next upgrade` non lo sovrascriva. Per dettagli completi vedi `profiles/nextjs.md`.
+The `BEGIN:nextjs-agent-rules` / `END:nextjs-agent-rules` markers delimit a section managed by `next upgrade` (Next.js 16.2+): everything between the markers is rewritten on upgrades, everything outside is preserved. Keeping the plugin's content below the `END` marker guarantees `next upgrade` will not overwrite it. For full details see `profiles/nextjs.md`.
 
-In base a `{FRAMEWORK_FRONTEND_VERSION}` (parsato come major.minor, es. `16.0`, `17.2`):
+Based on `{FRAMEWORK_FRONTEND_VERSION}` (parsed as major.minor, e.g. `16.0`, `17.2`):
 
-- `>= 16.2` → i docs sono bundled in `node_modules/next/dist/docs/`. Aggiungi al riepilogo del Passo 9: "esegui `npx next upgrade@canary` periodicamente per aggiornare il blocco AGENTS.md."
-- `< 16.2` → i docs **non** sono bundled. Aggiungi al riepilogo del Passo 9: "esegui `npx @next/codemod@latest agents-md` per generare i docs in `.next-docs/` e aggiornare il path nel blocco."
+- `>= 16.2` → the docs are bundled in `node_modules/next/dist/docs/`. Add to the Step 9 summary: "run `npx next upgrade@canary` periodically to keep the AGENTS.md block current."
+- `< 16.2` → the docs are **not** bundled. Add to the Step 9 summary: "run `npx @next/codemod@latest agents-md` to generate the docs in `.next-docs/` and update the path in the block."
 
-**Brownfield**: se `AGENTS.md` esiste gia' e contiene un blocco `BEGIN:nextjs-agent-rules` … `END:nextjs-agent-rules`, **non rigenerare** il contenuto interno. Preserva il blocco verbatim e plug il template del plugin sotto la chiusura `END`. Il blocco interno e' territorio di Next.js — riscriverlo confliggerebbe con il prossimo `next upgrade`.
+**Brownfield**: if `AGENTS.md` already exists and contains a `BEGIN:nextjs-agent-rules` … `END:nextjs-agent-rules` block, do **not** regenerate the inner content. Preserve the block verbatim and append the plugin template below the `END` marker. The inner block is Next.js territory — rewriting it would conflict with the next `next upgrade`.
 
-**Convenzioni framework scoperte a runtime**:
+**Framework conventions discovered at runtime**:
 
-Se la verifica del Passo 2a ha popolato `{FRAMEWORK_AGENTS_CONVENTION}` per un framework diverso da Next.js (o per una versione di Next.js piu' recente di quanto documentato sopra), applica la stessa strategia di iniezione: marker delimitati al top del file, contenuto del template del plugin sotto la chiusura. Precedenza: profile hard-coded (es. il blocco Next.js sopra) → convenzione runtime → nessuna iniezione. In caso di conflitto fra profile hard-coded e runtime, il profile vince e la convenzione runtime viene segnalata come "non applicata, fonte hard-coded ha precedenza" nel riepilogo del Passo 9.
+If the Step 2 check populated `{FRAMEWORK_AGENTS_CONVENTION}` for a framework other than Next.js (or for a Next.js version newer than what is documented above), apply the same injection strategy: delimited markers at the top of the file, the plugin's template content below the closing marker. Precedence: hard-coded profile (e.g. the Next.js block above) → runtime convention → no injection. If a hard-coded profile and the runtime check conflict, the profile wins and the runtime convention is reported as "not applied, hard-coded source takes precedence" in the Step 9 summary.
 
-Scrivi il risultato in `AGENTS.md` nella root del progetto.
+Write the result to `AGENTS.md` in the project root.
 
-#### 5B — Multi-progetto (o stack fullstack)
+#### 5B — Multi-project (or the fullstack stack)
 
-Genera **due livelli** di AGENTS.md: uno alla root e uno per ogni sub-project **applicazione**. Le librerie non ricevono file di setup per-progetto — la loro usage viene citata nel REGISTRY dell'applicazione che le consuma (vedi sotto, "Citazione delle librerie consumate").
+Generate **two levels** of AGENTS.md: one at the root and one per **application** sub-project. Libraries do not get per-project setup files — their usage is cited in the REGISTRY of the application that consumes them (see "Citing consumed libraries" below).
 
-**Classificazione sub-project (application vs library)**, in ordine di priorita':
+**Sub-project classification (application vs library)**, in priority order:
 
-1. Path matcha `applications/*`, `apps/*`, `services/*` → **application**
-2. Path matcha `libraries/*`, `libs/*`, `packages/*` → **library**
-3. `package.json` ha `"private": false` E `"main"`/`"exports"` → **library** (forma pubblicabile)
-4. `package.json` ha `scripts.dev` o `scripts.start` → **application** (forma eseguibile)
-5. Altrimenti → chiedi allo sviluppatore (default: **application**)
+1. Path matches `applications/*`, `apps/*`, `services/*` → **application**
+2. Path matches `libraries/*`, `libs/*`, `packages/*` → **library**
+3. `package.json` has `"private": false` AND `"main"`/`"exports"` → **library** (publishable shape)
+4. `package.json` has `scripts.dev` or `scripts.start` → **application** (runnable shape)
+5. Otherwise → ask the developer (default: **application**)
 
-Salva la classificazione per ciascun sub-project come `{SUBPROJECT_TYPE}`.
+Save the classification for each sub-project as `{SUBPROJECT_TYPE}`.
 
-**Root AGENTS.md** — usa `${CLAUDE_SKILL_DIR}/templates/AGENTS.workspace-template.md`:
-- `{{WORKSPACE_STRUCTURE}}` → genera una tabella con TUTTI i sub-project confermati (apps + libs), con colonna `Type` e con la colonna `Instructions` differenziata:
+**Root AGENTS.md** — use `${CLAUDE_SKILL_DIR}/templates/AGENTS.workspace-template.md`:
+- `{{WORKSPACE_STRUCTURE}}` → generate a table with ALL confirmed sub-projects (apps + libs), with a `Type` column and a differentiated `Instructions` column:
   ```
   | Project | Type | Path | Stack | Instructions |
   |---|---|---|---|---|
-  | web   | application | apps/web/ | Next.js 14+, React 18+ | [apps/web/AGENTS.md](apps/web/AGENTS.md) |
-  | api   | application | apps/api/ | Node.js 20+, NestJS 10+ | [apps/api/AGENTS.md](apps/api/AGENTS.md) |
+  | web   | application | apps/web/ | Next.js 16+, React 19+ | [apps/web/AGENTS.md](apps/web/AGENTS.md) |
+  | api   | application | apps/api/ | Node.js 24+, NestJS 11+ | [apps/api/AGENTS.md](apps/api/AGENTS.md) |
   | shared | library    | libs/shared/ | TypeScript, Zod | (no per-library file — see consuming app REGISTRY) |
   ```
-- Aggiungi sotto la tabella la nota:
+- Below the table, add this note:
   > Libraries do not get per-project setup files. When a library exposes an interesting pattern, ADR, or breaking change, add a `### library/<name>` entry to the **consuming application's `REGISTRY.md`** under "Services and utilities" — that's where library usage is documented.
-- `{{PROJECT_NAME}}`, `{{PROJECT_PURPOSE}}`, `{{PROJECT_PRIMARY_USERS}}`, `{{INFRA_VCS_CI}}`, `{{INFRA_SECRETS}}`, `{{INFRA_HOSTING}}`, `{{INFRA_OBSERVABILITY}}`, `{{QUALITY_COVERAGE_TARGET}}`, `{{TEST_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TYPECHECK_COMMAND}}`, `{{BOUNDARIES_ALWAYS}}`, `{{BOUNDARIES_ASK_FIRST}}`, `{{BOUNDARIES_NEVER_EXTRA}}` → segui le stesse istruzioni del Passo 5A (prompt interattivo per Project Identity, auto-detect per Infrastructure, semi-auto per Boundaries). Per i comandi di workspace, preferisci la forma multi-progetto del build tool: Nx → `nx run-many -t <target>`; pnpm workspace puro → `pnpm -r <script>`; turbo → `turbo run <task>`. Se ne rilevi piu' di uno, usa quello esposto come root script in `package.json`.
-- Scrivi il risultato in `AGENTS.md` nella root
+- `{{PROJECT_NAME}}`, `{{PROJECT_PURPOSE}}`, `{{PROJECT_PRIMARY_USERS}}`, `{{INFRA_VCS_CI}}`, `{{INFRA_SECRETS}}`, `{{INFRA_HOSTING}}`, `{{INFRA_OBSERVABILITY}}`, `{{QUALITY_COVERAGE_TARGET}}`, `{{TEST_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TYPECHECK_COMMAND}}`, `{{BOUNDARIES_ALWAYS}}`, `{{BOUNDARIES_ASK_FIRST}}`, `{{BOUNDARIES_NEVER_EXTRA}}` → follow the same instructions as Step 5A (interactive prompt for Project Identity, auto-detect for Infrastructure, semi-automatic for Boundaries). For workspace commands, prefer the build tool's multi-project form: Nx → `nx run-many -t <target>`; plain pnpm workspace → `pnpm -r <script>`; turbo → `turbo run <task>`. If you detect more than one, use the one exposed as a root script in `package.json`.
+- Write the result to `AGENTS.md` in the root
 
-**AGENTS.md per sub-project** — usa `${CLAUDE_SKILL_DIR}/templates/AGENTS.project-template.md`:
+**Per-sub-project AGENTS.md** — use `${CLAUDE_SKILL_DIR}/templates/AGENTS.project-template.md`:
 
-**Solo per i sub-project con `{SUBPROJECT_TYPE} == 'application'`**, sostituisci i placeholder:
-- `{{PROJECT_NAME}}` → nome descrittivo del sub-project (es. "Web Frontend", "Backend API")
-- `{{STACK_DESCRIPTION}}` → stack rilevato del sub-project (stessi criteri del punto 5A)
-- `{{TEST_COMMAND}}` → test runner rilevato nel sub-project
-- `{{LINT_COMMAND}}` → linter rilevato nel sub-project
-- `{{ROOT_AGENTS_REL_PATH}}` → path relativo alla root (es. `../../AGENTS.md`)
+**Only for sub-projects with `{SUBPROJECT_TYPE} == 'application'`**, substitute the placeholders:
+- `{{PROJECT_NAME}}` → a descriptive name for the sub-project (e.g. "Web Frontend", "Backend API")
+- `{{STACK_DESCRIPTION}}` → the sub-project's detected stack (same criteria as 5A)
+- `{{TEST_COMMAND}}` → the test runner detected in the sub-project
+- `{{LINT_COMMAND}}` → the linter detected in the sub-project
+- `{{ROOT_AGENTS_REL_PATH}}` → the relative path to the root (e.g. `../../AGENTS.md`)
 
-Scrivi il risultato in `<sub-project-path>/AGENTS.md`.
+Write the result to `<sub-project-path>/AGENTS.md`.
 
-I sub-project con `{SUBPROJECT_TYPE} == 'library'` **non ricevono** AGENTS.md / CLAUDE.md / REGISTRY.md.
+Sub-projects with `{SUBPROJECT_TYPE} == 'library'` do **not** get AGENTS.md / CLAUDE.md / REGISTRY.md.
 
-**Citazione delle librerie consumate** (per ogni applicazione):
+**Citing consumed libraries** (for every application):
 
-Per ogni sub-project con `{SUBPROJECT_TYPE} == 'application'`, leggi il suo `package.json` e identifica le dipendenze workspace verso le librerie del monorepo. Una dipendenza e' workspace-resolved quando:
-- Il valore e' `workspace:*`, `workspace:^`, `workspace:~`, o `workspace:<version>`
-- Oppure il nome del package matcha esattamente il `name` di un sub-project con `{SUBPROJECT_TYPE} == 'library'`
+For each sub-project with `{SUBPROJECT_TYPE} == 'application'`, read its `package.json` and identify the workspace dependencies pointing at the monorepo's libraries. A dependency is workspace-resolved when:
+- The value is `workspace:*`, `workspace:^`, `workspace:~`, or `workspace:<version>`
+- Or the package name matches exactly the `name` of a sub-project with `{SUBPROJECT_TYPE} == 'library'`
 
-Per ogni libreria consumata, aggiungi una entry in `<app>/REGISTRY.md` sezione "Services and utilities" usando questo template:
+For each consumed library, add an entry to `<app>/REGISTRY.md` under "Services and utilities" using this template:
 
 ```markdown
 ### library/<name>
 
-- **Where**: `libraries/<name>/` (o il path effettivo) — workspace package
-- **Used by**: this application (aggiungi le altre app che la consumano, separate da virgola)
-- **Summary**: <una riga; usa la `description` di `<lib>/package.json` se presente, oppure il primo paragrafo significativo del README della libreria; se nessuno e' utilizzabile, scrivi "TBD — refine when first touched">
+- **Where**: `libraries/<name>/` (or the actual path) — workspace package
+- **Used by**: this application (add the other apps that consume it, comma-separated)
+- **Summary**: <one line; use the `description` from `<lib>/package.json` if present, or the first meaningful paragraph of the library README; if neither is usable, write "TBD — refine when first touched">
 ```
 
-Cosi' l'agente AI che lavora nell'applicazione vede subito quali librerie usa, dove vivono, e ha un punto da cui partire per indagare il loro contenuto. Quando il team aggiunge pattern/ADR che toccano una libreria, vivono nel REGISTRY dell'app consumante e possono fare riferimento a `### library/<name>` per ancoraggio.
+This way the AI agent working in the application immediately sees which libraries it uses, where they live, and has a starting point for investigating their content. When the team adds patterns/ADRs that touch a library, they live in the consuming app's REGISTRY and can reference `### library/<name>` as an anchor.
 
 ---
 
-### Passo 5b — Genera CLAUDE.md
+### Step 5b — Generate CLAUDE.md
 
-Claude Code legge `CLAUDE.md`, non `AGENTS.md`. Per garantire compatibilita' con Claude Code
-e al tempo stesso mantenere `AGENTS.md` come standard cross-tool,
-genera un `CLAUDE.md` che referenzia `AGENTS.md`:
+Claude Code reads `CLAUDE.md`, not `AGENTS.md`. To guarantee compatibility with Claude Code
+while keeping `AGENTS.md` as the cross-tool standard,
+generate a `CLAUDE.md` that references `AGENTS.md`:
 
 ```markdown
 @AGENTS.md
 ```
 
-Il file `CLAUDE.md` deve contenere **solo** la riga sopra indicata. Non aggiungere
-altro contenuto: tutte le istruzioni devono restare in `AGENTS.md` come single source of truth.
+The `CLAUDE.md` file must contain **only** the line above. Do not add any other
+content: every instruction must stay in `AGENTS.md` as the single source of truth.
 
-**Conflict detection**: Se `CLAUDE.md` esiste gia', chiedi allo sviluppatore prima di sovrascrivere.
+**Conflict detection**: if `CLAUDE.md` already exists, ask the developer before overwriting.
 
-Scrivi il risultato in `CLAUDE.md` nella root del progetto.
+Write the result to `CLAUDE.md` in the project root.
 
-**Multi-progetto**: genera `CLAUDE.md` anche in ogni sub-project confermato, con lo stesso contenuto (`@AGENTS.md`). Il CLAUDE.md del sub-project puntera' all'AGENTS.md locale del sub-project.
+**Multi-project**: generate a `CLAUDE.md` in every confirmed sub-project too, with the same content (`@AGENTS.md`). The sub-project's CLAUDE.md will point at the sub-project's local AGENTS.md.
 
 ---
 
-### Passo 6 — Configura MCP servers
+### Step 6 — Configure MCP servers
 
-Il plugin **non** dichiara server MCP propri: ogni server pesa sul contesto di ogni
-sessione, quindi si registra solo cio' che il progetto usa davvero. Questo passo
-decide in base alla detection del Passo 2.
+The plugin declares **no** MCP servers of its own: every server costs context in every
+session, so only what the project actually uses gets registered. This step decides
+based on the Step 2 detection.
 
-Verifica se `claude` CLI e' disponibile con `command -v claude`. Se non lo e', stampa i comandi da eseguire manualmente e vai al passo successivo.
+Check whether the `claude` CLI is available with `command -v claude`. If it is not, print the commands to run manually and move to the next step.
 
-> **Transport**: `-t` accetta `stdio`, `sse`, `http`. `url` non e' un transport valido:
-> un server dichiarato con `"type": "url"` viene scartato in silenzio.
+> **Transport**: `-t` accepts `stdio`, `sse`, `http`. `url` is not a valid transport:
+> a server declared with `"type": "url"` is silently discarded.
 
-#### 6.1 — ClickUp (user scope, solo con la lista task configurata)
+#### 6.1 — ClickUp (user scope, only with the task list configured)
 
-ClickUp serve solo se il team traccia i task su ClickUp. Cerca `CLICKUP_SETUP_LIST_ID`
-in quest'ordine: variabile d'ambiente, `.env` del progetto, `userConfig` del plugin.
+ClickUp is only useful if the team tracks tasks in ClickUp. Look for `CLICKUP_SETUP_LIST_ID`
+in this order: environment variable, the project's `.env`, the plugin's `userConfig`.
 
-- **Valorizzato** → controlla con `claude mcp list` se `clickup` e' gia' configurato. Se non lo e':
+- **Set** → check with `claude mcp list` whether `clickup` is already configured. If it is not:
   ```bash
   claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp
   ```
-- **Vuoto o assente** → **non** registrare il server. Riporta nel riepilogo del Passo 9:
-  "ClickUp MCP non configurato: valorizza `CLICKUP_SETUP_LIST_ID` in `.env`, poi esegui
+- **Empty or absent** → do **not** register the server. Report in the Step 9 summary:
+  "ClickUp MCP not configured: set `CLICKUP_SETUP_LIST_ID` in `.env`, then run
   `claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp`".
 
-#### 6.2 — Documentazione librerie: CLI `ctx7`, non MCP
+#### 6.2 — Library documentation: the `ctx7` CLI, not MCP
 
-**Non** registrare Context7 come server MCP. `AGENTS.md` dichiara la CLI `ctx7` come
-fonte preferita — piu' veloce e senza budget di tool-call — quindi il server
-duplicherebbe la stessa capacita' pagando le sue tool definition a ogni sessione.
+Do **not** register Context7 as an MCP server. `AGENTS.md` declares the `ctx7` CLI as the
+preferred source — faster and with no tool-call budget — so the server would
+duplicate the same capability while paying for its tool definitions in every session.
 
-Verifica con `command -v ctx7`:
-- **presente** → nulla da fare
-- **assente** → nulla da installare: `AGENTS.md` istruisce a invocarla via `npx ctx7@latest <command>`
+Check with `command -v ctx7`:
+- **present** → nothing to do
+- **absent** → nothing to install: `AGENTS.md` instructs to invoke it via `npx ctx7@latest <command>`
 
-Solo se ne' la CLI ne' `npx` sono raggiungibili (ambiente senza rete npm), segnala nel
-riepilogo del Passo 9 il fallback manuale:
+Only if neither the CLI nor `npx` is reachable (an environment without npm network access), report the
+manual fallback in the Step 9 summary:
 ```bash
 claude mcp add context7 -s project -- npx -y @upstash/context7-mcp@latest
 ```
 
-#### 6.3 — Figma (project scope, solo se frontend o mobile rilevato)
+#### 6.3 — Figma (project scope, only if frontend or mobile is detected)
 
-Solo se il Passo 2 ha rilevato frontend o mobile, o se lo stack scelto al Passo 2b e'
-web-frontend / mobile / fullstack. Su un backend puro Figma **non** si registra.
+Only if Step 2 detected frontend or mobile, or if the stack chosen in Step 2b is
+web-frontend / mobile / fullstack. On a pure backend Figma is **not** registered.
 
-Chiedi allo sviluppatore: "Vuoi configurare il MCP Figma? L'autenticazione avviene via OAuth nel browser."
-Se risponde si':
+Ask the developer: "Do you want to configure the Figma MCP? Authentication happens via OAuth in the browser."
+If they say yes:
 ```bash
 claude mcp add figma -t http -s project https://mcp.figma.com/mcp
 ```
-Al primo utilizzo, Figma chiedera' l'autorizzazione via browser (come ClickUp).
+On first use, Figma will ask for authorization via the browser (like ClickUp).
 
 ---
 
-### Passo 7 — Setup file .env
+### Step 7 — Set up the .env file
 
-1. Se `.env` esiste e contiene gia' `CLICKUP_SETUP_LIST_ID` → non fare nulla
-2. Se `.env` esiste ma **non** contiene `CLICKUP_SETUP_LIST_ID` → appendi:
+1. If `.env` exists and already contains `CLICKUP_SETUP_LIST_ID` → do nothing
+2. If `.env` exists but does **not** contain `CLICKUP_SETUP_LIST_ID` → append:
    ```
 
-   # ClickUp — ID della lista per i task (aggiunto da setup)
+   # ClickUp — task list ID (added by setup)
    CLICKUP_SETUP_LIST_ID=
    ```
-3. Se `.env` non esiste ma `.env.example` esiste e non contiene `CLICKUP_SETUP_LIST_ID` → appendi come sopra a `.env.example`
-4. Se ne' `.env` ne' `.env.example` esistono → crea `.env.example` con:
+3. If `.env` does not exist but `.env.example` does and does not contain `CLICKUP_SETUP_LIST_ID` → append as above to `.env.example`
+4. If neither `.env` nor `.env.example` exists → create `.env.example` with:
    ```
-   # ClickUp — ID della lista per i task
+   # ClickUp — task list ID
    CLICKUP_SETUP_LIST_ID=
    ```
 
 ---
 
-### Passo 8 — Setup greenfield (solo modalita' GREENFIELD)
+### Step 8 — Greenfield setup (GREENFIELD mode only)
 
-Questo passo si esegue **solo** per progetti greenfield. Per EXISTING e UPDATE, salta al Passo 9.
+This step runs **only** for greenfield projects. For EXISTING and UPDATE, skip to Step 9.
 
-#### 8.1 — Prerequisiti
+#### 8.1 — Prerequisites
 
-Verifica che siano installati: `node` (**v24+**), `npm`, `git`. Se mancano, informa lo sviluppatore
-e fermati.
+Verify that these are installed: `node` (**v24+**), `npm`, `git`. If any is missing, tell the developer
+and stop.
 
-Node 24 e' il minimo reale, non una preferenza: `semantic-release@25` richiede
-`^22.14.0 || >=24.10.0`, `lint-staged@17` richiede `>=22.22.1`, `eslint@9` richiede
-`^20.19.0 || ^22.13.0 || >=24`. Node 20 e' in EOL dal 2026-04-30.
+Node 24 is the real minimum, not a preference: `semantic-release@25` requires
+`^22.14.0 || >=24.10.0`, `lint-staged@17` requires `>=22.22.1`, `eslint@9` requires
+`^20.19.0 || ^22.13.0 || >=24`. Node 20 has been EOL since 2026-04-30.
 
-#### 8.2 — Inizializza il progetto
+#### 8.2 — Initialize the project
 
-Se `package.json` non esiste:
+If `package.json` does not exist:
 ```bash
 npm init -y
 ```
 
-Se `.git` non esiste:
+If `.git` does not exist:
 ```bash
 git init
 ```
 
-#### 8.3 — Installa quality tools
+#### 8.3 — Install quality tools
 
 ```bash
 npm install --save-dev husky lint-staged @commitlint/cli @commitlint/config-conventional \
   prettier 'eslint@^9.39.0' '@eslint/js@^9.39.0' typescript-eslint globals typescript
 ```
 
-**Non installare `eslint` senza pin**: la `latest` e' la 10.x, e i plugin dei profili
-frontend (`eslint-plugin-react`, `eslint-plugin-jsx-a11y`, `eslint-plugin-import`)
-dichiarano `eslint: ^9` come peer massimo — con la 10 l'install esce in `ERESOLVE`.
+**Do not install `eslint` without a pin**: `latest` is 10.x, and the frontend profiles'
+plugins (`eslint-plugin-react`, `eslint-plugin-jsx-a11y`, `eslint-plugin-import`)
+declare `eslint: ^9` as their peer ceiling — on 10 the install fails with `ERESOLVE`.
 
-`typescript-eslint` (pacchetto unico) sostituisce la coppia
-`@typescript-eslint/eslint-plugin` + `@typescript-eslint/parser`: e' la forma
-prevista dalla flat config.
+`typescript-eslint` (the single package) replaces the
+`@typescript-eslint/eslint-plugin` + `@typescript-eslint/parser` pair: it is the form
+flat config expects.
 
-Inizializza Husky:
+Initialize Husky:
 ```bash
 npx husky init
 ```
 
-Crea i git hook:
+Create the git hooks:
 
 **`.husky/pre-commit`**:
 ```bash
@@ -774,40 +774,40 @@ npx lint-staged
 npx --no -- commitlint --edit "$1"
 ```
 
-Rendi eseguibili:
+Make them executable:
 ```bash
 chmod +x .husky/pre-commit .husky/commit-msg
 ```
 
-#### 8.4 — Configurazioni di qualita'
+#### 8.4 — Quality configuration
 
-Copia i file dal boilerplate distribuito con la skill
-(`${CLAUDE_SKILL_DIR}/templates/boilerplate/`) — non riscriverli a mano: la
-copia e' l'unica forma che resta allineata al template.
+Copy the files from the boilerplate distributed with the skill
+(`${CLAUDE_SKILL_DIR}/templates/boilerplate/`) — do not rewrite them by hand: copying
+is the only form that stays aligned with the template.
 
-| Sorgente nel boilerplate | Destinazione nel progetto | Condizione |
+| Source in the boilerplate | Destination in the project | Condition |
 |---|---|---|
-| `.commitlintrc.json` | `.commitlintrc.json` | sempre |
-| `.lintstagedrc.json` | `.lintstagedrc.json` | sempre (gli hook husky del Passo 8.3 chiamano `npx lint-staged`) |
-| `eslint.config.base.mjs` | `eslint.config.base.mjs` | sempre |
-| `.prettierrc.json` | `.prettierrc.json` | stack **senza** Tailwind |
-| `.prettierrc.tailwind.json` | `.prettierrc.json` | stack **con** Tailwind (web-frontend, mobile RN) |
+| `.commitlintrc.json` | `.commitlintrc.json` | always |
+| `.lintstagedrc.json` | `.lintstagedrc.json` | always (the Step 8.3 husky hooks call `npx lint-staged`) |
+| `eslint.config.base.mjs` | `eslint.config.base.mjs` | always |
+| `.prettierrc.json` | `.prettierrc.json` | stacks **without** Tailwind |
+| `.prettierrc.tailwind.json` | `.prettierrc.json` | stacks **with** Tailwind (web-frontend, mobile RN) |
 | `.releaserc.github.json` | `.releaserc.json` | `vcs = github` |
 | `.releaserc.gitlab.json` | `.releaserc.json` | `vcs = gitlab` |
 
-Sul `vcs = none` / `other` **salta** `.releaserc.json`: non c'e' un provider a
-cui pubblicare release. I due `.releaserc.*` differiscono solo nell'ultimo
+On `vcs = none` / `other`, **skip** `.releaserc.json`: there is no provider to
+publish releases to. The two `.releaserc.*` files differ only in the last
 plugin (`@semantic-release/github` vs `@semantic-release/gitlab`).
 
-`.prettierrc.tailwind.json` e' identico alla variante base piu'
-`plugins: ["prettier-plugin-tailwindcss"]`. Copialo **solo** se il profilo
-installa `prettier-plugin-tailwindcss`: senza il plugin installato Prettier
-esce in errore a ogni run.
+`.prettierrc.tailwind.json` is identical to the base variant plus
+`plugins: ["prettier-plugin-tailwindcss"]`. Copy it **only** if the profile
+installs `prettier-plugin-tailwindcss`: without the plugin installed, Prettier
+errors out on every run.
 
-`eslint.config.base.mjs` e' la base condivisa in **flat config**. Il file che
-ESLint legge davvero e' `eslint.config.mjs`, che il Passo 8.5 crea dal profilo
-importando la base. Se lo stack non ha un profilo con config ESLint, crea un
-`eslint.config.mjs` che si limita a rilanciare la base:
+`eslint.config.base.mjs` is the shared base in **flat config**. The file
+ESLint actually reads is `eslint.config.mjs`, which Step 8.5 creates from the profile
+by importing the base. If the stack has no profile with an ESLint config, create an
+`eslint.config.mjs` that just re-exports the base:
 
 ```javascript
 // eslint.config.mjs
@@ -816,10 +816,10 @@ import base from './eslint.config.base.mjs';
 export default base;
 ```
 
-#### 8.4b — Script npm
+#### 8.4b — npm scripts
 
-Senza questi script `npm run lint`, gli hook husky e la CI del boilerplate
-falliscono con *Missing script*. Aggiungili al `package.json`:
+Without these scripts, `npm run lint`, the husky hooks and the boilerplate CI
+fail with *Missing script*. Add them to `package.json`:
 
 ```bash
 npm pkg set \
@@ -832,64 +832,64 @@ npm pkg set \
   scripts.prepare="husky"
 ```
 
-Adatta `test`/`test:cov` al runner del profilo (`vitest` / `vitest --coverage`,
-`flutter test` su Flutter) e `typecheck` allo stack: sono i tre comandi che la
-CI del boilerplate esegue come quality gate.
+Adapt `test`/`test:cov` to the profile's runner (`vitest` / `vitest --coverage`,
+`flutter test` on Flutter) and `typecheck` to the stack: these are the three commands the
+boilerplate CI runs as its quality gate.
 
-#### 8.5 — Applica profilo stack
+#### 8.5 — Apply the stack profile
 
-Leggi il file profilo da `${CLAUDE_SKILL_DIR}/templates/profiles/` (gia' letto al Passo 3.1) e applica le configurazioni che contiene:
+Read the profile file from `${CLAUDE_SKILL_DIR}/templates/profiles/` (already read in Step 3.1) and apply the configurations it contains:
 
-Se stack mobile = **Flutter** (rilevato da `pubspec.yaml` o selezionato in GREENFIELD), applica percorso ad-hoc Flutter:
+If the mobile stack is **Flutter** (detected from `pubspec.yaml` or selected in GREENFIELD), follow the ad-hoc Flutter path:
 
-1. **Dipendenze Flutter**: aggiorna `pubspec.yaml` con i pacchetti del profilo (`freezed_annotation`, `json_annotation`, `riverpod`/`flutter_bloc`, `dio`, ecc.)
-2. **Dev dependencies Flutter**: includi `build_runner`, `freezed`, `json_serializable`, `flutter_lints`, `riverpod_generator` (se Riverpod codegen)
-3. **Linting Flutter**: crea/aggiorna `analysis_options.yaml` includendo `package:flutter_lints/flutter.yaml`
-4. **Code generation**: esegui `dart run build_runner build --delete-conflicting-outputs`
-5. **Quality gate**: esegui `dart format .`, `dart analyze`, `flutter test`
+1. **Flutter dependencies**: update `pubspec.yaml` with the profile's packages (`freezed_annotation`, `json_annotation`, `riverpod`/`flutter_bloc`, `dio`, etc.)
+2. **Flutter dev dependencies**: include `build_runner`, `freezed`, `json_serializable`, `flutter_lints`, `riverpod_generator` (if using Riverpod codegen)
+3. **Flutter linting**: create/update `analysis_options.yaml` including `package:flutter_lints/flutter.yaml`
+4. **Code generation**: run `dart run build_runner build --delete-conflicting-outputs`
+5. **Quality gate**: run `dart format .`, `dart analyze`, `flutter test`
 
-Se stack mobile = **React Native (Expo)**, applica percorso Node:
+If the mobile stack is **React Native (Expo)**, follow the Node path:
 
-1. **Dipendenze**: Estrai il blocco JSON delle dipendenze dal profilo e installale con `npm install`
-2. **ESLint**: Se il profilo contiene una configurazione ESLint, crea `eslint.config.mjs` con quel
-   contenuto (flat config — importa `./eslint.config.base.mjs` copiata al Passo 8.4)
-3. **TypeScript**: Se il profilo contiene una configurazione TypeScript, crea `tsconfig.json`
-4. **Jest**: Se il profilo contiene una configurazione Jest, crea `jest.config.mjs` — **non** `.ts`:
-   Jest non parsa un config TypeScript senza `ts-node` installato
+1. **Dependencies**: extract the JSON dependency block from the profile and install them with `npm install`
+2. **ESLint**: if the profile contains an ESLint configuration, create `eslint.config.mjs` with that
+   content (flat config — it imports `./eslint.config.base.mjs`, copied in Step 8.4)
+3. **TypeScript**: if the profile contains a TypeScript configuration, create `tsconfig.json`
+4. **Jest**: if the profile contains a Jest configuration, create `jest.config.mjs` — **not** `.ts`:
+   Jest does not parse a TypeScript config without `ts-node` installed
 
-Per lo stack **fullstack** (multi-progetto):
-- Crea la struttura `apps/web/` e `apps/api/`
-- Applica il profilo web-frontend in `apps/web/`
-- Applica il profilo backend-node in `apps/api/`
-- Genera `AGENTS.md`, `CLAUDE.md` e `REGISTRY.md` per ogni sub-project (come descritto nei Passi 5B e 5b)
-- Alla root usa il workspace template (come descritto nel Passo 5B)
+For the **fullstack** stack (multi-project):
+- Create the `apps/web/` and `apps/api/` structure
+- Apply the web-frontend profile in `apps/web/`
+- Apply the backend-node profile in `apps/api/`
+- Generate `AGENTS.md`, `CLAUDE.md` and `REGISTRY.md` for each sub-project (as described in Steps 5B and 5b)
+- At the root use the workspace template (as described in Step 5B)
 
 #### 8.6 — CI/CD workflow
 
-Scegli il template CI in base a `{VCS}` rilevato al Passo 2c.
+Pick the CI template based on the `{VCS}` detected in Step 2c.
 
-- `vcs = github` → copia **entrambi** i workflow da
-  `${CLAUDE_SKILL_DIR}/templates/boilerplate/.github/workflows/` in `.github/workflows/`
-  (crea la directory se manca): `ci.yml` (quality gate su ogni PR) e `release.yml`
-  (quality gate + semantic-release sul default branch). Il release richiede il secret
-  `GITHUB_TOKEN`, fornito di default da GitHub Actions.
-- `vcs = gitlab` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.gitlab-ci.yml` in
-  `.gitlab-ci.yml` nella root del progetto. Contiene lo stage `test` (che gira sulle
-  pipeline di MR e sul default branch) e lo stage `release`. Richiede una variabile CI/CD
-  `GITLAB_TOKEN` con scope `api` + `write_repository` (Settings → CI/CD → Variables).
-- `vcs = none` / `other` → **salta questo passo**. Informa lo sviluppatore che puo' aggiungere manualmente un workflow CI al provider che preferisce.
+- `vcs = github` → copy **both** workflows from
+  `${CLAUDE_SKILL_DIR}/templates/boilerplate/.github/workflows/` into `.github/workflows/`
+  (create the directory if missing): `ci.yml` (quality gate on every PR) and `release.yml`
+  (quality gate + semantic-release on the default branch). The release requires the
+  `GITHUB_TOKEN` secret, provided by default by GitHub Actions.
+- `vcs = gitlab` → copy `${CLAUDE_SKILL_DIR}/templates/boilerplate/.gitlab-ci.yml` to
+  `.gitlab-ci.yml` in the project root. It contains the `test` stage (which runs on MR
+  pipelines and on the default branch) and the `release` stage. It requires a CI/CD variable
+  `GITLAB_TOKEN` with scope `api` + `write_repository` (Settings → CI/CD → Variables).
+- `vcs = none` / `other` → **skip this step**. Tell the developer they can manually add a CI workflow for whichever provider they prefer.
 
-Entrambi i template girano su **Node 24** ed eseguono gli stessi step: `npm ci`,
-`npm run lint`, `npm run typecheck`, `npm run test:cov` e — solo sul default branch e
-solo se il quality gate e' verde — `npx semantic-release`. I commit con `[skip ci]`
-sono bypassati.
+Both templates run on **Node 24** and execute the same steps: `npm ci`,
+`npm run lint`, `npm run typecheck`, `npm run test:cov` and — only on the default branch and
+only if the quality gate is green — `npx semantic-release`. Commits with `[skip ci]`
+are bypassed.
 
-Il quality gate dipende dagli script npm del Passo 8.4b: se mancano, la CI
-fallisce con *Missing script*.
+The quality gate depends on the npm scripts from Step 8.4b: if they are missing, CI
+fails with *Missing script*.
 
 #### 8.7 — .gitignore
 
-Se `.gitignore` non esiste, crealo con:
+If `.gitignore` does not exist, create it with:
 ```
 # Dependencies
 node_modules/
@@ -927,130 +927,130 @@ npm-debug.log*
 
 ---
 
-### Passo 9 — Riepilogo
+### Step 9 — Summary
 
-Mostra un riepilogo allo sviluppatore in questo formato:
+Show the developer a summary in this format:
 
-**Per EXISTING:**
+**For EXISTING:**
 ```
-Setup completato!
+Setup complete!
 
-File installati:
-  - CLAUDE.md             — entry point per Claude Code (importa AGENTS.md)
-  - AGENTS.md             — istruzioni per agenti AI (standard cross-tool)
-  - CONSTITUTION.md       — regole di governance
-  - REGISTRY.md           — registro feature e servizi
-  - .claude/settings.json — permessi progetto
+Installed files:
+  - CLAUDE.md             — entry point for Claude Code (imports AGENTS.md)
+  - AGENTS.md             — instructions for AI agents (cross-tool standard)
+  - CONSTITUTION.md       — governance rules
+  - REGISTRY.md           — feature and service registry
+  - .claude/settings.json — project permissions
 
-Skills disponibili (fornite dal plugin):
-  - /dev-setup:sdd         — SDD interattivo (spec → approvazione → sviluppo, con checkpoint)
-  - /dev-setup:auto-sdd    — SDD autonomo end-to-end (fino alla PR, senza intervento umano)
+Available skills (provided by the plugin):
+  - /dev-setup:sdd         — interactive SDD (spec → approval → development, with checkpoints)
+  - /dev-setup:auto-sdd    — autonomous end-to-end SDD (up to the PR, no human input)
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
-  - /dev-setup:review      — Code review con CONSTITUTION
+  - /dev-setup:review      — code review against the CONSTITUTION
 
-Stack rilevato:
-  - Linguaggi:      <linguaggi>
+Detected stack:
+  - Languages:      <languages>
   - Test runner:    <test_command>
   - Linter:         <lint_command>
-  - Validazione:    <validation_tool>
-  - Infrastructure: <si|no> (se si: applicata §X CONSTITUTION, skill terraform profilo)
-  - VCS:            <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
+  - Validation:     <validation_tool>
+  - Infrastructure: <yes|no> (if yes: CONSTITUTION §X applied, terraform profile skill)
+  - VCS:            <github|gitlab|none|other> → active VCS skill: <github-ops|gitlab-ops|none>
 
-NON modificato (tooling esistente rispettato):
+NOT modified (existing tooling respected):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
 
-Prossimi passi:
-  1. Compila CLICKUP_SETUP_LIST_ID nel file .env
-  2. Verifica MCP: claude mcp list
-  3. Usa /dev-setup:sdd (interattivo) o /dev-setup:auto-sdd (autonomo) per iniziare un task ClickUp
+Next steps:
+  1. Fill in CLICKUP_SETUP_LIST_ID in the .env file
+  2. Check MCP: claude mcp list
+  3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to start a ClickUp task
 ```
 
-**Per GREENFIELD:**
+**For GREENFIELD:**
 ```
-Setup completato!
+Setup complete!
 
-Configurazione del progetto:
-  - CLAUDE.md               — entry point per Claude Code (importa AGENTS.md)
-  - AGENTS.md               — istruzioni per agenti AI (standard cross-tool)
-  - CONSTITUTION.md         — regole di governance
-  - REGISTRY.md             — registro feature e servizi
-  - .claude/settings.json   — permessi progetto
+Project configuration:
+  - CLAUDE.md               — entry point for Claude Code (imports AGENTS.md)
+  - AGENTS.md               — instructions for AI agents (cross-tool standard)
+  - CONSTITUTION.md         — governance rules
+  - REGISTRY.md             — feature and service registry
+  - .claude/settings.json   — project permissions
   - .husky/                 — git hooks (lint + commit)
-  - .lintstagedrc.json      — lint-staged (usato dall'hook pre-commit)
+  - .lintstagedrc.json      — lint-staged (used by the pre-commit hook)
   - eslint.config.base.mjs  — ESLint base (flat config)
-  - eslint.config.mjs       — ESLint profilo <stack> (importa la base)
-  - .prettierrc.json        — Prettier (variante Tailwind se lo stack la usa)
+  - eslint.config.mjs       — ESLint <stack> profile (imports the base)
+  - .prettierrc.json        — Prettier (Tailwind variant if the stack uses it)
   - .commitlintrc.json      — Conventional Commits
-  - .releaserc.json         — semantic-release (variante <github|gitlab>)
-  - <CI config>             — .github/workflows/{ci,release}.yml (GitHub) oppure .gitlab-ci.yml (GitLab)
-  - .env.example            — variabili d'ambiente
+  - .releaserc.json         — semantic-release (<github|gitlab> variant)
+  - <CI config>             — .github/workflows/{ci,release}.yml (GitHub) or .gitlab-ci.yml (GitLab)
+  - .env.example            — environment variables
   - package.json scripts    — lint, lint:fix, format, typecheck, test, test:cov
 
-Skills disponibili (fornite dal plugin):
-  - /dev-setup:sdd         — SDD interattivo (spec → approvazione → sviluppo, con checkpoint)
-  - /dev-setup:auto-sdd    — SDD autonomo end-to-end (fino alla PR, senza intervento umano)
+Available skills (provided by the plugin):
+  - /dev-setup:sdd         — interactive SDD (spec → approval → development, with checkpoints)
+  - /dev-setup:auto-sdd    — autonomous end-to-end SDD (up to the PR, no human input)
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
-  - /dev-setup:review      — Code review con CONSTITUTION
+  - /dev-setup:review      — code review against the CONSTITUTION
 
-VCS rilevato: <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
-Infrastructure: <si|no>
+Detected VCS: <github|gitlab|none|other> → active VCS skill: <github-ops|gitlab-ops|none>
+Infrastructure: <yes|no>
 
-Prossimi passi:
-  1. Copia .env.example in .env e compila le variabili
-  2. Verifica MCP: claude mcp list
-  3. Usa /dev-setup:sdd (interattivo) o /dev-setup:auto-sdd (autonomo) per iniziare!
+Next steps:
+  1. Copy .env.example to .env and fill in the variables
+  2. Check MCP: claude mcp list
+  3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to get started!
 ```
 
-**Nota GREENFIELD Terraform**: se lo stack scelto e' **Infrastructure / Terraform**, il Passo 8 non genera boilerplate Terraform (nessun `.gitignore` Terraform auto-emesso, nessun workflow CI auto-emesso, nessun `versions.tf` scaffold). Lo sviluppatore deve creare manualmente `main.tf`, `variables.tf`, `outputs.tf`, `terraform.tf` (o `versions.tf`) e il blocco `backend "s3"` seguendo le ricette in `profiles/terraform.md`. Aggiungi al riepilogo GREENFIELD:
+**Terraform GREENFIELD note**: if the chosen stack is **Infrastructure / Terraform**, Step 8 does not generate Terraform boilerplate (no auto-emitted Terraform `.gitignore`, no auto-emitted CI workflow, no `versions.tf` scaffold). The developer must manually create `main.tf`, `variables.tf`, `outputs.tf`, `terraform.tf` (or `versions.tf`) and the `backend "s3"` block following the recipes in `profiles/terraform.md`. Add to the GREENFIELD summary:
 ```
-  [Terraform GREENFIELD] Il plugin NON ha generato boilerplate Terraform.
-                         Vedi profiles/terraform.md per la struttura consigliata e le ricette CI.
+  [Terraform GREENFIELD] The plugin did NOT generate Terraform boilerplate.
+                         See profiles/terraform.md for the recommended structure and the CI recipes.
 ```
 
-**Per MULTI-PROGETTO (EXISTING):**
+**For MULTI-PROJECT (EXISTING):**
 ```
-Setup completato! (Multi-progetto rilevato: <tool>)
+Setup complete! (Multi-project detected: <tool>)
 
-File alla root:
-  - CLAUDE.md             — entry point per Claude Code
-  - AGENTS.md             — regole generali + mappa workspace
-  - CONSTITUTION.md       — regole di governance
-  - .claude/settings.json — permessi progetto
+Files at the root:
+  - CLAUDE.md             — entry point for Claude Code
+  - AGENTS.md             — general rules + workspace map
+  - CONSTITUTION.md       — governance rules
+  - .claude/settings.json — project permissions
 
-Sub-project configurati:
+Configured sub-projects:
   <sub-project-path>/:
     - AGENTS.md           — stack: <stack>
-    - CLAUDE.md           — entry point locale
-    - REGISTRY.md         — registro feature
+    - CLAUDE.md           — local entry point
+    - REGISTRY.md         — feature registry
 
-Skills disponibili (fornite dal plugin):
-  - /dev-setup:sdd         — SDD interattivo (spec → approvazione → sviluppo, con checkpoint)
-  - /dev-setup:auto-sdd    — SDD autonomo end-to-end (fino alla PR, senza intervento umano)
+Available skills (provided by the plugin):
+  - /dev-setup:sdd         — interactive SDD (spec → approval → development, with checkpoints)
+  - /dev-setup:auto-sdd    — autonomous end-to-end SDD (up to the PR, no human input)
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
-  - /dev-setup:review      — Code review con CONSTITUTION
+  - /dev-setup:review      — code review against the CONSTITUTION
 
-VCS rilevato: <github|gitlab|none|other> → skill VCS attiva: <github-ops|gitlab-ops|nessuna>
-Infrastructure: <si|no> (se si: ogni sub-project Terraform ha la §X CONSTITUTION applicata)
+Detected VCS: <github|gitlab|none|other> → active VCS skill: <github-ops|gitlab-ops|none>
+Infrastructure: <yes|no> (if yes: every Terraform sub-project has CONSTITUTION §X applied)
 
-NON modificato (tooling esistente rispettato):
+NOT modified (existing tooling respected):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
 
-Prossimi passi:
-  1. Compila CLICKUP_SETUP_LIST_ID nel file .env
-  2. Verifica MCP: claude mcp list
-  3. Usa /dev-setup:sdd (interattivo) o /dev-setup:auto-sdd (autonomo) per iniziare un task ClickUp
+Next steps:
+  1. Fill in CLICKUP_SETUP_LIST_ID in the .env file
+  2. Check MCP: claude mcp list
+  3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to start a ClickUp task
 ```
 
 ---
 
-## Note importanti
+## Important notes
 
-- **Verbatim**: settings.json e REGISTRY.md devono essere scritti esattamente come letti dal plugin. Non generare il contenuto di questi file — leggilo e copialo.
-- **Conflict detection**: Chiedi sempre prima di sovrascrivere file esistenti.
-- **Tooling esistente**: In modalita' EXISTING, non installare ne' modificare: git hooks, linter, formatter, CI/CD, .gitignore, dipendenze. Innesta solo il workflow AI.
-- **Skills e agents**: NON installare skills e agents nel progetto. Sono forniti dal plugin e disponibili automaticamente come /dev-setup:<skill-name>.
-- **gh CLI**: Necessaria solo per la configurazione MCP (Passo 6) e per operazioni greenfield. Se non presente, il setup puo' comunque completarsi — stampa i comandi MCP da eseguire manualmente.
-- **VCS (GitHub vs GitLab)**: Il Passo 2c rileva il provider dal remote `origin`. Entrambe le skill `github-ops` e `gitlab-ops` sono sempre installate — ciascuna fa self-check all'invocazione e si disattiva se il repo non e' suo. Le skill di workflow (`sdd`, `auto-sdd`) chiamano quella corretta in base al remote corrente.
+- **Verbatim**: settings.json and REGISTRY.md must be written exactly as read from the plugin. Do not generate the content of these files — read it and copy it.
+- **Conflict detection**: always ask before overwriting existing files.
+- **Existing tooling**: in EXISTING mode, do not install or modify: git hooks, linter, formatter, CI/CD, .gitignore, dependencies. Graft only the AI workflow.
+- **Skills and agents**: do NOT install skills and agents into the project. They are provided by the plugin and available automatically as /dev-setup:<skill-name>.
+- **gh CLI**: needed only for MCP configuration (Step 6) and for greenfield operations. If it is missing, setup can still complete — print the MCP commands to run manually.
+- **VCS (GitHub vs GitLab)**: Step 2c detects the provider from the `origin` remote. Both the `github-ops` and `gitlab-ops` skills are always installed — each self-checks on invocation and deactivates if the repo is not its own. The workflow skills (`sdd`, `auto-sdd`) call the right one based on the current remote.
