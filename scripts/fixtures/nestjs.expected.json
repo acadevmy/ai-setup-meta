@@ -1,0 +1,14 @@
+{
+  "FRAMEWORKS": "nestjs",
+  "HAS_FRONTEND": "false",
+  "HAS_INFRA": "false",
+  "HAS_MOBILE": "false",
+  "HOOK_MANAGER": "",
+  "LANG": "node",
+  "LINT_CMD": "npm run lint",
+  "MONOREPO": "",
+  "PKG_MANAGER": "npm",
+  "TEST_CMD": "npm run test",
+  "TYPECHECK_CMD": "npx tsc --noEmit",
+  "VCS": "none"
+}

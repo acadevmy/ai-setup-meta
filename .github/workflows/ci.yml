@@ -1,9 +1,10 @@
 name: CI
 
-# The meta-repo's safety net (DE-16471). Three independent gates:
+# The meta-repo's safety net (DE-16471). Four independent gates:
 #   - plugin-validate: the plugin and marketplace catalogue manifests are valid
 #   - shellcheck:      the sh scripts carry no warnings
 #   - static-checks:   the static checks on skill quality (validate-plugin.sh)
+#   - bash-tests:      the plugin scripts and hooks against their fixtures (DE-16476)
 #
 # `static-checks` runs against a baseline of known failures (scripts/validate-baseline.txt):
 # the defects the audit recorded are reported but do not block; any new defect does.
@@ -32,8 +33,8 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      # `plugin validate` e' una verifica locale dei manifest: non richiede
-      # autenticazione ne' rete verso l'API.
+      # `plugin validate` is a local check of the manifests: it needs neither
+      # authentication nor network access to the API.
       - name: Validate plugin manifest (dist/dev-setup)
         run: claude plugin validate --strict dist/dev-setup/
 
@@ -49,8 +50,8 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
 
-      # Tutti gli script del repo: quelli del meta-repo, gli hook nei template
-      # e la loro copia in dist/.
+      # Every script in the repo: the meta-repo's own, the scripts and hooks in
+      # the templates, and their copy under dist/.
       - name: Run shellcheck
         run: |
           find scripts templates dist -type f -name '*.sh' -print0 \
@@ -69,3 +70,23 @@ jobs:
       # removed from the baseline in that same PR. This keeps the baseline from ageing.
       - name: Static skill checks
         run: bash scripts/validate-plugin.sh --fail-on-stale
+
+  bash-tests:
+    name: bash tests (plugin scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # node is what the full-gate tests need: the commit gate runs the project's
+      # own `npm run test`, and the fixture declares one.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install jq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+
+      # detect-stack snapshots, the merge-base resolution of the base branch, the
+      # branch naming, the template rendering and both modes of gate-commit.
+      - name: Run the plugin script tests
+        run: bash scripts/test-plugin-scripts.sh

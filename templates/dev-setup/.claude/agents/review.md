@@ -12,7 +12,11 @@ This agent is **stateless and idempotent**. It does NOT modify files. It analyze
 
 ## Input
 
-- **BASE_BRANCH**: reference branch for the diff (default: `main`)
+- **BASE_BRANCH**: the commit or ref to diff against. The caller resolves it with
+  `scripts/check-prerequisites.sh` and normally passes its `MERGE_BASE` — the commit
+  this branch forked from. There is no default: `main` is wrong on any project whose
+  work targets `next` or `develop`, where it pulls the whole delta between the two
+  long-lived branches into the review.
 - **CONSTITUTION_PATH**: path to CONSTITUTION.md (default: `./CONSTITUTION.md`)
 - **REGISTRY_PATH**: path to current REGISTRY.md (default: `./REGISTRY.md`)
 - **TASK_ID**: ClickUp task ID from the branch name, if present (optional)
@@ -21,7 +25,9 @@ This agent is **stateless and idempotent**. It does NOT modify files. It analyze
 
 ### 1. Identify changes
 
-Run `git diff <BASE_BRANCH>...HEAD` to get all changes.
+Run `git diff <BASE_BRANCH>` to get all changes (BASE_BRANCH is already the fork
+point, so no `...` range is needed — and this way work that is not committed yet
+is reviewed too).
 For each modified file, read the full content for context.
 
 ### 2. Verify CONSTITUTION compliance

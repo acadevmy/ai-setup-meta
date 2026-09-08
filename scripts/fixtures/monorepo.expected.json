@@ -1,0 +1,14 @@
+{
+  "FRAMEWORKS": "nestjs,nextjs,terraform",
+  "HAS_FRONTEND": "true",
+  "HAS_INFRA": "true",
+  "HAS_MOBILE": "false",
+  "HOOK_MANAGER": "lefthook",
+  "LANG": "node,terraform",
+  "LINT_CMD": "npx nx run-many -t lint",
+  "MONOREPO": "nx",
+  "PKG_MANAGER": "pnpm",
+  "TEST_CMD": "npx nx run-many -t test",
+  "TYPECHECK_CMD": "npx nx run-many -t typecheck",
+  "VCS": "none"
+}

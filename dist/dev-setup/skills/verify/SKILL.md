@@ -19,27 +19,38 @@ this skill checks **spec conformance**: did we build what we said we would build
 
 ## Procedure
 
-### 1. Load the spec
+### 1. Collect the prerequisites
 
-**If `$ARGUMENTS` contains a path**:
-- Read the file at the given path
-- If the file does not exist, inform the developer and stop
+Run the script — it resolves the spec, the plan, the base branch and the changed
+files in one call:
 
-**If `$ARGUMENTS` is empty**:
-- Extract the customId from the current branch name (e.g. `feat/DE-123-desc` → `DE-123`)
-- Search for a matching spec: `.specs/<customId>-*.md`
-- If no spec is found, inform the developer and stop
-- If multiple specs match, use the most recent one (by `Created` date in frontmatter)
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
+```
 
-Verify that the spec status is `approved` or `implemented`. If `draft`, warn the developer
-that the spec has not been approved yet and ask whether to proceed anyway.
+With a path in `$ARGUMENTS`, use that file as the spec instead of the `SPEC` key
+(pass `--task <customId>` to look a different task up).
+
+It returns `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `BASE_BRANCH`,
+`MERGE_BASE`, `TASK_ID`, `AVAILABLE_DOCS`. If `SPEC` is empty, inform the
+developer and stop. If `SPEC_STATUS` is `draft`, warn that the spec has not been
+approved yet and ask whether to proceed anyway.
 
 ### 2. Load the diff
 
-Run `git diff main...HEAD --name-only` to get the list of changed files.
-Run `git diff main...HEAD` to get the full diff content.
+`MERGE_BASE` is the commit the branch forked from, so the diff holds this
+branch's own work and nothing else:
 
-If there are no changes against main, inform the developer and stop.
+```bash
+git diff <MERGE_BASE> --stat
+git diff <MERGE_BASE>
+```
+
+Never diff against a hard-coded `main`: on a project whose work targets `next`
+or `develop`, that reports the whole delta between the long-lived branches as
+part of the branch, and every file in it comes back as "Unexpected".
+
+If `CHANGED_FILES` is empty, inform the developer and stop.
 
 ### 3. Check Completeness
 
