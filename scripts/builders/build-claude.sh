@@ -159,7 +159,7 @@ if [ "$NAME" = "dev-setup" ]; then
   USER_CONFIG='{
     "CLICKUP_SETUP_LIST_ID": {
       "title": "ClickUp Sprint List ID",
-      "description": "ID della lista ClickUp per i task di sprint (trovalo nell'\''URL: app.clickup.com/.../li/<ID>)",
+      "description": "ClickUp list id for the sprint tasks (find it in the URL: app.clickup.com/.../li/<ID>)",
       "type": "string",
       "sensitive": false,
       "required": false

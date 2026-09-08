@@ -55,12 +55,12 @@ Ask the developer how they want to proceed by calling the `AskUserQuestion` tool
 ```json
 AskUserQuestion({
   "questions": [{
-    "question": "Come vuoi procedere con la spec?",
+    "question": "How do you want to proceed with the spec?",
     "header": "Spec review",
     "options": [
-      { "label": "Approva", "description": "La spec e' pronta, procedi con lo sviluppo." },
-      { "label": "Modifica", "description": "Indica cosa cambiare nella spec." },
-      { "label": "Rigenera", "description": "Rigenera la spec da zero (invochera' sdd-spec)." }
+      { "label": "Approve", "description": "The spec is ready, go ahead with development." },
+      { "label": "Change", "description": "Say what to change in the spec." },
+      { "label": "Regenerate", "description": "Rebuild the spec from scratch (this calls sdd-spec)." }
     ],
     "multiSelect": false
   }]

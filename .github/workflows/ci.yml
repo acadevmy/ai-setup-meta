@@ -1,13 +1,13 @@
 name: CI
 
-# Rete di sicurezza del meta-repo (DE-16471). Tre gate indipendenti:
-#   - plugin-validate: i manifest del plugin e dei cataloghi marketplace sono validi
-#   - shellcheck:      gli script sh non hanno warning
-#   - static-checks:   i check statici sulla qualita' delle skill (validate-plugin.sh)
+# The meta-repo's safety net (DE-16471). Three independent gates:
+#   - plugin-validate: the plugin and marketplace catalogue manifests are valid
+#   - shellcheck:      the sh scripts carry no warnings
+#   - static-checks:   the static checks on skill quality (validate-plugin.sh)
 #
-# `static-checks` gira contro una baseline di fail noti (scripts/validate-baseline.txt):
-# i difetti censiti dall'audit sono riportati ma non bloccano; ogni nuovo difetto si.
-# La baseline si svuota con le PR successive della catena — vedi il suo header.
+# `static-checks` runs against a baseline of known failures (scripts/validate-baseline.txt):
+# the defects the audit recorded are reported but do not block; any new defect does.
+# The baseline shrinks with the later PRs of the chain — see its own header.
 
 on:
   pull_request:
@@ -65,7 +65,7 @@ jobs:
       - name: Validate manifest references
         run: bash scripts/validate-setup-urls.sh
 
-      # --fail-on-stale: quando una PR risolve un difetto baselinato, la riga va
-      # rimossa dalla baseline nella stessa PR. Impedisce che la baseline invecchi.
+      # --fail-on-stale: when a PR fixes a baselined defect, its line has to be
+      # removed from the baseline in that same PR. This keeps the baseline from ageing.
       - name: Static skill checks
         run: bash scripts/validate-plugin.sh --fail-on-stale

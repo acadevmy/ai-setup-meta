@@ -1,12 +1,12 @@
 name: Build Verify
 
-# Verifica che `dist/` sia in sync con la sorgente (`templates/`, `shared/`,
-# script di build). Lancia `build-plugin.sh` per ogni template e fallisce se
-# il rebuild produrrebbe modifiche rispetto a `dist/` committato.
+# Checks that `dist/` is in sync with the source (`templates/`, `shared/`, the build
+# scripts). It runs `build-plugin.sh` for every template and fails if the rebuild
+# would produce any change against the committed `dist/`.
 
-# Nessun path-filter: il filtro precedente lasciava passare i push diretti e le
-# modifiche fuori dalla sua lista (es. `shared/agents/`), che sono esattamente
-# i casi in cui il drift di dist/ e' arrivato su main senza diventare rosso.
+# No path filter: the previous one let through direct pushes and any change outside
+# its list (`shared/agents/`, say) — which are exactly the cases where dist/ drift
+# reached main without ever turning the job red.
 on:
   pull_request:
     branches: [main, next]
