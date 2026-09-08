@@ -120,10 +120,10 @@ Lo stato dell'arte delle convenzioni `AGENTS.md` (e equivalenti) cambia veloceme
 
 **Strategia di lookup** (in ordine, prima fonte che produce risultato vince):
 
-1. **`ctx7` CLI** se disponibile in PATH:
+1. **`ctx7` CLI** in PATH, oppure via `npx ctx7@latest` se non installata:
    - `ctx7 library <framework>` per risolvere l'ID (es. `/vercel/next.js`)
    - `ctx7 docs <id> "AGENTS.md convention bundled docs agent rules"` per la query
-2. **Context7 MCP** come fallback: `mcp__context7__resolve-library-id` + `mcp__context7__query-docs` con la stessa query
+2. **Context7 MCP**, solo se il progetto lo ha registrato (non e' nella configurazione di default, vedi Passo 6.2): `mcp__context7__resolve-library-id` + `mcp__context7__query-docs` con la stessa query
 3. **WebSearch** se ctx7/Context7 non sono disponibili: query `"AGENTS.md convention <framework> <major>.<minor>"` (es. `"AGENTS.md convention next.js 16.2"`), preferendo risultati dal dominio ufficiale del framework
 4. **Skip** se nessuna fonte e' raggiungibile (ambiente offline) — procedi con i soli profile hard-coded e segnala la skip nel riepilogo del Passo 9
 
@@ -647,31 +647,53 @@ Scrivi il risultato in `CLAUDE.md` nella root del progetto.
 
 ### Passo 6 — Configura MCP servers
 
+Il plugin **non** dichiara server MCP propri: ogni server pesa sul contesto di ogni
+sessione, quindi si registra solo cio' che il progetto usa davvero. Questo passo
+decide in base alla detection del Passo 2.
+
 Verifica se `claude` CLI e' disponibile con `command -v claude`. Se non lo e', stampa i comandi da eseguire manualmente e vai al passo successivo.
 
-#### 6.1 — ClickUp (user scope, sempre)
+> **Transport**: `-t` accetta `stdio`, `sse`, `http`. `url` non e' un transport valido:
+> un server dichiarato con `"type": "url"` viene scartato in silenzio.
 
-Controlla con `claude mcp list` se `clickup` e' gia' configurato.
-Se non lo e':
-```bash
-claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp
-```
+#### 6.1 — ClickUp (user scope, solo con la lista task configurata)
 
-#### 6.2 — Context7 (project scope, sempre)
+ClickUp serve solo se il team traccia i task su ClickUp. Cerca `CLICKUP_SETUP_LIST_ID`
+in quest'ordine: variabile d'ambiente, `.env` del progetto, `userConfig` del plugin.
 
-Il plugin include gia' context7 nella sua .mcp.json. Verifica che non ci sia un conflitto con un context7 gia' configurato a livello progetto.
-Se `.mcp.json` del progetto esiste gia' e contiene `context7`, non fare nulla.
-Se non esiste o non contiene context7:
+- **Valorizzato** → controlla con `claude mcp list` se `clickup` e' gia' configurato. Se non lo e':
+  ```bash
+  claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp
+  ```
+- **Vuoto o assente** → **non** registrare il server. Riporta nel riepilogo del Passo 9:
+  "ClickUp MCP non configurato: valorizza `CLICKUP_SETUP_LIST_ID` in `.env`, poi esegui
+  `claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp`".
+
+#### 6.2 — Documentazione librerie: CLI `ctx7`, non MCP
+
+**Non** registrare Context7 come server MCP. `AGENTS.md` dichiara la CLI `ctx7` come
+fonte preferita — piu' veloce e senza budget di tool-call — quindi il server
+duplicherebbe la stessa capacita' pagando le sue tool definition a ogni sessione.
+
+Verifica con `command -v ctx7`:
+- **presente** → nulla da fare
+- **assente** → nulla da installare: `AGENTS.md` istruisce a invocarla via `npx ctx7@latest <command>`
+
+Solo se ne' la CLI ne' `npx` sono raggiungibili (ambiente senza rete npm), segnala nel
+riepilogo del Passo 9 il fallback manuale:
 ```bash
 claude mcp add context7 -s project -- npx -y @upstash/context7-mcp@latest
 ```
 
-#### 6.3 — Figma (solo se frontend o mobile rilevato, o stack web-frontend/mobile/fullstack)
+#### 6.3 — Figma (project scope, solo se frontend o mobile rilevato)
 
-Se frontend o mobile rilevato, chiedi allo sviluppatore: "Vuoi configurare il MCP Figma? L'autenticazione avviene via OAuth nel browser."
+Solo se il Passo 2 ha rilevato frontend o mobile, o se lo stack scelto al Passo 2b e'
+web-frontend / mobile / fullstack. Su un backend puro Figma **non** si registra.
+
+Chiedi allo sviluppatore: "Vuoi configurare il MCP Figma? L'autenticazione avviene via OAuth nel browser."
 Se risponde si':
 ```bash
-claude mcp add figma -s project --type url https://mcp.figma.com/mcp
+claude mcp add figma -t http -s project https://mcp.figma.com/mcp
 ```
 Al primo utilizzo, Figma chiedera' l'autorizzazione via browser (come ClickUp).
 

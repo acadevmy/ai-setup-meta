@@ -1,7 +1,6 @@
 ---
 name: gitlab-ops
 description: Reference documentation for Git and GitLab operations (branch, MR, tag, release)
-model: haiku
 user-invocable: false
 disable-model-invocation: false
 ---

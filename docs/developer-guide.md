@@ -62,7 +62,7 @@ claude --version
 gh auth status     # per repo GitHub
 glab auth status   # per repo GitLab (aggiungi --hostname <host> se self-hosted)
 
-# MCP servers connessi (clickup, context7 e opzionalmente figma)
+# MCP servers connessi (solo quelli che il setup ha registrato per questo stack)
 claude mcp list
 
 # AGENTS.md, CLAUDE.md e CONSTITUTION.md presenti nella root del progetto

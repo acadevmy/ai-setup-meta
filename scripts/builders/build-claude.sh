@@ -142,6 +142,16 @@ done
 # ── Genera plugin.json ───────────────────────────────────────────────────────
 step "Generazione plugin.json"
 
+# Il plugin dichiara server MCP solo se il template ne fornisce una .mcp.json.
+# I server che dipendono dallo stack (figma) o dalla configurazione del team
+# (clickup) li registra la setup skill a livello progetto/utente: vedi Passo 6.
+MCP_SRC="$TEMPLATE_DIR/.mcp.json"
+if [ -f "$MCP_SRC" ]; then
+  MCP_REF='"./.mcp.json"'
+else
+  MCP_REF='null'
+fi
+
 AGENTS_JSON=$(find "$DIST_DIR/agents" -name "*.md" -exec basename {} \; | sort | \
   sed 's|^|"./agents/|;s|$|"|' | paste -sd',' - | sed 's/^/[/;s/$/]/')
 
@@ -166,6 +176,7 @@ jq -n \
   --arg author "$AUTHOR" \
   --argjson agents "$AGENTS_JSON" \
   --argjson userConfig "$USER_CONFIG" \
+  --argjson mcpRef "$MCP_REF" \
   '{
     name: $name,
     version: $version,
@@ -173,9 +184,10 @@ jq -n \
     author: { name: $author },
     skills: "./skills",
     agents: $agents,
-    mcpServers: "./.mcp.json",
+    mcpServers: $mcpRef,
     userConfig: $userConfig
-  }' > "$DIST_DIR/.claude-plugin/plugin.json"
+  }
+  | if .mcpServers == null then del(.mcpServers) else . end' > "$DIST_DIR/.claude-plugin/plugin.json"
 
 ok "plugin.json generato"
 
@@ -250,68 +262,14 @@ else
   ok "hooks.json generato (vuoto — template senza hooks)"
 fi
 
-# ── Genera .mcp.json ─────────────────────────────────────────────────────────
-step "Generazione .mcp.json"
+# ── Copia .mcp.json ──────────────────────────────────────────────────────────
+step "Server MCP del plugin"
 
-if [ "$NAME" = "dev-setup" ]; then
-  cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
-{
-  "mcpServers": {
-    "clickup": {
-      "type": "url",
-      "url": "https://mcp.clickup.com/mcp"
-    },
-    "figma": {
-      "type": "http",
-      "url": "https://mcp.figma.com/mcp"
-    },
-    "context7": {
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@latest"]
-    }
-  }
-}
-MCPJSON
-  ok ".mcp.json generato (clickup, figma, context7)"
-elif [ "$NAME" = "pm-setup" ]; then
-  cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
-{
-  "mcpServers": {
-    "clickup": {
-      "type": "url",
-      "url": "https://mcp.clickup.com/mcp"
-    },
-    "gdrive": {
-      "command": "npx",
-      "args": ["@piotr-agier/google-drive-mcp"],
-      "env": {
-        "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "${GOOGLE_DRIVE_OAUTH_CREDENTIALS}"
-      }
-    },
-    "figma": {
-      "type": "http",
-      "url": "https://mcp.figma.com/mcp"
-    }
-  }
-}
-MCPJSON
-  ok ".mcp.json generato (clickup, gdrive, figma)"
+if [ -f "$MCP_SRC" ]; then
+  cp "$MCP_SRC" "$DIST_DIR/.mcp.json"
+  ok ".mcp.json copiato dal template ($(jq -r '.mcpServers | keys | join(", ")' "$MCP_SRC"))"
 else
-  cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
-{
-  "mcpServers": {
-    "clickup": {
-      "type": "url",
-      "url": "https://mcp.clickup.com/mcp"
-    },
-    "figma": {
-      "type": "http",
-      "url": "https://mcp.figma.com/mcp"
-    }
-  }
-}
-MCPJSON
-  ok ".mcp.json generato (clickup, figma)"
+  ok "nessun server MCP nel plugin — li registra la setup skill per progetto"
 fi
 
 # ── Aggiorna marketplace.json ────────────────────────────────────────────────
