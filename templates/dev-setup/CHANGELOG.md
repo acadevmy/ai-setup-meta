@@ -6,6 +6,13 @@ Le sezioni `[X.Y.Z]` vengono generate dai conventional commits dall'ultimo tag.
 Non modificare manualmente le sezioni datate — saranno sovrascritte al prossimo run.
 -->
 
+## [2.3.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v2.2.0...dev-setup-v2.3.0) (2026-07-24)
+
+
+### Features
+
+* **dev-setup:** Adopt Fable model for reasoning phases and set effort levels [DE-15988] ([#62](https://github.com/acadevmy/ai-setup-meta/issues/62)) ([94d61c8](https://github.com/acadevmy/ai-setup-meta/commit/94d61c88608925830d940485429063f5495a1973))
+
 ## [2.2.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v2.1.0...dev-setup-v2.2.0) (2026-06-15)
 
 
