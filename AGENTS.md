@@ -34,10 +34,10 @@ ai-base-setup/
 │
 ├── .claude/                # SOLO strumenti del meta-repo
 │   ├── agents/             # validate-template.md
-│   ├── commands/           # Comandi invocabili (/project:build-plugin, release-plugin, validate)
-│   └── skills/             # generate-setup, release, sync-profiles, update-constitution
+│   ├── commands/           # Comandi invocabili (/project:build-plugin, release-plugin)
+│   └── skills/             # generate-setup, release, sync-profiles, update-constitution, validate
 │
-└── scripts/                # Script sh di supporto (build-plugin, release-plugin, validate-setup-urls)
+└── scripts/                # Script sh (build-plugin, release-plugin, validate-setup-urls, validate-plugin)
 ```
 
 ## Stack del team
@@ -180,6 +180,7 @@ Gli agent sono sub-processi isolati con il proprio contesto.
 | `/project:update-constitution` | Aggiorna CONSTITUTION e propaga ai template |
 | `/project:sync-profiles` | Sincronizza i profili stack nel template di dominio |
 | `/project:auto-maintain` | Pipeline autonoma: pesca un task ClickUp dalla lista di manutenzione e apre PR (vedi sezione dedicata) |
+| `/project:validate` | Validazione pre-release: riferimenti dei manifest + 11 check statici sulla qualita' delle skill |
 
 ### Comandi (`/project:<nome>`)
 
@@ -189,7 +190,6 @@ Comandi che invocano script sh sottostanti per operazioni di build/release/valid
 |---|---|
 | `/project:build-plugin` | Build del plugin da manifest.json → `dist/` |
 | `/project:release-plugin` | Release completa: bump, build, changelog, tag, push, GitHub Release |
-| `/project:validate` | Validazione pre-release: verifica file referenziati dai manifest |
 
 ### Shared skills (in `shared/`, distribuite ai template)
 
@@ -285,10 +285,36 @@ launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.caffeinate.plist
 3. Risolvi manualmente o riformula il task description, poi sposta il task `BLOCKED -> SPRINT`
 4. La pipeline lo riprendera' al prossimo ciclo
 
+## CI e gate automatici
+
+Ogni PR verso `main` o `next` (e ogni push sugli stessi branch) attraversa quattro job.
+Sono la rete di sicurezza del repo: nessuna modifica va su `next` con un job rosso.
+
+| Job | Workflow | Cosa verifica |
+|---|---|---|
+| `plugin-validate` | `ci.yml` | `claude plugin validate --strict` su `dist/dev-setup/` e sul catalogo marketplace |
+| `shellcheck` | `ci.yml` | Tutti gli `*.sh` di `scripts/`, `templates/`, `dist/` a `--severity=warning` |
+| `static-checks` | `ci.yml` | `validate-setup-urls.sh` + `validate-plugin.sh --fail-on-stale` |
+| `verify` | `build-verify.yml` | `dist/` in sync con `templates/`, `shared/` e gli script di build |
+
+### La baseline dei fail noti
+
+`scripts/validate-baseline.txt` elenca i difetti censiti dall'audit che i check
+statici trovano *oggi*: sono riportati a ogni run ma non fanno fallire la CI.
+Le regole sono due:
+
+1. **Un finding nuovo si corregge**, non si aggiunge alla baseline. La baseline
+   si svuota con le PR della catena di rivisitazione, non cresce.
+2. **Chi risolve un difetto rimuove la sua riga** dalla baseline nella stessa PR.
+   Il flag `--fail-on-stale` in CI rende rosso il job se una riga resta orfana.
+
+Stato reale del repo, baseline ignorata: `bash scripts/validate-plugin.sh --strict`.
+
 ## Checklist pre-PR
 
 Prima di aprire una PR, verifica:
 
+- [ ] `/project:validate` passa (o i finding nuovi sono corretti)
 - [ ] I file generati non contengono API key o segreti
 - [ ] Il `CHANGELOG.md` del template e' aggiornato
 - [ ] I profili stack sono coerenti con quelli nel template
@@ -301,4 +327,4 @@ Prima di aprire una PR, verifica:
 Questo file viene aggiornato manualmente tramite PR. Non modificarlo direttamente su `main`.
 
 ---
-*Versione: 2.2.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
+*Versione: 2.3.0 — aggiornare il numero di versione ad ogni modifica sostanziale*
