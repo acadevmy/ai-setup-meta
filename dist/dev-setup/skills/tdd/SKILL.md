@@ -24,7 +24,7 @@ This methodology is designed for **backend** development: business logic, APIs, 
 3. **Refactor** — Improve the code while keeping tests green
    - Eliminate duplication
    - Improve names
-   - Apply CONSTITUTION.md rules
+   - Apply the project rules in `.claude/rules/`
 
 4. **Repeat** — Move on to the next behavior
    - One Red-Green-Refactor cycle per behavior

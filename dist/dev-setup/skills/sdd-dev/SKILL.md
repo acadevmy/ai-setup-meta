@@ -89,7 +89,7 @@ For each step in the plan, in the agreed order:
    - **Refactor** — Improve the code while keeping tests green
      - Eliminate duplication
      - Improve names
-     - Apply CONSTITUTION.md rules
+     - Apply the project rules in `.claude/rules/`
 
    **If BDD**:
    - **Specification** — Define scenarios in Gherkin format:
@@ -106,7 +106,7 @@ For each step in the plan, in the agreed order:
      - Each `When` simulates the user action
      - Each `Then` verifies the visible result
    - **Implement** — Develop the minimum necessary to make scenarios pass
-   - **Refactor** — Improve the code applying CONSTITUTION.md
+   - **Refactor** — Improve the code applying the project rules in `.claude/rules/`
 
    **If no methodology**:
    - Implement directly following the spec

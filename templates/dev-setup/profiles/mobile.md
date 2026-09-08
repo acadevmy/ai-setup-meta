@@ -38,7 +38,8 @@ lib/
 
 ### Flutter rules
 
-> Complete rules are in the **CONSTITUTION.md** (section VIII, rules 28-37).
+> The full rules are in the generated `.claude/rules/dev-setup-flutter.md`, which
+> loads automatically on any `.dart` file.
 > Here is the operational summary for the mobile profile.
 
 - Widgets are UI only: no business logic, no HTTP calls
@@ -91,13 +92,13 @@ dev_dependencies:
 
 Riverpod 3 and freezed 4 are **breaking majors** over the 2.x this profile used
 to declare: on an existing project do not raise the pins inside an unrelated PR
-(CONSTITUTION §50, scoped Boy Scout Rule). `flutter_riverpod` 3.x pairs with
+(scoped Boy Scout Rule). `flutter_riverpod` 3.x pairs with
 `riverpod_annotation`/`riverpod_generator` 4.x and `riverpod_lint` 3.x — the
 three numbers differ by upstream choice, not by mistake.
 
 ### Flutter linting configuration (analysis_options.yaml)
 
-> Complete configuration in the **CONSTITUTION.md** (rule 35).
+> The full analyzer baseline is in `.claude/rules/dev-setup-flutter.md`.
 
 ```yaml
 include: package:flutter_lints/flutter.yaml
@@ -136,7 +137,7 @@ linter:
    - add `part '*.g.dart'` / `part '*.freezed.dart'` in model/provider files
 3. **Architecture**
    - create features with the three layers `presentation/domain/data`
-     (CONSTITUTION §32 — dependency rule: dependencies point only inward)
+     (dependency rule: dependencies point only inward)
    - keep datasources in the `data` layer, not in UI
 4. **State and mutations**
    - use `@riverpod` + `AsyncNotifier` for fetch/mutations
@@ -253,7 +254,7 @@ export default {
   preset: 'jest-expo',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   // Without collectCoverageFrom the threshold is computed only over files the
-  // tests touch, and CONSTITUTION §12 gates nothing.
+  // tests touch, and the threshold gates nothing.
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.spec.{ts,tsx}', '!src/**/*.d.ts'],
   coverageThreshold: { global: { lines: 70, functions: 70, branches: 60 } },
 };

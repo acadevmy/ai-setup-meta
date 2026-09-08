@@ -35,8 +35,8 @@ jobs:
       - name: Check dist/ is in sync
         run: |
           if ! git diff --quiet -- dist/ .claude-plugin/; then
-            echo "::error::dist/ o marketplace.json out of sync rispetto a templates/. Esegui 'bash scripts/build-plugin.sh ${{ matrix.template }}' localmente e committa il risultato."
+            echo "::error::dist/ or marketplace.json is out of sync with templates/. Run 'bash scripts/build-plugin.sh ${{ matrix.template }}' locally and commit the result."
             git --no-pager diff --stat -- dist/ .claude-plugin/
             exit 1
           fi
-          echo "✓ dist/ in sync con templates/"
+          echo "✓ dist/ is in sync with templates/"

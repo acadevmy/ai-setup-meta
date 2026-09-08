@@ -10,6 +10,8 @@
 #      of its own, and HUSKY=0 is refused
 #   4. check-prerequisites.sh on a repository whose base is `next`: the diff
 #      holds only the branch's own commits
+# Plus, for DE-16477: every rule template renders from detect-stack output, and
+# core.md is the only one that loads unconditionally.
 #
 # Usage:
 #   bash scripts/test-plugin-scripts.sh            # run the suite
@@ -473,6 +475,57 @@ if command -v npm >/dev/null 2>&1; then
 else
   echo "  ${DIM}npm not found: full-gate execution tests skipped${NC}"
 fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. rules/ — the path-scoped rule templates (DE-16477)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── rules/ ──"
+
+RULES_SRC="$REPO_ROOT/templates/dev-setup/rules"
+RULES_OUT="$WORK_DIR/rules-out"
+mkdir -p "$RULES_OUT"
+
+# Every declared rule renders against a real project's detect-stack output, with
+# no unresolved placeholder left. This is the check that would catch a template
+# growing a `{{VAR}}` detect-stack does not emit.
+RULES_STACK="$WORK_DIR/rules-stack.json"
+(cd "$WORK_DIR/nestjs" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json) > "$RULES_STACK"
+
+RENDER_FAILURES=""
+for RULE in $(jq -r '.rules[]? // empty' "$REPO_ROOT/templates/dev-setup/manifest.json"); do
+  if ! bash "$PLUGIN_SCRIPTS/render-template.sh" \
+      --in "$RULES_SRC/$RULE" \
+      --out "$RULES_OUT/dev-setup-$RULE" \
+      --vars-json "$RULES_STACK" >/dev/null 2>&1; then
+    RENDER_FAILURES="$RENDER_FAILURES $RULE"
+  fi
+done
+assert_eq "every rule renders from detect-stack output" "" "${RENDER_FAILURES# }"
+
+# The service-layer glob is the one value a rule takes from detection.
+assert_contains "backend-services gets the resolved glob" \
+  "$(cat "$RULES_OUT/dev-setup-backend-services.md" 2>/dev/null)" \
+  '"**/*.{service,controller,repository,resolver,guard,interceptor}.ts"'
+
+# core.md is the only rule without `paths:`: everything else costs context only
+# when a matching file is touched.
+UNSCOPED=""
+for RULE in $(jq -r '.rules[]? // empty' "$REPO_ROOT/templates/dev-setup/manifest.json"); do
+  head -1 "$RULES_SRC/$RULE" | grep -q '^---$' || { UNSCOPED="$UNSCOPED $RULE"; continue; }
+  sed -n '2,/^---$/p' "$RULES_SRC/$RULE" | grep -q '^paths:' || UNSCOPED="$UNSCOPED $RULE"
+done
+assert_eq "core.md is the only unconditional rule" "core.md" "${UNSCOPED# }"
+
+assert_eq "core.md fits the session-zero budget" "true" \
+  "$([ "$(wc -l < "$RULES_SRC/core.md" | tr -d ' ')" -le 150 ] && echo true || echo false)"
+
+# A frontend project has no service layer, so the rule is not generated at all —
+# an empty glob would otherwise render as `paths: [""]`, which matches nothing
+# and looks like a rule that simply never fires.
+assert_eq "a frontend project resolves no service glob" "" \
+  "$( (cd "$WORK_DIR/nextjs" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json) | jq -r .SERVICES_GLOB)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary

@@ -33,7 +33,7 @@ in the `.specs/` directory.
 
 ### 2. Analyze the project
 
-- Read `CONSTITUTION.md` to understand applicable technical constraints
+- Read the project rules in `.claude/rules/` to understand applicable technical constraints
 - Read `REGISTRY.md` to learn about existing components, adopted patterns and architectural decisions
 - Identify relevant files in the project based on the task requirements
 - Check `.specs/` to verify a spec doesn't already exist for the same task
@@ -127,7 +127,7 @@ Filled in by the `/dev-setup:review` flow once it finishes.>
 - **State**: pending | completed
 - **Date**: <YYYY-MM-DD when it ran, otherwise "—">
 - **Outcome**: <`pass` | `pass-with-warnings` | `fail` once completed, otherwise "—">
-- **Violations**: <number of CONSTITUTION violations found, or 0>
+- **Violations**: <number of rule violations found, or 0>
 - **Warnings**: <short list W-1, W-2, … with the rationale, or "none">
 - **REGISTRY updates**: <number of entries applied + a short add/update summary per section, or "none">
 
@@ -137,7 +137,7 @@ Filled in by the `/dev-setup:review` flow once it finishes.>
 
 **Guidelines for generation**:
 - Requirements must be faithfully extracted from the ClickUp task description
-- Technical decisions must comply with CONSTITUTION.md
+- Technical decisions must comply with the project rules in `.claude/rules/`
 - The implementation plan must be ordered by dependencies (foundations first, then features)
 - Reuse components and patterns already present in REGISTRY.md
 - Test cases must cover the listed requirements

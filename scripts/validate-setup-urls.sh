@@ -112,6 +112,17 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     fi
   done
 
+  # Path-scoped rule templates (rendered into the project's .claude/rules/)
+  for rule in $(python3 -c "import json; [print(r) for r in json.load(open('$manifest')).get('rules',[])]" 2>/dev/null); do
+    file="templates/$TEMPLATE_NAME/rules/$rule"
+    if [ -f "${REPO_ROOT}/${file}" ]; then
+      printf '%b\n' "${GREEN}OK${NC}  ${file}"
+    else
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
+      errors=$((errors + 1))
+    fi
+  done
+
   # Plugin scripts (the deterministic helpers shipped at dist/<name>/scripts/)
   for script in $(python3 -c "import json; [print(s) for s in json.load(open('$manifest')).get('plugin_scripts',[])]" 2>/dev/null); do
     file="templates/$TEMPLATE_NAME/.claude/scripts/$script"

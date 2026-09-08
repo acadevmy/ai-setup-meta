@@ -191,7 +191,7 @@ Read `TASK_DESC` to work out the kind of change. Supported types:
 | `mcp-update` | "MCP", "context server", "claude mcp add" | `templates/<dom>/.mcp.json`, related docs |
 | `profile-update` | "profile", "stack", "Next.js/Angular/Flutter" | `templates/<dom>/profiles/` |
 | `agent-update` | "agent", "subagent" | `templates/<dom>/.claude/agents/`, `shared/agents/` |
-| `constitution-update` | "constitution", "rule", "constraint" | `templates/<dom>/CONSTITUTION.md` |
+| `rules-update` | "rule", "constraint", "governance", "constitution" | `templates/<dom>/rules/` |
 | `manifest-update` | "manifest", "shared_agents", "required_files" | `templates/<dom>/manifest.json` |
 | `docs-update` | "AGENTS.md", "README", "documentation" | `AGENTS.md`, `README.md`, `docs/` |
 

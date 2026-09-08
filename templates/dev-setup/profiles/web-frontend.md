@@ -105,6 +105,20 @@ As of `eslint-config-next@16` both entrypoints export **native flat arrays**:
 spread them directly, no `FlatCompat`/`@eslint/eslintrc` needed. The same holds
 for Angular — `angular-eslint` exports flat configs and spreads the same way.
 
+### `max-lines-per-function` on components
+
+The base config caps functions at 40 lines. A component that trips it is a
+component doing more than one thing — split it before reaching for a disable
+comment. If a team decides JSX deserves more room, that decision belongs in this
+project's `eslint.config.mjs`, as an explicit override with a reason:
+
+```javascript
+{
+  files: ['**/*.tsx'],
+  rules: { 'max-lines-per-function': ['error', { max: 60, skipBlankLines: true, skipComments: true }] },
+}
+```
+
 ## Prettier configuration
 
 The setup copies `.prettierrc.tailwind.json` as `.prettierrc.json`: it is the
@@ -155,7 +169,7 @@ export default createJestConfig({
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   // Without collectCoverageFrom the threshold is computed only over files the
-  // tests touch: a never-imported component lowers nothing and CONSTITUTION §12
+  // tests touch: a never-imported component lowers nothing and the threshold
   // gates nothing. With the list, a file without tests fails the job.
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
@@ -167,7 +181,7 @@ export default createJestConfig({
   ],
   coverageThreshold: {
     global: { lines: 70, functions: 70, branches: 60 },
-    // Per-layer thresholds from CONSTITUTION §12 — uncomment each entry once the
+    // Per-layer thresholds — uncomment each entry once the
     // directory exists. Jest hard-fails with "Coverage data for <path> was not
     // found" on any path or glob that matches nothing, which would break a
     // greenfield on its very first `test:cov`.

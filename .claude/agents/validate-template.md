@@ -1,6 +1,6 @@
 ---
 name: validate-template
-description: Pre-release validation of a template. Checks internal coherence (required files from the manifest, CONSTITUTION sync, secrets, structure) before publishing. Use before every release.
+description: Pre-release validation of a template. Checks internal coherence (required files from the manifest, rule templates, secrets, structure) before publishing. Use before every release.
 tools: Read, Glob, Grep, Bash
 model: haiku
 ---
@@ -49,11 +49,17 @@ For every entry in `manifest.template_skills`:
 
 If even one file is missing, the check FAILs.
 
-### Check 2: CONSTITUTION present
+### Check 2: rule templates present
 
-Verify that `<TEMPLATE_PATH>/CONSTITUTION.md` exists and is not empty.
+For every entry in `manifest.rules`:
+- Verify that `<TEMPLATE_PATH>/rules/<name>` exists and is not empty.
 
-If the file is missing or empty, the check FAILs.
+Verify that `rules/core.md` is among them and has **no** `paths:` frontmatter — it
+is the one rule that loads unconditionally. Every other rule must declare at
+least one glob under `paths:`.
+
+If a file is missing or empty, or the unconditional rule is not exactly
+`core.md`, the check FAILs.
 
 ### Check 3: no secrets in tracked files
 
@@ -115,14 +121,14 @@ CHECKS:
   - [PASS] required-files: every required file present
   - [PASS] shared-assets: every shared asset present
   - [PASS] template-assets: every template asset present
-  - [FAIL] constitution-present: CONSTITUTION.md missing or empty
+  - [FAIL] rules-present: rules/flutter.md missing or empty
   - [PASS] no-secrets: no secret found
   - [PASS] gitignore: every required entry present
   - [PASS] manifest-valid: manifest complete and coherent
   - [PASS] changelog-version: v2.0.0 matches
   - [PASS] registry-structure: structure valid, no placeholder
 FAILURES:
-  - constitution-present: CONSTITUTION.md missing or empty in the template
+  - rules-present: rules/flutter.md missing or empty in the template
 SUMMARY: 8/9 checks passed
 ---END---
 ```

@@ -24,7 +24,7 @@ ai-base-setup/
 │   └── <domain>/           # e.g. dev-setup
 │       ├── manifest.json   # Declares the dependencies on shared/ and the domain files
 │       ├── setup-skill.md  # The domain's setup skill (bootstrap logic)
-│       ├── CONSTITUTION.md # Source of truth for the domain's rules
+│       ├── rules/          # Path-scoped rule templates → project .claude/rules/
 │       ├── profiles/       # Stack profiles specific to the domain
 │       └── .claude/        # Agents, skills, scripts/ and hooks/ of the domain
 │
@@ -60,7 +60,8 @@ The team mainly works on:
 ## Core operating rules
 
 ### Before any change
-1. Read `CONSTITUTION.md` to check which constraints apply
+1. Read the rule templates under `templates/<domain>/rules/` to check which
+   constraints the domain declares
 2. Check whether a skill under `.claude/skills/` already covers the task
 3. Check the state of the current branch — never work directly on `main`
 
@@ -127,10 +128,11 @@ release-please groups the entries by type (Features / Bug Fixes / Documentation 
 - Every change to `main` goes through a PR — no exceptions
 - The title follows Conventional Commits
 - The description must cover: **What changes**, **Why**, **How to test**
-- Always add the right label: `constitution`, `template`, `skill`, `profile`, `release`
+- Always add the right label: `constitution` (now the path-scoped rules), `template`,
+  `skill`, `profile`, `release`
 
 ### What you must never do
-- Never change `CONSTITUTION.md` without a human-approved PR
+- Never change a rule template under `templates/*/rules/` without a human-approved PR
 - Never push to `main` directly
 - Never put an API key, a token or a secret in any git-tracked file
 - Never use `any` in TypeScript, not even in generated configuration files
@@ -220,7 +222,7 @@ status other than 0.
 
 | Script | Returns |
 |---|---|
-| `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `HOOK_MANAGER` |
+| `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `HOOK_MANAGER` |
 | `sdd-start.sh --task DE-123` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
@@ -269,6 +271,43 @@ inside the project** (writes under any `.git/` are blocked there, new repositori
 included). The harness probes for a usable directory and, when it cannot find one,
 says so: point `TEST_TMPDIR` at a writable path outside the project. In CI, where
 there is no sandbox, the repo-local default works.
+
+## The governance: path-scoped rules
+
+The domain's rules are not one document a project reads in full at every session.
+They are the templates under `templates/<domain>/rules/`, which the setup skill
+renders into the project's `.claude/rules/dev-setup-*.md`. The harness injects a
+rule when the model touches a file matching its `paths:` frontmatter — a
+deterministic match, no re-reading, and it survives compaction.
+
+| Template | `paths:` | Loads |
+|---|---|---|
+| `core.md` | *(none)* | always — the only unconditional rule, capped at 150 lines |
+| `typescript.md` | `**/*.{ts,tsx,mts,cts}` | on a TypeScript file |
+| `react.md` | `**/*.tsx`, `**/*.jsx` | on a React component |
+| `react-native.md` | `**/*.tsx`, `**/*.jsx` | Expo/RN projects only (never generated elsewhere) |
+| `vue.md` | `**/*.vue` | on a SFC |
+| `flutter.md` | `**/*.dart` | on Dart |
+| `terraform.md` | `**/*.tf`, `**/*.tfvars` | on HCL |
+| `tests.md` | `**/*.spec.*`, `**/*.test.*`, … | on a test file |
+| `backend-services.md` | `{{SERVICES_GLOB}}` | on the business-logic layer — the glob comes from `detect-stack.sh` |
+
+Three rules hold this together:
+
+1. **A rule a machine can check does not live here.** Function length, naming,
+   `any`, coverage floors and layer imports are ESLint and the test runner;
+   "1 review required" and "no direct push" are branch protection, set by the
+   setup's Step 7b. A rule lives in exactly one place, and prose is the place of
+   last resort.
+2. **`core.md` is the only file with no `paths:`.** Adding a second one doubles
+   what every session pays for, everywhere. Check 9 of `/project:validate` fails
+   the build if that happens.
+3. **The `dev-setup-` prefix is a contract.** The setup regenerates only its own
+   files and never touches a rule the project's team added by hand.
+
+To change the governance: edit the template under `templates/<domain>/rules/`,
+run `bash scripts/build-plugin.sh <domain>`, and open a PR. Projects pick the
+change up on the setup's UPDATE mode.
 
 ## Autonomous maintenance pipeline
 
@@ -407,7 +446,7 @@ Before opening a PR, check that:
 - [ ] The generated files hold no API keys or secrets
 - [ ] The template's `CHANGELOG.md` is up to date
 - [ ] The stack profiles match the ones in the template
-- [ ] The template's `CONSTITUTION.md` is identical to the source (where applicable)
+- [ ] `core.md` is still the only rule template without `paths:`, and still under 150 lines
 - [ ] The template's `manifest.json` matches the files actually present
 - [ ] The PR description says how to test
 
@@ -416,4 +455,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR. Do not edit it directly on `main`.
 
 ---
-*Version: 2.7.0 — bump the version number on every substantial change*
+*Version: 2.8.0 — bump the version number on every substantial change*

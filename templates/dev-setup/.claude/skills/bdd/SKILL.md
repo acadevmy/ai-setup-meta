@@ -39,7 +39,7 @@ This methodology is designed for **frontend** development: UI components, pages,
 4. **Refactor** — Improve the code while keeping scenarios green
    - Extract reusable components
    - Improve names
-   - Apply CONSTITUTION.md rules
+   - Apply the project rules in `.claude/rules/`
 
 5. **Final verification**
    - Run the project tests:

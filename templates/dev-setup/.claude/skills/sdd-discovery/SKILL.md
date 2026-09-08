@@ -55,7 +55,7 @@ structured **Discovery Summary** that will feed the technical specification.
 
 ### 2. Analyze the project context
 
-- Read `CONSTITUTION.md` to understand applicable technical constraints
+- Read the project rules in `.claude/rules/` to understand applicable technical constraints
 - Read `REGISTRY.md` to learn about existing components, adopted patterns and architectural decisions
 - Identify relevant files in the project based on the task requirements
 

@@ -21,7 +21,8 @@
 #   CHANGED_FILES   newline-separated list of files changed against the merge
 #                   base, or "" when the branch has no changes of its own
 #   AVAILABLE_DOCS  comma-separated governance docs present at the repo root
-#                   (CONSTITUTION.md, REGISTRY.md, AGENTS.md, README.md)
+#                   (AGENTS.md, CLAUDE.md, REGISTRY.md, README.md) plus
+#                   `.claude/rules/` when the project has generated rules
 #   BASE_BRANCH     the resolved base ref, e.g. origin/next
 #   MERGE_BASE      the commit the branch forked from — the diff anchor
 #   BRANCH          the current branch
@@ -156,7 +157,7 @@ fi
 # ── Available governance docs ─────────────────────────────────────────────────
 
 AVAILABLE_DOCS=""
-for doc in CONSTITUTION.md REGISTRY.md AGENTS.md CLAUDE.md README.md; do
+for doc in REGISTRY.md AGENTS.md CLAUDE.md README.md; do
   if [ -f "$REPO_ROOT/$doc" ]; then
     if [ -z "$AVAILABLE_DOCS" ]; then
       AVAILABLE_DOCS="$doc"
@@ -165,6 +166,18 @@ for doc in CONSTITUTION.md REGISTRY.md AGENTS.md CLAUDE.md README.md; do
     fi
   fi
 done
+
+# The governance itself is no longer one file: it is the rules directory, which
+# the harness loads by glob. Report it as one entry — listing every rule would
+# duplicate what the consumer can read off disk.
+if [ -d "$REPO_ROOT/.claude/rules" ] \
+  && find "$REPO_ROOT/.claude/rules" -name '*.md' -print -quit 2>/dev/null | grep -q .; then
+  if [ -z "$AVAILABLE_DOCS" ]; then
+    AVAILABLE_DOCS=".claude/rules/"
+  else
+    AVAILABLE_DOCS="$AVAILABLE_DOCS,.claude/rules/"
+  fi
+fi
 
 # ── Output ────────────────────────────────────────────────────────────────────
 

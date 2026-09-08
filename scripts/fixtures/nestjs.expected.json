@@ -8,6 +8,7 @@
   "LINT_CMD": "npm run lint",
   "MONOREPO": "",
   "PKG_MANAGER": "npm",
+  "SERVICES_GLOB": "**/*.{service,controller,repository,resolver,guard,interceptor}.ts",
   "TEST_CMD": "npm run test",
   "TYPECHECK_CMD": "npx tsc --noEmit",
   "VCS": "none"

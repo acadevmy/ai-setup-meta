@@ -15,7 +15,7 @@ A contributor (human or agent) opens a branch on feat/<scope>
          │
          ▼
   Edits the sources under templates/, shared/, scripts/
-  following the rules in CONSTITUTION.md and AGENTS.md
+  following the project rules in .claude/rules/ and AGENTS.md
          │
          ▼
   /project:validate  — static checks on skill quality
@@ -53,7 +53,7 @@ A contributor (human or agent) opens a branch on feat/<scope>
   - rebuilds dist/ and commits it ("chore(dist): rebuild after release …")
 ```
 
-> **A note on the helper skills**: the `/project:*` skills are **optional** meta-repo tools (they live in `.claude/skills/`). They are not part of CI. They exist so a contributor can make guided changes (for example updating the CONSTITUTION while keeping the root and the template coherent). A contributor can equally well edit the files by hand — the release flow depends only on the conventional commits, not on how the changes were produced. See [`AGENTS.md → Available skills`](../AGENTS.md#available-skills) for the full list and what each one does.
+> **A note on the helper skills**: the `/project:*` skills are **optional** meta-repo tools (they live in `.claude/skills/`). They are not part of CI. They exist so a contributor can make guided changes (for example updating a rule template while keeping the root and the template coherent). A contributor can equally well edit the files by hand — the release flow depends only on the conventional commits, not on how the changes were produced. See [`AGENTS.md → Available skills`](../AGENTS.md#available-skills) for the full list and what each one does.
 
 ## How the release works
 
@@ -109,7 +109,7 @@ Alternatively you can write `release-please-action`-style annotations (see the [
 ### Adding a rule to the Constitution
 ```bash
 git checkout -b feat/constitution-new-rule
-# Edit templates/dev-setup/CONSTITUTION.md, then:
+# Edit templates/dev-setup/rules/<rule>.md, then:
 bash scripts/build-plugin.sh dev-setup
 ```
 
@@ -139,7 +139,7 @@ To force a specific version (an override): add `Release-As: X.Y.Z` to a commit f
 
 1. **Never work on `main` directly** — always a branch and a PR
 2. **Read every PR Claude opens** before approving it — the responsibility stays human
-3. **Do not approve PRs that touch `CONSTITUTION.md`** without a careful review
+3. **Do not approve PRs that touch `templates/*/rules/`** without a careful review
 4. **Update `AGENTS.md`** whenever the team's tools, profiles or processes change
 5. **Test `/dev-setup:setup`** on a clean project before every minor/major release
 6. **Never edit the template repo directly** — always go through the meta-repo

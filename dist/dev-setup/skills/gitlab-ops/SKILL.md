@@ -96,7 +96,7 @@ Minimal fallback body:
 ## Checklist
 - [ ] No secrets or API keys included
 - [ ] CHANGELOG updated
-- [ ] CONSTITUTION respected
+- [ ] project rules respected
 
 ## ClickUp
 - Task: [DE-XXX](link to task)

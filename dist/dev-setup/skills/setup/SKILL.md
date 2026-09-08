@@ -21,7 +21,12 @@ All template files are available under:
 ${CLAUDE_SKILL_DIR}/templates/
 ```
 
-It contains: AGENTS.template.md, CONSTITUTION.md, REGISTRY.md, .env.example, .gitignore, settings.json, settings.user.json, profiles/
+It contains: AGENTS.template.md, REGISTRY.md, .env.example, .gitignore, settings.json, settings.user.json, profiles/, rules/
+
+The deterministic work is done by the plugin scripts, not re-derived from this
+prose on every run. They live at `${CLAUDE_PLUGIN_ROOT}/scripts/` and all speak
+the same contract: `--json` prints a flat object with `UPPER_SNAKE` keys, a
+missing value is the empty string, diagnostics go to stderr.
 
 ---
 
@@ -30,7 +35,7 @@ It contains: AGENTS.template.md, CONSTITUTION.md, REGISTRY.md, .env.example, .gi
 Files fall into two categories:
 
 - **Verbatim**: read from the plugin and written straight to their final destination (REGISTRY, settings, .gitignore, .env.example). Conflict detection runs before every write.
-- **Transformed**: read from the plugin, transformed in memory, then written to their final destination. This covers: CONSTITUTION (section removal), the AGENT template (placeholder substitution), profiles (configuration extraction).
+- **Transformed**: read from the plugin, transformed in memory, then written to their final destination. This covers: the AGENT template (placeholder substitution), the rule templates (rendered by `render-template.sh`), profiles (configuration extraction).
 
 **IMPORTANT**: skills and agents are NOT installed into the project. They are provided by the plugin itself and available automatically.
 
@@ -44,7 +49,7 @@ Run the following steps **in the order given**. Do not skip any step.
 
 Analyze the current project to determine the operating mode:
 
-1. **UPDATE** — If both `CONSTITUTION.md` and `.claude/settings.json` already exist in the project root, setup has already run. Ask the developer: "Setup has already run. Do you want to update the files from the source repository?" If they say no, stop.
+1. **UPDATE** — If `.claude/settings.json` already exists in the project root and the project has either `.claude/rules/dev-setup-core.md` or a legacy `CONSTITUTION.md`, setup has already run. Ask the developer: "Setup has already run. Do you want to update the files from the source repository?" If they say no, stop.
 
 2. **GREENFIELD** — If none of these files exist in the project root: `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, `pubspec.yaml`, `Cargo.toml`, and there are no significant source files (no `.ts`, `.js`, `.py`, `.go`, `.dart`, `.rs` file outside config). The project is empty or just initialized.
 
@@ -163,7 +168,7 @@ Save any discovered convention as `{FRAMEWORK_AGENTS_CONVENTION}` (a structured 
 - Detected languages include `terraform` → **yes**
 - Otherwise → **no**
 
-This flag derives from language detection and is used to gate Section X of the CONSTITUTION (Step 4, rule 5).
+This flag derives from language detection and decides whether Step 4 generates the Terraform rule.
 
 #### Multi-project detected?
 
@@ -294,8 +299,9 @@ Read the template files from the plugin and install them into the project.
 
 These files need adapting. Read them from the plugin:
 
-**CONSTITUTION.md** (will be adapted in Step 4):
-Read `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`
+**Rule templates** (rendered in Step 4): they stay on disk — `render-template.sh`
+reads them itself, so there is nothing to load into context here. They live in
+`${CLAUDE_SKILL_DIR}/templates/rules/`.
 
 **AGENTS template** (will be processed in Step 5):
 
@@ -596,57 +602,104 @@ options:
 
 ---
 
-### Step 4 — Adapt CONSTITUTION.md
+### Step 4 — Generate the path-scoped rules
 
-Start from the content read from `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`.
+The project's governance is not one document read in full at every session: it
+is a set of files under `.claude/rules/`, each declaring in its frontmatter the
+globs it applies to. The harness injects a rule when the model touches a file
+that matches, which means the match is deterministic, costs nothing on the
+sessions that never touch those files, and survives compaction.
 
-#### For EXISTING mode:
+Only `core.md` has no `paths:` — it is the one that loads unconditionally.
 
-> Every rule names the section to remove by number: the only source of that number are the
-> `## <N>.` headings in `CONSTITUTION.md`, and check 9 of `/project:validate` verifies that
-> the rule↔heading pair matches.
+#### 4.1 — Read the stack once
 
-1. If the frontend was **not** detected, or `{FRAMEWORK_FRONTEND}` is `nuxt` or `vue` → remove the whole Section VI (from `## VI.` up to just before `## VII.`)
-   - **Multi-project**: keep Section VI if **any** sub-project has a `{FRAMEWORK_FRONTEND}` other than `nuxt` and `vue`
-2. If `{FRAMEWORK_FRONTEND}` is **neither** `nuxt` nor `vue` → remove the whole Section VII (from `## VII.` up to just before `## VIII.`)
-   - **Multi-project**: keep Section VII if **any** sub-project has `{FRAMEWORK_FRONTEND}` = `nuxt` or `vue`
-   - The two sections are alternatives: §VI covers Next.js / Angular / React, §VII covers Nuxt 3 / Vue 3. A project with a single frontend framework keeps only one; a mixed multi-project may keep both
-3. If mobile was **not** detected → remove the whole Section VIII (from `## VIII.` up to just before `## IX.`)
-   - **Multi-project**: keep Section VIII if **any** sub-project has mobile detected
-4. If the detected language does **not** include `node` → add this note right after the `## I. Core Principles` line:
-   - **Multi-project**: add the note only if **no** sub-project uses `node`
-   - If the language includes `terraform`, adapt the note text to mention §X explicitly (see the variant below)
-
-**Standard note** (no Terraform):
-```
-> **Note**: TypeScript/Zod-specific rules apply to TypeScript projects.
-> For other languages, apply the equivalent principle (schema-first validation
-> with the appropriate tool for your stack, the language's native strict typing).
+```bash
+mkdir -p .claude
+${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh --json > .claude/.stack.json
 ```
 
-**Note with Terraform** (languages include `terraform` and do not include `node`):
+Everything in this step reads from that object; 4.3 deletes it. It is a scratch
+file, not project state — do not commit it and do not add it to `.gitignore`.
+
+#### 4.2 — Pick the rules this project needs
+
+| Template | Generated as | Generate when |
+|---|---|---|
+| `core.md` | `dev-setup-core.md` | always |
+| `typescript.md` | `dev-setup-typescript.md` | `LANG` contains `node`, or a `tsconfig.json` exists |
+| `react.md` | `dev-setup-react.md` | `FRAMEWORKS` contains `nextjs` or `react` |
+| `react-native.md` | `dev-setup-react-native.md` | `FRAMEWORKS` contains `expo` or `react-native` |
+| `vue.md` | `dev-setup-vue.md` | `FRAMEWORKS` contains `nuxt` or `vue` |
+| `flutter.md` | `dev-setup-flutter.md` | `FRAMEWORKS` contains `flutter` |
+| `terraform.md` | `dev-setup-terraform.md` | `HAS_INFRA` is `true` |
+| `tests.md` | `dev-setup-tests.md` | `TEST_CMD` is non-empty, or the mode is GREENFIELD |
+| `backend-services.md` | `dev-setup-backend-services.md` | `SERVICES_GLOB` is non-empty |
+
+**Multi-project**: the table is evaluated against the union of the sub-projects —
+a workspace holding a Next app and a NestJS API gets both `dev-setup-react.md`
+and `dev-setup-backend-services.md`. The rules live in the workspace root's
+`.claude/rules/`, and the globs (`**/*.tsx`, `**/*.service.ts`) already restrict
+each one to the right sub-tree.
+
+Do not generate a rule for a stack the project does not have. That is the whole
+point of this step: a Flutter project must not carry the React rule, and a Next
+project must not carry the Terraform one.
+
+#### 4.3 — Render them
+
+```bash
+mkdir -p .claude/rules
+
+# One call per rule selected above.
+${CLAUDE_PLUGIN_ROOT}/scripts/render-template.sh \
+  --in "${CLAUDE_SKILL_DIR}/templates/rules/<template>.md" \
+  --out ".claude/rules/dev-setup-<template>.md" \
+  --vars-json .claude/.stack.json
 ```
-> **Note**: TypeScript/Zod-specific rules apply to TypeScript projects.
-> For other languages, apply the equivalent principle. For Terraform / HCL projects,
-> the IaC rules are codified in **§X (Infrastructure as Code)** later in this
-> document.
+
+`backend-services.md` is the only template with a placeholder: `{{SERVICES_GLOB}}`,
+which `detect-stack.sh` resolved from the project's layout. The others render
+unchanged — passing `--vars-json` anyway keeps the command identical for every
+rule and makes an accidentally-added placeholder an error instead of a
+`{{PLACEHOLDER}}` shipped into the project.
+
+**Check**: `render-template.sh` exits non-zero on an unresolved placeholder. If
+it does, stop and report — do not write the file by hand.
+
+When every rule is written, remove the scratch file:
+
+```bash
+rm -f .claude/.stack.json
 ```
 
-5. If `infrastructure` was **not** detected → remove the whole Section X (from `## X.` to the end of the document, **preserving the footer block** `*Version: ...*`)
-   - **Multi-project**: keep Section X if **any** sub-project has `infrastructure` detected
-   - When Section X is removed, also remove the `> **Note for Terraform projects**` note right after `## I. Core Principles` (to avoid a pointer to a section that no longer exists)
+#### 4.4 — The `dev-setup-` prefix is the contract
 
-#### For GREENFIELD mode:
+Everything this skill writes into `.claude/rules/` is named `dev-setup-*.md`.
+Everything the project's own team writes there is not. That single convention is
+what makes UPDATE mode safe:
 
-Copy the file verbatim (no changes).
+- **GREENFIELD / EXISTING** — write the selected rules. If a `dev-setup-*.md`
+  already exists, apply conflict detection: tell the developer and keep theirs.
+- **UPDATE** — regenerate every `dev-setup-*.md` the table selects, overwriting
+  without asking (they are generated artefacts, and this is what the developer
+  asked for). Then delete the `dev-setup-*.md` files the table did **not**
+  select: they belong to a stack this project no longer has. **Never** touch a
+  file in `.claude/rules/` whose name does not start with `dev-setup-` — those
+  are the project's own rules.
 
-#### For UPDATE mode:
+#### 4.5 — Migrating a project that still has CONSTITUTION.md
 
-Overwrite the existing CONSTITUTION.md with the version read from the plugin, applying the same rules as EXISTING based on the Step 2 detection.
+Earlier versions of this setup copied a single `CONSTITUTION.md` into the project
+root. If one is there:
 
-**Conflict detection**: if `CONSTITUTION.md` already exists in the project, ask the developer before overwriting.
-
-Write the result to `CONSTITUTION.md` in the project root.
+1. Generate the rules as above.
+2. Tell the developer the file is superseded, and show what replaced it: the
+   governance now lives in `.claude/rules/`, and the mechanical parts of it
+   (function length, naming, `any`, coverage floors, who may push to the
+   reference branch) moved into ESLint, the test runner and branch protection.
+3. Ask before deleting it — a team may have added its own rules to that file.
+   If they say no, leave it and note that it is no longer read by anything.
 
 ---
 
@@ -674,7 +727,7 @@ The template is the same for every mode: only the source of the values changes.
 
 **Project Identity (interactive, EXISTING and GREENFIELD modes):**
 
-Ask ONE single batched question with three sub-fields and collect the answers. Leave `{{TODO: <hint>}}` for empty fields — do not invent values.
+Ask ONE single batched question with three sub-fields and collect the answers. Leave `TODO — <hint>` for empty fields — do not invent values.
 
 > Question to ask the developer:
 >
@@ -684,31 +737,21 @@ Ask ONE single batched question with three sub-fields and collect the answers. L
 > - **Primary users**: who uses it (e.g. 'consumer travelers', 'internal ops')"
 
 Substitutions:
-- `{{PROJECT_NAME}}` → the developer's answer, or `{{TODO: short app name}}`
-- `{{PROJECT_PURPOSE}}` → the developer's answer, or `{{TODO: one-sentence purpose}}`
-- `{{PROJECT_PRIMARY_USERS}}` → the developer's answer, or `{{TODO: who uses this app}}`
+- `{{PROJECT_NAME}}` → the developer's answer, or `TODO — short app name`
+- `{{PROJECT_PURPOSE}}` → the developer's answer, or `TODO — one-sentence purpose`
+- `{{PROJECT_PRIMARY_USERS}}` → the developer's answer, or `TODO — who uses this app`
 
 **Infrastructure (auto-detect + TODO, EXISTING and GREENFIELD modes):**
 
-Attempt auto-detection in the order below; anything not detectable becomes `{{TODO: <hint>}}`:
+Attempt auto-detection in the order below; anything not detectable becomes `TODO — <hint>`:
 
 - `{{INFRA_VCS_CI}}` → combine:
   - VCS: parse the remote URL from `.git/config` (`gitlab.com` → `GitLab`, `github.com` → `GitHub`, `bitbucket.org` → `Bitbucket`, `dev.azure.com` → `Azure DevOps`)
   - CI: presence of `.gitlab-ci.yml` → `GitLab CI`; `.github/workflows/` → `GitHub Actions`; `.circleci/config.yml` → `CircleCI`; `bitbucket-pipelines.yml` → `Bitbucket Pipelines`; `azure-pipelines.yml` → `Azure Pipelines`; `Jenkinsfile` → `Jenkins`
-  - Result: `<VCS> + <CI>` (e.g. `GitLab + GitLab CI`). If the VCS is detected but the CI is not, write `<VCS>, CI: {{TODO: which CI provider}}`.
-- `{{INFRA_SECRETS}}` → presence of `dotenv-vault.json` or `.env.vault` → `dotenv-vault`; `*.tfstate` with a `vault` backend → `HashiCorp Vault`; `aws-secretsmanager` or `aws ssm` references in IaC/CI → `AWS Secrets Manager` / `AWS Parameter Store`. Otherwise `{{TODO: secrets manager (e.g. dotenv-vault, AWS SSM, Vault)}}`.
-- `{{INFRA_HOSTING}}` → a light heuristic from the CI: detect provider names in deploy steps (`vercel`, `netlify`, `aws-eks`, `kubectl`, `gcloud run`, `firebase deploy`). Otherwise `{{TODO: hosting/deploy target}}`.
-- `{{INFRA_OBSERVABILITY}}` → presence of `datadog.yaml` / a `dd-trace` dependency → `Datadog`; `sentry.client.config.*` or `@sentry/*` in package.json → `Sentry`; `newrelic.{yml,json}` → `New Relic`. Otherwise `{{TODO: observability tool}}`.
-
-**Boundaries (semi-automatic, EXISTING and GREENFIELD modes):**
-
-- `{{BOUNDARIES_ALWAYS}}` → seeded automatically with the detected quality commands, as a bullet list:
-  - `- Run \`{{TEST_COMMAND}}\` before commit` (omit it if `{{TEST_COMMAND}}` is `not detected`)
-  - `- Run \`{{LINT_COMMAND}}\` before commit` (omit it if `{{LINT_COMMAND}}` is `not detected`)
-  - `- Run \`{{TYPECHECK_COMMAND}}\` before commit` (omit it if `{{TYPECHECK_COMMAND}}` is `not detected`)
-  - If all three are `not detected`, leave `{{TODO: list always-do actions for this project}}`
-- `{{BOUNDARIES_ASK_FIRST}}` → `{{TODO: list actions that require explicit go-ahead (e.g. adding new dependencies, schema migrations, brand-color changes)}}`
-- `{{BOUNDARIES_NEVER_EXTRA}}` → empty by default (the base `Never Do` list is already in the template; add only project-specific prohibitions here). Example if you detect a repo with a non-standard prod ref: `- Push to <branch-name> without explicit go-ahead`.
+  - Result: `<VCS> + <CI>` (e.g. `GitLab + GitLab CI`). If the VCS is detected but the CI is not, write `<VCS>, CI: TODO — which CI provider`.
+- `{{INFRA_SECRETS}}` → presence of `dotenv-vault.json` or `.env.vault` → `dotenv-vault`; `*.tfstate` with a `vault` backend → `HashiCorp Vault`; `aws-secretsmanager` or `aws ssm` references in IaC/CI → `AWS Secrets Manager` / `AWS Parameter Store`. Otherwise `TODO — secrets manager (e.g. dotenv-vault, AWS SSM, Vault)`.
+- `{{INFRA_HOSTING}}` → a light heuristic from the CI: detect provider names in deploy steps (`vercel`, `netlify`, `aws-eks`, `kubectl`, `gcloud run`, `firebase deploy`). Otherwise `TODO — hosting/deploy target`.
+- `{{INFRA_OBSERVABILITY}}` → presence of `datadog.yaml` / a `dd-trace` dependency → `Datadog`; `sentry.client.config.*` or `@sentry/*` in package.json → `Sentry`; `newrelic.{yml,json}` → `New Relic`. Otherwise `TODO — observability tool`.
 
 **Placeholder values for GREENFIELD mode:**
 
@@ -781,7 +824,7 @@ Save the classification for each sub-project as `{SUBPROJECT_TYPE}`.
   ```
 - Below the table, add this note:
   > Libraries do not get per-project setup files. When a library exposes an interesting pattern, ADR, or breaking change, add a `### library/<name>` entry to the **consuming application's `REGISTRY.md`** under "Services and utilities" — that's where library usage is documented.
-- `{{PROJECT_NAME}}`, `{{PROJECT_PURPOSE}}`, `{{PROJECT_PRIMARY_USERS}}`, `{{INFRA_VCS_CI}}`, `{{INFRA_SECRETS}}`, `{{INFRA_HOSTING}}`, `{{INFRA_OBSERVABILITY}}`, `{{QUALITY_COVERAGE_TARGET}}`, `{{TEST_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TYPECHECK_COMMAND}}`, `{{BOUNDARIES_ALWAYS}}`, `{{BOUNDARIES_ASK_FIRST}}`, `{{BOUNDARIES_NEVER_EXTRA}}` → follow the same instructions as Step 5A (interactive prompt for Project Identity, auto-detect for Infrastructure, semi-automatic for Boundaries). For workspace commands, prefer the build tool's multi-project form: Nx → `nx run-many -t <target>`; plain pnpm workspace → `pnpm -r <script>`; turbo → `turbo run <task>`. If you detect more than one, use the one exposed as a root script in `package.json`.
+- `{{PROJECT_NAME}}`, `{{PROJECT_PURPOSE}}`, `{{PROJECT_PRIMARY_USERS}}`, `{{INFRA_VCS_CI}}`, `{{INFRA_SECRETS}}`, `{{INFRA_HOSTING}}`, `{{INFRA_OBSERVABILITY}}`, `{{QUALITY_COVERAGE_TARGET}}`, `{{TEST_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TYPECHECK_COMMAND}}` → follow the same instructions as Step 5A (interactive prompt for Project Identity, auto-detect for Infrastructure). For workspace commands, prefer the build tool's multi-project form: Nx → `nx run-many -t <target>`; plain pnpm workspace → `pnpm -r <script>`; turbo → `turbo run <task>`. If you detect more than one, use the one exposed as a root script in `package.json`.
 - Write the result to `AGENTS.md` in the root
 
 **Per-sub-project AGENTS.md** — use `${CLAUDE_SKILL_DIR}/templates/AGENTS.project-template.md`:
@@ -918,6 +961,86 @@ explicitly excluded from those deny rules.
 In every case, close with one line for the Step 9 summary telling the developer to copy
 the key into their own `.env`:
 `CLICKUP_SETUP_LIST_ID declared in .env.example — copy it into .env and fill it in (setup cannot write .env)`
+
+---
+
+### Step 7b — Branch protection on the reference branch
+
+"One review required" and "no direct push to the reference branch" used to be two
+bullets in a governance document nobody could enforce. They are settings on the
+host, so this step sets them there and they stop being prose.
+
+**Skip this step** when `{VCS}` is `none` or `other`.
+
+#### 7b.1 — Resolve the reference branch
+
+Never assume `main`. The plugin already knows how to work this out:
+
+```bash
+BASE=$(${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh --json | jq -r .BASE_BRANCH)
+REMOTE=$(git remote | head -1)
+BASE_BRANCH=${BASE#"$REMOTE/"}   # BASE_BRANCH comes back remote-qualified (origin/next);
+                                 # the host APIs want the bare name
+```
+
+It resolves the branch from the repository itself — the upstream, the remote's
+default, then `main`/`master`/`develop`/`next` — and picks the one HEAD actually
+forked from. On a project whose work targets `next`, protecting `main` would
+protect the wrong ref.
+
+#### 7b.2 — Show the developer what will change, then ask
+
+This writes to the remote, and on most hosts it needs admin rights on the
+repository. State the branch and the two settings, and ask for a yes before
+running anything:
+
+> "Protect `$BASE_BRANCH` on <GitHub|GitLab>? It would require 1 approving review on
+> every pull request and block direct pushes. You need admin rights on the repo.
+> (yes / skip)"
+
+If they skip, note it in the Step 9 summary and move on — the rest of the setup
+does not depend on it.
+
+#### 7b.3 — Apply it
+
+**GitHub** — branch protection lives on the repository, `gh` reads the token from
+the environment:
+
+```bash
+gh api -X PUT "repos/{owner}/{repo}/branches/$BASE_BRANCH/protection" \
+  --input - <<'JSON'
+{
+  "required_pull_request_reviews": { "required_approving_review_count": 1 },
+  "required_status_checks": null,
+  "enforce_admins": false,
+  "restrictions": null
+}
+JSON
+```
+
+`required_status_checks` stays `null` here: the check names differ per project and
+guessing them would make every PR unmergeable. Tell the developer to add the CI
+job as a required check once it has run at least once.
+
+**GitLab** — protected branches are their own endpoint, and approvals are a
+separate setting:
+
+```bash
+glab api -X POST "projects/:id/protected_branches" \
+  -f "name=$BASE_BRANCH" -f "push_access_level=0" -f "merge_access_level=30"
+glab api -X POST "projects/:id/approval_rules" \
+  -f "name=Default" -f "approvals_required=1"
+```
+
+`push_access_level=0` is "no one", `merge_access_level=30` is "developers and
+above" — direct pushes are blocked, merge requests still work.
+
+#### 7b.4 — When it fails
+
+A 403 means no admin rights, a 404 on GitLab means the plan does not include
+approval rules. Neither is a setup failure: report exactly what came back, say
+which setting is still missing, and continue. Do not retry with different
+parameters, and do not fall back to protecting a different branch.
 
 ---
 
@@ -1142,7 +1265,7 @@ Setup complete!
 Installed files:
   - CLAUDE.md             — entry point for Claude Code (imports AGENTS.md)
   - AGENTS.md             — instructions for AI agents (cross-tool standard)
-  - CONSTITUTION.md       — governance rules
+  - .claude/rules/        — path-scoped governance rules (dev-setup-*.md)
   - REGISTRY.md           — feature and service registry
   - .claude/settings.json — project permissions + Bash sandbox
 
@@ -1151,14 +1274,14 @@ Available skills (provided by the plugin):
   - /dev-setup:auto-sdd    — autonomous end-to-end SDD (up to the PR, no human input)
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
-  - /dev-setup:review      — code review against the CONSTITUTION
+  - /dev-setup:review      — code review against the project rules
 
 Detected stack:
   - Languages:      <languages>
   - Test runner:    <test_command>
   - Linter:         <lint_command>
   - Validation:     <validation_tool>
-  - Infrastructure: <yes|no> (if yes: CONSTITUTION §X applied, terraform profile skill)
+  - Infrastructure: <yes|no> (if yes: dev-setup-terraform.md generated, terraform profile applied)
   - VCS:            <github|gitlab|none|other> → active VCS skill: <github-ops|gitlab-ops|none>
 
 NOT modified (existing tooling respected):
@@ -1178,7 +1301,7 @@ Setup complete!
 Project configuration:
   - CLAUDE.md               — entry point for Claude Code (imports AGENTS.md)
   - AGENTS.md               — instructions for AI agents (cross-tool standard)
-  - CONSTITUTION.md         — governance rules
+  - .claude/rules/          — path-scoped governance rules (dev-setup-*.md)
   - REGISTRY.md             — feature and service registry
   - .claude/settings.json   — project permissions + Bash sandbox
   - .husky/                 — git hooks (lint + commit)
@@ -1197,7 +1320,7 @@ Available skills (provided by the plugin):
   - /dev-setup:auto-sdd    — autonomous end-to-end SDD (up to the PR, no human input)
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
-  - /dev-setup:review      — code review against the CONSTITUTION
+  - /dev-setup:review      — code review against the project rules
 
 Detected VCS: <github|gitlab|none|other> → active VCS skill: <github-ops|gitlab-ops|none>
 Infrastructure: <yes|no>
@@ -1221,7 +1344,7 @@ Setup complete! (Multi-project detected: <tool>)
 Files at the root:
   - CLAUDE.md             — entry point for Claude Code
   - AGENTS.md             — general rules + workspace map
-  - CONSTITUTION.md       — governance rules
+  - .claude/rules/        — path-scoped governance rules (dev-setup-*.md)
   - .claude/settings.json — project permissions + Bash sandbox
 
 Configured sub-projects:
@@ -1235,10 +1358,10 @@ Available skills (provided by the plugin):
   - /dev-setup:auto-sdd    — autonomous end-to-end SDD (up to the PR, no human input)
   - /dev-setup:tdd         — Test-Driven Development
   - /dev-setup:bdd         — Behavior-Driven Development
-  - /dev-setup:review      — code review against the CONSTITUTION
+  - /dev-setup:review      — code review against the project rules
 
 Detected VCS: <github|gitlab|none|other> → active VCS skill: <github-ops|gitlab-ops|none>
-Infrastructure: <yes|no> (if yes: every Terraform sub-project has CONSTITUTION §X applied)
+Infrastructure: <yes|no> (if yes: dev-setup-terraform.md is generated at the root and matches every *.tf in the workspace)
 
 NOT modified (existing tooling respected):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore

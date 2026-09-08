@@ -41,6 +41,17 @@
     "post-edit.sh",
     "on-compact.sh"
   ],
+  "rules": [
+    "core.md",
+    "typescript.md",
+    "react.md",
+    "react-native.md",
+    "vue.md",
+    "flutter.md",
+    "terraform.md",
+    "tests.md",
+    "backend-services.md"
+  ],
   "profiles": [
     "web-frontend.md",
     "backend-node.md",
@@ -66,7 +77,6 @@
     "AGENTS.workspace-template.md",
     "AGENTS.project-template.md",
     "REGISTRY.md",
-    "CONSTITUTION.md",
     ".env.example",
     ".claude/settings.json",
     ".claude/settings.user.json",

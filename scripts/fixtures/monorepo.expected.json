@@ -8,6 +8,7 @@
   "LINT_CMD": "npx nx run-many -t lint",
   "MONOREPO": "nx",
   "PKG_MANAGER": "pnpm",
+  "SERVICES_GLOB": "**/*.{service,controller,repository,resolver,guard,interceptor}.ts",
   "TEST_CMD": "npx nx run-many -t test",
   "TYPECHECK_CMD": "npx nx run-many -t typecheck",
   "VCS": "none"

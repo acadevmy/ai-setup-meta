@@ -3,9 +3,9 @@
 # One line per finding: CHECK_ID <TAB> KEY. The entries listed here are
 # reported but do not fail CI. Every PR that fixes a defect removes the
 # matching line: the baseline shrinks, it does not grow.
-# Rigenerare con: bash scripts/validate-plugin.sh --update-baseline
+# Regenerate with: bash scripts/validate-plugin.sh --update-baseline
 #
-# Stato reale del repo: bash scripts/validate-plugin.sh --strict
+# The repo's real state: bash scripts/validate-plugin.sh --strict
 
 DESCRIPTION_TRIGGER	.claude/skills/auto-maintain/SKILL.md
 DESCRIPTION_TRIGGER	shared/skills/clickup/SKILL.md

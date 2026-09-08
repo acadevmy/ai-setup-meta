@@ -5,8 +5,10 @@
 # small. Three changes against the version the audit reviewed:
 #   - REGISTRY.md is capped instead of pasted whole: an ~800-line registry cost
 #     more than the compaction saved.
-#   - the three generic reminders are gone — CONSTITUTION, Conventional Commits
-#     and the protected files are already in AGENTS.md, which is loaded anyway.
+#   - the three generic reminders are gone. Governance lives in .claude/rules/,
+#     which the harness re-injects on its own (the unscoped rules at every turn,
+#     the path-scoped ones as soon as a matching file is read again), and the
+#     rest is in AGENTS.md, which is loaded anyway.
 #   - the stack no longer comes from a STACK_PROFILE key in .env.local that no
 #     step ever wrote (and that the sandbox denies reading): detect-stack.sh
 #     derives it from the files on disk.

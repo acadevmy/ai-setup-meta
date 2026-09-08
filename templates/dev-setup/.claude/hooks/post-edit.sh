@@ -3,7 +3,7 @@
 #
 # Three defects the audit found, fixed here:
 #   - it ran `prettier --write` on *any* path, governance files included. A
-#     CONSTITUTION.md or REGISTRY.md that the setup writes verbatim came back
+#     REGISTRY.md or a generated rule that the setup writes verbatim came back
 #     reformatted, so the copy no longer matched the source.
 #   - it sent stderr to /dev/null and always exited 0, so a formatter that could
 #     not parse the file failed silently.

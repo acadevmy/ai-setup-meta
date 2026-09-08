@@ -247,7 +247,7 @@ task up again.
 - Branch created with the customId in the name
 - Spec in `.specs/` with status `implemented`
 - Code implemented following the approved spec
-- Code optimized (simplify), verified against the spec (verify), CONSTITUTION-compliant (review)
+- Code optimized (simplify), verified against the spec (verify), rule-compliant (review)
 - `REGISTRY.md` updated with the new entries
 - ClickUp task: `SPRINT` → `IN PROGRESS` → `CODE REVIEW`
 - MR/PR opened (GitHub or GitLab depending on the provider) with references to the task and spec
