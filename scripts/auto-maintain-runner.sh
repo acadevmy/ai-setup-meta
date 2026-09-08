@@ -26,7 +26,7 @@ if [[ ! -d "$SANDBOX" ]] || ([[ ! -d "$SANDBOX/.git" ]] && [[ ! -f "$SANDBOX/.gi
   exit 1
 fi
 
-cd "$SANDBOX"
+cd "$SANDBOX" || { log "ERROR: cd $SANDBOX failed"; exit 1; }
 
 # Sincronizza il sandbox su main aggiornato.
 # Usa --detach per non occupare il nome del branch 'main': in questo modo il repo

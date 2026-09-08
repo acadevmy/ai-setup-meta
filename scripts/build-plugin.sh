@@ -26,7 +26,11 @@ command -v jq >/dev/null 2>&1 || fail "jq non trovato. Installa con: brew instal
 
 # ── Seleziona template ────────────────────────────────────────────────────────
 if [ -z "$TEMPLATE_NAME" ]; then
-  TEMPLATES=($(find "$ROOT_DIR/templates" -name "manifest.json" -maxdepth 2 2>/dev/null | while read f; do basename "$(dirname "$f")"; done))
+  TEMPLATES=()
+  while IFS= read -r MF; do
+    [ -n "$MF" ] || continue
+    TEMPLATES+=("$(basename "$(dirname "$MF")")")
+  done < <(find "$ROOT_DIR/templates" -maxdepth 2 -name "manifest.json" 2>/dev/null)
   if [ ${#TEMPLATES[@]} -eq 0 ]; then
     fail "Nessun template trovato in templates/"
   elif [ ${#TEMPLATES[@]} -eq 1 ]; then
@@ -52,13 +56,13 @@ export DIST_DIR="$ROOT_DIR/dist/$TEMPLATE_NAME"
 
 step "Build plugin: $TEMPLATE_NAME"
 
-export NAME=$(jq -r '.name' "$MANIFEST")
-export DESCRIPTION=$(jq -r '.description' "$MANIFEST")
-export VERSION=$(sed -n 's/^TEMPLATE_VERSION=\([^ #]*\).*/\1/p' "$TEMPLATE_DIR/.env.example" 2>/dev/null)
+NAME=$(jq -r '.name' "$MANIFEST")
+DESCRIPTION=$(jq -r '.description' "$MANIFEST")
+VERSION=$(sed -n 's/^TEMPLATE_VERSION=\([^ #]*\).*/\1/p' "$TEMPLATE_DIR/.env.example" 2>/dev/null)
 [ -z "$VERSION" ] && VERSION=$(jq -r '.version // empty' "$MANIFEST" 2>/dev/null)
 [ -z "$VERSION" ] && VERSION="1.0.0"
-export AUTHOR=$(jq -r '.author // "Acadevmy"' "$MANIFEST")
-export ROOT_DIR
+AUTHOR=$(jq -r '.author // "Acadevmy"' "$MANIFEST")
+export NAME DESCRIPTION VERSION AUTHOR ROOT_DIR
 
 ok "Manifest letto: $NAME v$VERSION"
 

@@ -4,18 +4,14 @@ name: Build Verify
 # script di build). Lancia `build-plugin.sh` per ogni template e fallisce se
 # il rebuild produrrebbe modifiche rispetto a `dist/` committato.
 
+# Nessun path-filter: il filtro precedente lasciava passare i push diretti e le
+# modifiche fuori dalla sua lista (es. `shared/agents/`), che sono esattamente
+# i casi in cui il drift di dist/ e' arrivato su main senza diventare rosso.
 on:
   pull_request:
-    branches: [main]
-    paths:
-      - 'templates/**'
-      - 'shared/**'
-      - 'scripts/builders/**'
-      - 'scripts/build-plugin.sh'
-      - '.claude-plugin/**'
-      - '.cursor-plugin/**'
-      - 'dist/**'
-      - '.github/workflows/build-verify.yml'
+    branches: [main, next]
+  push:
+    branches: [main, next]
 
 permissions:
   contents: read
