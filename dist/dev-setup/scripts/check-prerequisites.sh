@@ -112,7 +112,7 @@ fi
 UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null || true)
 if [ -n "$UNTRACKED" ]; then
   if [ -n "$CHANGED_FILES" ]; then
-    CHANGED_FILES=$(printf '%s\n%s' "$CHANGED_FILES" "$UNTRACKED" | sort -u)
+    CHANGED_FILES=$(printf '%s\n%s' "$CHANGED_FILES" "$UNTRACKED" | LC_ALL=C sort -u)
   else
     CHANGED_FILES="$UNTRACKED"
   fi
@@ -129,10 +129,12 @@ PLAN=""
 SPEC_STATUS=""
 
 if [ -n "$TASK_ID" ] && [ -d "$REPO_ROOT/.specs" ]; then
+  # LC_ALL=C on every sort in this script: the keys it prints are a contract, and
+  # locale collation would order them differently from one machine to the next.
   SPEC=$(find "$REPO_ROOT/.specs" -maxdepth 1 -name "$TASK_ID-*.md" \
-    -not -name '*-plan.md' 2>/dev/null | sort | tail -1)
+    -not -name '*-plan.md' 2>/dev/null | LC_ALL=C sort | tail -1)
   PLAN=$(find "$REPO_ROOT/.specs" -maxdepth 1 -name "$TASK_ID-*-plan.md" \
-    2>/dev/null | sort | tail -1)
+    2>/dev/null | LC_ALL=C sort | tail -1)
 fi
 
 if [ -n "$SPEC" ] && [ -f "$SPEC" ]; then

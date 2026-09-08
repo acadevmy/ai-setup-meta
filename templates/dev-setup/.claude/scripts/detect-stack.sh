@@ -165,13 +165,17 @@ detect_frameworks_in package.json
 # Sub-projects, at the depth a workspace normally uses (applications/web,
 # packages/ui, apps/api). node_modules is excluded: every dependency in there
 # ships its own package.json.
-SUBPROJECT_PKGS=$(find . -mindepth 2 -maxdepth 3 -name package.json \
-  -not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/build/*' \
-  -not -path '*/.next/*' 2>/dev/null)
-
-for SUB_PKG in $SUBPROJECT_PKGS; do
+#
+# The result is sorted: `find` walks in filesystem order, which differs between
+# macOS and Linux, and that would make FRAMEWORKS come out in a different order
+# on the same project. The output of this script is a contract — it has to be
+# reproducible, not merely correct.
+while IFS= read -r SUB_PKG; do
+  [ -n "$SUB_PKG" ] || continue
   detect_frameworks_in "$SUB_PKG"
-done
+done < <(find . -mindepth 2 -maxdepth 3 -name package.json \
+  -not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/build/*' \
+  -not -path '*/.next/*' 2>/dev/null | LC_ALL=C sort)
 
 # A pubspec.yaml in a sub-project means a Flutter app in the workspace.
 if [ -z "$(find . -maxdepth 1 -name pubspec.yaml 2>/dev/null)" ]; then

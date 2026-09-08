@@ -1,5 +1,5 @@
 {
-  "FRAMEWORKS": "nextjs,nestjs,terraform",
+  "FRAMEWORKS": "nestjs,nextjs,terraform",
   "HAS_FRONTEND": "true",
   "HAS_INFRA": "true",
   "HAS_MOBILE": "false",

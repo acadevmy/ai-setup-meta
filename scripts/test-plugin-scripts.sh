@@ -198,6 +198,15 @@ assert_eq "husky detected" "husky" "$(hook_manager_of "$WORK_DIR/nextjs")"
 assert_eq "lefthook detected" "lefthook" "$(hook_manager_of "$WORK_DIR/monorepo")"
 assert_eq "no hook manager on a plain project" "" "$(hook_manager_of "$WORK_DIR/nestjs")"
 
+# ── Determinism ──
+# `find` walks in filesystem order, which is not the same on macOS and on the
+# Linux CI runner. The list is sorted so that the same project always yields the
+# same JSON; this pins the expected order rather than leaving it to a snapshot
+# regenerated on whichever machine ran --update.
+assert_eq "workspace frameworks come out in a stable order" \
+  "nestjs,nextjs,terraform" \
+  "$( (cd "$WORK_DIR/monorepo" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json) | jq -r '.FRAMEWORKS')"
+
 # simple-git-hooks, declared in package.json rather than by a file
 SGH="$WORK_DIR/simple-git-hooks"
 mkdir -p "$SGH"
