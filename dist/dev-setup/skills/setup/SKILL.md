@@ -543,6 +543,59 @@ options:
 
 ---
 
+#### 3.6 — Git over the sandbox: SSH remotes
+
+Sandboxed commands reach the network **only** through the sandbox's HTTP(S) proxy.
+There is no raw TCP and no DNS for anything else, so a `git fetch` or `git push` against
+an `ssh://` or `git@host:` remote fails inside the sandbox — the hostname does not even
+resolve. This is a property of the sandbox, not of the deny rules: it applies to every
+project whose `origin` is an SSH URL.
+
+Check the remote read in Step 2c:
+
+```bash
+git remote get-url origin
+```
+
+If it starts with `git@` or `ssh://`, tell the developer and let them pick with
+`AskUserQuestion`:
+
+```
+question: "origin is an SSH remote. Inside the Bash sandbox, git cannot reach it. How do you want to handle it?"
+options:
+  - label: "Switch to HTTPS"   (recommended — the forge CLI holds the credentials)
+  - label: "Keep SSH"          (git network commands run outside the sandbox)
+```
+
+- **Switch to HTTPS** → print these for the developer to run; the credential helper keeps
+  the token out of the URL and out of `ps`:
+
+  ```bash
+  # GitHub
+  gh auth login && gh auth setup-git
+  git remote set-url origin https://github.com/<org>/<repo>.git
+
+  # GitLab
+  glab auth login
+  git config --global credential.helper '!glab auth git-credential'
+  git remote set-url origin https://<host>/<group>/<repo>.git
+  ```
+
+  Make sure the HTTPS host is in the `sandbox.network.allowedDomains` written at Step 3.4.
+
+- **Keep SSH** → nothing to change. `git fetch`/`git push` will hit a sandbox violation and
+  Claude Code will retry them outside the sandbox, which sends them through the normal
+  permission flow: in Manual mode the developer confirms each one. The `deny` rules on
+  force push and on the protected branches still apply — they are permission rules, and
+  they are evaluated whether or not the command runs sandboxed.
+
+**Report in the Step 9 summary** (a single line):
+- HTTPS remote: `origin already on HTTPS — git works inside the sandbox`
+- Switched: `switch origin to HTTPS: <command printed>`
+- Kept SSH: `origin left on SSH — git network commands will run unsandboxed, with a confirmation each time`
+
+---
+
 ### Step 4 — Adapt CONSTITUTION.md
 
 Start from the content read from `${CLAUDE_SKILL_DIR}/templates/CONSTITUTION.md`.

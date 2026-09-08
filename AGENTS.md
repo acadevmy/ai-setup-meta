@@ -220,6 +220,14 @@ agent, constitution) processando task ClickUp dedicati e aprendo PR pronte per l
   `--dangerously-skip-permissions`. La pipeline gira in auto-mode, **non** con
   `--dangerously-skip-permissions` e **non** con `permissionMode: dontAsk`.
 
+> **Nota sulla sandbox e i remote SSH.** I comandi sandboxati raggiungono la rete solo
+> tramite il proxy HTTP(S): niente TCP grezzo, niente DNS per il resto. Con `origin` su
+> `git@github.com:...` un `git push` dentro la sandbox non risolve nemmeno l'hostname.
+> Nella Routine cloud il repo e' clonato via HTTPS e non c'e' problema; in locale, o si
+> passa il remote a HTTPS (`gh auth setup-git` + `git remote set-url`), oppure il push
+> gira fuori dalla sandbox passando dal normale flusso di permessi. Le `deny` rule
+> valgono in entrambi i casi: sono permission rule, non confini della sandbox.
+
 ### Flusso (per ogni esecuzione)
 1. Pesca il task SPRINT a priorita' piu' alta dalla lista `CLICKUP_MAINTENANCE_LIST_ID`
 2. Sposta il task `SPRINT -> IN PROGRESS`
