@@ -8,11 +8,16 @@ dist/
 build/
 .next/
 out/
+*.tsbuildinfo
 
-# Environment
+# Build caches (monorepo)
+.turbo/
+.nx/
+
+# Environment — .env.example stays tracked: it is the variable contract
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # IDE
 .vscode/
@@ -26,6 +31,12 @@ Thumbs.db
 
 # Testing
 coverage/
+
+# Terraform — CONSTITUTION §49: .terraform.lock.hcl is committed, the rest is not
+.terraform/
+*.tfstate*
+*.tfvars
+!*.tfvars.example
 
 # Misc
 *.log

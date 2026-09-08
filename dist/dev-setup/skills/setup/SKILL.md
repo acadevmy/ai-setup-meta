@@ -723,7 +723,12 @@ Questo passo si esegue **solo** per progetti greenfield. Per EXISTING e UPDATE, 
 
 #### 8.1 — Prerequisiti
 
-Verifica che siano installati: `node` (v20+), `npm`, `git`. Se mancano, informa lo sviluppatore e fermati.
+Verifica che siano installati: `node` (**v24+**), `npm`, `git`. Se mancano, informa lo sviluppatore
+e fermati.
+
+Node 24 e' il minimo reale, non una preferenza: `semantic-release@25` richiede
+`^22.14.0 || >=24.10.0`, `lint-staged@17` richiede `>=22.22.1`, `eslint@9` richiede
+`^20.19.0 || ^22.13.0 || >=24`. Node 20 e' in EOL dal 2026-04-30.
 
 #### 8.2 — Inizializza il progetto
 
@@ -740,8 +745,17 @@ git init
 #### 8.3 — Installa quality tools
 
 ```bash
-npm install --save-dev husky lint-staged @commitlint/cli @commitlint/config-conventional prettier eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
+npm install --save-dev husky lint-staged @commitlint/cli @commitlint/config-conventional \
+  prettier 'eslint@^9.39.0' '@eslint/js@^9.39.0' typescript-eslint globals typescript
 ```
+
+**Non installare `eslint` senza pin**: la `latest` e' la 10.x, e i plugin dei profili
+frontend (`eslint-plugin-react`, `eslint-plugin-jsx-a11y`, `eslint-plugin-import`)
+dichiarano `eslint: ^9` come peer massimo — con la 10 l'install esce in `ERESOLVE`.
+
+`typescript-eslint` (pacchetto unico) sostituisce la coppia
+`@typescript-eslint/eslint-plugin` + `@typescript-eslint/parser`: e' la forma
+prevista dalla flat config.
 
 Inizializza Husky:
 ```bash
@@ -767,60 +781,60 @@ chmod +x .husky/pre-commit .husky/commit-msg
 
 #### 8.4 — Configurazioni di qualita'
 
-Crea **`.commitlintrc.json`**:
-```json
-{
-  "extends": ["@commitlint/config-conventional"],
-  "rules": {
-    "type-enum": [
-      2,
-      "always",
-      ["feat", "fix", "docs", "style", "refactor", "test", "chore", "perf", "ci"]
-    ],
-    "subject-case": [2, "never", ["start-case", "pascal-case", "upper-case"]],
-    "subject-max-length": [2, "always", 100],
-    "body-max-line-length": [1, "always", 200]
-  }
-}
+Copia i file dal boilerplate distribuito con la skill
+(`${CLAUDE_SKILL_DIR}/templates/boilerplate/`) — non riscriverli a mano: la
+copia e' l'unica forma che resta allineata al template.
+
+| Sorgente nel boilerplate | Destinazione nel progetto | Condizione |
+|---|---|---|
+| `.commitlintrc.json` | `.commitlintrc.json` | sempre |
+| `.lintstagedrc.json` | `.lintstagedrc.json` | sempre (gli hook husky del Passo 8.3 chiamano `npx lint-staged`) |
+| `eslint.config.base.mjs` | `eslint.config.base.mjs` | sempre |
+| `.prettierrc.json` | `.prettierrc.json` | stack **senza** Tailwind |
+| `.prettierrc.tailwind.json` | `.prettierrc.json` | stack **con** Tailwind (web-frontend, mobile RN) |
+| `.releaserc.github.json` | `.releaserc.json` | `vcs = github` |
+| `.releaserc.gitlab.json` | `.releaserc.json` | `vcs = gitlab` |
+
+Sul `vcs = none` / `other` **salta** `.releaserc.json`: non c'e' un provider a
+cui pubblicare release. I due `.releaserc.*` differiscono solo nell'ultimo
+plugin (`@semantic-release/github` vs `@semantic-release/gitlab`).
+
+`.prettierrc.tailwind.json` e' identico alla variante base piu'
+`plugins: ["prettier-plugin-tailwindcss"]`. Copialo **solo** se il profilo
+installa `prettier-plugin-tailwindcss`: senza il plugin installato Prettier
+esce in errore a ogni run.
+
+`eslint.config.base.mjs` e' la base condivisa in **flat config**. Il file che
+ESLint legge davvero e' `eslint.config.mjs`, che il Passo 8.5 crea dal profilo
+importando la base. Se lo stack non ha un profilo con config ESLint, crea un
+`eslint.config.mjs` che si limita a rilanciare la base:
+
+```javascript
+// eslint.config.mjs
+import base from './eslint.config.base.mjs';
+
+export default base;
 ```
 
-Crea **`.prettierrc.json`**:
-```json
-{
-  "semi": true,
-  "singleQuote": true,
-  "trailingComma": "all",
-  "printWidth": 100,
-  "tabWidth": 2,
-  "arrowParens": "always",
-  "endOfLine": "lf"
-}
+#### 8.4b — Script npm
+
+Senza questi script `npm run lint`, gli hook husky e la CI del boilerplate
+falliscono con *Missing script*. Aggiungili al `package.json`:
+
+```bash
+npm pkg set \
+  scripts.lint="eslint ." \
+  scripts.lint:fix="eslint . --fix" \
+  scripts.format="prettier --write ." \
+  scripts.typecheck="tsc --noEmit" \
+  scripts.test="jest" \
+  scripts.test:cov="jest --coverage" \
+  scripts.prepare="husky"
 ```
 
-Crea **`.releaserc.json`** (semantic-release). Scegli il boilerplate in base a `{VCS}` rilevato al Passo 2c:
-
-- `vcs = github` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.releaserc.github.json` in `.releaserc.json`
-- `vcs = gitlab` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.releaserc.gitlab.json` in `.releaserc.json`
-- `vcs = none` / `other` → **salta questo passo** (non creare `.releaserc.json` — non c'e' un provider a cui pubblicare release)
-
-I due file differiscono solo nell'ultimo plugin (`@semantic-release/github` vs `@semantic-release/gitlab`). Entrambi usano `conventionalcommits` e la stessa release rules.
-
-Crea **`.eslintrc.base.json`**:
-```json
-{
-  "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint"],
-  "extends": [
-    "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
-  ],
-  "rules": {
-    "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-    "no-console": ["warn", { "allow": ["warn", "error"] }]
-  }
-}
-```
+Adatta `test`/`test:cov` al runner del profilo (`vitest` / `vitest --coverage`,
+`flutter test` su Flutter) e `typecheck` allo stack: sono i tre comandi che la
+CI del boilerplate esegue come quality gate.
 
 #### 8.5 — Applica profilo stack
 
@@ -837,9 +851,11 @@ Se stack mobile = **Flutter** (rilevato da `pubspec.yaml` o selezionato in GREEN
 Se stack mobile = **React Native (Expo)**, applica percorso Node:
 
 1. **Dipendenze**: Estrai il blocco JSON delle dipendenze dal profilo e installale con `npm install`
-2. **ESLint**: Se il profilo contiene una configurazione ESLint, crea `.eslintrc.json` con quel contenuto
+2. **ESLint**: Se il profilo contiene una configurazione ESLint, crea `eslint.config.mjs` con quel
+   contenuto (flat config — importa `./eslint.config.base.mjs` copiata al Passo 8.4)
 3. **TypeScript**: Se il profilo contiene una configurazione TypeScript, crea `tsconfig.json`
-4. **Jest**: Se il profilo contiene una configurazione Jest, crea `jest.config.ts`
+4. **Jest**: Se il profilo contiene una configurazione Jest, crea `jest.config.mjs` — **non** `.ts`:
+   Jest non parsa un config TypeScript senza `ts-node` installato
 
 Per lo stack **fullstack** (multi-progetto):
 - Crea la struttura `apps/web/` e `apps/api/`
@@ -852,11 +868,24 @@ Per lo stack **fullstack** (multi-progetto):
 
 Scegli il template CI in base a `{VCS}` rilevato al Passo 2c.
 
-- `vcs = github` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.github/workflows/release.yml` in `.github/workflows/release.yml` (crea la directory se manca). Richiede il secret `GITHUB_TOKEN` (fornito di default da GitHub Actions).
-- `vcs = gitlab` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.gitlab-ci.yml` in `.gitlab-ci.yml` nella root del progetto. Richiede una variabile CI/CD `GITLAB_TOKEN` con scope `api` + `write_repository` (configurala in Settings → CI/CD → Variables su GitLab).
+- `vcs = github` → copia **entrambi** i workflow da
+  `${CLAUDE_SKILL_DIR}/templates/boilerplate/.github/workflows/` in `.github/workflows/`
+  (crea la directory se manca): `ci.yml` (quality gate su ogni PR) e `release.yml`
+  (quality gate + semantic-release sul default branch). Il release richiede il secret
+  `GITHUB_TOKEN`, fornito di default da GitHub Actions.
+- `vcs = gitlab` → copia `${CLAUDE_SKILL_DIR}/templates/boilerplate/.gitlab-ci.yml` in
+  `.gitlab-ci.yml` nella root del progetto. Contiene lo stage `test` (che gira sulle
+  pipeline di MR e sul default branch) e lo stage `release`. Richiede una variabile CI/CD
+  `GITLAB_TOKEN` con scope `api` + `write_repository` (Settings → CI/CD → Variables).
 - `vcs = none` / `other` → **salta questo passo**. Informa lo sviluppatore che puo' aggiungere manualmente un workflow CI al provider che preferisce.
 
-Entrambi i template eseguono gli stessi step (checkout full history, setup Node 22, `npm ci`, `npx semantic-release`) e bypassano i commit con `[skip ci]`.
+Entrambi i template girano su **Node 24** ed eseguono gli stessi step: `npm ci`,
+`npm run lint`, `npm run typecheck`, `npm run test:cov` e — solo sul default branch e
+solo se il quality gate e' verde — `npx semantic-release`. I commit con `[skip ci]`
+sono bypassati.
+
+Il quality gate dipende dagli script npm del Passo 8.4b: se mancano, la CI
+fallisce con *Missing script*.
 
 #### 8.7 — .gitignore
 
@@ -942,19 +971,21 @@ Prossimi passi:
 Setup completato!
 
 Configurazione del progetto:
-  - CLAUDE.md             — entry point per Claude Code (importa AGENTS.md)
-  - AGENTS.md             — istruzioni per agenti AI (standard cross-tool)
-  - CONSTITUTION.md       — regole di governance
-  - REGISTRY.md           — registro feature e servizi
-  - .claude/settings.json — permessi progetto
-  - .husky/               — git hooks (lint + commit)
-  - .eslintrc.base.json   — ESLint base
-  - .eslintrc.json        — ESLint profilo <stack>
-  - .prettierrc.json      — Prettier
-  - .commitlintrc.json    — Conventional Commits
-  - .releaserc.json       — semantic-release (variante <github|gitlab>)
-  - <CI config>           — .github/workflows/release.yml (GitHub) oppure .gitlab-ci.yml (GitLab)
-  - .env.example          — variabili d'ambiente
+  - CLAUDE.md               — entry point per Claude Code (importa AGENTS.md)
+  - AGENTS.md               — istruzioni per agenti AI (standard cross-tool)
+  - CONSTITUTION.md         — regole di governance
+  - REGISTRY.md             — registro feature e servizi
+  - .claude/settings.json   — permessi progetto
+  - .husky/                 — git hooks (lint + commit)
+  - .lintstagedrc.json      — lint-staged (usato dall'hook pre-commit)
+  - eslint.config.base.mjs  — ESLint base (flat config)
+  - eslint.config.mjs       — ESLint profilo <stack> (importa la base)
+  - .prettierrc.json        — Prettier (variante Tailwind se lo stack la usa)
+  - .commitlintrc.json      — Conventional Commits
+  - .releaserc.json         — semantic-release (variante <github|gitlab>)
+  - <CI config>             — .github/workflows/{ci,release}.yml (GitHub) oppure .gitlab-ci.yml (GitLab)
+  - .env.example            — variabili d'ambiente
+  - package.json scripts    — lint, lint:fix, format, typecheck, test, test:cov
 
 Skills disponibili (fornite dal plugin):
   - /dev-setup:sdd         — SDD interattivo (spec → approvazione → sviluppo, con checkpoint)
