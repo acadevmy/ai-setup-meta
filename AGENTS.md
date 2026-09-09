@@ -18,7 +18,7 @@ you take must improve the quality, the coherence or the automation of the templa
 ai-base-setup/
 ├── shared/                 # Common assets TO DISTRIBUTE (not used by the meta-repo)
 │   ├── agents/             # Reusable agents (e.g. clickup.md)
-│   └── skills/             # Reusable skills (e.g. clickup, github-ops)
+│   └── skills/             # Reusable skills (e.g. clickup, vcs-ops)
 │
 ├── templates/              # One template per domain
 │   └── <domain>/           # e.g. dev-setup
@@ -205,8 +205,7 @@ Releases have no command: release-please derives them from the conventional comm
 | Skill | Description |
 |---|---|
 | `clickup` | Reference documentation for ClickUp operations |
-| `github-ops` | GitHub operations (branch, PR, release) via the `gh` CLI. Self-identifying: it stands down if the repo does not point at GitHub. |
-| `gitlab-ops` | GitLab operations (branch, MR, release) via the `glab` CLI. Uses `glab mr create --template` for the repo's MR templates. Self-identifying: it stands down if the repo does not point at GitLab. |
+| `vcs-ops` | Branch, commit, PR/MR, tag and release. The SKILL.md holds the conventions that are the same on both hosts; it reads `git remote` and then loads `reference/github.md` (`gh`) or `reference/gitlab.md` (`glab`, including the `--template` discovery GitLab needs). |
 
 ## The plugin's scripts and hooks
 
@@ -283,14 +282,24 @@ deterministic match, no re-reading, and it survives compaction.
 | Template | `paths:` | Loads |
 |---|---|---|
 | `core.md` | *(none)* | always — the only unconditional rule, capped at 150 lines |
+| `code-style.md` | source extensions, ~28 globs | on any code file, whatever the language |
 | `typescript.md` | `**/*.{ts,tsx,mts,cts}` | on a TypeScript file |
+| `nestjs.md` | `**/*.{dto,schema,controller,view}.ts` | NestJS projects only, on the files that feed the OpenAPI document |
 | `react.md` | `**/*.tsx`, `**/*.jsx` | on a React component |
 | `react-native.md` | `**/*.tsx`, `**/*.jsx` | Expo/RN projects only (never generated elsewhere) |
 | `vue.md` | `**/*.vue` | on a SFC |
 | `flutter.md` | `**/*.dart` | on Dart |
+| `dart-analysis.md` | `**/analysis_options.{yaml,yml}` | only when the analyzer config itself is edited |
 | `terraform.md` | `**/*.tf`, `**/*.tfvars` | on HCL |
 | `tests.md` | `**/*.spec.*`, `**/*.test.*`, … | on a test file |
 | `backend-services.md` | `{{SERVICES_GLOB}}` | on the business-logic layer — the glob comes from `detect-stack.sh` |
+
+**What stays in `core.md`.** The line is drawn by consequence, not by topic: a
+rule whose absence produces *worse code* can be path-scoped, a rule whose absence
+produces an *unsafe or irreversible action* cannot. So secrets, untrusted
+content, supply chain and the gates load always; design, error handling and
+naming arrive with the file. Git conventions are neither — no glob can predict a
+`git commit` — so they live in the `vcs-ops` skill, which loads on the task.
 
 Three rules hold this together:
 

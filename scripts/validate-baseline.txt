@@ -9,8 +9,6 @@
 
 DESCRIPTION_TRIGGER	.claude/skills/auto-maintain/SKILL.md
 DESCRIPTION_TRIGGER	shared/skills/clickup/SKILL.md
-DESCRIPTION_TRIGGER	shared/skills/github-ops/SKILL.md
-DESCRIPTION_TRIGGER	shared/skills/gitlab-ops/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/auto-sdd/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/bdd/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/review/SKILL.md
@@ -23,7 +21,6 @@ DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/verify/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/setup-skill.md
 SKILL_LINES	templates/dev-setup/setup-skill.md
 SKILL_WORDS	.claude/skills/auto-maintain/SKILL.md
-SKILL_WORDS	shared/skills/gitlab-ops/SKILL.md
 SKILL_WORDS	templates/dev-setup/.claude/skills/auto-sdd/SKILL.md
 SKILL_WORDS	templates/dev-setup/.claude/skills/sdd-dev/SKILL.md
 SKILL_WORDS	templates/dev-setup/.claude/skills/sdd-discovery/SKILL.md

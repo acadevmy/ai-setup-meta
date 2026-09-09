@@ -121,8 +121,7 @@ ai-setup-meta/
 │   │   └── clickup.md
 │   └── skills/
 │       ├── clickup/
-│       ├── github-ops/
-│       └── gitlab-ops/
+│       └── vcs-ops/
 ├── templates/                   # Source of the per-domain templates
 │   └── dev-setup/
 │       ├── manifest.json               # Dependencies on shared/ and the domain files
@@ -241,8 +240,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | Skill | Description |
 |---|---|
 | `/dev-setup:clickup` | ClickUp operations over MCP |
-| `/dev-setup:github-ops` | Branches, PRs, releases on GitHub (`gh` CLI). Stands down if the repo does not point at GitHub. |
-| `/dev-setup:gitlab-ops` | Branches, MRs, releases on GitLab (`glab` CLI). Reads `.gitlab/merge_request_templates/Default.md` when present. Stands down if the repo does not point at GitLab. |
+| `/dev-setup:vcs-ops` | Branches, commits, PRs/MRs, releases. Reads `git remote` and loads the GitHub (`gh`) or GitLab (`glab`) reference on demand. |
 
 ### Agents
 

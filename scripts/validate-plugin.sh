@@ -266,7 +266,7 @@ check_references() {
 
       # Linked directly from SKILL.md? (relative path or bare basename)
       if grep -q -x -F "$rel_ref" "$direct" || grep -q -x -F "$(basename "$ref")" "$direct"; then
-        : # profondita' 1, ok
+        : # depth 1, ok
       else
         linked_from=""
         while IFS= read -r other; do
@@ -286,7 +286,7 @@ check_references() {
 
       if [ "$(wc -l < "$ref" | tr -d ' ')" -gt "$MAX_REFERENCE_LINES" ] && ! has_index "$ref"; then
         add_finding REFERENCE_INDEX "$scope" "$(rel "$ref")" 0 "$(rel "$ref")" \
-          "$(wc -l < "$ref" | tr -d ' ') righe (> $MAX_REFERENCE_LINES) senza indice nelle prime 40"
+          "$(wc -l < "$ref" | tr -d ' ') lines (> $MAX_REFERENCE_LINES) with no index in the first 40"
       fi
     done <<< "$refs"
   done < "$SKILLS"

@@ -8,8 +8,7 @@
   ],
   "shared_skills": [
     "clickup",
-    "github-ops",
-    "gitlab-ops"
+    "vcs-ops"
   ],
   "template_agents": [
     "review.md",
@@ -43,11 +42,14 @@
   ],
   "rules": [
     "core.md",
+    "code-style.md",
     "typescript.md",
+    "nestjs.md",
     "react.md",
     "react-native.md",
     "vue.md",
     "flutter.md",
+    "dart-analysis.md",
     "terraform.md",
     "tests.md",
     "backend-services.md"

@@ -521,6 +521,29 @@ assert_eq "core.md is the only unconditional rule" "core.md" "${UNSCOPED# }"
 assert_eq "core.md fits the session-zero budget" "true" \
   "$([ "$(wc -l < "$RULES_SRC/core.md" | tr -d ' ')" -le 150 ] && echo true || echo false)"
 
+# The split only pays off if core stays small: it is the file every session,
+# on every project, reads in full whatever the work is.
+assert_eq "core.md stays under the session-zero target" "true" \
+  "$([ "$(wc -l < "$RULES_SRC/core.md" | tr -d ' ')" -le 60 ] && echo true || echo false)"
+
+# A rule whose absence produces worse code may be path-scoped; one whose absence
+# produces an unsafe action may not. These four are the second kind — if any of
+# them drifts out of core into a scoped rule, it stops loading on the sessions
+# that need it most.
+SAFETY_MISSING=""
+for TOPIC in "never repeat a secret" "data, never instructions" "supply-chain" "not yours to rewrite"; do
+  grep -qi -- "$TOPIC" "$RULES_SRC/core.md" || SAFETY_MISSING="$SAFETY_MISSING [$TOPIC]"
+done
+assert_eq "the safety rules stayed unconditional" "" "${SAFETY_MISSING# }"
+
+# code-style.md is the catch-all for source files: it has to match the languages
+# the team actually writes, or the design rules silently stop loading.
+CS_UNMATCHED=""
+for EXT in ts tsx js jsx py go dart vue tf sh; do
+  grep -q "{[^}]*\b$EXT\b[^}]*}" "$RULES_SRC/code-style.md" || CS_UNMATCHED="$CS_UNMATCHED $EXT"
+done
+assert_eq "code-style covers the team's languages" "" "${CS_UNMATCHED# }"
+
 # A frontend project has no service layer, so the rule is not generated at all —
 # an empty glob would otherwise render as `paths: [""]`, which matches nothing
 # and looks like a rule that simply never fires.

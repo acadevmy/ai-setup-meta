@@ -202,14 +202,14 @@ Push the branch:
 git push -u origin <branch-name>
 ```
 
-Invoke the active VCS-ops skill (`github-ops` for GitHub remotes, `gitlab-ops` for GitLab
-remotes — self-identify). Title and body:
+Invoke `vcs-ops`; it reads `origin` and loads the right provider reference itself.
+Title and body:
 
 - **Title**: Conventional Commits with customId
   - e.g. `feat(auth): add refresh token rotation [DE-123]`
 - **Body**: includes **What / Why / How to test** sections + link to the ClickUp task + link
   to the spec. On GitLab it follows the `.gitlab/merge_request_templates/Default.md` template
-  when present (see `gitlab-ops`)
+  when present (see the skill's GitLab reference)
 
 No `AskUserQuestion` before opening: authorization is implicit in the invocation of
 `auto-sdd`.

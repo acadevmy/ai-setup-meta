@@ -40,27 +40,6 @@ type User = z.infer<typeof UserSchema>;
 The project is on **Zod 4**: `z.uuid()`, `z.email()` and `z.iso.datetime()` are
 top-level, and the `z.string().uuid()` chained form is deprecated.
 
-## DTOs must survive JSON Schema
-
-A DTO built with `createZodDto` (nestjs-zod) feeds the OpenAPI document, which
-NestJS builds at boot with `zod.toJSONSchema()`. Types that have no JSON Schema
-representation — `z.date()`, `z.bigint()`, `z.map()`, `z.set()`, `z.symbol()` —
-throw there (`Error: Date cannot be represented in JSON Schema`) and the app dies
-before it listens.
-
-Dates cross the wire as ISO strings and get converted in the entity→view mapper:
-
-```typescript
-export const NotificationViewSchema = z.object({
-  createdAt: z.iso.datetime(), // → { type: "string", format: "date-time" }
-});
-export class NotificationView extends createZodDto(NotificationViewSchema) {}
-// mapper: createdAt: notification.createdAt.toISOString()
-```
-
-The global `ZodSerializerInterceptor` validates the response against the same
-schema, so the declared type and the runtime value have to agree.
-
 ## Errors carry context
 
 ```typescript

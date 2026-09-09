@@ -112,38 +112,6 @@ repaint on their own (animations, scroll indicators). `Visibility` or a
 conditional, not `Opacity`, to hide a widget. Profile with DevTools
 (`flutter run --profile`) before optimising: measure, do not guess.
 
-## Analyzer
-
-`dart analyze` runs clean — zero warnings, not "zero errors". The baseline lives
-in `analysis_options.yaml`:
-
-```yaml
-include: package:flutter_lints/flutter.yaml
-
-analyzer:
-  language:
-    strict-casts: true
-    strict-raw-types: true
-  errors:
-    missing_return: error
-    must_be_immutable: error
-
-linter:
-  rules:
-    avoid_dynamic_calls: true
-    avoid_print: true
-    prefer_const_constructors: true
-    prefer_const_literals_to_create_immutables: true
-    prefer_final_fields: true
-    prefer_final_locals: true
-    always_declare_return_types: true
-    unawaited_futures: true
-    cancel_subscriptions: true
-    always_use_package_imports: true
-    use_key_in_widget_constructors: true
-    directives_ordering: true
-```
-
 ## Files and imports
 
 Files and directories are `snake_case`; the file is named after its main class

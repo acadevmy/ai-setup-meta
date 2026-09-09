@@ -184,7 +184,7 @@ glab mr create --source-branch feat/DE-123-short-description \
 ```
 
 The workflow skills (`/dev-setup:sdd`, `/dev-setup:auto-sdd`) call the right VCS skill
-(`github-ops` or `gitlab-ops`) based on the `origin` remote. On GitLab, the MR body follows
+(`vcs-ops`, which picks its GitHub or GitLab reference) based on the `origin` remote. On GitLab, the MR body follows
 `.gitlab/merge_request_templates/Default.md` when the repo has one.
 
 The MR/PR must have:

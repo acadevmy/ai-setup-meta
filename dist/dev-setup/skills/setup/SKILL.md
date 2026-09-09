@@ -610,7 +610,9 @@ globs it applies to. The harness injects a rule when the model touches a file
 that matches, which means the match is deterministic, costs nothing on the
 sessions that never touch those files, and survives compaction.
 
-Only `core.md` has no `paths:` — it is the one that loads unconditionally.
+Only `core.md` has no `paths:` — it is the one that loads unconditionally, and it
+holds only what is unsafe to discover late (secrets, untrusted content,
+supply chain, the gates). Everything else arrives with the file it applies to.
 
 #### 4.1 — Read the stack once
 
@@ -627,14 +629,21 @@ file, not project state — do not commit it and do not add it to `.gitignore`.
 | Template | Generated as | Generate when |
 |---|---|---|
 | `core.md` | `dev-setup-core.md` | always |
+| `code-style.md` | `dev-setup-code-style.md` | always |
 | `typescript.md` | `dev-setup-typescript.md` | `LANG` contains `node`, or a `tsconfig.json` exists |
+| `nestjs.md` | `dev-setup-nestjs.md` | `FRAMEWORKS` contains `nestjs` |
 | `react.md` | `dev-setup-react.md` | `FRAMEWORKS` contains `nextjs` or `react` |
 | `react-native.md` | `dev-setup-react-native.md` | `FRAMEWORKS` contains `expo` or `react-native` |
 | `vue.md` | `dev-setup-vue.md` | `FRAMEWORKS` contains `nuxt` or `vue` |
 | `flutter.md` | `dev-setup-flutter.md` | `FRAMEWORKS` contains `flutter` |
+| `dart-analysis.md` | `dev-setup-dart-analysis.md` | `FRAMEWORKS` contains `flutter` |
 | `terraform.md` | `dev-setup-terraform.md` | `HAS_INFRA` is `true` |
 | `tests.md` | `dev-setup-tests.md` | `TEST_CMD` is non-empty, or the mode is GREENFIELD |
 | `backend-services.md` | `dev-setup-backend-services.md` | `SERVICES_GLOB` is non-empty |
+
+`core.md` and `code-style.md` are both generated every time, but only `core.md`
+loads unconditionally: `code-style.md` declares source-file globs, so a session
+spent on documentation or configuration never pays for it.
 
 **Multi-project**: the table is evaluated against the union of the sub-projects —
 a workspace holding a Next app and a NestJS API gets both `dev-setup-react.md`
@@ -1300,7 +1309,7 @@ Detected stack:
   - Linter:         <lint_command>
   - Validation:     <validation_tool>
   - Infrastructure: <yes|no> (if yes: dev-setup-terraform.md generated, terraform profile applied)
-  - VCS:            <github|gitlab|none|other> → active VCS skill: <github-ops|gitlab-ops|none>
+  - VCS:            <github|gitlab|none|other> → vcs-ops reference: <github|gitlab|none>
 
 NOT modified (existing tooling respected):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
@@ -1340,7 +1349,7 @@ Available skills (provided by the plugin):
   - /dev-setup:bdd         — Behavior-Driven Development
   - /dev-setup:review      — code review against the project rules
 
-Detected VCS: <github|gitlab|none|other> → active VCS skill: <github-ops|gitlab-ops|none>
+Detected VCS: <github|gitlab|none|other> → vcs-ops reference: <github|gitlab|none>
 Infrastructure: <yes|no>
 
 Next steps:
@@ -1378,7 +1387,7 @@ Available skills (provided by the plugin):
   - /dev-setup:bdd         — Behavior-Driven Development
   - /dev-setup:review      — code review against the project rules
 
-Detected VCS: <github|gitlab|none|other> → active VCS skill: <github-ops|gitlab-ops|none>
+Detected VCS: <github|gitlab|none|other> → vcs-ops reference: <github|gitlab|none>
 Infrastructure: <yes|no> (if yes: dev-setup-terraform.md is generated at the root and matches every *.tf in the workspace)
 
 NOT modified (existing tooling respected):
@@ -1401,4 +1410,4 @@ Next steps:
 - **Existing tooling**: in EXISTING mode, do not install or modify: git hooks, linter, formatter, CI/CD, .gitignore, dependencies. Graft only the AI workflow.
 - **Skills and agents**: do NOT install skills and agents into the project. They are provided by the plugin and available automatically as /dev-setup:<skill-name>.
 - **gh CLI**: needed only for MCP configuration (Step 6) and for greenfield operations. If it is missing, setup can still complete — print the MCP commands to run manually.
-- **VCS (GitHub vs GitLab)**: Step 2c detects the provider from the `origin` remote. Both the `github-ops` and `gitlab-ops` skills are always installed — each self-checks on invocation and deactivates if the repo is not its own. The workflow skills (`sdd`, `auto-sdd`) call the right one based on the current remote.
+- **VCS (GitHub vs GitLab)**: Step 2c detects the provider from the `origin` remote, but nothing is installed per provider — the single `vcs-ops` skill holds the shared conventions and loads `reference/github.md` or `reference/gitlab.md` after reading the remote itself. The workflow skills (`sdd`, `auto-sdd`) just invoke `vcs-ops`.
