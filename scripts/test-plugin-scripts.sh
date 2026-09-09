@@ -1110,6 +1110,82 @@ if [ -f "$AUTO_SDD" ]; then
 fi
 
 echo ""
+echo "══ DE-16488 — the documentation cannot go stale in silence ══"
+
+# The four pages the refactor owes its readers. Each one has a distinct job, and
+# a missing one is not covered by any other check.
+for DOC in onboarding.md developer-guide.md migration-v2-to-v3.md training.md workflow.md; do
+  assert_eq "docs/$DOC exists" "true" \
+    "$([ -f "$REPO_ROOT/docs/$DOC" ] && echo true || echo false)"
+done
+
+# The onboarding page is the one with a size contract: it replaces a document
+# that grew into an architecture description nobody read to the end.
+ONBOARDING_LINES=$(wc -l < "$REPO_ROOT/docs/onboarding.md" | tr -d ' ')
+if [ "$ONBOARDING_LINES" -le 120 ]; then
+  pass "the onboarding page is still one page ($ONBOARDING_LINES lines)"
+else
+  fail "the onboarding page is still one page" "grew to $ONBOARDING_LINES lines (cap 120)"
+fi
+
+# Checks 14 and 15 are the anti-drift gate. On the repo as committed they must
+# be silent — a finding here means a doc names something that does not exist.
+DOC_FINDINGS="$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict --json 2>/dev/null \
+  | jq -r '[.FINDINGS[]? | select(.CHECK_ID == "DOC_REFERENCE" or .CHECK_ID == "DOC_COMMAND_COVERAGE")
+            | "\(.FILE): \(.MESSAGE)"] | join("\n")')"
+assert_eq "no doc cites a command, script or path that does not exist" "" "$DOC_FINDINGS"
+
+# And the gate has to actually bite: a page naming a retired command, a deleted
+# script and a rule no template generates must come back with findings. Without
+# this the check could silently match nothing and still report success.
+PROBE="$REPO_ROOT/docs/zz-drift-probe.md"
+# The probe names nothing check 12 also looks for: this file lives under
+# scripts/, which check 12 greps for the removed runtimes, and a fixture that
+# trips a second check would have to be excluded from it.
+cat > "$PROBE" <<'PROBE_EOF'
+# drift probe (temporary — removed by test-plugin-scripts.sh)
+Run `/dev-setup:tdd`, then `/project:release-plugin`.
+The script `retired-builder.sh` is at `scripts/builders/retired-builder.sh`.
+See `${CLAUDE_PLUGIN_ROOT}/scripts/nope.sh` and the rule `dev-setup-constitution.md`.
+Follow [the gone page](./no-such-page.md).
+PROBE_EOF
+PROBE_KEYS="$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict --json 2>/dev/null \
+  | jq -r '[.FINDINGS[]? | select(.CHECK_ID == "DOC_REFERENCE" and (.FILE | test("zz-drift-probe")))
+            | .MESSAGE] | join("\n")')"
+rm -f "$PROBE"
+
+for NEEDLE in \
+  "/dev-setup:tdd" \
+  "/project:release-plugin" \
+  "retired-builder.sh" \
+  'scripts/nope.sh' \
+  "dev-setup-constitution.md" \
+  "no-such-page.md"
+do
+  assert_contains "the drift check catches $NEEDLE" "$PROBE_KEYS" "$NEEDLE"
+done
+
+# The migration page is the one exclusion, and it has to stay a *deliberate*
+# one: it is the only document whose subject is the things that were removed.
+assert_contains "the migration page is the check's single exclusion" \
+  "$(cat "$REPO_ROOT/scripts/validate-plugin.sh")" \
+  'DOC_DRIFT_EXCLUDE="docs/migration-v2-to-v3.md"'
+assert_eq "and it is genuinely full of dead references" "false" \
+  "$(grep -qE '/dev-setup:(tdd|bdd)|protect-files\.sh' \
+       "$REPO_ROOT/docs/migration-v2-to-v3.md" && echo false || echo true)"
+
+# The public surface and the guide agree in both directions. Check 15 covers
+# guide-is-missing-a-command; this covers the reverse — the guide's command
+# table must not have grown a command the plugin does not expose.
+GUIDE_CMDS="$(grep -o '/dev-setup:[a-z][a-z0-9-]*' "$REPO_ROOT/docs/developer-guide.md" \
+  | sed 's|/dev-setup:||' | LC_ALL=C sort -u)"
+PUBLIC_CMDS="$(for S in "$REPO_ROOT"/dist/dev-setup/skills/*/SKILL.md; do
+    sed -n '2,/^---$/p' "$S" | grep -q '^user-invocable: true' \
+      && basename "$(dirname "$S")"
+  done | LC_ALL=C sort -u)"
+assert_eq "the guide documents exactly the public commands" "$PUBLIC_CMDS" "$GUIDE_CMDS"
+
+echo ""
 echo "── frontmatter parseability ──"
 
 # A `: ` inside an unquoted YAML scalar does not parse, and the failure is

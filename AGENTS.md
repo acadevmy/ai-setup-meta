@@ -36,7 +36,8 @@ ai-base-setup/
 │   ├── commands/           # Invocable commands (/project:build-plugin)
 │   └── skills/             # auto-maintain, validate
 │
-├── docs/legacy/            # Archived material, outside the product and outside CI
+├── docs/                   # The product's documentation — checked in CI (see below)
+│   └── legacy/             # Archived material, outside the product and outside CI
 │
 └── scripts/                # sh scripts (build-plugin, builders/, validate-*, test-plugin-scripts + fixtures/)
 ```
@@ -63,9 +64,21 @@ The team mainly works on:
 1. Read the rule templates under `templates/<domain>/rules/` to check which
    constraints the domain declares
 2. Check whether a skill under `.claude/skills/` already covers the task
-3. Check the state of the current branch — never work directly on `main`
+3. Check the state of the current branch — never work directly on `main` or `next`
 
 ### Branching
+
+**`next` is the base branch; `main` is the release branch.** Every feature and
+fix PR targets `next`. release-please watches `main` and nothing else, so a PR
+opened against `main` triggers a release computation on a change nobody decided
+to release. `next` reaches `main` when the maintainer wants a release cut.
+
+**Stacked PRs.** When a chain of PRs depends on the one before it, the new branch
+starts from **the previous PR's branch**, not from `next` — otherwise it carries
+none of the work it builds on. Retarget it onto `next` (`gh pr edit <n> --base
+next`) once the parent merges. Always branch from the most up-to-date thing
+available.
+
 - Always create a branch with a descriptive name: `feat/`, `fix/`, `chore/`
 - If the task comes from ClickUp, put its customId (e.g. DE-123) in the branch name
 - Format: `feat/DE-123-add-user-auth` or `chore/DE-456-update-dependencies`
@@ -125,7 +138,7 @@ release-please **generates CHANGELOG.md from the commits** since the last tag. T
 release-please groups the entries by type (Features / Bug Fixes / Documentation / Performance / …) in the CHANGELOG's `## [X.Y.Z]` section. The `## [Unreleased]` section is not used — release-please derives everything from the commits.
 
 ### Pull requests
-- Every change to `main` goes through a PR — no exceptions
+- Every change goes through a PR — no exceptions — and it targets `next`
 - The title follows Conventional Commits
 - The description must cover: **What changes**, **Why**, **How to test**
 - Always add the right label: `constitution` (now the path-scoped rules), `template`,
@@ -133,7 +146,7 @@ release-please groups the entries by type (Features / Bug Fixes / Documentation 
 
 ### What you must never do
 - Never change a rule template under `templates/*/rules/` without a human-approved PR
-- Never push to `main` directly
+- Never push to `main` or `next` directly, and never open a PR against `main`
 - Never put an API key, a token or a secret in any git-tracked file
 - Never use `any` in TypeScript, not even in generated configuration files
 - Never `force push` a shared branch
@@ -187,7 +200,7 @@ Agents are isolated sub-processes with their own context.
 | Skill | Description |
 |---|---|
 | `/project:auto-maintain` | Autonomous pipeline: picks a ClickUp task from the maintenance list and opens a PR (see the dedicated section) |
-| `/project:validate` | Pre-release validation: manifest references + 13 static checks on skill and workflow quality |
+| `/project:validate` | Pre-release validation: manifest references + 15 static checks on skill, workflow and documentation quality |
 
 ### Commands (`/project:<name>`)
 
@@ -540,8 +553,8 @@ The ClickUp connector is available with OAuth authentication: use the
 
 **4. Unload launchd (if it was ever installed)**
 
-The local runner (`scripts/auto-maintain-runner.sh`) has been removed: it ran with
-`--dangerously-skip-permissions` and `source .env.local`, and the Routine replaces it.
+The local launchd runner has been removed: it ran with
+`--dangerously-skip-permissions` and sourced `.env.local`, and the Routine replaces it.
 If its launchd entries are still loaded:
 
 ```bash
@@ -557,6 +570,34 @@ launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.caffeinate.plist
 3. Fix it by hand or reword the task description, then move the task `BLOCKED -> SPRINT`
 4. The pipeline picks it up on the next cycle
 
+## The documentation, and why it cannot go stale quietly
+
+Five pages, each with one job. Writing a sixth is nearly always a sign that one
+of these five should have grown a section instead.
+
+| Page | Answers |
+|---|---|
+| `docs/onboarding.md` | "I have never used this." Install → configure → first task, capped at one page by a test |
+| `docs/developer-guide.md` | "How do I work with it?" The six commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
+| `docs/migration-v2-to-v3.md` | "What broke?" Every breaking change of the chain, and the UPDATE procedure |
+| `docs/training.md` | "Why is it like this?" Facilitator material: the mental model and three live demos |
+| `docs/workflow.md` | "How do I change the plugin?" Branching, CI, releases |
+
+`README.md` is the index and the meta-repo's own architecture; `AGENTS.md` (this
+file) is the ground truth for an agent.
+
+**Checks 14 and 15 make it a gate, not a good intention.** The pre-plugin
+`onboarding.md` survived three architectures because nothing could tell it had
+stopped being true. Now every slash command, shell script, `${CLAUDE_PLUGIN_ROOT}`
+path, backticked repo path, `dev-setup-*.md` rule name and relative link in
+`README.md`, `AGENTS.md` and `docs/*.md` has to resolve, and every
+`user-invocable: true` skill has to appear in the developer guide. Rename a
+script and the job goes red on the page that names it.
+
+One page is excluded, deliberately: `docs/migration-v2-to-v3.md`, whose subject
+*is* the things that were removed. Nothing else goes on that list — a document
+that has to name a dead reference belongs in the migration page.
+
 ## CI and automatic gates
 
 Every PR to `main` or `next` (and every push to those branches) goes through five jobs.
@@ -566,7 +607,7 @@ They are the repo's safety net: nothing lands on `next` with a red job.
 |---|---|---|
 | `plugin-validate` | `ci.yml` | `claude plugin validate --strict` on `dist/dev-setup/` and on the marketplace catalogue |
 | `shellcheck` | `ci.yml` | Every `*.sh` under `scripts/`, `templates/`, `dist/` at `--severity=warning` |
-| `static-checks` | `ci.yml` | `validate-setup-urls.sh` + `validate-plugin.sh --fail-on-stale` |
+| `static-checks` | `ci.yml` | `validate-setup-urls.sh` + `validate-plugin.sh --fail-on-stale` — skill and workflow quality, and the docs' references (checks 14–15) |
 | `bash-tests` | `ci.yml` | `test-plugin-scripts.sh`: the plugin scripts and hooks against `scripts/fixtures/` |
 | `verify` | `build-verify.yml` | `dist/` in sync with `templates/`, `shared/` and the build scripts |
 
@@ -599,11 +640,16 @@ Before opening a PR, check that:
       (`bash scripts/test-plugin-scripts.sh`)
 - [ ] `scripts/validate-baseline.txt` is still empty
 - [ ] The template's `manifest.json` matches the files actually present
+- [ ] The PR targets `next`, not `main`
+- [ ] Anything renamed or removed is renamed or removed in the docs that name it,
+      in this same PR — checks 14–15 fail the build otherwise
+- [ ] A new public command is documented in `docs/developer-guide.md`, and a new
+      breaking change is in `docs/migration-v2-to-v3.md`
 - [ ] The PR description says how to test
 
 ## Updating this file
 
-This file is updated by hand, through a PR. Do not edit it directly on `main`.
+This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.12.0 — bump the version number on every substantial change*
+*Version: 2.13.0 — bump the version number on every substantial change*

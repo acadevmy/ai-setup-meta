@@ -3,7 +3,9 @@ name: CI
 # The meta-repo's safety net (DE-16471). Four independent gates:
 #   - plugin-validate: the plugin and marketplace catalogue manifests are valid
 #   - shellcheck:      the sh scripts carry no warnings
-#   - static-checks:   the static checks on skill quality (validate-plugin.sh)
+#   - static-checks:   the static checks on skill, workflow and documentation
+#                      quality (validate-plugin.sh) — checks 14-15 resolve every
+#                      command, script and path the docs cite (DE-16488)
 #   - bash-tests:      the plugin scripts and hooks against their fixtures (DE-16476)
 #
 # `static-checks` runs against a baseline of known failures (scripts/validate-baseline.txt):
