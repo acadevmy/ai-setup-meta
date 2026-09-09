@@ -1,14 +1,16 @@
-# Steps 6, 7 and 7b — MCP servers, environment, branch protection
+# Steps 6, 7, 7b and 7c — MCP servers, environment, branches
 
 What the project needs from the outside world: the MCP servers worth their
-context cost, the environment keys declared in `.env.example`, and the two
-governance settings that belong on the host rather than in a document.
+context cost, the environment keys declared in `.env.example`, the two
+governance settings that belong on the host rather than in a document, and the
+one setting that decides where a parallel session starts from.
 
 ## Index
 
 - [Step 6 — Configure MCP servers](#step-6--configure-mcp-servers)
 - [Step 7 — Declare the environment variables](#step-7--declare-the-environment-variables)
 - [Step 7b — Branch protection on the reference branch](#step-7b--branch-protection-on-the-reference-branch)
+- [Step 7c — The worktree base ref](#step-7c--the-worktree-base-ref)
 
 ---
 
@@ -204,3 +206,55 @@ A 403 means no admin rights, a 404 on GitLab means the plan does not include
 approval rules. Neither is a setup failure: report exactly what came back, say
 which setting is still missing, and continue. Do not retry with different
 parameters, and do not fall back to protecting a different branch.
+
+---
+
+## Step 7c — The worktree base ref
+
+Runs in every mode, on every git project. It is one key in
+`.claude/settings.json`, and it decides which commit a new worktree forks from —
+for `--worktree` sessions and for every subagent that runs with
+`isolation: worktree`.
+
+**`worktree.baseRef` cannot name a branch.** It takes exactly two values:
+
+| Value | Forks from |
+|---|---|
+| `"fresh"` (the harness default) | the remote's default branch, usually `main` |
+| `"head"` | the local `HEAD`, unpushed commits included |
+
+So the value follows one question: **is the reference branch the remote
+default?** Reuse the `$BASE_BRANCH` resolved at 7b.1 and compare:
+
+```bash
+DEFAULT=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)
+DEFAULT=${DEFAULT#origin/}
+```
+
+- **the same** (work targets `main`, and `origin/HEAD` is `main`) → `"fresh"`.
+  Every worktree starts from a clean tree matching the remote.
+- **different** (work targets `next` or `develop`, `origin/HEAD` is still
+  `main`) → `"head"`. With `"fresh"`, a worktree would fork from `main` and the
+  branch would carry the whole `main..next` delta — the exact defect
+  `check-prerequisites.sh` exists to avoid, reintroduced one layer down.
+
+Write it only when the key is absent — an existing `worktree` block is the
+team's choice, and this step does not overwrite it:
+
+```bash
+jq -e 'has("worktree")' .claude/settings.json >/dev/null 2>&1 \
+  || { jq '.worktree.baseRef = "head"' .claude/settings.json > .claude/settings.json.tmp \
+       && mv .claude/settings.json.tmp .claude/settings.json; }
+```
+
+Unlike 3.3 and 3.4, this runs even when `.claude/settings.json` is the team's
+own file: adding a key the file does not have takes nothing away, and it is the
+only way an already-configured project ever gets the setting.
+
+Whichever value lands, the SDD flow still passes the fork point explicitly
+(`sdd-start.sh --base <ref>`), because a setting cannot know which task branch a
+worktree is for. `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` is the rest of the
+convention: the port offset, the overlap warning, the dependency install.
+
+**Report in the summary** (a single line):
+`worktree.baseRef: <fresh|head> (reference branch <name>, remote default <name>) — or "left as the team set it"`

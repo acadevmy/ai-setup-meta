@@ -15,6 +15,7 @@ reference has produced them.
 - [3.4 — Compose the sandbox network allowlist](#34--compose-the-sandbox-network-allowlist)
 - [3.5 — Credential masking](#35--credential-masking-user-scope-optional)
 - [3.6 — Git over the sandbox: SSH remotes](#36--git-over-the-sandbox-ssh-remotes)
+- [3.7 — The worktree files](#37--the-worktree-files)
 
 ---
 
@@ -139,6 +140,10 @@ Multi-project: one `REGISTRY.md` per confirmed sub-project, at
 
 **.env.example** — if it does not exist, copy
 `${CLAUDE_SKILL_DIR}/templates/.env.example`.
+
+**.worktreeinclude** — if it does not exist, copy
+`${CLAUDE_SKILL_DIR}/templates/.worktreeinclude`. See 3.7 for what it does and
+for the one `.gitignore` line that goes with it.
 
 **IMPORTANT**: write the files you read **exactly as received**. Do not
 reformat, do not adjust, do not improve. The content must be verbatim.
@@ -428,3 +433,34 @@ options:
 - HTTPS remote: `origin already on HTTPS — git works inside the sandbox`
 - switched: `switch origin to HTTPS: <command printed>`
 - kept SSH: `origin left on SSH — git network commands will run unsandboxed, with a confirmation each time`
+
+### 3.7 — The worktree files
+
+A worktree is a clean checkout, so a gitignored file is absent from it: the app
+boots without `.env` and fails for a reason that looks like a code problem. Two
+small artefacts prevent it, and both are additive.
+
+**`.worktreeinclude`** (written at 3.2) lists, in `.gitignore` syntax, the files
+Claude Code copies into every worktree it creates. Only a file that matches
+**and is gitignored** is copied. If the project already has one, keep it and say
+so. If the stack needs more than the template's env files — Flutter's
+`android/local.properties`, a `*.tfvars` — say which lines to add rather than
+adding them silently.
+
+**One `.gitignore` line.** Whether the file is the one written at 3.2 or the
+project's own, check it for `.claude/worktrees/`:
+
+```bash
+grep -q '^\.claude/worktrees/' .gitignore || printf '\n# Claude Code worktrees\n.claude/worktrees/\n' >> .gitignore
+```
+
+Without it, every file of every worktree shows up as untracked in the main
+checkout. This is the one edit made to a `.gitignore` the setup did not write:
+it adds a line, removes nothing, and the alternative is a `git status` nobody can
+read.
+
+The base ref a worktree forks from is Step 7c — it needs the reference branch,
+which is resolved later.
+
+**Report in the summary** (a single line):
+`worktree files: .worktreeinclude <written|kept>, .gitignore worktrees entry <added|present>`

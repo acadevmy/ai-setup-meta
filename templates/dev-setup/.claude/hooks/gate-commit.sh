@@ -58,6 +58,11 @@ fi
 
 TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
+# The session's working directory, which is where the commit is happening. In a
+# worktree it is the worktree root, while $CLAUDE_PROJECT_DIR stays at the main
+# checkout — so a gate that trusted its own `pwd` would lint and test the wrong
+# tree and report the answer for a checkout nobody is committing.
+HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty')
 
 # Only Bash calls carry a command to inspect.
 [ "$TOOL_NAME" = "Bash" ] || exit 0
@@ -134,6 +139,10 @@ fi
 if [ -z "$SCRIPTS_DIR" ]; then
   echo "gate-commit: detect-stack.sh not found, commit gate skipped" >&2
   exit 0
+fi
+
+if [ -n "$HOOK_CWD" ] && [ -d "$HOOK_CWD" ]; then
+  cd "$HOOK_CWD" || exit 0
 fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)

@@ -20,13 +20,15 @@
   ],
   "plugin_reference": [
     "clickup-contract.md",
-    "turn-discipline.md"
+    "turn-discipline.md",
+    "worktree.md"
   ],
   "template_agents": [
     "review.md"
   ],
   "template_skills": [
     "auto-sdd",
+    "quick",
     "review",
     "sdd",
     "sdd-discovery",
@@ -44,7 +46,8 @@
     "sdd-start.sh",
     "check-prerequisites.sh",
     "migrate-settings.sh",
-    "render-template.sh"
+    "render-template.sh",
+    "worktree-info.sh"
   ],
   "hooks": [
     "gate-commit.sh",
@@ -93,6 +96,7 @@
     ".env.example",
     ".claude/settings.json",
     ".claude/settings.user.json",
-    ".gitignore"
+    ".gitignore",
+    ".worktreeinclude"
   ]
 }
