@@ -908,6 +908,17 @@ for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do
     "$(sed -n '2,/^---$/p' "$SURFACE")" "three files"
 done
 
+# A flag declared in a Usage line and never acted on is worse than no flag: the
+# skill would pass `--base` while still working in the main checkout. Whichever
+# surface offers `--worktree` has to say to enter one.
+for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do
+  NAME="$(basename "$(dirname "$SURFACE")")"
+  grep -q -- '--worktree' "$SURFACE" || continue
+  assert_eq "$NAME says to enter the worktree, not just to pass --base" "true" \
+    "$(grep -rqE 'enter the worktree' "$SURFACE" "$(dirname "$SURFACE")/reference" 2>/dev/null \
+       && echo true || echo false)"
+done
+
 echo ""
 echo "── frontmatter parseability ──"
 
