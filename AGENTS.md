@@ -223,10 +223,11 @@ status other than 0.
 |---|---|
 | `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `HOOK_MANAGER` |
 | `sdd-start.sh --task DE-123 \| --title <text> [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket |
+| `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
 | `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW` |
-| `worktree-info.sh` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two active worktrees both declare |
+| `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug |
 
 ### The UPDATE path is part of the contract
@@ -312,13 +313,15 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `clickup-contract.md` | How to call the `clickup` agent: intents, parameters, result format, list-id resolution, the bail-out call |
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
+| `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request, the bail-out, and how an answered `needs-human` resumes. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
-**The public surface is five commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
-`review`. Everything else in the chain (`sdd-discovery`, `sdd-spec`, `sdd-plan`,
-`sdd-dev`, `verify`, `clickup`, `vcs-ops`) carries `user-invocable: false`: the
-orchestrator invokes it by name, and `/help` stays readable. A skill that opens a
-PR or writes into a project also carries `disable-model-invocation: true` — a
-flow with outward-facing side effects is started by a person, not inferred.
+**The public surface is six commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
+`multi-sdd`, `review`. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
+`sdd-plan`, `sdd-dev`, `verify`, `clickup`, `vcs-ops`) carries
+`user-invocable: false`: the orchestrator invokes it by name, and `/help` stays
+readable. A skill that opens a PR or writes into a project also carries
+`disable-model-invocation: true` — a flow with outward-facing side effects is
+started by a person, not inferred.
 
 `quick` is the fifth because ceremony has to be proportional (DE-16480): at most
 three files and no new component, dependency or public interface goes branch →
@@ -372,6 +375,23 @@ The split that keeps it safe to run in the background:
   and the base branch, starts the run, and is the only side that pushes, opens a
   merge request or writes to the board. Those are exactly the calls the `ask`
   rules cover, so they happen where a person can see them.
+
+The workflow has a second launcher, `multi-sdd` (DE-16487), which runs it once
+per task for up to five tasks from one session. It **composes** and adds no
+phase, no agent and no rule: what is new there is a sequential pre-flight (the
+triage, only the business decisions no agent can invent, the overlap warning) and
+a fan-out whose outcomes arrive as events. Two invariants keep it honest, and
+both are pinned by `test-plugin-scripts.sh`:
+
+1. **The cap is `multi-preflight.sh`, not a sentence.** Five is where human
+   review becomes the bottleneck; the script exits 3 on the sixth task. A number
+   in prose gets re-read charitably, an exit status does not.
+2. **What the developer answers is read after the Challenge phase.** A
+   `needs-human` run resumes with `resolved` (the lenses they overruled) and
+   `guidance` (why). Because neither reaches the spec prompt or the lens prompts,
+   a resume replays them from the journal cache and restarts at Dev — the phases
+   that completed are not paid for twice. Put either one into an earlier prompt
+   and the resume silently becomes a fresh run.
 
 Three rules for changing a workflow:
 
@@ -586,4 +606,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR. Do not edit it directly on `main`.
 
 ---
-*Version: 2.11.0 — bump the version number on every substantial change*
+*Version: 2.12.0 — bump the version number on every substantial change*
