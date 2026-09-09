@@ -11,6 +11,7 @@ next; the rest of the object is what you report. The ClickUp calls follow
 - [ready-for-mr — push and open it](#ready-for-mr--push-and-open-it)
 - [The merge request](#the-merge-request)
 - [What a run leaves behind](#what-a-run-leaves-behind)
+- [When the run does not start](#when-the-run-does-not-start)
 
 ## needs-human — two lenses objected
 
@@ -108,3 +109,17 @@ Workflow({
 
 Resume it rather than launching again: a fresh run redoes the spec and the three
 challenges from scratch, at the same cost as the first time.
+
+## When the run does not start
+
+Two failures happen before any phase does, and neither is a task problem:
+
+- **`Workflow "dev-setup:auto-sdd" not found`** — the loaded plugin has no such
+  workflow. The usual cause is a stale install shadowing a newer build: check
+  that `${CLAUDE_PLUGIN_ROOT}/workflows/auto-sdd.js` exists, and if it does not,
+  reinstall or rebuild the plugin. The same script can be launched by path with
+  `scriptPath` while that is being fixed.
+- **`status: 'failed', stage: 'intake'`** — the launcher passed bad arguments:
+  a missing `taskId`, `pluginRoot` or `baseBranch`, or a task id that is not a
+  plain identifier. The `reason` names which. Fix step 3 of the skill, not the
+  workflow.
