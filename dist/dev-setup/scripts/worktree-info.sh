@@ -17,19 +17,35 @@
 # Best-effort by design: the answer is a warning, never a gate. A worktree
 # without a spec contributes nothing and is not an error.
 #
+# The same question comes up one step earlier, before a fan-out: `multi-sdd`
+# knows which files each task it is about to launch will touch, and no worktree
+# and no spec exist yet. `--impact` feeds those estimates through the same
+# comparison, so a set intersection is computed in one place whether the claim
+# comes from a spec on disk or from a pre-flight estimate — and a task about to
+# start is compared against the worktrees already in flight for free.
+#
 # Usage:
 #   worktree-info.sh [--json]
+#   worktree-info.sh [--json] --impact DE-1=src/a.ts,src/b.ts --impact DE-2=src/b.ts
+#
+#   --impact <label>=<files>   a declared file set that is not on disk yet:
+#                              comma- or space-separated paths, one flag per
+#                              label. The label is normally the task id, and it
+#                              is what the overlap names. Repeatable.
+#   --json                     emit a flat JSON object
 #
 # Keys:
 #   WORKTREE        absolute path of the current worktree (or the main checkout)
 #   WORKTREE_INDEX  its position in `git worktree list`; the main checkout is 0
 #   PORT_OFFSET     the same number — the offset to add to the dev server port
 #   WORKTREES       newline-separated "<path>\t<branch>" for every active worktree
-#   OVERLAPS        newline-separated "<file>\t<branch>,<branch>" for every file
-#                   more than one worktree declares in its spec
+#   OVERLAPS        newline-separated "<file>\t<name>,<name>" for every file more
+#                   than one declarer claims — a branch for a worktree with a
+#                   spec, the label for an `--impact` set
 #   OVERLAP_COUNT   how many files overlap
 #
 # Exits non-zero outside a git repository.
+# ---8<--- end of the --help message
 
 set -uo pipefail
 
@@ -38,13 +54,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 AS_JSON=false
+IMPACTS=()
+
+usage() {
+  awk 'NR == 1 { next } /^# ---8<---/ { exit } /^#/ { sub(/^# ?/, ""); print }' \
+    "${BASH_SOURCE[0]}"
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --json) AS_JSON=true; shift ;;
-    -h|--help)
-      sed -n '2,31p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
-      exit 0 ;;
+    --impact)
+      [ $# -ge 2 ] || die "--impact requires <label>=<files>"
+      case "$2" in
+        *=*) IMPACTS+=("$2") ;;
+        *) die "--impact takes <label>=<files>, not $(printf '%q' "$2")" ;;
+      esac
+      shift 2 ;;
+    -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
@@ -72,7 +99,13 @@ WORKTREE_INDEX=$(printf '%s\n' "$WORKTREES" | awk -F'\t' -v cur="$CURRENT" '
   END { if (!found) print 0 }
 ')
 
-# ── Declared impact, per worktree ─────────────────────────────────────────────
+# ── Declared impact, per declarer ─────────────────────────────────────────────
+#
+# A declarer is a task, not a checkout: "<file>, owner, display name". The owner
+# is what deduplicates — a task with a worktree on disk and an `--impact`
+# estimate for the same run is one declarer, so it never overlaps with itself.
+# The display name is the first one seen for that owner, and worktrees are
+# processed first, so a branch name wins over a bare label.
 #
 # The spec is found the way check-prerequisites.sh finds it: the task id out of
 # the branch name, then .specs/<TASK_ID>-*.md inside that worktree.
@@ -103,17 +136,32 @@ while IFS=$'\t' read -r wt_path wt_branch; do
 
   while IFS= read -r file; do
     [ -n "$file" ] || continue
-    PAIRS="$PAIRS$file	$wt_branch
+    PAIRS="$PAIRS$file	$task_id	$wt_branch
 "
   done <<< "$(declared_files "$spec")"
 done <<< "$WORKTREES"
 
+# The estimates a fan-out declares before it starts. Comma or whitespace between
+# the paths, and a leading `./` stripped: the spec extraction produces bare
+# relative paths, and a key that does not match is an overlap silently missed.
+for impact in ${IMPACTS+"${IMPACTS[@]}"}; do
+  label="${impact%%=*}"
+  [ -n "$label" ] || die "--impact needs a label before the '=' (e.g. --impact DE-1=src/a.ts)"
+
+  while IFS= read -r file; do
+    file="${file#./}"
+    [ -n "$file" ] || continue
+    PAIRS="$PAIRS$file	$label	$label
+"
+  done <<< "$(printf '%s' "${impact#*=}" | tr ', ' '\n\n')"
+done
+
 OVERLAPS=$(printf '%s' "$PAIRS" | awk -F'\t' '
-  NF == 2 && !seen[$0]++ {
-    branches[$1] = ($1 in branches) ? branches[$1] "," $2 : $2
+  NF == 3 && !seen[$1 FS $2]++ {
+    names[$1] = ($1 in names) ? names[$1] "," $3 : $3
     count[$1]++
   }
-  END { for (f in count) if (count[f] > 1) print f "\t" branches[f] }
+  END { for (f in count) if (count[f] > 1) print f "\t" names[f] }
 ' | LC_ALL=C sort)
 
 OVERLAP_COUNT=0
