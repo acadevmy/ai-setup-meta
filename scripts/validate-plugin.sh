@@ -29,11 +29,14 @@
 #   11 MARKETPLACE_SOURCE      marketplace.json entry with an inconsistent source or version
 #   12 LEGACY_RUNTIME_RESIDUE  a reference to Cursor/Codex/Gemini in the artefacts
 #   13 WORKFLOW_CONTRACT       a workflow script the harness would refuse or misgroup
+#   14 DOC_REFERENCE           the docs cite a command, script, path or rule that does not exist
+#   15 DOC_COMMAND_COVERAGE    a public command the user guide never documents
 #
-# Checks 11 to 13 are not in the original list: they are regression guards on
+# Checks 11 to 15 are not in the original list: they are regression guards on
 # defects the chain removed (the broken `pm-setup` entry, DE-16471; the
-# Cursor/Codex/Gemini support, DE-16489) and on the one artefact whose mistakes
-# only surface at run time (the workflow scripts, DE-16479).
+# Cursor/Codex/Gemini support, DE-16489), on the one artefact whose mistakes
+# only surface at run time (the workflow scripts, DE-16479), and on the one
+# artefact nothing else validates at all (the documentation, DE-16488).
 # ---8<--- end of the --help message
 #
 # Scoping notes:
@@ -48,6 +51,12 @@
 #     criterion. If some legitimate rule ever has to use one of those words (say,
 #     cursor-based pagination), narrow the check's pattern — do not baseline the
 #     finding.
+#   - Checks 14 and 15 read the two root documents and the top level of `docs/`.
+#     `docs/legacy/` is archived material, outside the product and outside the
+#     check. One live page is excluded too — the v2→v3 migration page, whose
+#     subject is precisely the things that were removed. Nothing else belongs on
+#     that list: a document that has to name a dead reference belongs in the
+#     migration page.
 #   - Check 13 reads the `export const meta` block the harness itself parses. A
 #     wrong extension, a missing meta, a name that does not match the file or a
 #     `phase()` with no entry in `meta.phases` are all silent at load time: the
@@ -649,6 +658,172 @@ check_workflows() {
   done
 }
 
+# ── Checks 14-15: the documentation's references ─────────────────────────────
+# The documentation is the one artefact nothing else validates. A renamed script,
+# a retired command or a moved reference leaves the prose describing a plugin
+# that no longer exists, and the failure mode is a developer following
+# instructions that cannot work — which is how the pre-plugin `onboarding.md`
+# survived three architectures (DE-16488).
+#
+# Check 14 resolves what the docs cite; check 15 is its mirror — a command the
+# plugin exposes and the user guide never mentions.
+DOC_DRIFT_EXCLUDE="docs/migration-v2-to-v3.md"
+DOC_USER_GUIDE="docs/developer-guide.md"
+
+# The files under review: the two root documents and the top level of docs/.
+doc_files() {
+  local f
+  for f in "$REPO_ROOT/README.md" "$REPO_ROOT/AGENTS.md"; do
+    [ -f "$f" ] && rel "$f"
+  done
+  find "$REPO_ROOT/docs" -maxdepth 1 -name '*.md' 2>/dev/null | LC_ALL=C sort \
+    | while IFS= read -r f; do rel "$f"; done
+}
+
+# doc_tokens FILE ERE -> LINE \t TOKEN. grep -on prefixes the line number with the
+# first colon, which is the only one sed touches: a token holding colons of its
+# own (`/dev-setup:sdd`) comes through whole.
+doc_tokens() {
+  grep -on -E "$2" "$1" 2>/dev/null | sed 's/:/\t/' || true
+}
+
+# add_doc_finding FILE LINE TOKEN MESSAGE. The key is file+token rather than
+# file+line: the same dangling reference repeated is one defect, and moving it
+# down the page is not a new one.
+add_doc_finding() {
+  add_finding DOC_REFERENCE DOCS "$1" "$2" "$1:$3" "$4"
+}
+
+check_doc_references() {
+  step "Check 14 — the commands, scripts and paths the documentation cites"
+
+  # Docs name a hook or a plugin script by its basename far more often than by a
+  # full path, and the same script legitimately exists under templates/ and
+  # dist/. So .sh tokens resolve against an index of basenames.
+  local sh_index="$TMP_DIR/sh-basenames.txt"
+  : > "$sh_index"
+  find "$REPO_ROOT/scripts" "$REPO_ROOT/templates" "$REPO_ROOT/dist" \
+       -type f -name '*.sh' 2>/dev/null \
+    | while IFS= read -r f; do basename "$f"; done | LC_ALL=C sort -u > "$sh_index"
+
+  local doc abs line token plugin name target dir
+  while IFS= read -r doc; do
+    [ -n "$doc" ] || continue
+    [ "$doc" = "$DOC_DRIFT_EXCLUDE" ] && continue
+    abs="$REPO_ROOT/$doc"
+    dir="$(dirname "$abs")"
+
+    # ── Slash commands ────────────────────────────────────────────────────────
+    # `/project:x` is the meta-repo's own namespace; `/<plugin>:x` is a built
+    # plugin's. A `<name>` placeholder never matches: the class holds no `<`.
+    while IFS=$'\t' read -r line token; do
+      [ -n "${token:-}" ] || continue
+      plugin="${token%%:*}"; plugin="${plugin#/}"
+      name="${token#*:}"
+      if [ "$plugin" = "project" ]; then
+        if [ ! -f "$REPO_ROOT/.claude/skills/$name/SKILL.md" ] \
+           && [ ! -f "$REPO_ROOT/.claude/commands/$name.md" ]; then
+          add_doc_finding "$doc" "$line" "$token" \
+            "cites '$token', which is neither a meta-repo skill nor a command"
+        fi
+        continue
+      fi
+      target="$REPO_ROOT/dist/$plugin/skills/$name/SKILL.md"
+      if [ ! -f "$target" ]; then
+        add_doc_finding "$doc" "$line" "$token" \
+          "cites '$token', which the built plugin does not ship"
+      elif [ "$(fm_value "$target" 'user-invocable')" != "true" ]; then
+        add_doc_finding "$doc" "$line" "$token" \
+          "cites '$token' as a command, but the skill is not user-invocable"
+      fi
+    done < <(doc_tokens "$abs" '/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*')
+
+    # ── ${CLAUDE_PLUGIN_ROOT}/… and ${CLAUDE_SKILL_DIR}/templates/… ───────────
+    # The two roots the skills address at run time. A trailing sentence period
+    # is trimmed; `.md` and `.sh` end in a letter, so nothing real is lost.
+    while IFS=$'\t' read -r line token; do
+      [ -n "${token:-}" ] || continue
+      target="${token#*\}/}"
+      target="${target%%[.,;:)]}"
+      case "$token" in
+        *CLAUDE_PLUGIN_ROOT*) target="$REPO_ROOT/dist/dev-setup/$target" ;;
+        *) target="$REPO_ROOT/dist/dev-setup/skills/setup/$target" ;;
+      esac
+      [ -e "$target" ] || add_doc_finding "$doc" "$line" "$token" \
+        "cites '$token', which the built plugin does not hold"
+    done < <(doc_tokens "$abs" '\$\{CLAUDE_(PLUGIN_ROOT|SKILL_DIR)\}/[A-Za-z0-9._/-]+')
+
+    # ── Shell scripts, by basename ───────────────────────────────────────────
+    while IFS=$'\t' read -r line token; do
+      [ -n "${token:-}" ] || continue
+      name="$(basename "$(printf '%s' "$token" | tr -d '`')")"
+      grep -qxF "$name" "$sh_index" || add_doc_finding "$doc" "$line" "$name" \
+        "cites the script '$name', which no longer exists in the repo"
+    done < <(doc_tokens "$abs" '`[A-Za-z0-9._/-]+\.sh`')
+
+    # ── Repo-relative paths ──────────────────────────────────────────────────
+    # Only fully backticked ones, so the closing backtick — not a guess — is
+    # where the path ends. A token holding a glob or a placeholder is skipped:
+    # `templates/<domain>/rules/` is a shape, not a path.
+    while IFS=$'\t' read -r line token; do
+      [ -n "${token:-}" ] || continue
+      target="$(printf '%s' "$token" | tr -d '`')"
+      [ -e "$REPO_ROOT/$target" ] || add_doc_finding "$doc" "$line" "$target" \
+        "cites the path '$target', which does not exist"
+    done < <(doc_tokens "$abs" '`(scripts|templates|shared|dist|docs)/[A-Za-z0-9._/-]+`')
+
+    # ── Generated rule files ─────────────────────────────────────────────────
+    # `dev-setup-react.md` in a project is `rules/react.md` in the template: the
+    # prefix is the contract that makes UPDATE safe, and a doc naming a rule
+    # nothing generates describes governance the project will never receive.
+    while IFS=$'\t' read -r line token; do
+      [ -n "${token:-}" ] || continue
+      name="${token#dev-setup-}"
+      [ -f "$REPO_ROOT/templates/dev-setup/rules/$name" ] \
+        || add_doc_finding "$doc" "$line" "$token" \
+             "cites the rule '$token', which no template generates"
+    done < <(doc_tokens "$abs" 'dev-setup-[a-z][a-z-]*\.md')
+
+    # ── Relative markdown links ──────────────────────────────────────────────
+    while IFS=$'\t' read -r line token; do
+      [ -n "${token:-}" ] || continue
+      target="${token#](}"; target="${target%)}"
+      case "$target" in
+        http*|mailto:*|\#*|"") continue ;;
+      esac
+      target="${target%%\#*}"
+      [ -n "$target" ] || continue
+      [ -e "$dir/$target" ] || add_doc_finding "$doc" "$line" "$target" \
+        "links to '$target', which does not exist"
+    done < <(doc_tokens "$abs" '\]\([^)]+\)')
+  done < <(doc_files)
+}
+
+# ── Check 15: every public command is documented ─────────────────────────────
+check_doc_command_coverage() {
+  step "Check 15 — the user guide covers every public command"
+  local guide plugin_dir plugin skill_md name
+  guide="$REPO_ROOT/$DOC_USER_GUIDE"
+  [ -f "$guide" ] || {
+    add_finding DOC_COMMAND_COVERAGE DOCS "$DOC_USER_GUIDE" 0 "$DOC_USER_GUIDE" \
+      "the user guide the commands are documented in does not exist"
+    return 0
+  }
+
+  for plugin_dir in "$REPO_ROOT"/dist/*/; do
+    [ -d "${plugin_dir}skills" ] || continue
+    plugin="$(basename "$plugin_dir")"
+    for skill_md in "${plugin_dir}skills"/*/SKILL.md; do
+      [ -f "$skill_md" ] || continue
+      [ "$(fm_value "$skill_md" 'user-invocable')" = "true" ] || continue
+      name="$(basename "$(dirname "$skill_md")")"
+      grep -qF "/$plugin:$name" "$guide" || add_finding DOC_COMMAND_COVERAGE DOCS \
+        "$DOC_USER_GUIDE" 0 "$DOC_USER_GUIDE:$plugin:$name" \
+        "'/$plugin:$name' is user-invocable and the user guide never mentions it"
+    done
+  done
+}
+
 # ── Run ──────────────────────────────────────────────────────────────────────
 collect_skills
 [ -s "$SKILLS" ] || die "no skill found: run this from the repo root"
@@ -662,6 +837,8 @@ check_manifest_orphans
 check_marketplace
 check_legacy_runtime_residue
 check_workflows
+check_doc_references
+check_doc_command_coverage
 
 sort -o "$FINDINGS" "$FINDINGS"
 
