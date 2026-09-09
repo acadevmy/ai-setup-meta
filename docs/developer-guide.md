@@ -109,7 +109,8 @@ Claude Code:
 ### 3.2 Develop with TDD or BDD
 
 There is nothing to type here: the cycle is part of development, and the layer
-you are on decides which one it is.
+you are on decides which one it is — `.claude/rules/dev-setup-tests.md` is where
+that is written down, and it loads by itself when you open a test file.
 
 | Layer | Methodology | Minimum coverage |
 |---|---|---|
