@@ -222,10 +222,11 @@ status other than 0.
 | Script | Returns |
 |---|---|
 | `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `HOOK_MANAGER` |
-| `sdd-start.sh --task DE-123 [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — `--base` forces the fork point, which is what a fresh worktree needs |
+| `sdd-start.sh --task DE-123 \| --title <text> [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
 | `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW` |
+| `worktree-info.sh` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two active worktrees both declare |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug |
 
 ### The UPDATE path is part of the contract
@@ -310,18 +311,46 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 |---|---|
 | `clickup-contract.md` | How to call the `clickup` agent: intents, parameters, result format, list-id resolution, the bail-out call |
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
+| `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
 
-**The public surface is four commands** — `setup`, `sdd`, `auto-sdd`, `review`.
-Everything else in the chain (`sdd-discovery`, `sdd-spec`, `sdd-plan`, `sdd-dev`,
-`verify`, `clickup`, `vcs-ops`) carries `user-invocable: false`: the orchestrator
-invokes it by name, and `/help` stays readable. A skill that opens a PR or writes
-into a project also carries `disable-model-invocation: true` — a flow with
-outward-facing side effects is started by a person, not inferred.
+**The public surface is five commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
+`review`. Everything else in the chain (`sdd-discovery`, `sdd-spec`, `sdd-plan`,
+`sdd-dev`, `verify`, `clickup`, `vcs-ops`) carries `user-invocable: false`: the
+orchestrator invokes it by name, and `/help` stays readable. A skill that opens a
+PR or writes into a project also carries `disable-model-invocation: true` — a
+flow with outward-facing side effects is started by a person, not inferred.
+
+`quick` is the fifth because ceremony has to be proportional (DE-16480): at most
+three files and no new component, dependency or public interface goes branch →
+change → commit → merge request, with no discovery and no spec. The bar is in
+both descriptions, `sdd`'s and `quick`'s, and the routing decision stays with the
+developer — the command they type *is* the decision.
 
 The standalone `tdd` and `bdd` skills are gone (DE-16479): they restated
 `sdd-dev/reference/methodologies.md`, nothing in the flow ever invoked them, and
 the layer decides the cycle anyway. Whoever writes the code reads that reference —
 the `sdd-dev` skill interactively, the dev agent inside the workflow.
+
+### What the interactive flow stopped doing (DE-16480)
+
+Four things left `sdd`, and each one was paid for on every task:
+
+- **the methodology question** — the layer decides the cycle and `tests.md`
+  states it, so asking produced an answer the rules already had;
+- **the final OK in chat** — the `ask` rule on `gh pr create` / `glab mr create`
+  puts the developer in front of the real command instead of a summary of it, so
+  the spec approval in `sdd-plan` is now the flow's only unconditional stop;
+- **the second `simplify` run** — it ran in `sdd-dev` and again in the closure;
+  it now runs once, in the closure, over the staged change;
+- **three bookkeeping commits** — `refactor: simplify`, `docs(registry)` and
+  `docs(spec): track review outcome`, plus the spec's `## Simplify phase` and
+  `## Review phase` sections that fed them. The gates run *before* the commit
+  (which is also what makes the commit hook fire: it skips when nothing is
+  staged), so one commit carries the code, the spec and the REGISTRY entries.
+
+A spec is a requirements document. How the run went is in git and in the merge
+request, and a section of the spec recording which gate ran on which day was
+read by nobody.
 
 ## The autonomous flow is a workflow script
 
@@ -557,4 +586,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR. Do not edit it directly on `main`.
 
 ---
-*Version: 2.10.0 — bump the version number on every substantial change*
+*Version: 2.11.0 — bump the version number on every substantial change*
