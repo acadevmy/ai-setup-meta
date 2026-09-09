@@ -1,66 +1,91 @@
 ---
 name: auto-sdd
-description: Runs the whole Spec-Driven Development flow for a task end to end with no human checkpoints — discovery, spec, approval, development, gates, merge request — replacing each checkpoint with an agent. Use when a task should be taken from the board to an open merge request without supervision.
-effort: max
+description: Launches the autonomous SDD workflow for one task — spec, three adversarial challenges, test-first development in an isolated worktree, the project own quality commands — and opens the merge request behind a confirmation. Use when a tracked task should go from the board to a review-ready merge request with no supervision.
+effort: medium
 user-invocable: true
 disable-model-invocation: true
 ---
 
 # Auto SDD
 
-The `sdd` flow with the human taken out of it: from task selection to an open
-merge request, with no `AskUserQuestion` directed at a person. Each interactive
-checkpoint is replaced by an agent or by a documented deterministic rule.
+The launcher of the `auto-sdd` workflow. The orchestration lives in
+`workflows/auto-sdd.js` — JavaScript the harness runs, so its bounds are bounds
+and its control flow never enters the context. What is left here is what code
+cannot do: resolve the task, launch the run, act on the outcome.
 
-**Invoking this skill *is* auto-mode** — it is not a flag, it is what the skill
-does. The supervised flow stays available as `sdd`.
-
-**Usage**: `/dev-setup:auto-sdd [TASK_ID]`. With a task id it processes that
-task; without one it takes the next `SPRINT` task from the configured list.
+**Usage**: `/dev-setup:auto-sdd [TASK_ID]`.
 
 ## Before you start
 
-- **`reference/auto-mode.md`** — every step, its agents and its parameters, and
-  the bail-out.
+- **`reference/outcomes.md`** — the three outcomes, the merge request, the
+  bail-out, and the worktree a run leaves behind.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the
-  transitions, and how the task list id is resolved.
+  transitions and how the task list id is resolved.
 
-## The rules of auto-mode
+## 1. The task
 
-- **No `AskUserQuestion`, anywhere.** Every decision goes through an agent or a
-  rule written down in the reference.
-- **The turn discipline of the interactive skills does not apply.** There is no
-  human waiting, so an "incomplete work" signal means the work really is
-  incomplete: finish the step or bail out.
-- **Every loop is bounded.** Reaching a bound without convergence is a bail-out,
-  not a reason to keep going.
-- **The SDD skills are not modifiable.** This flow orchestrates `sdd-spec`,
-  `sdd-dev`, `verify`, `simplify` and `review`; it does not change how they
-  work. `sdd-discovery` and `sdd-plan` must **not** be invoked at all — they are
-  interactive, and their outputs are produced by step 4 and by the approver
-  agent instead.
+**With a task id in `$ARGUMENTS`**: `INTENT: read`, `PARAMS: task_id: <id>`.
 
-| Loop | Bound |
-|---|---|
-| discovery questions | 12 |
-| spec review iterations | 3 |
-| plan review iterations | 3 |
-| re-entries after a `verify` fail | 3 |
+**Without one**: resolve the list id as the contract describes, then
+`INTENT: next-task`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>` — the same
+highest-priority `SPRINT` task this flow has always picked. Nothing in `SPRINT`
+→ say so and stop: no run, no board write.
 
-## The flow
+Keep `custom_id`, `name`, `description` (verbatim), `url` and `task_id`.
 
-Steps 1 to 12, all detailed in `reference/auto-mode.md`: task selection →
-branch → status `IN PROGRESS` → two-agent discovery → spec → spec approval →
-plan approval → methodology → development → simplify, verify, review → push and
-merge request → status `CODE REVIEW`.
+## 2. The project context
+
+Two read-only calls:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh" --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
+```
+
+The base branch is neither guessed nor hard-coded — the second call answers it:
+
+- `TASK_ID` empty → the session sits on a long-lived branch, `BRANCH` is the base;
+- `TASK_ID` present → it sits on a task branch already, `BASE_BRANCH` is.
+
+Then `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`.
+
+## 3. The run
+
+```json
+Workflow({
+  "name": "dev-setup:auto-sdd",
+  "args": {
+    "taskId": "<custom_id>",
+    "title": "<name>",
+    "description": "<description, verbatim>",
+    "url": "<url>",
+    "branchType": "feat",
+    "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
+    "baseBranch": "<the base from step 2>",
+    "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" }
+  }
+})
+```
+
+`branchType` follows the task: feature → `feat`, bug → `fix`, maintenance →
+`chore`. A command `detect-stack.sh` left empty stays empty: the workflow skips
+it rather than inventing one.
+
+The harness asks the developer to approve the workflow script before it runs —
+the checkpoint this flow keeps, and why it needs no `AskUserQuestion`. The run
+then works in the background: wait for its notification, do not poll.
+
+## 4. The outcome
+
+Exactly one of `needs-human`, `ready-for-mr` or `failed`, each handled in
+`reference/outcomes.md` — which also holds what the merge request carries.
+Anything else means the run broke: show the raw result and stop.
 
 ## Expected output
 
-- a branch named after the task's custom id;
-- a spec in `.specs/`, status `implemented`;
-- code that follows the approved spec, simplified, verified against it and
-  rule-compliant;
-- `REGISTRY.md` updated;
-- the task moved `SPRINT` → `IN PROGRESS` → `CODE REVIEW`;
-- a merge request linking the task and the spec;
-- no `AskUserQuestion` invoked anywhere in the run.
+- the task moved `SPRINT` → `IN PROGRESS`, then → `CODE REVIEW` or `BLOCKED`;
+- on `ready-for-mr`, a pushed branch and a merge request against the project
+  base branch, carrying the spec and the real test output;
+- otherwise the objections or the failing output in chat, the branch and the
+  worktree left in place, and no merge request;
+- either way, no edit in the developer checkout.

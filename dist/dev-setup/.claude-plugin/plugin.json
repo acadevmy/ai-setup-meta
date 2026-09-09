@@ -8,10 +8,7 @@
   "skills": "./skills",
   "agents": [
     "./agents/clickup.md",
-    "./agents/review.md",
-    "./agents/sdd-approver.md",
-    "./agents/sdd-discovery-responder.md",
-    "./agents/sdd-methodology-picker.md"
+    "./agents/review.md"
   ],
   "userConfig": {
     "CLICKUP_SETUP_LIST_ID": {

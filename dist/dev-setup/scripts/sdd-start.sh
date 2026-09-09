@@ -12,6 +12,10 @@
 #   --type <type>   branch type: feat | fix | chore | docs | refactor | perf | test
 #                   (default: feat)
 #   --title <text>  task title; slugified into the branch name
+#   --base <ref>    fork from this ref instead of the resolved base branch. The
+#                   caller knows better than the local HEAD in a fresh worktree,
+#                   which the harness branches from the remote default — `main`
+#                   on plenty of projects whose work targets `next`.
 #   --create        create and check out the branch (off by default: the script
 #                   only reports, so a caller can show the plan first)
 #   --json          emit a flat JSON object
@@ -21,7 +25,8 @@
 #   REPO_ROOT     absolute path of the repository root
 #   SPEC_DIR      absolute path of the spec directory (<repo>/.specs)
 #   VCS           git | none
-#   BASE_BRANCH   the branch this work forks from, resolved from the repository
+#   BASE_BRANCH   the branch this work forks from: the `--base` ref when given,
+#                 otherwise resolved from the repository
 #   BRANCH_EXISTS true when BRANCH is already present locally
 #   CREATED       true when --create actually created the branch
 #
@@ -39,6 +44,7 @@ source "$SCRIPT_DIR/common.sh"
 TASK_ID=""
 BRANCH_TYPE="feat"
 TASK_TITLE=""
+FORCED_BASE=""
 DO_CREATE=false
 AS_JSON=false
 
@@ -53,10 +59,13 @@ while [ $# -gt 0 ]; do
     --title)
       [ $# -ge 2 ] || die "--title requires a value"
       TASK_TITLE="$2"; shift 2 ;;
+    --base)
+      [ $# -ge 2 ] || die "--base requires a ref"
+      FORCED_BASE="$2"; shift 2 ;;
     --create) DO_CREATE=true; shift ;;
     --json) AS_JSON=true; shift ;;
     -h|--help)
-      sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+      sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
       exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
@@ -92,7 +101,13 @@ fi
 BRANCH_EXISTS=false
 git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null 2>&1 && BRANCH_EXISTS=true
 
-BASE_BRANCH=$(detect_base_branch || true)
+if [ -n "$FORCED_BASE" ]; then
+  git rev-parse --verify --quiet "$FORCED_BASE" >/dev/null 2>&1 \
+    || die "--base '$FORCED_BASE' is not a ref in this repository"
+  BASE_BRANCH="$FORCED_BASE"
+else
+  BASE_BRANCH=$(detect_base_branch || true)
+fi
 
 # ── Optional branch creation ──────────────────────────────────────────────────
 

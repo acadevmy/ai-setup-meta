@@ -23,22 +23,20 @@
     "turn-discipline.md"
   ],
   "template_agents": [
-    "review.md",
-    "sdd-discovery-responder.md",
-    "sdd-approver.md",
-    "sdd-methodology-picker.md"
+    "review.md"
   ],
   "template_skills": [
     "auto-sdd",
     "review",
-    "tdd",
-    "bdd",
     "sdd",
     "sdd-discovery",
     "sdd-spec",
     "sdd-plan",
     "sdd-dev",
     "verify"
+  ],
+  "workflows": [
+    "auto-sdd.js"
   ],
   "plugin_scripts": [
     "common.sh",
