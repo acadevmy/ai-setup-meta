@@ -1,6 +1,6 @@
 ---
 name: review
-description: Performs code review of the current branch verifying CONSTITUTION compliance and updating REGISTRY
+description: Performs code review of the current branch against the project rules and updates REGISTRY
 effort: max
 user-invocable: true
 disable-model-invocation: false
@@ -26,7 +26,7 @@ long-lived branches.
 
 Launch the `review` agent with:
 - BASE_BRANCH: the `MERGE_BASE` from the previous step
-- CONSTITUTION_PATH: `./CONSTITUTION.md`
+- RULES_DIR: `./.claude/rules/`
 - REGISTRY_PATH: `./REGISTRY.md`
 - TASK_ID: the `TASK_ID` from the previous step, if present
 
@@ -69,7 +69,7 @@ Update the spec's `## Review phase` section with:
 - `State`: `completed`
 - `Date`: today's date, as `YYYY-MM-DD`
 - `Outcome`: the STATUS the Review Agent returned (`pass`, `pass-with-warnings`, `fail`)
-- `Violations`: the number of CONSTITUTION violations found
+- `Violations`: the number of rule violations found
 - `Warnings`: a short list of the warnings with their rationale (e.g. `W-1: missing test for X`), or `none`
 - `REGISTRY updates`: the number of entries applied + a short add/update summary per section, or `none`
 
@@ -91,7 +91,7 @@ Spec updated: <yes/no>
 ```
 
 ## Expected output
-- CONSTITUTION compliance report
+- compliance report against the project rules
 - `REGISTRY.md` updated with new entries (if any)
 - Commit `docs(registry): update REGISTRY.md` (if registry changes)
 - Spec file updated with the `## Review phase` section filled in (when the spec exists)

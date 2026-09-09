@@ -8,8 +8,7 @@
   ],
   "shared_skills": [
     "clickup",
-    "github-ops",
-    "gitlab-ops"
+    "vcs-ops"
   ],
   "template_agents": [
     "review.md",
@@ -41,6 +40,20 @@
     "post-edit.sh",
     "on-compact.sh"
   ],
+  "rules": [
+    "core.md",
+    "code-style.md",
+    "typescript.md",
+    "nestjs.md",
+    "react.md",
+    "react-native.md",
+    "vue.md",
+    "flutter.md",
+    "dart-analysis.md",
+    "terraform.md",
+    "tests.md",
+    "backend-services.md"
+  ],
   "profiles": [
     "web-frontend.md",
     "backend-node.md",
@@ -66,7 +79,6 @@
     "AGENTS.workspace-template.md",
     "AGENTS.project-template.md",
     "REGISTRY.md",
-    "CONSTITUTION.md",
     ".env.example",
     ".claude/settings.json",
     ".claude/settings.user.json",

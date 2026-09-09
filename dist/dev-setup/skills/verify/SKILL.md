@@ -10,7 +10,7 @@ allowed-tools: AskUserQuestion
 # /project:verify
 
 Verifies that the current implementation matches the approved technical spec.
-Unlike `/project:review` which checks **code quality** (CONSTITUTION compliance),
+Unlike `/dev-setup:review` which checks **code quality** against the project rules,
 this skill checks **spec conformance**: did we build what we said we would build?
 
 **Usage**: `/project:verify [SPEC_PATH]`

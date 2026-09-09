@@ -31,7 +31,7 @@ Commits following Conventional Commits
        │
        ▼
 /dev-setup:review
-  → checks the CONSTITUTION
+  → checks the project rules
   → updates REGISTRY.md
        │
        ▼
@@ -64,8 +64,8 @@ glab auth status   # for GitLab repos (add --hostname <host> when self-hosted)
 # MCP servers connected (only the ones setup registered for this stack)
 claude mcp list
 
-# AGENTS.md, CLAUDE.md and CONSTITUTION.md present in the project root
-ls AGENTS.md CLAUDE.md CONSTITUTION.md
+# AGENTS.md, CLAUDE.md and the generated rules present in the project
+ls AGENTS.md CLAUDE.md .claude/rules/
 ```
 
 If something is missing, run `/dev-setup:setup` again in the project root.
@@ -165,7 +165,7 @@ Once you have finished developing:
 ```
 
 Claude Code:
-1. Checks compliance with **CONSTITUTION.md**
+1. Checks compliance with the **project rules** in `.claude/rules/`
 2. Reviews code quality (duplication, complexity, security)
 3. Updates **REGISTRY.md** with the new components/services/patterns
 
@@ -184,7 +184,7 @@ glab mr create --source-branch feat/DE-123-short-description \
 ```
 
 The workflow skills (`/dev-setup:sdd`, `/dev-setup:auto-sdd`) call the right VCS skill
-(`github-ops` or `gitlab-ops`) based on the `origin` remote. On GitLab, the MR body follows
+(`vcs-ops`, which picks its GitHub or GitLab reference) based on the `origin` remote. On GitLab, the MR body follows
 `.gitlab/merge_request_templates/Default.md` when the repo has one.
 
 The MR/PR must have:
@@ -203,7 +203,7 @@ ask Claude Code to update the task, or move it on the board yourself.
 
 ## 4. Core rules
 
-These rules come from `CONSTITUTION.md` — they are mandatory for all code, whether you
+These rules come from `.claude/rules/` — they are mandatory for all code, whether you
 wrote it or Claude Code did.
 
 ### TypeScript
@@ -296,9 +296,9 @@ That updates the plugin's *bundled* skills, agents and templates — no file in 
 /dev-setup:setup
 ```
 
-The skill detects **UPDATE** mode (CONSTITUTION.md + `.claude/settings.json` already present) and regenerates:
+The skill detects **UPDATE** mode (`.claude/rules/dev-setup-core.md` + `.claude/settings.json` already present) and regenerates:
 
-- `CONSTITUTION.md`, `AGENTS.md`, `CLAUDE.md`, `REGISTRY.md`
+- `.claude/rules/dev-setup-*.md`, `AGENTS.md`, `CLAUDE.md`, `REGISTRY.md`
 
 For each file it asks before overwriting (**conflict detection**). Accepting overwrites the file wholesale — any manual edits to it are lost. Declining keeps the current version.
 

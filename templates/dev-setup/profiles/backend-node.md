@@ -19,6 +19,7 @@ ORM: Prisma (preferred) or TypeORM
     "@eslint/js": "^9.39.0",
     "eslint": "^9.39.0",
     "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-boundaries": "^7.2.0",
     "globals": "^17.12.0",
     "prettier": "^3.9.0",
     "@nestjs/cli": "^12.0.0",
@@ -58,6 +59,12 @@ ORM: Prisma (preferred) or TypeORM
   widens its peer range.
 - `eslint` stays on **9.x**: `eslint-plugin-import` declares `eslint: ^9` as its
   peer ceiling.
+- `eslint-plugin-boundaries` stays on **7.x**: `boundaries/dependencies` with
+  `policies` and file categories is the v7 API (v6 spelled it `boundaries/element-types`
+  with `rules`, still accepted but deprecated). It declares `eslint: >=6` and
+  brings no resolver of its own — it reuses the `import/resolver` that
+  `eslint-plugin-import`'s TypeScript flat config already sets, which is why the
+  two configs must both be scoped to `**/*.ts`.
 - `typescript` stays on **5.9**: `typescript-eslint@8` declares
   `typescript: >=4.8.4 <6.1.0`.
 - `ts-jest@29.4` covers Jest 30 (peer `jest: ^29 || ^30`).
@@ -70,8 +77,9 @@ ORM: Prisma (preferred) or TypeORM
 
 A DTO has **one** validation source. `class-validator` is not used alongside Zod
 on the same DTO: two decorators on the same property mean two schemas kept in
-sync by hand, and the moment they diverge a hole opens. CONSTITUTION §1
-(schema-first) mandates Zod, and `z.iso.datetime()` is **Zod 4** API.
+sync by hand, and the moment they diverge a hole opens. The schema-first rule in
+`.claude/rules/dev-setup-typescript.md` mandates Zod, and `z.iso.datetime()` is
+**Zod 4** API.
 
 `nestjs-zod` bridges to the NestJS pipes and generates the OpenAPI schema:
 
@@ -113,6 +121,7 @@ app.useGlobalPipes(new ZodValidationPipe());
 
 ```javascript
 // eslint.config.mjs
+import boundaries from 'eslint-plugin-boundaries';
 import importPlugin from 'eslint-plugin-import';
 
 import base from './eslint.config.base.mjs';
@@ -141,6 +150,49 @@ const config = [
       'no-console': 'error',
     },
   },
+
+  // Layer separation, enforced. A controller that imports the repository, or a
+  // repository that reaches back up into a service, is a lint error instead of a
+  // review comment. The layers are read off the NestJS file-suffix convention,
+  // so nothing has to move into layer directories for this to work.
+  {
+    files: ['**/*.ts'],
+    plugins: { boundaries },
+    settings: {
+      'boundaries/files': [
+        { pattern: '**/*.controller.ts', category: 'controller' },
+        { pattern: '**/*.service.ts', category: 'service' },
+        { pattern: '**/*.repository.ts', category: 'repository' },
+      ],
+    },
+    rules: {
+      'boundaries/dependencies': [
+        'error',
+        {
+          // Everything else (module, dto, schema, entity, main) is uncategorised
+          // and must keep working: only the three transitions below are refused.
+          default: 'allow',
+          policies: [
+            {
+              from: { file: { categories: 'controller' } },
+              disallow: { to: { file: { categories: 'repository' } } },
+              message: 'A controller calls a service, never the repository.',
+            },
+            {
+              from: { file: { categories: 'repository' } },
+              disallow: { to: { file: { categories: { anyOf: ['service', 'controller'] } } } },
+              message: 'The repository is the bottom layer: it does not call back upwards.',
+            },
+            {
+              from: { file: { categories: 'service' } },
+              disallow: { to: { file: { categories: 'controller' } } },
+              message: 'A service does not import its controller.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 export default config;
@@ -148,6 +200,16 @@ export default config;
 
 `eslint-plugin-import` exposes its flat configs under `flatConfigs.*`: they are
 objects (not arrays), so copy them with a spread and add `files`.
+
+`boundaries/dependencies` needs `default` set explicitly: omit it and every
+dependency that matches no policy is refused, which on a NestJS project means
+modules, DTOs and `main.ts` all light up. Hence `default: 'allow'` plus the three
+transitions that are genuinely forbidden.
+
+The rule can only compare the two sides of an import once the import path
+resolves to a file, so it depends on the `import/resolver` that
+`importPlugin.flatConfigs.typescript` installs above. Drop that config object and
+`boundaries/dependencies` silently reports nothing.
 
 ## TypeScript configuration
 
@@ -185,14 +247,14 @@ export default {
   testRegex: '.*\\.spec\\.ts$',
   transform: { '^.+\\.(t|j)s$': 'ts-jest' },
   // Without collectCoverageFrom the threshold is computed only over files the
-  // tests touch: a never-imported file lowers nothing and CONSTITUTION §12 gates
+  // tests touch: a never-imported file lowers nothing and the threshold gates
   // nothing. With the list, a module without tests fails the job.
   collectCoverageFrom: ['**/*.ts', '!**/*.spec.ts', '!**/*.module.ts', '!**/*.dto.ts', '!main.ts'],
   coverageDirectory: '../coverage',
   testEnvironment: 'node',
   coverageThreshold: {
     global: { lines: 80, functions: 80, branches: 70 },
-    // Per-layer thresholds from CONSTITUTION §12 — uncomment each entry once the
+    // Per-layer thresholds — uncomment each entry once the
     // directory exists. Jest hard-fails with "Coverage data for <path> was not
     // found" on any path or glob that matches nothing, which would break a
     // greenfield on its very first `test:cov`.

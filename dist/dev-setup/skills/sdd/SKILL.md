@@ -194,7 +194,7 @@ When development is completed:
    - If STATUS = pass: proceed to review
 
 4. **Review** — Run `/project:review` to:
-   - Verify CONSTITUTION.md compliance (via the Review Agent)
+   - Verify compliance with the project rules (via the Review Agent)
    - Verify code quality
    - Automatically update `REGISTRY.md` with new entries
 
@@ -220,9 +220,9 @@ When development is completed:
    git push -u origin <branch-name>
    ```
 
-8. **Open the merge/pull request** by invoking the active VCS-ops skill — `github-ops` if the repo's `origin` points at GitHub, `gitlab-ops` if it points at GitLab. Each skill self-identifies and bails if invoked on the wrong provider, so the correct one proceeds automatically.
+8. **Open the merge/pull request** by invoking `vcs-ops`. It reads `origin` itself and loads the GitHub or GitLab reference accordingly, so there is nothing to pick here.
    - Title: follows Conventional Commits with customId (e.g. `feat(auth): add refresh token rotation [DE-123]`)
-   - Body: includes What / Why / How to test sections + link to ClickUp task + link to spec. On GitLab, the body follows `.gitlab/merge_request_templates/Default.md` when present (see `gitlab-ops`).
+   - Body: includes What / Why / How to test sections + link to ClickUp task + link to spec. On GitLab, the body follows `.gitlab/merge_request_templates/Default.md` when present (see the skill's GitLab reference).
 
 9. **Update status** — Launch the `clickup` agent with:
    - INTENT: `update`
@@ -235,7 +235,7 @@ When development is completed:
 - Branch created with customId in the name
 - Technical spec in `.specs/` (status: implemented)
 - Code implemented following the approved spec
-- Code verified against spec (verify), optimized (simplify) and CONSTITUTION-compliant (review)
+- Code verified against spec (verify), optimized (simplify) and rule-compliant (review)
 - `REGISTRY.md` updated with new entries
 - Task moved: SPRINT → IN PROGRESS → CODE REVIEW
 - MR/PR opened (GitLab merge request or GitHub pull request, depending on the repo's provider) with reference to the ClickUp task and spec

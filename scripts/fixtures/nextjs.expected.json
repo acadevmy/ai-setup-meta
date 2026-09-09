@@ -8,6 +8,7 @@
   "LINT_CMD": "pnpm run lint",
   "MONOREPO": "",
   "PKG_MANAGER": "pnpm",
+  "SERVICES_GLOB": "",
   "TEST_CMD": "pnpm run test",
   "TYPECHECK_CMD": "pnpm run typecheck",
   "VCS": "none"

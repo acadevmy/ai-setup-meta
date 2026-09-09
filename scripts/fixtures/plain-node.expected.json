@@ -8,6 +8,7 @@
   "LINT_CMD": "",
   "MONOREPO": "",
   "PKG_MANAGER": "npm",
+  "SERVICES_GLOB": "**/{services,controllers,repositories,routes,handlers,use-cases}/**/*.{ts,js,mts}",
   "TEST_CMD": "",
   "TYPECHECK_CMD": "",
   "VCS": "none"

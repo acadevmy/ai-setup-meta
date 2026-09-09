@@ -8,6 +8,7 @@
   "LINT_CMD": "dart analyze",
   "MONOREPO": "",
   "PKG_MANAGER": "pub",
+  "SERVICES_GLOB": "",
   "TEST_CMD": "flutter test",
   "TYPECHECK_CMD": "flutter analyze",
   "VCS": "none"

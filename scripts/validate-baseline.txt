@@ -3,14 +3,12 @@
 # One line per finding: CHECK_ID <TAB> KEY. The entries listed here are
 # reported but do not fail CI. Every PR that fixes a defect removes the
 # matching line: the baseline shrinks, it does not grow.
-# Rigenerare con: bash scripts/validate-plugin.sh --update-baseline
+# Regenerate with: bash scripts/validate-plugin.sh --update-baseline
 #
-# Stato reale del repo: bash scripts/validate-plugin.sh --strict
+# The repo's real state: bash scripts/validate-plugin.sh --strict
 
 DESCRIPTION_TRIGGER	.claude/skills/auto-maintain/SKILL.md
 DESCRIPTION_TRIGGER	shared/skills/clickup/SKILL.md
-DESCRIPTION_TRIGGER	shared/skills/github-ops/SKILL.md
-DESCRIPTION_TRIGGER	shared/skills/gitlab-ops/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/auto-sdd/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/bdd/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/review/SKILL.md
@@ -23,7 +21,6 @@ DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/verify/SKILL.md
 DESCRIPTION_TRIGGER	templates/dev-setup/setup-skill.md
 SKILL_LINES	templates/dev-setup/setup-skill.md
 SKILL_WORDS	.claude/skills/auto-maintain/SKILL.md
-SKILL_WORDS	shared/skills/gitlab-ops/SKILL.md
 SKILL_WORDS	templates/dev-setup/.claude/skills/auto-sdd/SKILL.md
 SKILL_WORDS	templates/dev-setup/.claude/skills/sdd-dev/SKILL.md
 SKILL_WORDS	templates/dev-setup/.claude/skills/sdd-discovery/SKILL.md

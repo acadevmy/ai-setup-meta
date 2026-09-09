@@ -1,13 +1,15 @@
-# docs/legacy — materiale archiviato
+# docs/legacy — archived material
 
-Cio' che sta qui **non e' piu' parte del prodotto**: non e' dichiarato in nessun
-`manifest.json`, non finisce in `dist/`, non viene caricato da nessuna skill e non
-viene validato dalla CI. Resta nel repo solo come riferimento storico, per capire
-com'era il setup prima dell'architettura a plugin.
+What lives here is **no longer part of the product**: it is declared in no
+`manifest.json`, it never reaches `dist/`, no skill loads it and CI does not
+validate it. It stays in the repo purely as a historical reference, to show what
+the setup looked like before the current architecture.
 
-Non modificarlo per "tenerlo aggiornato": se un contenuto serve ancora, va riscritto
-nella sede attuale (skill, profilo o rule) e la copia qui resta com'e'.
+Do not edit it to "keep it current": if some content is still needed, it gets
+rewritten in its present home (a skill, a profile or a rule) and the copy here
+stays as it is.
 
-| File | Cos'era | Perche' e' qui |
+| File | What it was | Why it is here |
 |---|---|---|
-| `dev-setup-agent.md` | Agent di bootstrap del dominio `dev-setup` (1005 righe), che scaricava i file del template via `gh api` | Sostituito dalla setup skill (`templates/dev-setup/setup-skill.md`): era dichiarato nel manifest ma non veniva distribuito in `dist/` da nessun builder. Archiviato con la PR 2 della rivisitazione (DE-16472) |
+| `dev-setup-agent.md` | Bootstrap agent for the `dev-setup` domain (1005 lines) that downloaded the template files through `gh api` | Replaced by the setup skill (`templates/dev-setup/setup-skill.md`): it was declared in the manifest but no builder ever shipped it to `dist/`. Archived with PR 2 of the revision chain (DE-16472) |
+| `CONSTITUTION.md` | Single governance document (629 lines, ~6–7k tokens) copied whole into every project and read "in full" at every session | Dismantled into the path-scoped rules under `templates/dev-setup/rules/`, which the harness injects only when the model touches a matching file, plus the rules that moved into the tooling (ESLint, coverage thresholds, branch protection). Archived with PR 7 of the revision chain (DE-16477) |

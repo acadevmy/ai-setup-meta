@@ -21,6 +21,9 @@
 #   HAS_FRONTEND    true | false
 #   HAS_MOBILE      true | false
 #   HAS_INFRA       true | false
+#   SERVICES_GLOB   glob matching the business-logic layer, or "" when the
+#                   project has no backend (used to instantiate the
+#                   backend-services path-scoped rule)
 #   TEST_CMD        the test command, or "" when none was detected
 #   LINT_CMD        the lint command, or "" when none was detected
 #   TYPECHECK_CMD   the type-check command, or "" when none was detected
@@ -272,6 +275,32 @@ fi
 HAS_INFRA=false
 lang_has terraform && HAS_INFRA=true
 
+# ── Service-layer glob ────────────────────────────────────────────────────────
+#
+# Feeds the `paths:` frontmatter of the backend-services rule, which is the one
+# governance file that cannot be scoped by extension: "the business logic" is a
+# layout, not a file type. Two shapes cover what the team writes — the NestJS
+# suffix convention, and the directory convention everything else uses.
+#
+# Kept to a handful of brace groups on purpose: a rule's whole `paths` list has
+# a budget of 1000 expanded patterns, and a pattern that blows it is used
+# unexpanded, which matches nothing.
+
+SERVICES_GLOB=""
+if framework_has nestjs; then
+  SERVICES_GLOB='**/*.{service,controller,repository,resolver,guard,interceptor}.ts'
+elif framework_has express || framework_has fastify; then
+  SERVICES_GLOB='**/{services,controllers,repositories,routes,handlers,use-cases}/**/*.{ts,js}'
+elif framework_has django || framework_has fastapi; then
+  SERVICES_GLOB='**/{services,views,repositories,api,use_cases}/**/*.py'
+elif lang_has go; then
+  SERVICES_GLOB='**/{internal,pkg}/**/*.go'
+elif lang_has node && [ "$HAS_FRONTEND" = false ] && [ "$HAS_MOBILE" = false ]; then
+  # A Node project that is neither a frontend nor an app is a backend even when
+  # no framework was recognised (a plain http server, a worker, a CLI daemon).
+  SERVICES_GLOB='**/{services,controllers,repositories,routes,handlers,use-cases}/**/*.{ts,js,mts}'
+fi
+
 # ── Quality commands ──────────────────────────────────────────────────────────
 #
 # An npm script wins over the bare binary: the project's own script carries the
@@ -386,6 +415,7 @@ json_set MONOREPO "$MONOREPO"
 json_set HAS_FRONTEND "$HAS_FRONTEND"
 json_set HAS_MOBILE "$HAS_MOBILE"
 json_set HAS_INFRA "$HAS_INFRA"
+json_set SERVICES_GLOB "$SERVICES_GLOB"
 json_set TEST_CMD "$TEST_CMD"
 json_set LINT_CMD "$LINT_CMD"
 json_set TYPECHECK_CMD "$TYPECHECK_CMD"

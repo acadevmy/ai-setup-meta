@@ -24,7 +24,7 @@
 #   6  REFERENCE_INDEX         reference over 100 lines with no index at the top
 #   7  FORCE_LOAD_REFERENCE    an @path reference to a reference file
 #   8  COMMAND_SKILL_DUPLICATE commands/x.md whose body matches skills/x/SKILL.md
-#   9  CONSTITUTION_SECTIONS   sections cited by the pruning rules != real headings
+#   9  RULE_TEMPLATE           a path-scoped rule template with the wrong shape
 #   10 MANIFEST_ORPHAN         asset declared in the manifest and never referenced
 #   11 MARKETPLACE_SOURCE      marketplace.json entry with an inconsistent source or version
 #   12 LEGACY_RUNTIME_RESIDUE  a reference to Cursor/Codex/Gemini in the artefacts
@@ -38,7 +38,7 @@
 #   - Check 2 applies the reduced budget (200) only to skills force-loaded with
 #     `@path` from AGENTS/rules/profiles: they are the only ones always in context.
 #   - Check 10 applies only to the assets the prose has to pull in (profiles,
-#     boilerplate, required_files). Skills and agents declared in the manifest are
+#     rules, boilerplate, required_files). Skills and agents declared in the manifest are
 #     entry points the runtime registers: not being cited by other prose is not a
 #     defect. The legacy `agent` field is no longer read: the domain agent was
 #     replaced by the setup skill (PR 2).
@@ -217,7 +217,7 @@ check_skill_budget_and_frontmatter() {
     lines=$(wc -l < "$abs" | tr -d ' ')
     if [ "$lines" -gt "$MAX_SKILL_LINES" ]; then
       add_finding SKILL_LINES "$scope" "$skill_md" 0 "$skill_md" \
-        "$lines righe (max $MAX_SKILL_LINES): spostare i dettagli in reference/"
+        "$lines lines (max $MAX_SKILL_LINES): move the detail into reference/"
     fi
 
     words=$(wc -w < "$abs" | tr -d ' ')
@@ -225,7 +225,7 @@ check_skill_budget_and_frontmatter() {
     if is_force_loaded "$skill_md"; then budget=$MAX_SKILL_WORDS_FORCE_LOADED; fi
     if [ "$words" -gt "$budget" ]; then
       add_finding SKILL_WORDS "$scope" "$skill_md" 0 "$skill_md" \
-        "$words parole (max $budget): spostare i dettagli in reference/"
+        "$words words (max $budget): move the detail into reference/"
     fi
 
     desc=$(fm_value "$abs" description)
@@ -266,7 +266,7 @@ check_references() {
 
       # Linked directly from SKILL.md? (relative path or bare basename)
       if grep -q -x -F "$rel_ref" "$direct" || grep -q -x -F "$(basename "$ref")" "$direct"; then
-        : # profondita' 1, ok
+        : # depth 1, ok
       else
         linked_from=""
         while IFS= read -r other; do
@@ -286,7 +286,7 @@ check_references() {
 
       if [ "$(wc -l < "$ref" | tr -d ' ')" -gt "$MAX_REFERENCE_LINES" ] && ! has_index "$ref"; then
         add_finding REFERENCE_INDEX "$scope" "$(rel "$ref")" 0 "$(rel "$ref")" \
-          "$(wc -l < "$ref" | tr -d ' ') righe (> $MAX_REFERENCE_LINES) senza indice nelle prime 40"
+          "$(wc -l < "$ref" | tr -d ' ') lines (> $MAX_REFERENCE_LINES) with no index in the first 40"
       fi
     done <<< "$refs"
   done < "$SKILLS"
@@ -347,75 +347,70 @@ check_command_duplicates() {
   done < <(find "$REPO_ROOT/dist" "$REPO_ROOT/templates" -type d -name commands -exec find {} -type f -name '*.md' \; 2>/dev/null | sort)
 }
 
-# ── Check 9: Constitution sections cited by the pruning rules ────────────────
-# Every "if <feature> not detected -> remove Section <N>" rule is compared against
-# the real title of the CONSTITUTION's `## <N>.` heading.
-# This is the check that would have caught the pruning aimed at §VII (Nuxt)
-# instead of §VIII (Mobile).
-check_constitution_sections() {
-  step "Check 9 — sections cited by the pruning rules vs the real headings"
-  local tdir tname constitution headings src no text roman title feature expected
-  for constitution in "$REPO_ROOT"/templates/*/CONSTITUTION.md; do
-    [ -f "$constitution" ] || continue
-    tdir="$(dirname "$constitution")"; tname="$(basename "$tdir")"
+# ── Check 9: the path-scoped rule templates ──────────────────────────────────
+# The rules replaced the CONSTITUTION the setup used to copy whole (DE-16477).
+# What made that document a defect was that nothing checked its shape, so this
+# check holds the replacement to the three properties the design depends on:
+#   - exactly one rule loads unconditionally, and it is `core.md`. A second one
+#     without `paths:` silently doubles what every session pays for.
+#   - `core.md` stays within the budget the audit set (150 lines).
+#   - every other rule declares at least one glob under `paths:`.
+# A placeholder in a `paths:` value is fine — render-template.sh resolves it and
+# fails loudly when it cannot.
+CORE_RULE_MAX_LINES=150
 
-    headings="$TMP_DIR/headings-$tname.tsv"
-    grep -E '^## [IVXLC]+\.' "$constitution" \
-      | sed -E 's/^## ([IVXLC]+)\.[[:space:]]*(.*)$/\1\t\2/' > "$headings" || true
+check_rule_templates() {
+  step "Check 9 — shape of the path-scoped rule templates"
+  local manifest tdir tname rule abs fm unscoped count lines
+  for manifest in "$REPO_ROOT"/templates/*/manifest.json; do
+    [ -f "$manifest" ] || continue
+    tdir="$(dirname "$manifest")"; tname="$(basename "$tdir")"
 
-    for src in "$tdir"/setup-skill.md "$tdir"/*-setup-agent.md; do
-      [ -f "$src" ] || continue
-      while IFS= read -r line; do
-        [ -n "$line" ] || continue
-        no="${line%%:*}"; text="${line#*:}"
+    unscoped=""
+    count=0
+    while IFS= read -r rule; do
+      [ -n "$rule" ] || continue
+      count=$((count + 1))
+      abs="$tdir/rules/$rule"
+      if [ ! -f "$abs" ]; then
+        add_finding RULE_TEMPLATE DISTRIBUTED "$(rel "$manifest")" 0 "$(rel "$manifest"):$rule" \
+          "declares 'rules/$rule', which does not exist"
+        continue
+      fi
 
-        # Only lines that remove a section, and only the first section cited:
-        # the later ones are the rule's boundary markers (`## VIII.`).
-        printf '%s' "$text" | grep -q -i -E 'rimuov|remove|prun' || continue
-        roman=$(printf '%s' "$text" | grep -o -E '(Sezione|Section|§)[[:space:]]*[IVXLC]+' | head -1 \
-          | grep -o -E '[IVXLC]+$' || true)
-        [ -n "$roman" ] || continue
-
-        title=$(awk -F'\t' -v r="$roman" '$1==r { print $2; exit }' "$headings")
-        if [ -z "$title" ]; then
-          add_finding CONSTITUTION_SECTIONS DISTRIBUTED "$(rel "$src")" "$no" "$(rel "$src"):$roman" \
-            "cites Section $roman, which does not exist in $(rel "$constitution")"
-          continue
+      fm="$(frontmatter "$abs")"
+      if printf '%s' "$fm" | grep -q '^paths:'; then
+        # `paths:` must carry at least one entry, as a list item or inline.
+        if ! printf '%s' "$fm" | grep -qE '^[[:space:]]*-[[:space:]]*["'"'"']?[^"'"'"'[:space:]]' \
+          && ! printf '%s' "$fm" | grep -qE '^paths:[[:space:]]*\[.*[^][:space:]].*\]'; then
+          add_finding RULE_TEMPLATE DISTRIBUTED "$(rel "$abs")" 1 "$(rel "$abs"):paths" \
+            "declares 'paths:' with no glob under it"
         fi
+      else
+        unscoped="$unscoped $rule"
+      fi
 
-        feature=$(detect_feature "$text")
-        [ -n "$feature" ] || continue
-        expected=$(expected_section_keyword "$feature")
-        [ -n "$expected" ] || continue
-        if ! printf '%s' "$title" | grep -q -i -F "$expected"; then
-          add_finding CONSTITUTION_SECTIONS DISTRIBUTED "$(rel "$src")" "$no" "$(rel "$src"):$roman" \
-            "rule '$feature' points at Section $roman ('$title'), expected a '$expected' section"
+      if [ "$rule" = "core.md" ]; then
+        lines=$(wc -l < "$abs" | tr -d ' ')
+        if [ "$lines" -gt "$CORE_RULE_MAX_LINES" ]; then
+          add_finding RULE_TEMPLATE DISTRIBUTED "$(rel "$abs")" 1 "$(rel "$abs"):lines" \
+            "core rule is $lines lines, over the $CORE_RULE_MAX_LINES-line budget"
         fi
-      done < <(grep -n -E '(Sezione|Section|§)[[:space:]]*[IVXLC]+' "$src" 2>/dev/null || true)
-    done
+      fi
+    done < <(jq -r '.rules[]? // empty' "$manifest")
+
+    [ "$count" -gt 0 ] || continue
+
+    case "$(printf '%s' "$unscoped" | tr -s ' ')" in
+      " core.md"|"core.md") ;;
+      "")
+        add_finding RULE_TEMPLATE DISTRIBUTED "$(rel "$manifest")" 0 "$(rel "$manifest"):unscoped" \
+          "no rule loads unconditionally: core.md must have no 'paths:' frontmatter" ;;
+      *)
+        add_finding RULE_TEMPLATE DISTRIBUTED "$(rel "$manifest")" 0 "$(rel "$manifest"):unscoped" \
+          "more than one rule loads unconditionally (${unscoped# }): only core.md may omit 'paths:'" ;;
+    esac
   done
-}
-
-# The stack feature the pruning rule cites. The order is a priority: 'mobile' wins
-# over 'frontend' because the mobile rules mention both.
-detect_feature() {
-  local text
-  text=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
-  case "$text" in
-    *mobile*|*flutter*|*react\ native*) echo mobile ;;
-    *infrastructure*|*terraform*)       echo infrastructure ;;
-    *frontend*|*nuxt*|*vue*)            echo frontend ;;
-    *)                                  echo "" ;;
-  esac
-}
-
-expected_section_keyword() {
-  case "$1" in
-    mobile)         echo "Mobile" ;;
-    infrastructure) echo "Infrastructure" ;;
-    frontend)       echo "Frontend" ;;
-    *)              echo "" ;;
-  esac
 }
 
 # ── Check 10: manifest assets that nothing references ────────────────────────
@@ -439,6 +434,7 @@ check_manifest_orphans() {
     declared="$TMP_DIR/declared-$tname.txt"
     {
       jq -r '.profiles[]? | "profiles/" + .' "$manifest"
+      jq -r '.rules[]? | "rules/" + .' "$manifest"
       jq -r '.boilerplate_files[]? | "boilerplate/" + .' "$manifest"
       jq -r '.required_files[]?' "$manifest"
     } | sort -u > "$declared"
@@ -543,7 +539,7 @@ check_skill_budget_and_frontmatter
 check_references
 check_force_load
 check_command_duplicates
-check_constitution_sections
+check_rule_templates
 check_manifest_orphans
 check_marketplace
 check_legacy_runtime_residue
@@ -569,9 +565,9 @@ if [ "$OPT_UPDATE_BASELINE" = true ]; then
     echo "# One line per finding: CHECK_ID <TAB> KEY. The entries listed here are"
     echo "# reported but do not fail CI. Every PR that fixes a defect removes the"
     echo "# matching line: the baseline shrinks, it does not grow."
-    echo "# Rigenerare con: bash scripts/validate-plugin.sh --update-baseline"
+    echo "# Regenerate with: bash scripts/validate-plugin.sh --update-baseline"
     echo "#"
-    echo "# Stato reale del repo: bash scripts/validate-plugin.sh --strict"
+    echo "# The repo's real state: bash scripts/validate-plugin.sh --strict"
     echo ""
     cat "$CURRENT_KEYS"
   } > "$BASELINE_FILE"

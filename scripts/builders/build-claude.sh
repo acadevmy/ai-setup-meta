@@ -15,6 +15,7 @@ step "Build Claude Code plugin"
 # ── Create the layout ────────────────────────────────────────────────────────
 mkdir -p "$DIST_DIR/.claude-plugin"
 mkdir -p "$DIST_DIR/skills/setup/templates/profiles"
+mkdir -p "$DIST_DIR/skills/setup/templates/rules"
 mkdir -p "$DIST_DIR/agents"
 mkdir -p "$DIST_DIR/hooks/scripts"
 mkdir -p "$DIST_DIR/scripts"
@@ -76,12 +77,24 @@ for FILE in $(jq -r '.required_files[]' "$MANIFEST"); do
   fi
 done
 
-# Governance files that are not in required_files
-for EXTRA in "CONSTITUTION.md" "REGISTRY.md"; do
-  SRC="$TEMPLATE_DIR/$EXTRA"
-  if [ -f "$SRC" ] && [ ! -f "$TEMPLATES_DST/$EXTRA" ]; then
-    cp "$SRC" "$TEMPLATES_DST/$EXTRA"
-    ok "Extra template: $EXTRA"
+# REGISTRY.md ships even when the manifest forgets to list it: the setup writes
+# one into every project, so a build without it produces a skill that cannot run.
+REGISTRY_SRC="$TEMPLATE_DIR/REGISTRY.md"
+if [ -f "$REGISTRY_SRC" ] && [ ! -f "$TEMPLATES_DST/REGISTRY.md" ]; then
+  cp "$REGISTRY_SRC" "$TEMPLATES_DST/REGISTRY.md"
+  ok "Extra template: REGISTRY.md"
+fi
+
+# Path-scoped rule templates (DE-16477). The setup skill renders these into the
+# project's .claude/rules/dev-setup-*.md — they replace the CONSTITUTION.md the
+# setup used to copy whole into every project.
+for RULE in $(jq -r '.rules[]? // empty' "$MANIFEST"); do
+  SRC="$TEMPLATE_DIR/rules/$RULE"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$TEMPLATES_DST/rules/$RULE"
+    ok "Rule: $RULE"
+  else
+    warn "Rule not found: $RULE"
   fi
 done
 

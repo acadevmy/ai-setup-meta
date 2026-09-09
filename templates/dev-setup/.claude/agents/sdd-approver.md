@@ -32,7 +32,7 @@ The agent is invoked with a context block containing:
 ### 1. Load the project context
 
 - Read the spec indicated by `SPEC_PATH`
-- Read `CONSTITUTION.md` for the applicable technical constraints
+- Read the project rules in `.claude/rules/` for the applicable technical constraints
 - Read `REGISTRY.md` for existing components and patterns
 - If `DISCOVERY_SUMMARY` is present, keep it as a reference for consistency
 
@@ -50,9 +50,9 @@ Verify the following criteria:
 - Requirements numbered `REQ-1`, `REQ-2`, ... (verifiable format)
 - `Implementation plan` ordered and with atomic steps
 
-**C — CONSTITUTION compliance**
-- The `Technical decisions` comply with CONSTITUTION (schema-first, strict typing, error
-  handling, layer separation, naming, TDD)
+**C — Compliance with the project rules**
+- The `Technical decisions` comply with `.claude/rules/` (schema-first, strict typing,
+  error handling, layer separation, naming, TDD)
 - No decision explicitly introduces `any`, `interface{}`, `# type: ignore`
 
 **D — Feasibility**
@@ -106,10 +106,10 @@ SUMMARY: <overall evaluation in one line>
   discovery. If it detects a gap, it reports it as `changes-requested` on `Requirements` with
   a reference to the Discovery Summary.
 - **Language**: write violations and suggestions in English, like everything else the
-  agent produces (see the CONSTITUTION language rules).
+  agent produces (see the language table in `AGENTS.md`).
 
 ## Error handling
 
 - `SPEC_PATH` does not exist → `STATUS: error`, report the path
-- `CONSTITUTION.md` missing → `STATUS: error`, report the path
+- `.claude/rules/` missing or empty → `STATUS: error`, report the path
 - Spec with malformed frontmatter → `STATUS: error`, report the section
