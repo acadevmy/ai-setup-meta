@@ -12,6 +12,9 @@
 #      holds only the branch's own commits
 # Plus, for DE-16477: every rule template renders from detect-stack output, and
 # core.md is the only one that loads unconditionally.
+# Plus, for DE-16479: the auto-sdd workflow script compiles the way the harness
+# compiles it, its meta matches the name the launcher calls, and the surface the
+# workflow replaced (three agents, two standalone skills) is gone.
 #
 # Usage:
 #   bash scripts/test-plugin-scripts.sh            # run the suite
@@ -331,6 +334,28 @@ assert_eq "an invalid type is refused" "1" "$?"
 sdd_start --json >/dev/null 2>&1
 assert_eq "a missing --task is refused" "1" "$?"
 
+# ── --base: the caller overrides the resolved base (DE-16479) ──
+#
+# A worktree the harness created is branched from the remote default, so inside
+# it the resolution below would answer `main` on a project whose work targets
+# `next`. The workflow passes the base it resolved in the developer checkout.
+assert_eq "without --base the repository answers" \
+  "next" "$(sdd_start --task DE-5 --json | jq -r '.BASE_BRANCH')"
+
+assert_eq "--base wins over the resolved base" \
+  "main" "$(sdd_start --task DE-5 --base main --json | jq -r '.BASE_BRANCH')"
+
+sdd_start --task DE-5 --base no/such/ref --json >/dev/null 2>&1
+assert_eq "an unknown --base is refused" "1" "$?"
+
+# And --create actually forks from it: the new branch sits on main's commit, not
+# on the tip of the branch the script was called from.
+sdd_start --task DE-5 --base main --create --json >/dev/null 2>&1
+assert_eq "--create forks from the --base ref" \
+  "$(cd "$SANDBOX" && git rev-parse main)" \
+  "$(cd "$SANDBOX" && git rev-parse feat/DE-5 2>/dev/null)"
+(cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-5) >/dev/null 2>&1
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. render-template.sh
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -621,6 +646,114 @@ assert_eq "and reports why" "already-sandboxed" "$(jq -r .REASON "$MIG_DIR/again
 # It never writes in place: the caller shows the diff and asks first.
 assert_eq "the input file is never modified" "true" \
   "$(jq -r 'has("sandbox") | not' "$MIG_DIR/old.json")"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8. auto-sdd.js: the workflow script (DE-16479)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The autonomous orchestration is code now, so it is tested like code. What the
+# static check cannot see is whether the file compiles: the harness parses the
+# `export const meta` literal and then compiles the rest as the body of an async
+# function, which is neither valid CommonJS nor a valid ES module on its own —
+# `node --check` answers the wrong question. This reproduces both halves.
+
+echo ""
+echo "── auto-sdd.js (workflow script) ──"
+
+AUTO_SDD="$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd.js"
+
+if [ ! -f "$AUTO_SDD" ]; then
+  fail "the auto-sdd workflow script exists" "$AUTO_SDD not found"
+elif command -v node >/dev/null 2>&1; then
+  cat > "$WORK_DIR/workflow-parse.cjs" <<'NODEJS'
+// Reproduces how the harness loads a workflow: the meta literal is evaluated,
+// the body is compiled as the body of an async function (that is why a
+// top-level `return` is legal in one and a syntax error in the other).
+const fs = require('fs');
+const vm = require('vm');
+
+const file = process.argv[2];
+const src = fs.readFileSync(file, 'utf8');
+const match = src.match(/^export const meta = \{[\s\S]*?\n\}\n/);
+if (!match) {
+  console.error('no `export const meta = {...}` literal at the top of the file');
+  process.exit(1);
+}
+const meta = vm.runInNewContext(match[0].replace(/^export /, '') + '\n;meta');
+new vm.Script('(async () => {' + src.slice(match[0].length) + '})()', { filename: file });
+console.log(JSON.stringify({
+  name: meta.name,
+  description: meta.description || '',
+  phases: (meta.phases || []).map((p) => p.title),
+}));
+NODEJS
+
+  if WF_META="$(node "$WORK_DIR/workflow-parse.cjs" "$AUTO_SDD" 2>&1)"; then
+    pass "the script compiles the way the harness compiles it"
+
+    assert_eq "meta.name is the name the launcher calls" \
+      "auto-sdd" "$(printf '%s' "$WF_META" | jq -r '.name')"
+
+    assert_eq "the four phases are declared in order" \
+      "Spec Challenge Dev Verify" \
+      "$(printf '%s' "$WF_META" | jq -r '.phases | join(" ")')"
+
+    assert_eq "meta carries a description" "false" \
+      "$(printf '%s' "$WF_META" | jq -r '.description == ""')"
+  else
+    fail "the script compiles the way the harness compiles it" "$WF_META"
+  fi
+else
+  printf '%s  skip%s  node not found: the workflow compile test needs it\n' "$DIM" "$NC"
+fi
+
+if [ -f "$AUTO_SDD" ]; then
+  # The decisions the audit turned into code. A number in prose was a suggestion;
+  # these are the lines that make them bounds.
+  assert_eq "three adversarial lenses, no more and no fewer" \
+    "3" "$(grep -c "^    key: '" "$AUTO_SDD")"
+
+  assert_contains "two objections stop the run" \
+    "$(cat "$AUTO_SDD")" "objections.length >= 2"
+
+  assert_contains "a dead verifier counts as an objection" \
+    "$(cat "$AUTO_SDD")" "counted as an objection"
+
+  assert_contains "the dev stage runs in an isolated worktree" \
+    "$(cat "$AUTO_SDD")" "isolation: 'worktree'"
+
+  # Effort is differentiated per call: max only on the verifiers, high on spec
+  # and dev, low on the stage that only runs commands.
+  assert_eq "only the verifiers get max effort" \
+    "1" "$(grep -c "effort: 'max'" "$AUTO_SDD")"
+  assert_eq "spec and dev run at high effort" \
+    "2" "$(grep -c "effort: 'high'" "$AUTO_SDD")"
+  assert_eq "the command runner stays at low effort" \
+    "1" "$(grep -c "effort: 'low'" "$AUTO_SDD")"
+
+  # The workflow reports; the launcher acts. Nothing outward-facing happens
+  # inside a background run: no push, no merge request, no board write.
+  assert_eq "the workflow itself pushes nothing and opens nothing" "" \
+    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup" "$AUTO_SDD" || true)"
+
+  # The quality commands are the project's own, never a guess.
+  assert_contains "the quality commands come from detect-stack" \
+    "$(cat "$AUTO_SDD")" "stack.lint"
+fi
+
+# The surface the workflow replaced: three agents that let the model approve its
+# own spec, and two standalone skills that duplicated sdd-dev. Acceptance
+# criterion 5 of DE-16479, made permanent.
+assert_eq "the replaced agents are gone from the distributed surface" "" \
+  "$(grep -rl -E "sdd-approver|discovery-responder|methodology-picker" \
+       "$REPO_ROOT/templates" "$REPO_ROOT/dist" 2>/dev/null || true)"
+
+assert_eq "no command points at the retired tdd/bdd skills" "" \
+  "$(grep -rl -E "dev-setup:(tdd|bdd)" \
+       "$REPO_ROOT/templates" "$REPO_ROOT/dist" 2>/dev/null || true)"
+
+assert_eq "the workflow ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/workflows/auto-sdd.js" ] && echo true || echo false)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary

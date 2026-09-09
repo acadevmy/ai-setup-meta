@@ -1,6 +1,6 @@
 ---
 name: validate
-description: Pre-release validation of the plugin: manifest references and static checks on skill quality. Use when you need to verify the repo before a PR or a release, or when CI reports a finding.
+description: Pre-release validation of the plugin: manifest references and static checks on skill and workflow quality. Use when you need to verify the repo before a PR or a release, or when CI reports a finding.
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: Bash, Read, Edit
@@ -19,7 +19,7 @@ Runs the meta-repo's two static gates. They are the same commands CI runs
    bash scripts/validate-setup-urls.sh
    ```
 
-2. Static checks on skill quality (12 checks, see the script header):
+2. Static checks on skill and workflow quality (13 checks, see the script header):
 
    ```bash
    bash scripts/validate-plugin.sh --fail-on-stale

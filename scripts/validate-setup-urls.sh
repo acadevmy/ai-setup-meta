@@ -155,6 +155,17 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     fi
   done
 
+  # Workflow scripts (the autonomous orchestration, shipped at dist/<name>/workflows/)
+  for workflow in $(python3 -c "import json; [print(w) for w in json.load(open('$manifest')).get('workflows',[])]" 2>/dev/null); do
+    file="templates/$TEMPLATE_NAME/.claude/workflows/$workflow"
+    if [ -f "${REPO_ROOT}/${file}" ]; then
+      printf '%b\n' "${GREEN}OK${NC}  ${file}"
+    else
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
+      errors=$((errors + 1))
+    fi
+  done
+
   # Hooks
   for hook in $(python3 -c "import json; [print(h) for h in json.load(open('$manifest')).get('hooks',[])]" 2>/dev/null); do
     file="templates/$TEMPLATE_NAME/.claude/hooks/$hook"
