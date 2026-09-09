@@ -32,10 +32,10 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
   echo ""
   echo "--- Template: $TEMPLATE_NAME ---"
 
-  # Domain agent
-  AGENT=$(python3 -c "import json; print(json.load(open('$manifest'))['agent'])" 2>/dev/null || echo "")
-  if [ -n "$AGENT" ]; then
-    file="templates/$TEMPLATE_NAME/$AGENT"
+  # Setup skill + its reference files (progressive disclosure, DE-16478)
+  SETUP_SKILL=$(python3 -c "import json; print(json.load(open('$manifest')).get('setup_skill',''))" 2>/dev/null || echo "")
+  if [ -n "$SETUP_SKILL" ]; then
+    file="templates/$TEMPLATE_NAME/$SETUP_SKILL"
     if [ -f "${REPO_ROOT}/${file}" ]; then
       printf '%b\n' "${GREEN}OK${NC}  ${file}"
     else
@@ -43,8 +43,29 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
       errors=$((errors + 1))
     fi
 
-    # the dist/ copy of the agent is validated by the build, not here
+    SETUP_DIR="$(dirname "templates/$TEMPLATE_NAME/$SETUP_SKILL")"
+    for ref in $(python3 -c "import json; [print(r) for r in json.load(open('$manifest')).get('setup_reference',[])]" 2>/dev/null); do
+      file="$SETUP_DIR/reference/$ref"
+      if [ -f "${REPO_ROOT}/${file}" ]; then
+        printf '%b\n' "${GREEN}OK${NC}  ${file}"
+      else
+        printf '%b\n' "${RED}MISSING${NC}  ${file}"
+        errors=$((errors + 1))
+      fi
+    done
   fi
+
+  # Plugin-level shared references, cited by the skills as
+  # ${CLAUDE_PLUGIN_ROOT}/reference/<name>.md
+  for ref in $(python3 -c "import json; [print(r) for r in json.load(open('$manifest')).get('plugin_reference',[])]" 2>/dev/null); do
+    file="templates/$TEMPLATE_NAME/.claude/reference/$ref"
+    if [ -f "${REPO_ROOT}/${file}" ]; then
+      printf '%b\n' "${GREEN}OK${NC}  ${file}"
+    else
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
+      errors=$((errors + 1))
+    fi
+  done
 
   # Shared agents
   for agent in $(python3 -c "import json; [print(a) for a in json.load(open('$manifest')).get('shared_agents',[])]" 2>/dev/null); do

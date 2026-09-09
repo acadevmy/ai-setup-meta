@@ -183,10 +183,17 @@ collect_skills() {
     f="${d}SKILL.md"; [ -f "$f" ] || continue
     printf 'DISTRIBUTED\t%s\t%s\t%s\n' "$(basename "$d")" "$(rel "$f")" "$(rel "${d%/}")" >> "$SKILLS"
   done
-  # setup-skill.md lives in the template root: it has no reference dir of its own.
-  for f in "$REPO_ROOT"/templates/*/setup-skill.md; do
+  # The setup skill lives outside .claude/skills/ — the build mounts it at
+  # skills/setup/. Its path comes from the manifest, and since DE-16478 it is a
+  # directory with a reference/ of its own, so it is checked like any other skill.
+  local manifest setup_rel
+  for manifest in "$REPO_ROOT"/templates/*/manifest.json; do
+    [ -f "$manifest" ] || continue
+    setup_rel="$(jq -r '.setup_skill // empty' "$manifest")"
+    [ -n "$setup_rel" ] || continue
+    f="$(dirname "$manifest")/$setup_rel"
     [ -f "$f" ] || continue
-    printf 'DISTRIBUTED\tsetup\t%s\t\n' "$(rel "$f")" >> "$SKILLS"
+    printf 'DISTRIBUTED\tsetup\t%s\t%s\n' "$(rel "$f")" "$(rel "$(dirname "$f")")" >> "$SKILLS"
   done
   for d in "$REPO_ROOT"/.claude/skills/*/; do
     f="${d}SKILL.md"; [ -f "$f" ] || continue
@@ -423,6 +430,16 @@ check_manifest_orphans() {
   corpus="$TMP_DIR/corpus.txt"
   {
     awk -F'\t' '{ print $3 }' "$SKILLS"
+    # A skill's reference files are prose the runtime loads on demand: an asset
+    # cited only from one of them is cited (DE-16478).
+    awk -F'\t' '$4 != "" { print $4 }' "$SKILLS" \
+      | while IFS= read -r d; do
+          [ -d "$REPO_ROOT/$d" ] || continue
+          find "$REPO_ROOT/$d" -type f -name '*.md' ! -name 'SKILL.md' 2>/dev/null \
+            | sed "s|^${REPO_ROOT}/||"
+        done
+    find "$REPO_ROOT"/templates/*/.claude/reference -type f -name '*.md' 2>/dev/null \
+      | sed "s|^${REPO_ROOT}/||"
     find "$REPO_ROOT"/shared/agents "$REPO_ROOT"/templates/*/.claude/agents \
       -type f -name '*.md' 2>/dev/null | sed "s|^${REPO_ROOT}/||"
   } | sort -u > "$corpus"

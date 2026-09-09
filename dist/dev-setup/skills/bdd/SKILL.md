@@ -1,11 +1,11 @@
 ---
 name: bdd
-description: Start a BDD cycle (Given/When/Then) for frontend development (components, pages, user flows)
-user-invocable: true
+description: Drives a Given/When/Then cycle for frontend work — UI components, pages, user flows. Use when a user-visible behaviour has to be specified in Gherkin and built scenario-first, outside the full SDD flow.
+user-invocable: false
 disable-model-invocation: false
 ---
 
-# /project:bdd
+# BDD
 
 Start a BDD cycle for the feature or bugfix described by the user.
 This methodology is designed for **frontend** development: UI components, pages, user flows.

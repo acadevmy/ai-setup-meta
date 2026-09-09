@@ -47,7 +47,7 @@ The `--no-agents-md` flag on `create-next-app` opts out of the file generation e
 
 ## Setup behaviour expected from this plugin
 
-When `setup-skill.md` detects Next.js (via `dependencies.next` or `devDependencies.next` in `package.json`):
+When the `setup` skill detects Next.js (via `dependencies.next` or `devDependencies.next` in `package.json`):
 
 1. Read the version constraint, parse semver to identify the major.minor.
 2. Generate `AGENTS.md` with the canonical `BEGIN/END` block at the very top.

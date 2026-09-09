@@ -125,7 +125,7 @@ ai-setup-meta/
 ├── templates/                   # Source of the per-domain templates
 │   └── dev-setup/
 │       ├── manifest.json               # Dependencies on shared/ and the domain files
-│       ├── setup-skill.md              # Setup skill (bootstrap logic)
+│       ├── setup/                      # Setup skill: SKILL.md + reference/
 │       ├── AGENTS.template.md          # Template for the generated AGENTS.md
 │       ├── rules/                    # Path-scoped rule templates
 │       ├── REGISTRY.md
@@ -135,7 +135,8 @@ ai-setup-meta/
 │       │   ├── settings.user.json      # User-scope snippet: credential masking
 │       │   ├── hooks/                  # post-edit, on-compact
 │       │   ├── agents/                 # 4 domain-specific agents
-│       │   └── skills/                 # 10 workflow skills
+│       │   ├── reference/              # Contracts shared by several skills
+│       │   └── skills/                 # 10 workflow skills (SKILL.md + reference/)
 │       └── profiles/
 │           ├── web-frontend.md
 │           ├── backend-node.md
@@ -190,57 +191,46 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 
 ## Skills the dev-setup plugin distributes
 
-### Recommended flow
+### The four commands
 
 ```
-/dev-setup:setup          ← one-off, project bootstrap
+/dev-setup:setup      ← one-off, project bootstrap
        │
        ▼
-/dev-setup:sdd-discovery  ← structured interview to gather the requirements
-       │
+/dev-setup:sdd        ← the whole flow, with a checkpoint at each decision
+       │                (or /dev-setup:auto-sdd for the same flow unsupervised)
        ▼
-/dev-setup:sdd-spec       ← generates the technical spec from the discovery
-       │
-       ▼
-/dev-setup:sdd-plan       ← presents the spec for discussion and approval
-       │
-       ▼
-/dev-setup:sdd-dev        ← development driven by the approved spec (TDD/BDD)
-       │
-       ▼
-/dev-setup:review         ← code review against the project rules
+/dev-setup:review     ← code review against the project rules
 ```
 
-> **`/dev-setup:sdd`** orchestrates the whole flow in a single command:
-> task selection → branch → discovery → spec → approval → dev → simplify → verify → review → PR.
->
-
-### Workflow skills
-
-| Skill | Description |
+| Command | Description |
 |---|---|
-| `/dev-setup:setup` | AI-native bootstrap (detects the stack, installs the governance) |
-| `/dev-setup:sdd` | Full spec-driven flow: task → discovery → spec → approval → dev → review → PR |
-| `/dev-setup:sdd-discovery` | Structured interview to gather the requirements before the spec |
-| `/dev-setup:sdd-spec` | Generates the technical spec |
-| `/dev-setup:sdd-plan` | Presents the spec for discussion |
-| `/dev-setup:sdd-dev` | Development from the approved spec |
+| `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
+| `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → approval → dev → simplify → verify → review → PR |
+| `/dev-setup:auto-sdd` | The same flow end to end with no human checkpoints |
+| `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
 
-### Methodology skills
+### The skills behind them
 
-| Skill | Description |
+These are not commands: the orchestrator invokes them by name, and each one is a
+step of the flow above. They carry `user-invocable: false` so `/help` stays
+readable.
+
+| Skill | Step it is |
 |---|---|
-| `/dev-setup:tdd` | Test-Driven Development (Red-Green-Refactor) |
-| `/dev-setup:bdd` | Behavior-Driven Development (Given/When/Then) |
-| None | Direct development, no test-first cycle |
-| `/dev-setup:review` | Code review against the project rules |
+| `sdd-discovery` | The structured interview that gathers the requirements |
+| `sdd-spec` | Writes the technical spec into `.specs/` |
+| `sdd-plan` | Presents the spec and iterates until it is approved |
+| `sdd-dev` | Development against the approved plan, in TDD, BDD or direct mode |
+| `verify` | Checks the diff against the spec: requirements, tests, impact, decisions |
+| `tdd` / `bdd` | The Red-Green-Refactor and Given/When/Then cycles, on their own |
+| `clickup` | The board's conventions: statuses, prerequisites, operations |
+| `vcs-ops` | Branches, commits, PRs/MRs, releases. Reads `git remote` and loads the GitHub (`gh`) or GitLab (`glab`) reference on demand |
 
-### Shared skills
-
-| Skill | Description |
-|---|---|
-| `/dev-setup:clickup` | ClickUp operations over MCP |
-| `/dev-setup:vcs-ops` | Branches, commits, PRs/MRs, releases. Reads `git remote` and loads the GitHub (`gh`) or GitLab (`glab`) reference on demand. |
+Each `SKILL.md` is a routing document under 500 words; the detail sits in
+`reference/*.md` next to it and is read on demand. The contracts more than one
+skill needs — how to call the ClickUp agent, how to behave at an interactive
+step — live once in `dist/dev-setup/reference/`.
 
 ### Agents
 

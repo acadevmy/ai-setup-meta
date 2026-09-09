@@ -98,16 +98,15 @@ automatically when needed — no need to invoke them manually.
 
 | Command | When to use |
 |---|---|
+| `/dev-setup:setup` | Re-run the setup: refresh the generated rules and files from the current plugin |
 | `/dev-setup:sdd [TASK_ID]` | Interactive Spec-Driven Development: generates a technical spec, discusses it at each checkpoint, then develops |
 | `/dev-setup:auto-sdd [TASK_ID]` | Autonomous Spec-Driven Development: runs the full SDD flow end-to-end to the MR/PR with no human checkpoints |
-| `/dev-setup:sdd-spec [TASK_ID]` | Generates only the technical spec for a task (standalone invocable) |
-| `/dev-setup:sdd-plan [SPEC_REF]` | Presents and discusses an existing spec for approval |
-| `/dev-setup:sdd-dev <SPEC_REF> [tdd\|bdd\|none]` | Develops following an approved spec |
 | `/dev-setup:review` | Code review of the current branch; updates `REGISTRY.md` |
 
-> Use `/dev-setup:sdd` to drive the flow interactively, with supervision at each
-> checkpoint. Use `/dev-setup:auto-sdd` to run the same flow fully autonomously
-> (e.g. unattended / batch).
+> `/dev-setup:sdd` drives the flow interactively, with supervision at each
+> checkpoint; `/dev-setup:auto-sdd` runs the same flow unsupervised. The steps of
+> the flow — discovery, spec, approval, development, verify — are skills the
+> orchestrator invokes, not commands: there is nothing to type for them.
 
 ## Where the rules live
 

@@ -6,26 +6,7 @@
 # Regenerate with: bash scripts/validate-plugin.sh --update-baseline
 #
 # The repo's real state: bash scripts/validate-plugin.sh --strict
-
-DESCRIPTION_TRIGGER	.claude/skills/auto-maintain/SKILL.md
-DESCRIPTION_TRIGGER	shared/skills/clickup/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/auto-sdd/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/bdd/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/review/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/sdd-dev/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/sdd-plan/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/sdd-spec/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/sdd/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/tdd/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/.claude/skills/verify/SKILL.md
-DESCRIPTION_TRIGGER	templates/dev-setup/setup-skill.md
-SKILL_LINES	templates/dev-setup/setup-skill.md
-SKILL_WORDS	.claude/skills/auto-maintain/SKILL.md
-SKILL_WORDS	templates/dev-setup/.claude/skills/auto-sdd/SKILL.md
-SKILL_WORDS	templates/dev-setup/.claude/skills/sdd-dev/SKILL.md
-SKILL_WORDS	templates/dev-setup/.claude/skills/sdd-discovery/SKILL.md
-SKILL_WORDS	templates/dev-setup/.claude/skills/sdd-plan/SKILL.md
-SKILL_WORDS	templates/dev-setup/.claude/skills/sdd-spec/SKILL.md
-SKILL_WORDS	templates/dev-setup/.claude/skills/sdd/SKILL.md
-SKILL_WORDS	templates/dev-setup/.claude/skills/verify/SKILL.md
-SKILL_WORDS	templates/dev-setup/setup-skill.md
+#
+# Empty since DE-16478: the last entries were the line/word budgets and the
+# missing description triggers, which the progressive-disclosure PR cleared.
+# A new finding gets fixed, not added here.

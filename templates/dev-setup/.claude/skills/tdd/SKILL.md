@@ -1,11 +1,11 @@
 ---
 name: tdd
-description: Start a TDD cycle (Red-Green-Refactor) for backend development (logic, APIs, services)
-user-invocable: true
+description: Drives a Red-Green-Refactor cycle for backend work — business logic, APIs, services, the data layer. Use when a backend behaviour has to be built test-first, outside the full SDD flow.
+user-invocable: false
 disable-model-invocation: false
 ---
 
-# /project:tdd
+# TDD
 
 Start a classic TDD cycle for the feature or bugfix described by the user.
 This methodology is designed for **backend** development: business logic, APIs, services, data layer.
