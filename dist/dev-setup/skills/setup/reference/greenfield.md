@@ -41,10 +41,10 @@ equivalent detection values —
 |---|---|---|---|---|---|
 | Web Frontend | `node` | `nextjs` \| `angular` \| `react` | `true` | `false` | `false` |
 | Backend Node | `node` | `nestjs` | `false` | `false` | `false` |
-| Mobile (Flutter) | `dart` | `flutter` | `false` | `true` | `false` |
+| Mobile (Flutter) | `flutter` | `flutter` | `false` | `true` | `false` |
 | Mobile (Expo) | `node` | `expo`, `react-native` | `false` | `true` | `false` |
 | Full-stack | `node` | both of the above | `true` | `false` | `false` |
-| Infrastructure | `terraform` | — | `false` | `false` | `true` |
+| Infrastructure | `terraform` | `terraform` | `false` | `false` | `true` |
 
 — because `rules-generation.md` selects the rules from those keys, and on a
 greenfield project it has nothing else to go on.
