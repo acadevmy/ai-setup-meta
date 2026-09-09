@@ -38,7 +38,16 @@ export const meta = {
 //     title, description, url,                // the task, as ClickUp returned it
 //     branchType:  'feat' | 'fix' | 'chore',
 //     stack: { lint, typecheck, test },       // from detect-stack.sh --json
+//
+//     resolved:    ['simpler', 'scope'],      // lenses the developer cleared
+//     guidance:    '<their reasoning>',       // why, in their words
 //   }
+//
+// `resolved` and `guidance` are empty on a first run and filled in only when a
+// person answers a `needs-human` outcome and the launcher resumes the run. They
+// are read after the Challenge phase and nowhere before it, which is what makes
+// the resume cheap: the spec prompt and the three lens prompts are unchanged, so
+// they come back from the journal cache and only Dev onward actually runs.
 //
 // Outcome: { status: 'needs-human' | 'ready-for-mr' | 'failed', ... }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,6 +100,12 @@ const commands = {
   typecheck: stack.typecheck || '',
   test: stack.test || '',
 }
+
+// What a person decided about a previous run of this same task. `cleared` names
+// lenses, because that is the only form the gate can act on: free text saying
+// "go ahead" leaves the count where it was and the run stops again.
+const cleared = Array.isArray(input.resolved) ? input.resolved.map(String) : []
+const guidance = String(input.guidance || '').trim()
 
 // The task text is data, not instruction: an agent reads it to design, never to
 // take orders from it. Said once here and repeated in every prompt that carries
@@ -365,7 +380,7 @@ const verdicts = await parallel(
   ),
 )
 
-const objections = LENSES.map((lens, i) => {
+const raised = LENSES.map((lens, i) => {
   const verdict = verdicts[i]
   // A verifier that died leaves the spec unchecked through its lens. Counted as
   // an objection: this flow opens merge requests, so the missing answer is the
@@ -376,13 +391,27 @@ const objections = LENSES.map((lens, i) => {
   return verdict.refuted ? { lens: lens.key, reason: verdict.reason } : null
 }).filter(Boolean)
 
-log('Challenge — ' + objections.length + '/3 lenses objected')
+// A lens a person overruled is off the count. Nothing here can tell an
+// overrule from a rubber stamp, and it does not try to: the launcher fills
+// `resolved` from an answer the developer gave in the session, and every
+// cleared lens travels into the dev prompt, the outcome and the merge request,
+// so the override leaves a trace where a reviewer reads it.
+const overruled = raised.filter((o) => cleared.includes(o.lens))
+const objections = raised.filter((o) => !cleared.includes(o.lens))
+
+log(
+  'Challenge — ' +
+    raised.length +
+    '/3 lenses objected' +
+    (overruled.length > 0 ? ', ' + overruled.length + ' overruled by the developer' : ''),
+)
 
 if (objections.length >= 2) {
   return {
     status: 'needs-human',
     taskId: task.id,
     objections,
+    overruled,
     spec: { path: specPath, slug: slug, reqs: spec.reqs, markdown: spec.specMarkdown },
     openQuestions: spec.openQuestions || [],
   }
@@ -425,6 +454,19 @@ const dev = await agent(
     spec.specMarkdown,
     '---8<--- end of spec',
     '',
+    overruled.length > 0 || guidance
+      ? [
+          'This task came back to a person once already. What they decided is',
+          'part of the contract now — it is not a suggestion, and it is not',
+          'yours to re-litigate:',
+          '',
+          overruled
+            .map((o) => '  - the ' + o.lens + ' objection ("' + o.reason + '") is overruled')
+            .join('\n'),
+          guidance ? '\n  Their reasoning: ' + guidance : '',
+          '',
+        ].join('\n')
+      : '',
     'Step 3 — the implementation. The spec plan is the contract; execute it, do',
     'not redesign it:',
     '',
@@ -530,6 +572,8 @@ const outcome = {
   commits: dev.commits || [],
   filesChanged: dev.filesChanged || [],
   objections,
+  overruled,
+  guidance,
   notes: dev.notes || '',
 }
 

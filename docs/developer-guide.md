@@ -57,6 +57,10 @@ Merge → semantic-release (greenfield projects)
 > `.worktreeinclude` so `.env` follows you in, and
 > `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-info.sh` gives each worktree a
 > different dev-server port and warns when two of them declare the same file.
+>
+> That is the way for *interactive* work: a flow that stops to ask you something
+> needs a chat of its own. For work you want done unsupervised, one command does
+> several tasks from one terminal — `/dev-setup:multi-sdd DE-123 DE-124` (§5).
 
 ---
 
@@ -272,7 +276,24 @@ wrote it or Claude Code did.
 | `/dev-setup:quick [ID \| description]` | A fix or chore: ≤3 files, no new component, dependency or public interface. Branch → change → commit → PR, no spec |
 | `/dev-setup:sdd [ID] [--worktree]` | Interactive SDD flow on a ClickUp task (spec → your approval → development). Anything above the `quick` bar |
 | `/dev-setup:auto-sdd [ID]` | Autonomous SDD as a workflow: spec, three challenges, worktree, real tests — PR behind your confirmation |
+| `/dev-setup:multi-sdd ID… \| --from-sprint N` | 1–5 of those runs at once from this session. Answers the questions first, then fans out; the outcomes come back here as they land |
 | `/dev-setup:review` | Code review before opening the PR |
+
+### What a fan-out costs, and why it stops at five
+
+`multi-sdd` composes the `auto-sdd` workflow once per task, so the cost is `n`
+times a single run — five tasks is five spec agents, fifteen adversarial
+verifiers and five developers, and it ends with five merge requests for one
+person to read. That last part is the real limit, which is why the cap is five
+and why `multi-preflight.sh` refuses the sixth instead of a paragraph asking it
+to be reasonable.
+
+It runs the pre-flight first, one task at a time: the small/large triage (a task
+that belongs in `quick` gets flagged, not silently rerouted), only the questions
+no agent could answer for you, and a warning when two tasks declare the same
+file. Then the runs go, each in its own worktree, and your checkout never moves.
+An outcome that needs you — two lenses objected — stops that task and nothing
+else; answer it and that one run resumes from where it stopped.
 
 ---
 

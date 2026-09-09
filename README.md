@@ -137,7 +137,7 @@ ai-setup-meta/
 │       │   ├── scripts/                # The deterministic steps (bash + jq, --json)
 │       │   ├── agents/                 # review — the one domain agent left
 │       │   ├── reference/              # Contracts shared by several skills
-│       │   ├── skills/                 # 9 workflow skills (SKILL.md + reference/)
+│       │   ├── skills/                 # 10 workflow skills (SKILL.md + reference/)
 │       │   └── workflows/              # auto-sdd.js — the autonomous run, as code
 │       └── profiles/
 │           ├── web-frontend.md
@@ -148,7 +148,7 @@ ai-setup-meta/
 ├── dist/                        # Built plugins (generated, committed)
 │   └── dev-setup/               # Claude Code plugin
 │       ├── .claude-plugin/      # Plugin manifest
-│       ├── skills/              # 12 skills (9 from the template + 2 shared + setup)
+│       ├── skills/              # 13 skills (10 from the template + 2 shared + setup)
 │       ├── agents/              # 2 agents (review + the shared clickup)
 │       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
 │       ├── workflows/           # dev-setup:auto-sdd
@@ -195,7 +195,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 
 ## Skills the dev-setup plugin distributes
 
-### The five commands
+### The six commands
 
 ```
 /dev-setup:setup      ← one-off, project bootstrap
@@ -204,7 +204,8 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
        │
        ▼
 /dev-setup:sdd        ← the whole flow, with one approval checkpoint
-       │                (or /dev-setup:auto-sdd for the same flow unsupervised)
+       │                (or /dev-setup:auto-sdd for the same flow unsupervised,
+       │                 /dev-setup:multi-sdd for up to five of those at once)
        ▼
 /dev-setup:review     ← code review against the project rules
 ```
@@ -215,6 +216,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
 | `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify → review → one commit → PR |
 | `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd.js`) writes the spec, has three adversarial reviewers attack it, develops in an isolated worktree and runs the project real quality commands. It returns `needs-human`, `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
+| `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |
 | `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
 
 **Which of the two dev flows.** At most three files, and no new component,
@@ -252,8 +254,7 @@ of the two applies is not a question either: the layer decides it and the
 
 ### Parallel work: the worktree conventions
 
-One task per worktree, `n` tasks per `n` invocations — there is no interactive
-multi-task orchestrator. `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` is the
+One task per worktree. `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` is the
 convention, and four pieces make it work:
 
 | Piece | What it solves |
@@ -261,11 +262,27 @@ convention, and four pieces make it work:
 | `.worktreeinclude` (installed by the setup) | a worktree is a clean checkout, so `.env` is absent and the app fails for a reason that looks like a code bug |
 | `worktree.baseRef` (Step 7c) | it takes only `fresh` or `head` — never a branch name — so on a project targeting `next` the setup writes `head` and `sdd-start.sh --base` passes the fork point explicitly |
 | `worktree-info.sh` → `PORT_OFFSET` | every worktree runs the same `dev` script; the offset is the worktree's index in `git worktree list` |
-| `worktree-info.sh` → `OVERLAPS` | the files two active worktrees both declare in their spec's `## Impact` — a warning, never a gate |
+| `worktree-info.sh` → `OVERLAPS` | the files two declarers both claim — the `## Impact` section of an active worktree's spec, or an `--impact` estimate a fan-out has not started yet. A warning, never a gate |
 
 Dependencies are installed as a step of the flow, not by a hook: a
 `WorktreeCreate` hook replaces worktree creation wholesale and would disable
 `.worktreeinclude`, which is the one thing that has to keep working.
+
+**How many at once, and by which command.** `n` *interactive* tasks are `n`
+invocations of `sdd` or `quick`, one terminal each: a flow that stops to ask
+needs a chat of its own, and that is a choice rather than a missing feature. `n`
+*autonomous* tasks are one `/dev-setup:multi-sdd`, which fans out one `auto-sdd`
+run per task from a single session — the chat becomes a control tower, with the
+human parts before the fan-out (triage, the business decisions no agent can
+invent, the overlap warning) or after it (the outcomes, each behind its own `ask`
+rule), never braided through the middle.
+
+The cap is **five**, and it is enforced by `multi-preflight.sh` rather than
+stated in prose: the sixth task exits 3 with the reason. Five is where review
+becomes the bottleneck — the cost of a fan-out is `n` times a single run (five
+tasks is five spec agents, fifteen adversarial verifiers, five developers and
+five merge requests for one person to read), and compute is not what runs out
+first.
 
 ### The workflow
 
@@ -284,6 +301,16 @@ directory and registers it as `dev-setup:<meta.name>`, which is the name the
 
 It pushes nothing, opens nothing and never writes to the board: the launcher
 does that in the session, where the `ask` rules put a person in front of it.
+Two skills are launchers of that one workflow — `auto-sdd` for a task,
+`multi-sdd` for up to five — and both act on the outcome through the single
+`reference/run-outcomes.md` contract.
+
+When two lenses object, the run stops at `needs-human` and a person answers. The
+lenses they overrule go back in as `resolved`, with their reasoning as
+`guidance`, and both are read *after* the Challenge phase — so a resumed run
+replays the spec and the three verdicts from its journal cache and restarts at
+Dev. An overrule is recorded in the outcome and quoted in the merge request: the
+gate moves only for a human, and never silently.
 
 ### Agents
 
