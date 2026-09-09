@@ -1,6 +1,6 @@
 ---
 name: validate
-description: Pre-release validation of the plugin: manifest references and static checks on skill and workflow quality. Use when you need to verify the repo before a PR or a release, or when CI reports a finding.
+description: Pre-release validation of the plugin — manifest references and static checks on skill and workflow quality. Use when you need to verify the repo before a PR or a release, or when CI reports a finding.
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: Bash, Read, Edit

@@ -1,6 +1,6 @@
 ---
 name: sdd
-description: Runs the interactive Spec-Driven Development flow for a task — discovery, spec, one approval, development, gates, merge request. Use when the work needs a spec: a new component, dependency or public interface, or a change over more than three files. Under that bar, use `quick`.
+description: Runs the interactive Spec-Driven Development flow for a task — discovery, spec, one approval, development, gates, merge request. Use when the work needs a spec — a new component, dependency or public interface, or a change over more than three files. Under that bar, use `quick`.
 effort: medium
 user-invocable: true
 disable-model-invocation: true

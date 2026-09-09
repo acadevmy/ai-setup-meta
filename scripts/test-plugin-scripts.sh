@@ -908,6 +908,29 @@ for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do
     "$(sed -n '2,/^---$/p' "$SURFACE")" "three files"
 done
 
+echo ""
+echo "── frontmatter parseability ──"
+
+# A `: ` inside an unquoted YAML scalar does not parse, and the failure is
+# silent in the worst way: the skill loads with *empty* metadata, so
+# `user-invocable`, `disable-model-invocation` and `allowed-tools` are all
+# dropped and nothing says so. `claude plugin validate` catches it on dist/,
+# but only on a recent enough CLI and never on the meta-repo's own skills —
+# so it is pinned here, where a plain grep is enough.
+FM_COLON=""
+while IFS= read -r SKILL_MD; do
+  [ -f "$SKILL_MD" ] || continue
+  [ "$(head -1 "$SKILL_MD")" = "---" ] || continue
+  if sed -n '2,/^---$/p' "$SKILL_MD" \
+     | grep -qE '^[a-zA-Z_-]+:[[:space:]]+[^"'"'"'|>].*:[[:space:]]'; then
+    FM_COLON="$FM_COLON ${SKILL_MD#"$REPO_ROOT"/}"
+  fi
+done <<EOF
+$(find "$REPO_ROOT/templates" "$REPO_ROOT/shared" "$REPO_ROOT/.claude" \
+    -name 'SKILL.md' -o -name '*.md' -path '*/agents/*' 2>/dev/null | LC_ALL=C sort)
+EOF
+assert_eq "no unquoted colon breaks a frontmatter scalar" "" "${FM_COLON# }"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════════════════════════
