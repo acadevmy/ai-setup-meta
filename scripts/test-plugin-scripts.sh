@@ -19,6 +19,10 @@
 # ports and names the files they both declare, and the interactive flow invokes
 # `simplify` once, asks no methodology question and mandates no bookkeeping
 # commit.
+# Plus, for DE-16487: the multi-sdd cap refuses six tasks with a non-zero exit,
+# the overlap warning answers from pre-flight estimates before any worktree
+# exists, the command reimplements none of the workflow, and an answered
+# needs-human resumes at Dev instead of redoing the spec.
 #
 # Usage:
 #   bash scripts/test-plugin-scripts.sh            # run the suite
@@ -918,6 +922,192 @@ for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do
     "$(grep -rqE 'enter the worktree' "$SURFACE" "$(dirname "$SURFACE")/reference" 2>/dev/null \
        && echo true || echo false)"
 done
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10. multi-sdd: the cap, the overlap and the composition (DE-16487)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The command fans out `n` autonomous runs from one session. Two of its three
+# guarantees are testable without running anything: the cap is a script that
+# exits non-zero, and the overlap comparison happens before any worktree exists.
+# The third — that the command composes the workflow and reimplements none of it
+# — is a property of the diff, so it is pinned as one.
+
+echo ""
+echo "── multi-preflight.sh (the cap) ──"
+
+preflight() { bash "$PLUGIN_SCRIPTS/multi-preflight.sh" --json "$@" 2>/dev/null; }
+preflight_exit() {
+  bash "$PLUGIN_SCRIPTS/multi-preflight.sh" --json "$@" >/dev/null 2>&1
+  printf '%s' "$?"
+}
+
+assert_eq "the cap the script enforces is 5" "5" \
+  "$(preflight DE-1 | jq -r '.CAP')"
+
+assert_eq "five tasks are accepted" "true" \
+  "$(preflight DE-1 DE-2 DE-3 DE-4 DE-5 | jq -r '.ACCEPTED')"
+assert_eq "and the caller sees a zero exit" "0" \
+  "$(preflight_exit DE-1 DE-2 DE-3 DE-4 DE-5)"
+
+# The refusal is an exit status, not a paragraph: a bound in prose gets read
+# charitably ("six is close enough"), a non-zero exit does not.
+assert_eq "six tasks are refused" "false" \
+  "$(preflight DE-1 DE-2 DE-3 DE-4 DE-5 DE-6 | jq -r '.ACCEPTED')"
+assert_eq "and the refusal is exit 3" "3" \
+  "$(preflight_exit DE-1 DE-2 DE-3 DE-4 DE-5 DE-6)"
+assert_contains "the reason names the cap" \
+  "$(preflight DE-1 DE-2 DE-3 DE-4 DE-5 DE-6 | jq -r '.REASON')" "cap of 5"
+
+# An empty SPRINT reaches the gate as zero ids: the message, and no run.
+assert_eq "no task at all is refused" "3" "$(preflight_exit)"
+assert_contains "and says how to name some" \
+  "$(preflight | jq -r '.REASON')" "--from-sprint"
+
+# Two runs on one task would race for the same branch name.
+assert_eq "a duplicate id is refused" "3" "$(preflight_exit DE-1 DE-2 DE-1)"
+assert_contains "and names the id" \
+  "$(preflight DE-1 DE-2 DE-1 | jq -r '.REASON')" "DE-1 is listed twice"
+
+# The id reaches a branch name and a shell command inside an agent prompt, so it
+# is validated here rather than after four runs have started.
+assert_eq "an id that is not a plain identifier is refused" "3" \
+  "$(preflight_exit 'DE-1; rm -rf /')"
+
+# --from-sprint validates the count only: the ids come back through the gate.
+assert_eq "--from-sprint 2 passes the count through" "2" \
+  "$(preflight --from-sprint 2 | jq -r '.FROM_SPRINT')"
+assert_eq "and asks for no task yet" "0" \
+  "$(preflight --from-sprint 2 | jq -r '.COUNT')"
+assert_eq "--from-sprint over the cap is refused" "3" "$(preflight_exit --from-sprint 6)"
+assert_eq "--from-sprint 0 is refused" "3" "$(preflight_exit --from-sprint 0)"
+assert_eq "ids and --from-sprint together are refused" "3" \
+  "$(preflight_exit --from-sprint 2 DE-1)"
+
+assert_eq "the script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/multi-preflight.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── worktree-info.sh --impact (the overlap before the fan-out) ──"
+
+# At pre-flight there is no spec and no worktree yet, only an estimate per task.
+# The same comparison has to answer from the estimates, or the warning arrives
+# after the branches have already diverged. The two worktrees of section 9 are
+# still on disk, and that is deliberate: the estimates are compared against them
+# too, so the paths below are ones no spec claims.
+IMPACT_A="DE-10=src/multi/shared.ts,src/multi/only-a.ts"
+IMPACT_B="DE-11=./src/multi/shared.ts src/multi/only-b.ts"
+
+wt_impact() { (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/worktree-info.sh" --json "$@" 2>/dev/null); }
+
+IMPACT_OVERLAPS=$(wt_impact "$WT_SIDE" --impact "$IMPACT_A" --impact "$IMPACT_B" | jq -r '.OVERLAPS')
+
+# The label is what the warning names, so the developer knows which two tasks to
+# choose between. And `./src/...` has to match `src/...`: a key that does not
+# match is an overlap silently missed.
+assert_contains "two estimates sharing a file are named, with both labels" \
+  "$IMPACT_OVERLAPS" "src/multi/shared.ts	DE-10,DE-11"
+
+assert_eq "a file only one task declares is not an overlap" "" \
+  "$(printf '%s\n' "$IMPACT_OVERLAPS" | grep -E 'only-a|only-b' || true)"
+
+# A task about to start is compared against the worktrees already in flight, for
+# free — that is the reason this lives in the same script.
+assert_contains "an estimate collides with a worktree already in flight" \
+  "$(wt_impact "$WT_SIDE" --impact "DE-10=src/user/user.service.ts" | jq -r '.OVERLAPS')" \
+  "src/user/user.service.ts	feat/DE-2-beta,DE-10"
+
+# And a task whose worktree already exists must not overlap with *itself*: the
+# declarer is the task, not the checkout, so the spec on disk and the estimate
+# for the same run are one declarer. A false conflict shown to a human is the
+# noise this warning exists to avoid.
+assert_eq "a task does not collide with its own worktree" "" \
+  "$(wt_impact "$WT_SIDE" --impact "DE-2=src/user/user.service.ts" \
+     | jq -r '.OVERLAPS' | grep -E 'user.service' || true)"
+
+# The port offset is unaffected by the new mode.
+assert_eq "the port offset still answers" "1" \
+  "$(wt_impact "$WT_SIDE" --impact "$IMPACT_A" | jq -r '.PORT_OFFSET')"
+
+echo ""
+echo "── multi-sdd composes, it does not reimplement ──"
+
+MULTI="$SDD_DIR/multi-sdd"
+
+assert_eq "the command ships" "true" \
+  "$([ -f "$MULTI/SKILL.md" ] && echo true || echo false)"
+assert_eq "and in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/skills/multi-sdd/SKILL.md" ] && echo true || echo false)"
+
+# Only a person starts a fan-out of five background runs.
+assert_contains "a fan-out is never inferred by the model" \
+  "$(cat "$MULTI/SKILL.md")" "disable-model-invocation: true"
+assert_contains "a person can invoke it" \
+  "$(cat "$MULTI/SKILL.md")" "user-invocable: true"
+
+# The cap is enforced by the script, and the command has to actually call it —
+# a flag declared and never acted on is worse than no flag at all.
+assert_contains "the command runs the gate" \
+  "$(cat "$MULTI/SKILL.md")" "multi-preflight.sh"
+
+# And passes each id as one quoted argument. Splicing $ARGUMENTS into that line
+# would let an id carrying a `;` run as shell *before* the check written to
+# reject it — the validation would be bypassed by exactly what it validates.
+assert_eq "no raw \$ARGUMENTS is spliced into the gate call" "" \
+  "$(grep -n 'multi-preflight.sh.*\$ARGUMENTS' "$MULTI"/SKILL.md "$MULTI"/reference/*.md || true)"
+assert_contains "each id goes in as one quoted argument" \
+  "$(cat "$MULTI/SKILL.md")" '--task "DE-1"'
+
+# It launches the PR 9 workflow rather than carrying a flow of its own.
+assert_contains "it launches the auto-sdd workflow" \
+  "$(cat "$MULTI"/SKILL.md "$MULTI"/reference/*.md)" "dev-setup:auto-sdd"
+
+# Acceptance criterion 4: the spec -> challenge -> dev -> verify logic lives in
+# exactly one place. The command must not name a lens, declare a phase, or hold
+# a spec template — those are the workflow's, and a second copy is a second
+# thing to keep in step.
+assert_eq "the command declares no phase and names no lens" "" \
+  "$(grep -nE "phase\(|refuted|'simpler'|'testable'|specMarkdown|planSteps" \
+       "$MULTI"/SKILL.md "$MULTI"/reference/*.md || true)"
+
+# Both launchers act on the outcome through the one shared contract.
+assert_eq "the outcomes contract is a plugin reference, not a skill's own" "true" \
+  "$([ -f "$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md" ] \
+     && echo true || echo false)"
+for LAUNCHER in auto-sdd multi-sdd; do
+  assert_contains "$LAUNCHER cites the shared outcomes contract" \
+    "$(cat "$SDD_DIR/$LAUNCHER"/SKILL.md "$SDD_DIR/$LAUNCHER"/reference/*.md 2>/dev/null)" \
+    "reference/run-outcomes.md"
+done
+assert_eq "nothing still points at the old per-skill path" "" \
+  "$(grep -rln "reference/outcomes.md" "$REPO_ROOT/templates" "$REPO_ROOT/dist" \
+       "$REPO_ROOT/README.md" "$REPO_ROOT/docs" 2>/dev/null || true)"
+
+echo ""
+echo "── the answered needs-human resumes at Dev ──"
+
+# Criterion 3: after the developer answers, the run continues without redoing
+# the phases that completed. That is only true if what they said reaches the
+# workflow *after* the Challenge — the resume replays every agent call whose
+# prompt is unchanged, so a guidance string inside the spec prompt would throw
+# away the spec, the three verdicts and the whole point of resuming.
+if [ -f "$AUTO_SDD" ]; then
+  assert_contains "the workflow takes the lenses the developer cleared" \
+    "$(cat "$AUTO_SDD")" "input.resolved"
+  assert_contains "and only a named lens comes off the count" \
+    "$(cat "$AUTO_SDD")" "cleared.includes(o.lens)"
+
+  CACHED_REGION=$(awk "/^phase\('Spec'\)/,/^const raised =/" "$AUTO_SDD")
+  assert_eq "nothing the developer said reaches the cached prompts" "" \
+    "$(printf '%s' "$CACHED_REGION" | grep -nE 'guidance|cleared|overruled' || true)"
+
+  # An overrule that leaves no trace is an auto-approval with extra steps.
+  assert_contains "the overrule reaches the developer agent" \
+    "$(cat "$AUTO_SDD")" "is overruled"
+  assert_contains "and travels in the outcome" \
+    "$(cat "$AUTO_SDD")" "overruled,"
+fi
 
 echo ""
 echo "── frontmatter parseability ──"
