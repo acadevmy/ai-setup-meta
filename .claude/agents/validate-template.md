@@ -47,6 +47,11 @@ For every entry in `manifest.template_agents`:
 For every entry in `manifest.template_skills`:
 - Verify that `<TEMPLATE_PATH>/.claude/skills/<name>/SKILL.md` exists
 
+For every entry in `manifest.workflows`:
+- Verify that `<TEMPLATE_PATH>/.claude/workflows/<name>` exists, ends in `.js`,
+  and opens with `export const meta = {` — the plugin loader skips anything else
+  without saying so.
+
 If even one file is missing, the check FAILs.
 
 ### Check 2: rule templates present

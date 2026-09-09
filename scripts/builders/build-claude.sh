@@ -54,6 +54,26 @@ for SKILL in $(jq -r '.template_skills[]' "$MANIFEST"); do
   fi
 done
 
+# ── Copy the workflow scripts ────────────────────────────────────────────────
+#
+# The autonomous orchestration is code, not prose (DE-16479): the harness loads
+# every *.js in the plugin's workflows/ directory and registers it as
+# `<plugin>:<meta.name>`, which is the name the launcher skill calls.
+step "Copying the workflows"
+
+WORKFLOWS_SRC="$TEMPLATE_DIR/.claude/workflows"
+
+for WORKFLOW in $(jq -r '.workflows[]? // empty' "$MANIFEST"); do
+  SRC="$WORKFLOWS_SRC/$WORKFLOW"
+  if [ -f "$SRC" ]; then
+    mkdir -p "$DIST_DIR/workflows"
+    cp "$SRC" "$DIST_DIR/workflows/$WORKFLOW"
+    ok "Workflow: $WORKFLOW"
+  else
+    warn "Workflow not found: $WORKFLOW"
+  fi
+done
+
 # ── Copy the plugin-level shared references ──────────────────────────────────
 #
 # The contracts more than one skill needs (DE-16478): defined once here, cited by

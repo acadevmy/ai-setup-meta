@@ -44,8 +44,10 @@ The sdd flow moves the task to IN REVIEW and posts the PR link
 Merge → semantic-release (greenfield projects)
 ```
 
-> Alternatively, `/dev-setup:auto-sdd DE-123` runs the **whole** flow autonomously —
-> from discovery to the PR — with no manual checkpoint.
+> Alternatively, `/dev-setup:auto-sdd DE-123` runs the whole thing as a background
+> workflow — spec, three adversarial reviews of it, development in its own
+> worktree, the real test suite — and comes back with the PR ready for your
+> confirmation, or with the objections that stopped it.
 
 ---
 
@@ -98,45 +100,44 @@ Claude Code:
 > **No id?** You can run `/dev-setup:sdd` with no arguments — Claude Code will show you
 > the tasks assigned to you in the current sprint.
 
-> **Fully autonomous?** `/dev-setup:auto-sdd DE-123` runs the same flow end to end
-> (discovery → spec → development → review → PR) **without** interactive checkpoints:
-> useful for well-defined tasks or unattended runs (CI, batch).
+> **Fully autonomous?** `/dev-setup:auto-sdd DE-123` runs spec → challenge → dev →
+> verify as a workflow, with no interview and no approval turn. Two checkpoints
+> survive on purpose: it stops by itself when two of three reviewers refuse the
+> spec, and the PR still waits for your confirmation. Best on well-defined tasks —
+> a vague one comes back as `needs-human` with the reasons.
 
 ### 3.2 Develop with TDD or BDD
 
-Which cycle you use depends on the layer you are working on:
+There is nothing to type here: the cycle is part of development, and the layer
+you are on decides which one it is — `.claude/rules/dev-setup-tests.md` is where
+that is written down, and it loads by itself when you open a test file.
 
-| Layer | Methodology | Command | Minimum coverage |
-|---|---|---|---|
-| Backend (services, utils) | TDD — Red/Green/Refactor | `/dev-setup:tdd` | 80% services, 90% utils |
-| Frontend (UI components) | BDD — Given/When/Then | `/dev-setup:bdd` | 70% components |
-| Controllers/API | TDD | `/dev-setup:tdd` | 60% controllers |
+| Layer | Methodology | Minimum coverage |
+|---|---|---|
+| Backend (services, utils) | TDD — Red/Green/Refactor | 80% services, 90% utils |
+| Frontend (UI components) | BDD — Given/When/Then | 70% components |
+| Controllers/API | TDD | 60% controllers |
 
-**Example — a TDD cycle for a backend service:**
+**TDD, on a backend service.** Inside `/dev-setup:sdd`, development runs one
+plan step at a time:
 
-```
-/dev-setup:tdd
-```
+1. **RED** — the failing test first, describing the expected behaviour
+2. **GREEN** — the minimum code that makes it pass
+3. **REFACTOR** — improve it while the tests stay green
 
-Claude Code walks you through:
+and it stops for your confirmation between steps.
 
-1. **RED** — writes the failing test (describing the expected behaviour)
-2. **GREEN** — writes the minimum code that makes the test pass
-3. **REFACTOR** — improves the code while keeping the tests green
+**BDD, on a frontend component.** The same loop, one level up:
 
-It asks for confirmation at each step before moving on.
+1. **Scenario** — Given/When/Then in plain language
+2. **Test** — the test with Testing Library
+3. **Implementation** — the component that satisfies the scenario
 
-**Example — a BDD cycle for a frontend component:**
-
-```
-/dev-setup:bdd
-```
-
-Claude Code walks you through:
-
-1. **Scenario** — defines Given/When/Then in plain language
-2. **Test** — writes the test with Testing Library
-3. **Implementation** — builds the component that satisfies the scenario
+Both cycles live in one place, `sdd-dev/reference/methodologies.md`, read by
+whoever is writing the code: the `sdd-dev` skill in the interactive flow, the dev
+agent in the `auto-sdd` workflow. (The `/dev-setup:tdd` and `/dev-setup:bdd`
+commands were removed in v3: they restated that file, and nothing in the flow
+ever called them.)
 
 ### 3.3 Write atomic commits
 
@@ -183,7 +184,7 @@ glab mr create --source-branch feat/DE-123-short-description \
                --title "..." --description "..."
 ```
 
-The workflow skills (`/dev-setup:sdd`, `/dev-setup:auto-sdd`) call the right VCS skill
+The two flows (`/dev-setup:sdd`, `/dev-setup:auto-sdd`) call the right VCS skill
 (`vcs-ops`, which picks its GitHub or GitLab reference) based on the `origin` remote. On GitLab, the MR body follows
 `.gitlab/merge_request_templates/Default.md` when the repo has one.
 
@@ -196,7 +197,9 @@ The MR/PR must have:
 ### 3.6 Keep the task in sync
 
 The `sdd` and `auto-sdd` flows update ClickUp themselves once the PR is open: they move the
-task to the review status and post the PR link as a comment. If you opened the PR by hand,
+task to the review status and post the PR link as a comment. An `auto-sdd` run that
+stopped instead moves the task to `BLOCKED`, with the objections or the failing
+output in the note — move it back to `SPRINT` once you have answered them. If you opened the PR by hand,
 ask Claude Code to update the task, or move it on the board yourself.
 
 ---
@@ -246,10 +249,7 @@ wrote it or Claude Code did.
 | Command | When to use it |
 |---|---|
 | `/dev-setup:sdd [ID]` | Interactive SDD flow on a ClickUp task (spec → approval → development) |
-| `/dev-setup:auto-sdd [ID]` | Autonomous end-to-end SDD flow (up to the PR, no checkpoints) |
-| `/dev-setup:sdd-discovery` | Structured interview to gather the requirements before the spec |
-| `/dev-setup:tdd` | Backend development with the Red/Green/Refactor cycle |
-| `/dev-setup:bdd` | Frontend development with Given/When/Then scenarios |
+| `/dev-setup:auto-sdd [ID]` | Autonomous SDD as a workflow: spec, three challenges, worktree, real tests — PR behind your confirmation |
 | `/dev-setup:review` | Code review before opening the PR |
 
 ---

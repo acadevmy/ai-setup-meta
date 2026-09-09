@@ -87,10 +87,12 @@ echo ""
 SKILL_COUNT=$(find "$DIST_DIR/skills" -name "SKILL.md" | wc -l | tr -d ' ')
 AGENT_COUNT=$(find "$DIST_DIR/agents" -name "*.md" | wc -l | tr -d ' ')
 HOOK_COUNT=$(find "$DIST_DIR/hooks/scripts" -name "*.sh" 2>/dev/null | wc -l | tr -d ' ')
+WORKFLOW_COUNT=$(find "$DIST_DIR/workflows" -name "*.js" 2>/dev/null | wc -l | tr -d ' ')
 
-echo "  Skills: $SKILL_COUNT"
-echo "  Agents: $AGENT_COUNT"
-echo "  Hooks:  $HOOK_COUNT"
+echo "  Skills:    $SKILL_COUNT"
+echo "  Agents:    $AGENT_COUNT"
+echo "  Hooks:     $HOOK_COUNT"
+echo "  Workflows: $WORKFLOW_COUNT"
 echo ""
 echo "  Validate:   claude plugin validate dist/$TEMPLATE_NAME/"
 echo "  Try it:     claude --plugin-dir dist/$TEMPLATE_NAME/"

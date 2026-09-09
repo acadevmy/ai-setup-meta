@@ -28,10 +28,12 @@
 #   10 MANIFEST_ORPHAN         asset declared in the manifest and never referenced
 #   11 MARKETPLACE_SOURCE      marketplace.json entry with an inconsistent source or version
 #   12 LEGACY_RUNTIME_RESIDUE  a reference to Cursor/Codex/Gemini in the artefacts
+#   13 WORKFLOW_CONTRACT       a workflow script the harness would refuse or misgroup
 #
-# Checks 11 and 12 are not in the original list: they are regression guards on
+# Checks 11 to 13 are not in the original list: they are regression guards on
 # defects the chain removed (the broken `pm-setup` entry, DE-16471; the
-# Cursor/Codex/Gemini support, DE-16489).
+# Cursor/Codex/Gemini support, DE-16489) and on the one artefact whose mistakes
+# only surface at run time (the workflow scripts, DE-16479).
 # ---8<--- end of the --help message
 #
 # Scoping notes:
@@ -46,6 +48,13 @@
 #     criterion. If some legitimate rule ever has to use one of those words (say,
 #     cursor-based pagination), narrow the check's pattern — do not baseline the
 #     finding.
+#   - Check 13 reads the `export const meta` block the harness itself parses. A
+#     wrong extension, a missing meta, a name that does not match the file or a
+#     `phase()` with no entry in `meta.phases` are all silent at load time: the
+#     loader skips the file, or the progress tree grows a stray group. The
+#     forbidden globals (`Date.now`, `Math.random`, `new Date`, `require`, and
+#     the `process.*` API) throw inside the workflow VM, and only once the run is
+#     under way.
 
 set -euo pipefail
 
@@ -548,6 +557,98 @@ check_legacy_runtime_residue() {
              "$REPO_ROOT/.claude-plugin" -type f 2>/dev/null | sort)
 }
 
+# ── Check 13: the workflow scripts contract ──────────────────────────────────
+# The autonomous orchestration is code (DE-16479), so its defects are code
+# defects: the harness loads `<plugin>/workflows/*.js`, parses the `meta` literal
+# and registers the script as `<plugin>:<meta.name>` — the exact string the
+# launcher skill calls. Everything this check looks at is invisible until a run
+# starts, and by then the failure is a workflow that does not exist.
+# `process` is matched only on its real API surfaces: a bare `process\.` would
+# also flag a prompt line that happens to end with the word "process".
+WORKFLOW_FORBIDDEN_PATTERN='Date\.now\(|Math\.random\(|new Date\(|require\(|process\.(env|exit|argv|cwd|platform)\b'
+
+check_workflows() {
+  step "Check 13 — the workflow scripts contract"
+  local manifest tdir decl abs key meta_block name titles used missing_title stray_title line no text
+  for manifest in "$REPO_ROOT"/templates/*/manifest.json; do
+    [ -f "$manifest" ] || continue
+    tdir="$(dirname "$manifest")"
+
+    while IFS= read -r decl; do
+      [ -n "$decl" ] || continue
+      abs="$tdir/.claude/workflows/$decl"
+      key="$(rel "$abs")"
+
+      # The loader reads *.js and nothing else: a .mjs/.cjs/.ts file is counted
+      # as a near miss and skipped, which looks exactly like a workflow that was
+      # never declared.
+      case "$decl" in
+        *.js) ;;
+        *)
+          add_finding WORKFLOW_CONTRACT DISTRIBUTED "$(rel "$manifest")" 0 "$key" \
+            "'$decl' is not a .js file: the plugin loader skips every other extension"
+          continue ;;
+      esac
+
+      if [ ! -f "$abs" ]; then
+        add_finding WORKFLOW_CONTRACT DISTRIBUTED "$(rel "$manifest")" 0 "$key" \
+          "declares the workflow '$decl', which does not exist"
+        continue
+      fi
+
+      # The meta literal: from line 1 to the line that closes it. The harness
+      # refuses the file when it does not open with this exact declaration.
+      if ! head -1 "$abs" | grep -q '^export const meta = {'; then
+        add_finding WORKFLOW_CONTRACT DISTRIBUTED "$key" 1 "$key:meta" \
+          "does not start with 'export const meta = {': the loader rejects it"
+        continue
+      fi
+      meta_block="$(awk '/^\}/ { print; exit } { print }' "$abs")"
+
+      name="$(printf '%s\n' "$meta_block" \
+        | sed -n "s/^[[:space:]]*name:[[:space:]]*['\"]\([^'\"]*\)['\"].*/\1/p" | head -1)"
+      if [ "$name" != "$(basename "$decl" .js)" ]; then
+        add_finding WORKFLOW_CONTRACT DISTRIBUTED "$key" 1 "$key:name" \
+          "meta.name is '${name:-(missing)}' but the file is '$decl': the launcher calls <plugin>:$(basename "$decl" .js)"
+      fi
+
+      if ! printf '%s\n' "$meta_block" | grep -q "^[[:space:]]*description:"; then
+        add_finding WORKFLOW_CONTRACT DISTRIBUTED "$key" 1 "$key:description" \
+          "meta has no description: the loader rejects a workflow without one"
+      fi
+
+      # Every phase the body opens has to be declared, and every declared phase
+      # has to be used: an undeclared title grows a stray group in the progress
+      # tree, a declared-and-unused one promises a step that never runs.
+      titles="$(printf '%s\n' "$meta_block" \
+        | sed -n "s/.*title:[[:space:]]*['\"]\([^'\"]*\)['\"].*/\1/p" | LC_ALL=C sort -u)"
+      used="$( { grep -o "phase('[^']*')" "$abs" | sed "s/phase('\(.*\)')/\1/"
+                 grep -o "phase:[[:space:]]*'[^']*'" "$abs" | sed "s/.*'\(.*\)'/\1/"
+               } 2>/dev/null | LC_ALL=C sort -u)"
+
+      missing_title="$(comm -13 <(printf '%s\n' "$titles") <(printf '%s\n' "$used") | tr '\n' ' ')"
+      stray_title="$(comm -23 <(printf '%s\n' "$titles") <(printf '%s\n' "$used") | tr '\n' ' ')"
+      if [ -n "${missing_title// /}" ]; then
+        add_finding WORKFLOW_CONTRACT DISTRIBUTED "$key" 1 "$key:phases-undeclared" \
+          "uses the phase(s) ${missing_title% } with no entry in meta.phases"
+      fi
+      if [ -n "${stray_title// /}" ]; then
+        add_finding WORKFLOW_CONTRACT DISTRIBUTED "$key" 1 "$key:phases-unused" \
+          "declares the phase(s) ${stray_title% } that the script never opens"
+      fi
+
+      # The globals that throw inside the workflow VM.
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        no="${line%%:*}"
+        text="$(printf '%s' "${line#*:}" | sed 's/^[[:space:]]*//')"
+        add_finding WORKFLOW_CONTRACT DISTRIBUTED "$key" "$no" "$key:$no" \
+          "forbidden in a workflow script (it throws in the VM): $text"
+      done < <(grep -n -E "$WORKFLOW_FORBIDDEN_PATTERN" "$abs" 2>/dev/null || true)
+    done < <(jq -r '.workflows[]? // empty' "$manifest")
+  done
+}
+
 # ── Run ──────────────────────────────────────────────────────────────────────
 collect_skills
 [ -s "$SKILLS" ] || die "no skill found: run this from the repo root"
@@ -560,6 +661,7 @@ check_rule_templates
 check_manifest_orphans
 check_marketplace
 check_legacy_runtime_residue
+check_workflows
 
 sort -o "$FINDINGS" "$FINDINGS"
 
