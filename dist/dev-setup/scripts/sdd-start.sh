@@ -7,8 +7,11 @@
 # Usage:
 #   sdd-start.sh --task DE-123 [--type feat] [--title "add refresh token"] [--json]
 #   sdd-start.sh --task DE-123 --create            # also creates the branch
+#   sdd-start.sh --type fix --title "typo in the login copy" --create
 #
-#   --task <id>     task identifier, e.g. DE-123 (required)
+#   --task <id>     task identifier, e.g. DE-123. Required unless --title is
+#                   given: the `quick` fast path branches for a fix nobody
+#                   opened a ticket for, and a branch still needs a name.
 #   --type <type>   branch type: feat | fix | chore | docs | refactor | perf | test
 #                   (default: feat)
 #   --title <text>  task title; slugified into the branch name
@@ -30,8 +33,8 @@
 #   BRANCH_EXISTS true when BRANCH is already present locally
 #   CREATED       true when --create actually created the branch
 #
-# Exits non-zero on a missing --task, outside a repository, or when --create
-# cannot produce the branch.
+# Exits non-zero with neither --task nor --title, outside a repository, or when
+# --create cannot produce the branch.
 
 set -uo pipefail
 
@@ -65,14 +68,15 @@ while [ $# -gt 0 ]; do
     --create) DO_CREATE=true; shift ;;
     --json) AS_JSON=true; shift ;;
     -h|--help)
-      sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+      sed -n '2,37p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
       exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
 
 require_jq
-[ -n "$TASK_ID" ] || die "--task is required (e.g. --task DE-123)"
+[ -n "$TASK_ID" ] || [ -n "$TASK_TITLE" ] \
+  || die "--task or --title is required (e.g. --task DE-123, or --title 'fix the login copy')"
 
 case "$BRANCH_TYPE" in
   feat|fix|chore|docs|refactor|perf|test) ;;
@@ -88,15 +92,21 @@ REPO_ROOT=$(repo_root)
 #
 # <type>/<TASK_ID>-<slug>, with the task id kept verbatim so the tooling that
 # greps it back out of the branch name (spec lookup, MR title) keeps working.
+# Without a task id it is <type>/<slug>: check-prerequisites.sh then reports an
+# empty TASK_ID, which is the honest answer — there is no task.
 
 SLUG=""
 [ -n "$TASK_TITLE" ] && SLUG=$(slugify "$TASK_TITLE")
 
-if [ -n "$SLUG" ]; then
+if [ -n "$TASK_ID" ] && [ -n "$SLUG" ]; then
   BRANCH="$BRANCH_TYPE/$TASK_ID-$SLUG"
-else
+elif [ -n "$TASK_ID" ]; then
   BRANCH="$BRANCH_TYPE/$TASK_ID"
+else
+  BRANCH="$BRANCH_TYPE/$SLUG"
 fi
+
+[ "$BRANCH" != "$BRANCH_TYPE/" ] || die "--title '$TASK_TITLE' slugifies to nothing usable as a branch name"
 
 BRANCH_EXISTS=false
 git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null 2>&1 && BRANCH_EXISTS=true
