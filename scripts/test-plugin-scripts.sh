@@ -15,6 +15,10 @@
 # Plus, for DE-16479: the auto-sdd workflow script compiles the way the harness
 # compiles it, its meta matches the name the launcher calls, and the surface the
 # workflow replaced (three agents, two standalone skills) is gone.
+# Plus, for DE-16480: worktree-info.sh gives two worktrees different dev-server
+# ports and names the files they both declare, and the interactive flow invokes
+# `simplify` once, asks no methodology question and mandates no bookkeeping
+# commit.
 #
 # Usage:
 #   bash scripts/test-plugin-scripts.sh            # run the suite
@@ -120,8 +124,11 @@ pick_work_dir() {
     EMPTY_GIT_TEMPLATE="$candidate/.git-template"
     git_init "$candidate/probe" >/dev/null 2>&1
 
-    if [ "$(git -C "$candidate/probe" rev-parse --show-toplevel 2>/dev/null)" \
-       = "$(cd "$candidate/probe" && pwd)" ]; then
+    # Both sides resolved with `pwd -P`: on macOS $TMPDIR sits under /tmp, which
+    # is a symlink to /private/tmp, and git reports the physical path. Comparing
+    # it against a logical `pwd` rejected a directory that works perfectly.
+    if [ "$(cd "$(git -C "$candidate/probe" rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null && pwd -P)" \
+       = "$(cd "$candidate/probe" && pwd -P)" ]; then
       rm -rf "$candidate/probe"
       printf '%s' "$candidate"
       return 0
@@ -325,14 +332,21 @@ assert_eq "no title, no slug" \
   "$(sdd_start --task DE-7 --type chore --json | jq -r '.BRANCH')"
 
 assert_eq "spec dir sits at the repository root" \
-  "$SANDBOX/.specs" \
+  "$(cd "$SANDBOX" && pwd -P)/.specs" \
   "$(sdd_start --task DE-7 --json | jq -r '.SPEC_DIR')"
+
+assert_eq "a title alone names a branch, for a fix with no ticket" \
+  "fix/typo-in-the-login-copy" \
+  "$(sdd_start --type fix --title "Typo in the login copy" --json | jq -r '.BRANCH')"
 
 sdd_start --task DE-9 --type banana --json >/dev/null 2>&1
 assert_eq "an invalid type is refused" "1" "$?"
 
 sdd_start --json >/dev/null 2>&1
-assert_eq "a missing --task is refused" "1" "$?"
+assert_eq "neither --task nor --title is refused" "1" "$?"
+
+sdd_start --type fix --title "!!!" --json >/dev/null 2>&1
+assert_eq "a title that slugifies to nothing is refused" "1" "$?"
 
 # ── --base: the caller overrides the resolved base (DE-16479) ──
 #
@@ -762,6 +776,137 @@ assert_eq "no command points at the retired tdd/bdd skills" "" \
 
 assert_eq "the workflow ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/workflows/auto-sdd.js" ] && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9. worktree-info.sh and the slimmed interactive flow (DE-16480)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Two worktrees of the same repository, each with a spec declaring the files it
+# will touch. The script has to give them different dev-server ports and name
+# the one file they both declared.
+
+echo ""
+echo "── worktree-info.sh ──"
+
+WT_MAIN="$WORK_DIR/wt-main"
+WT_SIDE="$WORK_DIR/wt-side"
+mkdir -p "$WT_MAIN/.specs"
+
+cat > "$WT_MAIN/.specs/DE-1-alpha.md" <<'SPECA'
+# Spec: Alpha [DE-1]
+> Status: approved
+
+## Impact
+- **Files to create**: src/auth/token.service.ts
+- **Files to modify**: src/app.module.ts
+- **Dependencies**: zod
+
+## Implementation plan
+1. do it
+SPECA
+
+git_init "$WT_MAIN"
+git -C "$WT_MAIN" config user.email "test@example.com"
+git -C "$WT_MAIN" config user.name "Test"
+git -C "$WT_MAIN" add -A
+git -C "$WT_MAIN" commit --quiet -m "chore: base"
+git -C "$WT_MAIN" checkout --quiet -b feat/DE-1-alpha
+git -C "$WT_MAIN" worktree add --quiet "$WT_SIDE" -b feat/DE-2-beta >/dev/null 2>&1
+
+mkdir -p "$WT_SIDE/.specs"
+cat > "$WT_SIDE/.specs/DE-2-beta.md" <<'SPECB'
+# Spec: Beta [DE-2]
+> Status: approved
+
+## Impact
+- **Files to create**: src/user/user.service.ts
+- **Files to modify**: src/app.module.ts
+- **Dependencies**: none
+
+## Implementation plan
+1. do it
+SPECB
+
+wt_info() { (cd "$1" && bash "$PLUGIN_SCRIPTS/worktree-info.sh" --json 2>/dev/null); }
+
+assert_eq "both worktrees are listed" "2" \
+  "$(wt_info "$WT_MAIN" | jq -r '.WORKTREES | split("\n") | length')"
+
+# The whole point of the offset: the same `dev` script in two checkouts must not
+# fight over one port.
+assert_eq "the main checkout gets offset 0" "0" \
+  "$(wt_info "$WT_MAIN" | jq -r '.PORT_OFFSET')"
+assert_eq "the second worktree gets a different offset" "1" \
+  "$(wt_info "$WT_SIDE" | jq -r '.PORT_OFFSET')"
+
+# The overlap warning: one file declared by both specs, and only that one.
+assert_eq "the shared file is the only overlap" "1" \
+  "$(wt_info "$WT_SIDE" | jq -r '.OVERLAP_COUNT')"
+assert_contains "the overlap names the file and both branches" \
+  "$(wt_info "$WT_SIDE" | jq -r '.OVERLAPS')" \
+  "src/app.module.ts	feat/DE-1-alpha,feat/DE-2-beta"
+
+# A dependency is not a file: `zod` on the Dependencies line must not become a
+# phantom overlap, and a file only one worktree declares is not one either.
+assert_eq "files declared by one worktree only are not overlaps" "" \
+  "$(wt_info "$WT_SIDE" | jq -r '.OVERLAPS' | grep -E 'token.service|user.service|zod' || true)"
+
+# The gate has to run in the worktree the commit is happening in: in one,
+# $CLAUDE_PROJECT_DIR still points at the main checkout, so a gate reading its
+# own pwd would lint and test a tree nobody is committing.
+assert_contains "the commit gate reads the worktree from the hook payload" \
+  "$(cat "$PLUGIN_HOOKS/gate-commit.sh")" \
+  "jq -r '.cwd // empty'"
+
+echo ""
+echo "── the slimmed interactive flow ──"
+
+SDD_DIR="$REPO_ROOT/templates/dev-setup/.claude/skills"
+
+# One simplify invocation in the whole flow. It used to run in sdd-dev and again
+# in the orchestrator's closure, so every task paid for it twice.
+assert_eq "simplify is invoked in exactly one place" "1" \
+  "$(grep -rl "the \`simplify\` skill" "$SDD_DIR" | wc -l | tr -d ' ')"
+
+# The methodology question is gone: the layer decides the cycle and tests.md
+# states it, so asking produced an answer the rules already held.
+assert_eq "nothing asks which methodology to use" "" \
+  "$(grep -rln "which development methodology\|METHODOLOGY" "$SDD_DIR" || true)"
+
+# The spec is a requirements document: no run-state sections, and none of the
+# three bookkeeping commits they fed.
+assert_eq "the spec template carries no run-state sections" "" \
+  "$(grep -l "^## Simplify phase\|^## Review phase" \
+       "$SDD_DIR/sdd-spec/reference/spec-template.md" || true)"
+
+assert_eq "no bookkeeping commit is mandated" "" \
+  "$(grep -rn "commit it: \`docs(registry)\|add \`docs(spec): track review outcome" "$SDD_DIR" || true)"
+
+# The deterministic steps are script calls, not prose: intake must not re-derive
+# the base branch by hand.
+assert_contains "intake creates the branch through sdd-start.sh" \
+  "$(cat "$SDD_DIR/sdd/reference/intake.md")" "sdd-start.sh"
+# The prose still names `git checkout` — to forbid it. What must be gone is the
+# command itself, so the pattern is a command line and not a mention of one.
+assert_eq "intake runs no git checkout of its own" "" \
+  "$(grep -nE '^[[:space:]]*git (checkout|pull)' "$SDD_DIR/sdd/reference/intake.md" || true)"
+assert_contains "intake reads the preconditions from the script" \
+  "$(cat "$SDD_DIR/sdd/reference/intake.md")" "check-prerequisites.sh"
+
+# The fast path exists, is a person's call, and states its own bar.
+QUICK="$SDD_DIR/quick/SKILL.md"
+assert_eq "the quick fast path ships" "true" \
+  "$([ -f "$QUICK" ] && echo true || echo false)"
+assert_contains "quick is started by a person, never inferred" \
+  "$(cat "$QUICK")" "disable-model-invocation: true"
+assert_contains "quick declares no spec and no discovery" \
+  "$(cat "$QUICK")" "No discovery, no spec"
+
+# The routing bar is in both descriptions, so /help alone answers which to use.
+for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do
+  assert_contains "the routing bar is in $(basename "$(dirname "$SURFACE")")'s description" \
+    "$(sed -n '2,/^---$/p' "$SURFACE")" "three files"
+done
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
