@@ -52,8 +52,9 @@
 #     wrong extension, a missing meta, a name that does not match the file or a
 #     `phase()` with no entry in `meta.phases` are all silent at load time: the
 #     loader skips the file, or the progress tree grows a stray group. The
-#     forbidden globals (`Date.now`, `Math.random`, `new Date`, `require`,
-#     `process`) throw inside the workflow VM, and only once the run is under way.
+#     forbidden globals (`Date.now`, `Math.random`, `new Date`, `require`, and
+#     the `process.*` API) throw inside the workflow VM, and only once the run is
+#     under way.
 
 set -euo pipefail
 
@@ -562,7 +563,9 @@ check_legacy_runtime_residue() {
 # and registers the script as `<plugin>:<meta.name>` — the exact string the
 # launcher skill calls. Everything this check looks at is invisible until a run
 # starts, and by then the failure is a workflow that does not exist.
-WORKFLOW_FORBIDDEN_PATTERN='Date\.now\(|Math\.random\(|new Date\(|require\(|process\.'
+# `process` is matched only on its real API surfaces: a bare `process\.` would
+# also flag a prompt line that happens to end with the word "process".
+WORKFLOW_FORBIDDEN_PATTERN='Date\.now\(|Math\.random\(|new Date\(|require\(|process\.(env|exit|argv|cwd|platform)\b'
 
 check_workflows() {
   step "Check 13 — the workflow scripts contract"
