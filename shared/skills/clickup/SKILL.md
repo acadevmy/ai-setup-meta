@@ -1,81 +1,63 @@
 ---
 name: clickup
-description: Reference documentation for ClickUp operations via MCP (statuses, workflow, task CRUD)
+description: Explains how the team's ClickUp board is organised — the workflow statuses and what each one means, the OAuth prerequisites, and what each task operation returns. Use when a flow has to read a task, move it through the board, or create one, and the board's conventions matter.
 user-invocable: false
 disable-model-invocation: false
 ---
 
-# Skill: ClickUp Operations
+# ClickUp operations
 
-ClickUp operations via MCP. Use for reading tasks, updating statuses,
-and creating team notifications.
+ClickUp is where the team's tasks live. This skill is the board's documentation;
+the **calling contract** — the intents, their parameters, the result format and
+how the task list id is resolved — is in
+`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`, and every ClickUp call
+goes through the `clickup` agent described there.
 
 ## Prerequisites
-- ClickUp MCP configured via OAuth: `claude mcp add clickup https://mcp.clickup.com/mcp`
-- Each developer authenticates with their own ClickUp account (guest accounts supported)
-- Each operation works on a specific `list_id` — no global `TEAM_ID` required
 
-## Workflow statuses
+- the ClickUp MCP configured over OAuth:
+  `claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp`
+- each developer authenticates with their own ClickUp account (guest accounts
+  work)
+- every operation works on a specific `list_id` — there is no global `TEAM_ID`
+
+## The workflow
 
 ```
-SPRINT  →  IN PROGRESS  →  IN REVIEW / CODE REVIEW  →  DONE
+SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 ```
 
 | Status | Meaning |
 |---|---|
-| SPRINT | Task planned in the current sprint, ready to be picked up |
-| IN PROGRESS | Development in progress |
-| IN REVIEW / CODE REVIEW | PR opened, awaiting review |
-| DONE | Completed and merged |
+| SPRINT | planned in the current sprint, ready to be picked up |
+| IN PROGRESS | someone is working on it |
+| IN REVIEW / CODE REVIEW | the PR/MR is open, waiting for a reviewer |
+| DONE | merged |
+| BLOCKED | an automated run gave up; a human has to resolve the blocker |
 
-## Available operations
+Two lists use different names for the same stage — `IN REVIEW` and
+`CODE REVIEW`. Ask for `CODE REVIEW` and fall back to `IN REVIEW` when the list
+does not have it.
 
-### Get the next task to work on
-```
-Use the ClickUp MCP to retrieve tasks with:
-  - Status filter: SPRINT
-  - Sort by: priority (1 = urgent, 2 = high, 3 = normal, 4 = low)
-  - Pick the first task with the highest priority
+## What the operations are for
 
-The returned task contains the `custom_id` field (e.g. DE-123) which should
-be used in the branch name.
-```
+**Pick the next task.** Filter the list on `SPRINT`, sort by priority
+(1 = urgent … 4 = low), take the first. The task's `custom_id` (e.g. `DE-123`)
+is what goes into the branch name — not the internal `task_id`.
 
-### Read a task
-```
-Use the ClickUp MCP to retrieve task details given its ID.
-Output: title, description, status, assignees, custom fields, custom_id
-```
+**Read a task.** Returns title, description, status, assignees, custom fields and
+`custom_id`. The description comes back in full: it is the requirement text, and
+a summarised requirement is a lost requirement.
 
-### Update task status
-```
-Use the ClickUp MCP to update the status.
-Input: task ID, new status
+**Move a task.** A status change, optionally with a note. The transition is
+validated against the workflow above, so ask for the one the flow has actually
+reached.
 
-Valid transitions:
-  SPRINT       → IN PROGRESS        (when starting work)
-  IN PROGRESS  → IN REVIEW          (when the PR is opened)
-  IN PROGRESS  → CODE REVIEW        (alternative to IN REVIEW)
-  IN REVIEW    → DONE               (after merge)
-  CODE REVIEW  → DONE               (after merge)
-```
+**Create a task.** Needs the destination `list_id`, a `name` and a `description`
+(markdown is supported); `priority`, `assignees` and `due_date` are optional.
 
-### Create a task
-```
-Use the ClickUp MCP to create a new task.
-Required fields:
-  - list_id: destination list ID
-  - name: task title
-  - description: description (markdown supported)
-Optional fields:
-  - assignees: list of user IDs
-  - priority: 1 (urgent) / 2 (high) / 3 (normal) / 4 (low)
-  - due_date: Unix timestamp
-```
+## What not to do
 
-## Typical use cases in the meta-repo
-
-**Release notification**: after `/project:release`, create a task for each
-developer with update instructions.
-
-**Setup tracking**: track the adoption of the new template by the team.
+- Do not close or delete tasks: status updates and comments only.
+- Do not write a task's description from a flow — it is the human's input to the
+  work, not the work's output.

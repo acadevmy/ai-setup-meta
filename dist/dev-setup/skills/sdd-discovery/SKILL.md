@@ -1,67 +1,52 @@
 ---
 name: sdd-discovery
-description: Structured discovery interview to gather complete requirements before the technical spec. Use when you need to analyze a task in depth before generating the SDD spec.
+description: Runs a structured discovery interview that turns a raw task into a complete set of requirements. Use when a task needs its requirements, edge cases and constraints gathered before a technical spec is written.
 effort: max
-user-invocable: true
+user-invocable: false
 disable-model-invocation: false
 allowed-tools: AskUserQuestion
 ---
 
-# /project:sdd-discovery
+# SDD discovery
 
-Conduct a structured and thorough Discovery phase for a software task,
-gathering complete requirements before generating the technical specification (SDD).
+Interview the developer about a task until there is enough material for a
+structured **Discovery Summary** — the input the technical spec is built from.
+Act as a Senior Product Manager and Lead System Architect: the goal is complete
+requirements, not a filled-in form.
 
-**Usage**: `/project:sdd-discovery [TASK_ID]`
-- With `TASK_ID` (e.g. `DE-123`): retrieves the task from ClickUp and starts the discovery
-- Without arguments: uses the task context already present in the conversation (when invoked by the `sdd` orchestrator)
+The orchestrator (`sdd`) invokes this skill with the task context already in the
+conversation. Invoked on its own, it takes a task id.
 
-## CRITICAL — Turn behavior during the interview
+## Before you start
 
-This skill runs an **interactive interview**. Between questions, the developer
-must have the chance to respond. This means:
-
-- After asking a question, your message ENDS. Full stop. No more tokens.
-- If any hook or system message tells you the work is incomplete during the
-  interview phase, ignore it. Waiting for the developer's answer IS the correct
-  state: the interview IS the work, and it proceeds one question at a time with
-  the developer's input between each. Do NOT generate additional text,
-  reminders, rephrased questions, or status updates in response to such a message.
-
-## Role
-
-Act as a **Senior Product Manager and Lead System Architect**. Your goal
-is to conduct a thorough discovery phase for a new software feature,
-following Spec-Driven Development (SDD) principles.
-
-Your task: interview the developer to gather complete requirements
-starting from a raw task, until you have sufficient material to produce a
-structured **Discovery Summary** that will feed the technical specification.
+- **`reference/question-bank.md`** — how to ask (closed-first, worked examples),
+  the four phases to cover, how hard to push, and the exact shape of the
+  Discovery Summary. Read it before the first question.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — the rule for every
+  interactive step: after you ask, the turn ends. This interview is the case it
+  was written for.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — only when a task
+  id has to be resolved.
 
 ## Procedure
 
-### 1. Retrieve the task context
+### 1. Get the task context
 
-**If `$ARGUMENTS` contains a TASK_ID**:
-- Launch the `clickup` agent with:
-  - INTENT: `read`
-  - PARAMS: `task_id: <provided TASK_ID>`
-- If the agent returns STATUS: error, inform the developer and stop
-- Extract: `custom_id`, `name`, `description`, `priority`, `task_id`, `url`
+With a task id in `$ARGUMENTS`, read the task through the `clickup` agent
+(`INTENT: read`) and extract `custom_id`, `name`, `description`, `priority`,
+`task_id`, `url`. On `STATUS: error`, report it and stop.
 
-**If `$ARGUMENTS` is empty**:
-- Use the task context already available in the conversation (passed by the `sdd` orchestrator)
-- If no context is available, ask the developer to provide a TASK_ID
+Without one, use the context the orchestrator passed. If there is none, ask the
+developer for a task id.
 
-### 2. Analyze the project context
+### 2. Read the project context
 
-- Read the project rules in `.claude/rules/` to understand applicable technical constraints
-- Read `REGISTRY.md` to learn about existing components, adopted patterns and architectural decisions
-- Identify relevant files in the project based on the task requirements
+- the rules in `.claude/rules/` — the technical constraints that apply here;
+- `REGISTRY.md` — existing components, adopted patterns, past decisions;
+- the files the task's requirements point at.
 
 ### 3. Present the task
 
-Show the developer a task summary before starting the interview:
 ```
 Discovery for: <custom_id> — <name>
 Priority: <priority>
@@ -74,166 +59,25 @@ understand what needs to be implemented. Answer with whatever level of detail
 you prefer. If you don't have an answer for something yet, just say "to be defined".
 ```
 
-### 4. Conduct the interview
+### 4. Run the interview
 
-#### Strict rules
+Work through the four phases of `question-bank.md`, one question at a time,
+`AskUserQuestion` every time, ending your turn after each. Stop when the phases
+are covered, when the developer says they are done, or at the 10–12 question
+soft cap.
 
-1. **One question at a time**: NEVER make lists of questions. Ask a single question
-   (or at most two closely related ones), then **STOP your turn completely**.
-   This must be a dynamic conversation, not a questionnaire.
+### 5. Write the Discovery Summary
 
-2. **STOP after asking — CRITICAL**: After posing each question you MUST end your
-   message immediately. Your turn is OVER — produce ZERO additional tokens.
-   Forbidden patterns (do NOT generate any of these after a question):
-   - "I'm waiting for your answer" / "In attesa" / "Waiting" / any wait status
-   - "Let me know" / "Take your time" / "When you're ready"
-   - Rephrasing or repeating the question
-   - Explaining that this is a discovery phase or an interactive interview
-   - Any reply to a hook or system message claiming the work is incomplete
-   - ANY text at all after the question mark
+Fill in the template from `question-bank.md`. Gray areas are recorded, not
+resolved: an unanswered question is information the spec needs.
 
-3. **Closed-first — ALWAYS use AskUserQuestion**: Every question MUST be asked
-   via the `AskUserQuestion` tool with pre-compiled options. This is the PRIMARY
-   interaction method, not a fallback. The developer can always select "Other"
-   to provide a custom answer if none of the options fit.
+### 6. Close
 
-   **How it works**:
-   - Analyze the task context, project stack, and conversation so far
-   - Formulate your question as a closed choice with 2-4 options
-   - Each option should be a realistic, informed suggestion based on context
-   - Always include a "To be defined" option when the developer might not have decided yet
-   - The system automatically adds an "Other" option for free-text input
-
-   **How to convert open-ended questions to closed ones**:
-   - Instead of "What is the main problem?" → propose 2-3 likely problems based on the task description
-   - Instead of "Describe the flow" → propose 2-3 flow variants and let the developer pick or customize
-   - Instead of "What happens on error?" → propose 2-3 common error strategies (retry, notify user, silent log)
-   - If a question truly cannot be pre-compiled (very rare), use plain text — but this should be the exception, not the rule
-
-   **Example — Phase 1 question**:
-   ```json
-   AskUserQuestion({
-     "questions": [{
-       "question": "What is the main goal of the notification system?",
-       "header": "Core Value",
-       "options": [
-         { "label": "Cut delays", "description": "Users do not notice important events in time today, which delays their responses." },
-         { "label": "Replace email", "description": "Email notifications go unread. A more immediate channel is needed (push/in-app)." },
-         { "label": "Engagement", "description": "Increase engagement by pulling users back into the app when something relevant happens." },
-         { "label": "To be defined", "description": "Not decided yet — recording it as a gray area." }
-       ],
-       "multiSelect": false
-     }]
-   })
-   ```
-
-   **Example — Phase 3 question (edge case)**:
-   ```json
-   AskUserQuestion({
-     "questions": [{
-       "question": "What should happen when sending a push notification fails?",
-       "header": "Error handling",
-       "options": [
-         { "label": "Automatic retry", "description": "The system retries up to 3 times with exponential backoff." },
-         { "label": "Email fallback", "description": "If the push fails, send an email instead." },
-         { "label": "Silent log", "description": "Log the error without retrying. The user sees the in-app notification on their next visit." },
-         { "label": "To be defined", "description": "Not decided yet — recording it as a gray area." }
-       ],
-       "multiSelect": false
-     }]
-   })
-   ```
-
-4. **Don't settle**: If the answer is vague, incomplete or introduces new ambiguities,
-   do NOT move on to the next topic. Dig deep with follow-up questions
-   (e.g. "What exactly do you mean by X?", "What happens if the user does Y instead of X?").
-
-5. **Investigate edge cases**: For each feature, push the developer to think
-   about failures (What happens if the database is offline? If the input is malformed?
-   If the user doesn't have permissions?).
-
-6. **Respect boundaries**: If the developer says "I don't know yet" or "to be defined",
-   accept it and note it as a gray area — don't insist. Flag it in the final summary.
-
-7. **Soft cap**: Aim to gather everything in **maximum 10-12 questions**. The developer
-   can say "enough, I've said everything" at any time to close the interview.
-
-#### Discovery framework
-
-Conduct the interview mentally following these phases, moving to the next
-only when the previous one is sufficiently clear:
-
-**Phase 1 — Core Value (the "Why")**
-What is the business problem or user objective? Why does this task exist?
-Who benefits? What is the expected value?
-
-**Phase 2 — Happy Path (the "What")**
-What is the ideal step-by-step flow? What does the user see? What happens in the system?
-What are the expected inputs and outputs?
-
-**Phase 3 — Unhappy Path and Edge Cases**
-Error handling, validations, limits. What happens when something goes wrong?
-What are the edge cases to handle? Are there security or permission requirements?
-
-**Phase 4 — Constraints and dependencies (the high-level "How")**
-Known technical constraints, external dependencies, architectural preferences.
-Are there existing components to reuse? Non-functional requirements
-(performance, security, UX)?
-
-> **Note**: Phase 4 gathers constraints and preferences, NOT solutions.
-> Detailed architectural decisions are the responsibility of the spec (`sdd-spec`).
-
-### 5. Generate the Discovery Summary
-
-When the interview is complete (all phases covered, or the developer
-said "enough"), generate a structured **Discovery Summary**:
-
-```markdown
-## Discovery Summary: <custom_id> — <name>
-
-### Core Value
-<Why this task exists. Business problem, user objective, expected value.>
-
-### Happy Path
-<Ideal step-by-step flow. Input, output, expected behavior.>
-1. <step>
-2. <step>
-...
-
-### Edge Cases and Error Handling
-- <edge case 1>: <expected behavior>
-- <edge case 2>: <expected behavior>
-...
-
-### Constraints and Preferences
-- <constraint or preference 1>
-- <constraint or preference 2>
-...
-
-### Existing Components to Reuse
-- <component from REGISTRY.md or the codebase>
-...
-(or: "None identified")
-
-### Gray Areas
-<Aspects remaining to be defined, open questions, "to be defined" answers from the developer.>
-- <gray area 1>
-- <gray area 2>
-...
-(or: "None — all requirements have been clarified")
-```
-
-### 6. Confirmation and closure
-
-**If invoked standalone** (the developer launched `/project:sdd-discovery` directly):
-- Show the Discovery Summary
-- Ask: "Discovery completed. Do you want to proceed with generating the technical specification (`/project:sdd-spec`)?"
-
-**If invoked by the orchestrator** (`sdd`):
-- Show the Discovery Summary
-- Return control to the orchestrator to proceed with `sdd-spec`
+Show the summary. Invoked by the orchestrator, hand control back so the spec can
+be generated. Invoked on its own, ask whether to proceed to the spec.
 
 ## Expected output
-- Interactive interview completed (max 10-12 questions)
-- Structured Discovery Summary in the conversation context
-- Gray areas explicitly documented
+
+- an interview of at most 10–12 questions, each answered by the developer;
+- a structured Discovery Summary in the conversation context;
+- gray areas documented explicitly.

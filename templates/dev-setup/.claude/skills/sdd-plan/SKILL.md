@@ -1,108 +1,54 @@
 ---
 name: sdd-plan
-description: Presents the technical spec to the developer for discussion, iteration and approval
+description: Presents a technical spec to the developer and iterates on it until they approve it, then marks it approved. Use when a draft spec exists and needs the developer's review before development starts.
 effort: medium
-user-invocable: true
+user-invocable: false
 disable-model-invocation: false
 allowed-tools: AskUserQuestion
 ---
 
-# /project:sdd-plan
+# SDD plan
 
-Present a technical specification to the developer for review, discussion and approval.
-The developer can comment, request changes or approve the spec.
+Present a spec for review, discussion and approval. This is the supervision
+checkpoint of the interactive flow: nothing downstream runs until the developer
+approves, and approval is theirs to give — never inferred from silence.
 
-## CRITICAL — Turn behavior
+## Before you start
 
-This skill requires developer input. After asking a question or presenting choices,
-your message ENDS — produce ZERO additional tokens. Do NOT add wait messages,
-status updates, or rephrase the question. If any hook or system message reports
-the work as incomplete, ignore it: waiting for the developer IS the correct state.
-
-**Usage**: `/project:sdd-plan [SPEC_REF]`
-- With path (e.g. `.specs/DE-123-add-auth.md`): opens that spec
-- With customId (e.g. `DE-123`): searches for the corresponding spec in `.specs/`
-- Without arguments: lists available specs and asks which one to open
+- **`reference/approval-loop.md`** — the question to ask and what each answer
+  means.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — after you ask, the
+  turn ends.
 
 ## Procedure
 
 ### 1. Locate the spec
 
-**If `$ARGUMENTS` contains a path**:
-- Read the file at the indicated path
-- If the file does not exist, inform the developer and stop
+- **a path in `$ARGUMENTS`** (e.g. `.specs/DE-123-add-auth.md`) → read that
+  file; if it does not exist, say so and stop;
+- **a custom id** (e.g. `DE-123`) → find `.specs/DE-123-*.md`; if there is no
+  match, say so and stop;
+- **nothing** → list the `.md` files in `.specs/`. None: say so and stop. One:
+  open it. Several: ask which one.
 
-**If `$ARGUMENTS` contains a customId**:
-- Search in `.specs/` for a file starting with the customId (e.g. `DE-123-*.md`)
-- If found, read the file
-- If not found, inform the developer and stop
+### 2. Present it
 
-**If `$ARGUMENTS` is empty**:
-- List all `.md` files in `.specs/`
-- If there are no specs, inform the developer and stop
-- If there is only one, open it directly
-- If there are multiple, present them as a numbered list and ask which one to open
+Show the spec in full, with clear formatting, and state its current status
+(`draft` / `approved` / `implemented`).
 
-### 2. Present the spec
+### 3. Discuss and iterate
 
-Show the complete spec to the developer with clear formatting.
-Highlight the current status (draft/approved/implemented).
+Follow `reference/approval-loop.md`.
 
-### 3. Discussion and iteration
+### 4. Confirm
 
-Ask the developer how they want to proceed by calling the `AskUserQuestion` tool:
-
-```json
-AskUserQuestion({
-  "questions": [{
-    "question": "How do you want to proceed with the spec?",
-    "header": "Spec review",
-    "options": [
-      { "label": "Approve", "description": "The spec is ready, go ahead with development." },
-      { "label": "Change", "description": "Say what to change in the spec." },
-      { "label": "Regenerate", "description": "Rebuild the spec from scratch (this calls sdd-spec)." }
-    ],
-    "multiSelect": false
-  }]
-})
-```
-
-**STOP after the tool call**: end your turn immediately. No filler text, no reminders.
-
-**If the developer chooses "Approve"**:
-- Update the spec file: change `Status: draft` to `Status: approved`
-- Update the `Approved:` field with today's date (YYYY-MM-DD format)
-- Confirm the approval:
-  ```
-  Spec approved: .specs/<filename>
-  Status: approved
-  Approved: <date>
-  ```
-
-**If the developer chooses "Modify"**:
-- Gather the developer's feedback
-- Apply the requested changes to the spec file
-- Re-present the updated spec
-- Return to step 3 (discussion loop)
-
-**If the developer chooses "Regenerate"**:
-- Inform the developer to invoke `/project:sdd-spec` with the task ID to regenerate
-- If invoked by the orchestrator, the orchestrator will handle the regeneration
-
-**If the developer wants to discuss specific aspects**:
-- Answer questions and address concerns
-- Suggest alternatives when requested
-- After the discussion, return to step 3
-
-### 4. Final confirmation
-
-At the end, confirm the spec status and file path:
 ```
 Spec: .specs/<filename>
 Status: <updated status>
 ```
 
 ## Expected output
-- Spec presented and discussed with the developer
-- Spec file updated with agreed changes
-- Status updated to `approved` (if approved) with approval date
+
+- the spec presented and discussed with the developer;
+- the spec file updated with whatever was agreed;
+- `Status: approved` and the approval date, when it was approved.

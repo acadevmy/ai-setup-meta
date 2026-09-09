@@ -2,7 +2,7 @@
 # detect-stack.sh — deterministic stack detection for the dev-setup plugin.
 #
 # Replaces the prose detection the setup skill used to re-interpret on every run
-# (setup-skill.md Step 2). Reads only files already on disk: no network, no
+# (the setup skill's Step 2). Reads only files already on disk: no network, no
 # package installation, no `.env*` access.
 #
 # Usage:

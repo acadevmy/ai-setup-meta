@@ -1,160 +1,86 @@
 ---
 name: sdd-dev
-description: Executes development following the approved technical spec, with TDD/BDD or direct development support
+description: Implements an approved spec step by step, in TDD, BDD or direct mode, checking tests and lint after each step. Use when a spec is approved and its implementation plan has to be carried out.
 effort: high
-user-invocable: true
+user-invocable: false
 disable-model-invocation: false
 ---
 
-# /project:sdd-dev
+# SDD dev
 
-Executes feature development following the approved technical spec.
-Supports three modes: TDD (backend), BDD (frontend), or direct development.
+Develop a feature by following the implementation plan of an approved spec. The
+spec is the contract: this skill executes it, it does not redesign it.
 
-**Usage**: `/project:sdd-dev <SPEC_REF> [METHODOLOGY]`
-- `SPEC_REF`: spec path (e.g. `.specs/DE-123-add-auth.md`) or customId (e.g. `DE-123`)
-- `METHODOLOGY` (optional): `tdd`, `bdd`, or `none` (default: asks the developer)
+**Input**: `SPEC_REF` (a path such as `.specs/DE-123-add-auth.md`, or a custom id
+such as `DE-123`) and optionally `METHODOLOGY` (`tdd`, `bdd`, `none`).
 
-Example: `/project:sdd-dev DE-123 tdd`
+## Before you start
+
+- **`reference/methodologies.md`** — the TDD, BDD and direct cycles, and the
+  test/lint check that closes every step.
 
 ## Procedure
 
 ### 1. Load the spec
 
-**If `$ARGUMENTS` contains a path**:
-- Read the file at the indicated path
+A path is read directly; a custom id is looked up as `.specs/<customId>-*.md`.
+If the file does not exist, say so and stop.
 
-**If `$ARGUMENTS` contains a customId**:
-- Search in `.specs/` for a file starting with the customId (e.g. `DE-123-*.md`)
+**Check the status.** If it is not `approved`, warn the developer:
 
-If the file does not exist, inform the developer and stop.
-
-**Verify status**: If the spec status is not `approved`, warn the developer:
 ```
 Warning: the spec is not yet approved (status: <status>).
 Do you want to proceed with development anyway?
 ```
-If the developer does not confirm, stop.
+
+Without a confirmation, stop.
 
 ### 2. Determine the methodology
 
-If the methodology was not specified in `$ARGUMENTS`, ask the developer:
-```
-Development methodology:
-1. TDD (Red-Green-Refactor) — recommended for backend, business logic, APIs, services
-2. BDD (Given/When/Then) — recommended for frontend, UI components, user flows
-3. None — direct development without test-first cycle
-```
+If `METHODOLOGY` was not passed in, ask: TDD (backend logic, APIs, services),
+BDD (UI components, user flows), or none (tests after).
 
-### 3. Create the task breakdown
+### 3. Break the plan into tasks
 
-Parse the "Implementation plan" section from the spec.
-For each step in the plan, create an internal task with:
-- Sequential number
-- Step description
-- Involved files
+Parse `## Implementation plan` from the spec. One task per step, in order, each
+with its number, description and the files it touches. Show the breakdown:
 
-Present the breakdown to the developer:
 ```
 Task breakdown from spec:
 [ ] 1. <Step 1> — <involved files>
 [ ] 2. <Step 2> — <involved files>
-...
 
 Do you want to proceed or change the order?
 ```
 
-Wait for confirmation before starting.
+Wait for the confirmation before starting.
 
-### 4. Execute development
+### 4. Execute the steps
 
-For each step in the plan, in the agreed order:
+For each step, in the agreed order:
 
-1. **Announce** the current step:
-   ```
-   Step <N>/<total>: <description>
-   ```
-2. **Read documentation** if needed: retrieve up-to-date docs for libraries and frameworks. Prefer the `ctx7` CLI (`ctx7 library <name> <query>` then `ctx7 docs <libraryId> <query>`) if available in PATH; fall back to the Context7 MCP otherwise
-
-3. **Implement** according to the chosen methodology:
-
-   **If TDD**:
-   - **Red** — Write the test describing the expected behavior
-     - Use `describe` / `it` structure with descriptive names
-     - Test a single behavior per test case
-     - The test must fail for the right reason
-   - **Green** — Implement the minimum code necessary to make the test pass
-     - Only enough code to make the test pass
-     - No premature optimizations
-   - **Refactor** — Improve the code while keeping tests green
-     - Eliminate duplication
-     - Improve names
-     - Apply the project rules in `.claude/rules/`
-
-   **If BDD**:
-   - **Specification** — Define scenarios in Gherkin format:
-     ```gherkin
-     Feature: <feature name>
-
-       Scenario: <behavior description>
-         Given <initial state>
-         When <user action>
-         Then <expected result>
-     ```
-   - **Test** — Translate scenarios into executable tests
-     - Each `Given` prepares the initial state
-     - Each `When` simulates the user action
-     - Each `Then` verifies the visible result
-   - **Implement** — Develop the minimum necessary to make scenarios pass
-   - **Refactor** — Improve the code applying the project rules in `.claude/rules/`
-
-   **If no methodology**:
-   - Implement directly following the spec
-   - Write tests after implementation (if the spec's test strategy requires it)
-
-4. **Verify** — After each step, run tests and linter:
-   - **Tests**:
-     - If `package.json` exists with a `test` script: `npm test`
-     - If `pytest.ini` or `pyproject.toml` with `[tool.pytest]` exists: `pytest`
-     - If `go.mod` exists: `go test ./...`
-     - If `pubspec.yaml` exists: `flutter test`
-     - If `Cargo.toml` exists: `cargo test`
-     - Otherwise: ask the developer which command to use
-   - **Linter**:
-     - If `package.json` exists with a `lint` script: `npm run lint`
-     - If ruff configuration exists: `ruff check .`
-     - If `.golangci.yml` exists: `golangci-lint run`
-     - If `analysis_options.yaml` exists: `dart analyze`
-     - If `Cargo.toml` exists: `cargo clippy`
-
-5. **Update** the task breakdown:
-   ```
-   [x] 1. <Step 1> — completed
-   [x] 2. <Step 2> — completed
-   [ ] 3. <Step 3> — in progress
-   ...
-   ```
+1. **Announce** it: `Step <N>/<total>: <description>`.
+2. **Read the docs** when the step touches a library: prefer the `ctx7` CLI
+   (`ctx7 library <name>`, then `ctx7 docs <libraryId> <query>`), falling back
+   to the Context7 MCP.
+3. **Implement** it following `reference/methodologies.md`.
+4. **Check** it — the test and lint commands from that same reference.
+5. **Update** the breakdown, marking what is done and what is in progress.
 
 ### 5. Simplify
 
-After all steps are completed, run the `simplify` skill to:
-- Look for opportunities to reuse existing code
-- Improve quality and efficiency
-- Fix any issues found
-- If there are changes, commit them: `refactor(<scope>): simplify implementation`
+When every step is done, run the `simplify` skill: reuse what already exists,
+improve quality, fix what it finds. Commit any changes as
+`refactor(<scope>): simplify implementation`.
 
-**Track the outcome in the spec**: at the end of the simplify run, update the `## Simplify phase` section of the loaded spec file with:
-- `State`: `completed` (or `skipped` if the skill did not run, for a documented reason)
-- `Date`: today's date, as `YYYY-MM-DD`
-- `Outcome`: `changes-applied` if changes were committed, `no-changes` if the diff was already minimal, `skipped` with the reason
-- `Changes applied`: a short list of the files changed, or `none`
-- `Notes`: any out-of-scope files, observations or reasons for skipping
-
-Overwrite the existing section and leave the rest of the spec untouched. Do not create a dedicated commit for this note: fold it into the next commit, or commit it alongside `refactor(<scope>): simplify implementation` when there are changes.
+Then fill in the spec's `## Simplify phase` section — `State`, `Date`,
+`Outcome` (`changes-applied`, `no-changes` or `skipped` with the reason),
+`Changes applied`, `Notes`. Overwrite that section only and leave the rest of
+the spec untouched. Do not make a dedicated commit for the note: fold it into
+the refactor commit, or into the next one.
 
 ### 6. Summary
 
-Present a summary of what was implemented:
 ```
 Development completed for spec: <customId> — <title>
 
@@ -167,8 +93,7 @@ Linter: <result>
 ```
 
 ## Expected output
-- Code implemented following the approved spec
-- Tests executed and passing
-- Linter executed without errors
-- Code optimized via simplify
-- Summary of completed development
+
+- the code implemented as the approved spec describes;
+- tests and linter run, and passing;
+- the spec's `## Simplify phase` section filled in.

@@ -16,6 +16,8 @@ step "Build Claude Code plugin"
 mkdir -p "$DIST_DIR/.claude-plugin"
 mkdir -p "$DIST_DIR/skills/setup/templates/profiles"
 mkdir -p "$DIST_DIR/skills/setup/templates/rules"
+mkdir -p "$DIST_DIR/skills/setup/reference"
+mkdir -p "$DIST_DIR/reference"
 mkdir -p "$DIST_DIR/agents"
 mkdir -p "$DIST_DIR/hooks/scripts"
 mkdir -p "$DIST_DIR/scripts"
@@ -52,16 +54,49 @@ for SKILL in $(jq -r '.template_skills[]' "$MANIFEST"); do
   fi
 done
 
+# ── Copy the plugin-level shared references ──────────────────────────────────
+#
+# The contracts more than one skill needs (DE-16478): defined once here, cited by
+# name from the skills as ${CLAUDE_PLUGIN_ROOT}/reference/<name>.md. They are not
+# a skill: nothing routes to them, the skills that need them say so.
+step "Copying the shared references"
+
+REFERENCE_SRC="$TEMPLATE_DIR/.claude/reference"
+
+for REF in $(jq -r '.plugin_reference[]? // empty' "$MANIFEST"); do
+  SRC="$REFERENCE_SRC/$REF"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$DIST_DIR/reference/$REF"
+    ok "Shared reference: $REF"
+  else
+    warn "Shared reference not found: $REF"
+  fi
+done
+
 # ── Build the setup skill ────────────────────────────────────────────────────
 step "Building the setup skill"
 
-SETUP_SKILL_SRC="$TEMPLATE_DIR/setup-skill.md"
+SETUP_SKILL_REL=$(jq -r '.setup_skill // "setup/SKILL.md"' "$MANIFEST")
+SETUP_SKILL_SRC="$TEMPLATE_DIR/$SETUP_SKILL_REL"
 if [ -f "$SETUP_SKILL_SRC" ]; then
   cp "$SETUP_SKILL_SRC" "$DIST_DIR/skills/setup/SKILL.md"
   ok "Setup skill copied"
 else
-  fail "Source file setup-skill.md not found in $TEMPLATE_DIR/"
+  fail "Source file $SETUP_SKILL_REL not found in $TEMPLATE_DIR/"
 fi
+
+# The setup skill's own reference files: progressive disclosure (DE-16478). They
+# sit next to SKILL.md so the model reaches them by name, one hop, on demand.
+SETUP_REFERENCE_SRC="$(dirname "$SETUP_SKILL_SRC")/reference"
+for REF in $(jq -r '.setup_reference[]? // empty' "$MANIFEST"); do
+  SRC="$SETUP_REFERENCE_SRC/$REF"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$DIST_DIR/skills/setup/reference/$REF"
+    ok "Setup reference: $REF"
+  else
+    warn "Setup reference not found: $REF"
+  fi
+done
 
 # Bundle the template files the setup skill needs
 TEMPLATES_DST="$DIST_DIR/skills/setup/templates"

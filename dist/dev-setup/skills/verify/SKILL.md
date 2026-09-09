@@ -1,40 +1,42 @@
 ---
 name: verify
-description: Verifies that the implementation matches the approved spec (completeness, correctness, coherence)
+description: Checks the branch's diff against the approved spec — every requirement covered, every planned test present, the Impact list respected, the technical decisions followed. Use when development is finished and spec conformance has to be established before review.
 effort: high
-user-invocable: true
+user-invocable: false
 disable-model-invocation: false
 allowed-tools: AskUserQuestion
 ---
 
-# /project:verify
+# SDD verify
 
-Verifies that the current implementation matches the approved technical spec.
-Unlike `/dev-setup:review` which checks **code quality** against the project rules,
-this skill checks **spec conformance**: did we build what we said we would build?
+Answer one question: did we build what we said we would build? `review` checks
+**code quality** against the project rules; this skill checks **spec
+conformance**, and the two are not substitutes.
 
-**Usage**: `/project:verify [SPEC_PATH]`
-- With `SPEC_PATH`: uses the specified spec file
-- Without arguments: auto-detects the spec from the current branch name (e.g. `feat/DE-123-slug` → `.specs/DE-123-*.md`)
+**Input**: optionally a spec path. Without one, the spec is resolved from the
+current branch (`feat/DE-123-slug` → `.specs/DE-123-*.md`).
+
+## Before you start
+
+- **`reference/checks.md`** — the three checks (completeness, correctness,
+  coherence), the result block, and how the status is classified.
 
 ## Procedure
 
 ### 1. Collect the prerequisites
 
-Run the script — it resolves the spec, the plan, the base branch and the changed
-files in one call:
+One call resolves the spec, the plan, the base branch and the changed files:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
 ```
 
-With a path in `$ARGUMENTS`, use that file as the spec instead of the `SPEC` key
-(pass `--task <customId>` to look a different task up).
-
 It returns `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `BASE_BRANCH`,
-`MERGE_BASE`, `TASK_ID`, `AVAILABLE_DOCS`. If `SPEC` is empty, inform the
-developer and stop. If `SPEC_STATUS` is `draft`, warn that the spec has not been
-approved yet and ask whether to proceed anyway.
+`MERGE_BASE`, `TASK_ID`, `AVAILABLE_DOCS`. With a path in `$ARGUMENTS`, use that
+file instead of the `SPEC` key (`--task <customId>` looks a different task up).
+
+If `SPEC` is empty, say so and stop. If `SPEC_STATUS` is `draft`, warn that the
+spec was never approved and ask whether to proceed anyway.
 
 ### 2. Load the diff
 
@@ -50,104 +52,23 @@ Never diff against a hard-coded `main`: on a project whose work targets `next`
 or `develop`, that reports the whole delta between the long-lived branches as
 part of the branch, and every file in it comes back as "Unexpected".
 
-If `CHANGED_FILES` is empty, inform the developer and stop.
+If `CHANGED_FILES` is empty, say so and stop.
 
-### 3. Check Completeness
+### 3. Run the three checks
 
-For each `REQ-N` in the `## Requirements` section:
+Follow `reference/checks.md` and produce the `---VERIFY-RESULT---` block.
 
-1. Extract the requirement description text
-2. Search the diff for evidence of implementation:
-   - Look for files, functions, classes, or logic that correspond to the requirement
-   - Check that test files cover the requirement (search for test descriptions matching the requirement intent)
-3. Classify as:
-   - **covered**: clear evidence found in both implementation and tests
-   - **partial**: implementation found but no test coverage, or test found but implementation unclear
-   - **not-found**: no evidence in the diff
+### 4. Report
 
-For each entry in the `## Test strategy` section:
-
-1. Extract the test description
-2. Search test files in the diff for a matching test case (by description or intent)
-3. Classify as: **found** or **not-found**
-
-### 4. Check Correctness
-
-Compare the `## Impact` section against the actual diff:
-
-1. **Files to create**: for each listed file, check if it appears as a new file in the diff
-2. **Files to modify**: for each listed file, check if it appears as a modified file in the diff
-3. **Dependencies**: for each listed dependency, check if it was added to `package.json`, `pubspec.yaml`, or the relevant dependency file
-
-Flag:
-- **Missing**: files listed in Impact but not present in the diff
-- **Unexpected**: files in the diff that are not listed in Impact and are not test files, config files, or obvious support files (use judgment — a new type definition file supporting a listed service is expected; a completely unrelated module is not)
-
-### 5. Check Coherence
-
-Read the `## Technical decisions` section. For each stated decision:
-
-1. Search the diff for evidence that the decision was followed
-   - Example: "Use Zod for validation" → look for Zod imports in new files
-   - Example: "Repository pattern" → look for repository class/file
-   - Example: "ShadCN/UI components" → look for ShadCN imports
-2. Classify as: **followed** or **not-found**
-
-If a decision was not followed, check whether an alternative was used and note it
-(e.g. spec says "Zod" but code uses "class-validator" — flag as divergence, not just missing).
-
-### 6. Produce the result
-
-Format the output as:
-
-```
----VERIFY-RESULT---
-STATUS: pass | fail | pass-with-warnings
-
-COMPLETENESS:
-  Requirements:
-  - REQ-1: <status> — <brief evidence or what's missing>
-  - REQ-2: <status> — <brief evidence or what's missing>
-  Tests:
-  - Test 1: <found|not-found> — <test file:line or what's missing>
-  - Test 2: <found|not-found> — <test file:line or what's missing>
-
-CORRECTNESS:
-  Expected files touched: <N>/<total>
-  Missing: <list of files listed in Impact but not in diff, or "none">
-  Unexpected: <list of files in diff but not in Impact, or "none">
-  Dependencies: <all added | list of missing>
-
-COHERENCE:
-  - "<decision>": <followed|not-found|diverged — actual: ...>
-
-SUMMARY: <one-line overall assessment>
----END---
-```
-
-**STATUS classification**:
-- **pass**: all REQ-N are `covered`, all tests `found`, no missing files, all decisions `followed`
-- **pass-with-warnings**: all REQ-N are at least `partial`, minor unexpected files, or minor divergences with reasonable justification
-- **fail**: any REQ-N is `not-found`, or multiple tests are `not-found`, or critical decisions were `diverged`
-
-### 7. Report to the developer
-
-**If STATUS = fail**:
-- Show the full VERIFY-RESULT
-- List specifically what is missing or divergent
-- Suggest concrete next steps (e.g. "implement REQ-3" or "add test for expired token scenario")
-- Do NOT proceed — the implementation needs work
-
-**If STATUS = pass-with-warnings**:
-- Show the full VERIFY-RESULT
-- Highlight warnings and ask if they are intentional scope reductions
-- Proceed if the developer confirms
-
-**If STATUS = pass**:
-- Show the full VERIFY-RESULT
-- Confirm that the implementation matches the spec
+- **fail** — show the block, list exactly what is missing or divergent, suggest
+  the concrete next step ("implement REQ-3", "add a test for the expired token
+  scenario"). Do not proceed: the implementation needs work.
+- **pass-with-warnings** — show the block, highlight the warnings, and ask
+  whether they are intentional scope reductions. Proceed on a confirmation.
+- **pass** — show the block and confirm the implementation matches the spec.
 
 ## Expected output
-- Structured VERIFY-RESULT report comparing spec vs implementation
-- Clear indication of what matches and what is missing
-- Actionable suggestions for any gaps found
+
+- a `---VERIFY-RESULT---` report comparing spec against implementation;
+- an explicit list of what matches and what does not;
+- an actionable suggestion for every gap.
