@@ -739,6 +739,14 @@ if [ -f "$AUTO_SDD" ]; then
   # The quality commands are the project's own, never a guess.
   assert_contains "the quality commands come from detect-stack" \
     "$(cat "$AUTO_SDD")" "stack.lint"
+
+  # The task id and the slug reach a branch name, a path and a shell command
+  # inside an agent prompt, and they come from the board: they are validated
+  # before they get there, not trusted.
+  assert_contains "the task id is validated before it reaches a prompt" \
+    "$(cat "$AUTO_SDD")" "TASK_ID_SHAPE"
+  assert_contains "the slug is normalised, not trusted" \
+    "$(cat "$AUTO_SDD")" "replace(/[^a-z0-9]+/g, '-')"
 fi
 
 # The surface the workflow replaced: three agents that let the model approve its

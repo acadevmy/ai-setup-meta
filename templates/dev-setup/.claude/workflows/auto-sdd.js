@@ -58,6 +58,24 @@ if (missing.length > 0) {
   }
 }
 
+// The task id and the slug end up in a branch name, a file path and a shell
+// command inside an agent prompt. They come from the board, and the board is
+// data a stranger can write, so they are validated here rather than trusted:
+// this is the one place that sees them before they reach a prompt.
+const TASK_ID_SHAPE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+if (!TASK_ID_SHAPE.test(String(input.taskId))) {
+  return {
+    status: 'failed',
+    stage: 'intake',
+    reason:
+      'the task id ' +
+      JSON.stringify(String(input.taskId)) +
+      ' is not a plain identifier (letters, digits, dot, dash, underscore). ' +
+      'It would reach a branch name and a shell command: fix the id on the ' +
+      'board, do not work around it.',
+  }
+}
+
 const task = {
   id: input.taskId,
   title: input.title || input.taskId,
@@ -243,7 +261,16 @@ if (!spec) {
   }
 }
 
-const specPath = '.specs/' + task.id + '-' + spec.slug + '.md'
+// Same reasoning for the slug: the agent was asked for kebab-case, and this is
+// what makes it kebab-case whatever came back.
+const slug =
+  String(spec.slug || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || 'spec'
+
+const specPath = '.specs/' + task.id + '-' + slug + '.md'
 const reqLines = spec.reqs.map((req) => '  - ' + req.id + ': ' + req.statement).join('\n')
 const questionLines = (spec.openQuestions || []).map((q) => '  - ' + q).join('\n')
 
@@ -356,7 +383,7 @@ if (objections.length >= 2) {
     status: 'needs-human',
     taskId: task.id,
     objections,
-    spec: { path: specPath, slug: spec.slug, reqs: spec.reqs, markdown: spec.specMarkdown },
+    spec: { path: specPath, slug: slug, reqs: spec.reqs, markdown: spec.specMarkdown },
     openQuestions: spec.openQuestions || [],
   }
 }
@@ -493,7 +520,7 @@ const outcome = {
   branch: dev.branch,
   baseBranch: base,
   worktreePath: dev.worktreePath,
-  spec: { path: dev.specPath || specPath, slug: spec.slug, reqs: spec.reqs },
+  spec: { path: dev.specPath || specPath, slug: slug, reqs: spec.reqs },
   commits: dev.commits || [],
   filesChanged: dev.filesChanged || [],
   objections,
