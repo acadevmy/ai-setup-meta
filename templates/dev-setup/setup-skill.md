@@ -994,33 +994,42 @@ This writes to the remote, and on most hosts it needs admin rights on the
 repository. State the branch and the two settings, and ask for a yes before
 running anything:
 
-> "Protect `$BASE_BRANCH` on <GitHub|GitLab>? It would require 1 approving review on
-> every pull request and block direct pushes. You need admin rights on the repo.
-> (yes / skip)"
+> "Protect `$BASE_BRANCH` on <GitHub|GitLab>? It would require 1 approving review
+> on every pull request, block direct pushes, and refuse a merge while CI is red.
+> You need admin rights on the repo. (yes / skip)"
 
 If they skip, note it in the Step 9 summary and move on — the rest of the setup
 does not depend on it.
 
 #### 7b.3 — Apply it
 
-**GitHub** — branch protection lives on the repository, `gh` reads the token from
-the environment:
+**GitHub** — first find out which checks this repository actually runs. Their
+names differ per project, and a name that was guessed makes every PR
+permanently unmergeable:
 
 ```bash
-gh api -X PUT "repos/{owner}/{repo}/branches/$BASE_BRANCH/protection" \
-  --input - <<'JSON'
+CHECKS=$(gh api "repos/{owner}/{repo}/commits/$BASE_BRANCH/check-runs" \
+  --jq '[.check_runs[].name] | unique' 2>/dev/null || echo '[]')
+```
+
+If the array is non-empty, show the developer the names and ask which ones gate a
+merge (default: all of them). Then apply the protection with those checks
+required:
+
+```bash
+gh api -X PUT "repos/{owner}/{repo}/branches/$BASE_BRANCH/protection" --input - <<JSON
 {
   "required_pull_request_reviews": { "required_approving_review_count": 1 },
-  "required_status_checks": null,
+  "required_status_checks": { "strict": true, "contexts": $CHECKS },
   "enforce_admins": false,
   "restrictions": null
 }
 JSON
 ```
 
-`required_status_checks` stays `null` here: the check names differ per project and
-guessing them would make every PR unmergeable. Tell the developer to add the CI
-job as a required check once it has run at least once.
+If the array is empty — no workflow has ever run on that branch — send
+`"required_status_checks": null` instead and tell the developer to re-run this
+step once CI has completed once. Do **not** invent context names.
 
 **GitLab** — protected branches are their own endpoint, and approvals are a
 separate setting:
@@ -1034,6 +1043,15 @@ glab api -X POST "projects/:id/approval_rules" \
 
 `push_access_level=0` is "no one", `merge_access_level=30` is "developers and
 above" — direct pushes are blocked, merge requests still work.
+
+GitLab's equivalent of "cannot merge with a red pipeline" is a project setting,
+not part of the protected-branch payload:
+
+```bash
+glab api -X PUT "projects/:id" \
+  -f "only_allow_merge_if_pipeline_succeeds=true" \
+  -f "only_allow_merge_if_all_discussions_are_resolved=true"
+```
 
 #### 7b.4 — When it fails
 

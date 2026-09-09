@@ -147,6 +147,30 @@ linter:
    - `dart analyze`
    - `flutter test`
    - `dart run build_runner build --delete-conflicting-outputs`
+
+### Coverage gate (Flutter)
+
+`flutter test` has no `coverageThreshold`: the runner writes the report and stops
+there, so the floor has to be checked by the job that runs it. Add this step to
+the CI pipeline — it is what makes the numbers in `dev-setup-tests.md` real
+instead of advisory.
+
+```bash
+flutter test --coverage
+
+# lcov ships with the CI images; on macOS it is `brew install lcov`.
+# Generated code carries no logic worth covering and would inflate the number.
+lcov --remove coverage/lcov.info \
+  '*/*.g.dart' '*/*.freezed.dart' '*/generated_plugin_registrant.dart' \
+  -o coverage/lcov.info
+
+# Fails the job under 80% of lines overall — the floor for use cases,
+# notifiers and repositories. Widgets sit at 70%; split the check per
+# directory once the tree is stable enough for a second threshold.
+lcov --summary coverage/lcov.info 2>&1 | tee coverage/summary.txt
+awk -F'[ %]' '/lines\.*:/ { if ($4 + 0 < 80) { print "coverage " $4 "% < 80%"; exit 1 } }' \
+  coverage/summary.txt
+```
 6. **Performance**
    - validate rebuilds and frame pacing with Flutter DevTools (`flutter run --profile`)
    - introduce `ref.select` where granular subscriptions are needed

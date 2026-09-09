@@ -67,3 +67,9 @@ plus `mocktail` for UseCases, Notifiers and repositories; `pumpWidget` + `find` 
 `expect` for screens and reusable widgets; `matchesGoldenFile` for the
 design-critical ones; `integration_test` for the critical flows. The test file is
 `<source_file>_test.dart` under a `test/` tree mirroring `lib/`.
+
+Dart has no `coverageThreshold` equivalent, so unlike the JS side these floors
+are a target the CI job enforces rather than the runner: **80%** on UseCases,
+Notifiers and repositories, **70%** on screens and widgets, and an
+`integration_test` for every critical flow. The `mobile` profile carries the
+`flutter test --coverage` gate that checks them.
