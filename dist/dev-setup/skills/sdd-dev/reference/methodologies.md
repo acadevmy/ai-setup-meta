@@ -1,13 +1,20 @@
-# Development methodologies and the per-step check
+# Development cycles and the per-step check
 
-The three ways a plan step gets implemented, and how each one is checked before
-the next step starts.
+How a plan step gets implemented, and how it is checked before the next one
+starts.
+
+**The layer decides the cycle — nobody asks.** The project's `tests.md` rule
+states it, and it loads on every test file: backend logic, APIs and services are
+TDD; components, pages and user flows are BDD. This file is how to run the cycle
+the layer already chose. A step that is neither — a config change, an
+infrastructure edit, a dependency bump — falls under
+[Neither layer](#neither-layer).
 
 ## Index
 
 - [TDD — Red, Green, Refactor](#tdd--red-green-refactor)
 - [BDD — Given, When, Then](#bdd--given-when-then)
-- [No methodology](#no-methodology)
+- [Neither layer](#neither-layer)
 - [The per-step check](#the-per-step-check)
 
 ## TDD — Red, Green, Refactor
@@ -53,11 +60,14 @@ For frontend work: UI components, pages, user flows.
 - **Refactor** — extract reusable components, improve names, apply the rules in
   `.claude/rules/`.
 
-## No methodology
+## Neither layer
 
-Implement directly from the spec, then write the tests the spec's test strategy
-asks for. "No methodology" means no test-first cycle — it does not mean no
-tests.
+A step that writes no behaviour — a config file, a CI job, an infrastructure
+resource, a dependency bump — has no test to write first. Implement it from the
+spec and verify it the way the project verifies that kind of file: the linter,
+the type checker, `terraform validate`, a build. "No cycle" never means "no
+check", and it never means skipping the tests the spec's test strategy asks
+for.
 
 ## The per-step check
 

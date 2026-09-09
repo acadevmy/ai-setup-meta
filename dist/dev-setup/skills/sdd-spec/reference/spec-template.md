@@ -48,30 +48,11 @@ where they apply.>
 2. <Step 2> — <detailed description>
 
 ## Test strategy
-<Recommended testing approach (TDD/BDD/none) with the rationale, then the main
-test cases to implement.>
+<The test cases to implement, one per requirement. The cycle is not a choice
+recorded here: the layer fixes it and the project's `tests.md` rule states it.>
 
 - Test 1: <description>
 - Test 2: <description>
-
-## Simplify phase
-<Run state of the `simplify` skill after development. Filled in by `sdd-dev`.>
-
-- **State**: pending | completed | skipped
-- **Date**: <YYYY-MM-DD when it ran, otherwise "—">
-- **Outcome**: <`changes-applied` | `no-changes` | `skipped`, otherwise "—">
-- **Changes applied**: <short list of the files/refactors applied, or "none">
-- **Notes**: <observations, out-of-scope files, reasons for skipping>
-
-## Review phase
-<Run state of the `review` skill after development. Filled in by `review`.>
-
-- **State**: pending | completed
-- **Date**: <YYYY-MM-DD when it ran, otherwise "—">
-- **Outcome**: <`pass` | `pass-with-warnings` | `fail`, otherwise "—">
-- **Violations**: <number of rule violations found, or 0>
-- **Warnings**: <short list W-1, W-2, … with the rationale, or "none">
-- **REGISTRY updates**: <entries applied + a short add/update summary per section, or "none">
 
 ## Notes
 <Risks, open questions, additional considerations, useful references.>
@@ -92,6 +73,7 @@ test cases to implement.>
 - **Test cases** cover the listed requirements. If a requirement has no test
   case, either it is not verifiable — rewrite it — or the strategy is
   incomplete.
-- **`## Simplify phase` and `## Review phase`** are always generated with state
-  `pending` and `—` placeholders: the `sdd-dev` and `review` flows fill them in
-  when they finish.
+- **Nothing in here records how the run went.** The spec states what to build;
+  which gate ran on which day is in git and in the merge request. The
+  `## Simplify phase` and `## Review phase` sections this template used to carry
+  turned every task into two extra bookkeeping commits and were read by nobody.

@@ -1,6 +1,6 @@
 ---
 name: review
-description: Reviews the current branch's diff against the project rules through the review agent, then records what it found in REGISTRY.md and in the spec. Use when a branch is ready and its code quality and rule compliance have to be checked before a merge request.
+description: Reviews the current branch's diff against the project rules through the review agent, then records the components it found in REGISTRY.md. Use when a branch is ready and its code quality and rule compliance have to be checked before a merge request.
 effort: max
 user-invocable: true
 disable-model-invocation: false
@@ -14,8 +14,8 @@ code itself.
 
 ## Before you start
 
-- **`reference/registry-and-spec.md`** — how the findings land in `REGISTRY.md`
-  and in the spec's `## Review phase` section, and the final report's shape.
+- **`reference/registry-updates.md`** — how the findings land in `REGISTRY.md`,
+  why nothing here commits, and the final report's shape.
 
 ## Procedure
 
@@ -49,12 +49,12 @@ Parse the `---REVIEW-RESULT---` block the agent returns.
 
 ### 4. Write the findings back
 
-Follow `reference/registry-and-spec.md`: the `REGISTRY.md` entries first, then
-the spec's `## Review phase` section, then the report.
+Follow `reference/registry-updates.md`: the `REGISTRY.md` entries, then the
+report. Commit neither — inside the SDD flow, closure commits once and carries
+them.
 
 ## Expected output
 
 - a compliance report against the project rules;
-- `REGISTRY.md` updated, with a `docs(registry): update REGISTRY.md` commit when
-  there were entries to add;
-- the spec's `## Review phase` section filled in, when a spec exists.
+- `REGISTRY.md` updated in the working tree, uncommitted, when there were
+  entries to add.

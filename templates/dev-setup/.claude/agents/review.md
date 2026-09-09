@@ -27,7 +27,9 @@ This agent is **stateless and idempotent**. It does NOT modify files. It analyze
 
 Run `git diff <BASE_BRANCH>` to get all changes (BASE_BRANCH is already the fork
 point, so no `...` range is needed — and this way work that is not committed yet
-is reviewed too).
+is reviewed too). A brand-new file reaches that diff only once it is staged; the
+caller stages before invoking, so an empty diff on a branch that clearly changed
+something is a finding to report, not a clean review.
 For each modified file, read the full content for context.
 
 ### 2. Check the diff against the project rules
