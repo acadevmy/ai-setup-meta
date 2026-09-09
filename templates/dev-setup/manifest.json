@@ -20,6 +20,7 @@
   ],
   "plugin_reference": [
     "clickup-contract.md",
+    "run-outcomes.md",
     "turn-discipline.md",
     "worktree.md"
   ],
@@ -29,6 +30,7 @@
   "template_skills": [
     "auto-sdd",
     "quick",
+    "multi-sdd",
     "review",
     "sdd",
     "sdd-discovery",
@@ -45,6 +47,7 @@
     "detect-stack.sh",
     "sdd-start.sh",
     "check-prerequisites.sh",
+    "multi-preflight.sh",
     "migrate-settings.sh",
     "render-template.sh",
     "worktree-info.sh"

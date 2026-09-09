@@ -2,9 +2,13 @@
 
 A worktree is a second checkout of the same repository, with its own files and
 its own branch. One task per worktree means two sessions never edit the same
-file, and neither one has to finish before the other starts. `n` tasks are `n`
-invocations of `sdd` or `quick` — there is no multi-task orchestrator here, and
-the review queue, not the tooling, is what caps how many are worth having open.
+file, and neither one has to finish before the other starts.
+
+`n` *interactive* tasks are `n` invocations of `sdd` or `quick`, one terminal
+each: a flow that stops to ask needs a chat of its own. `n` *autonomous* tasks
+are one `multi-sdd`, which fans out one `auto-sdd` run per task from a single
+session. Either way the review queue, not the tooling, is what caps how many are
+worth having open — and `multi-sdd` puts that cap at five, in a script.
 
 ## Index
 
@@ -107,6 +111,15 @@ Report it to the developer once, at the start, and name the file and both
 branches. It is a warning and nothing else: two tasks may legitimately touch the
 same module, and the point is that the rebase is expected rather than
 discovered. A worktree with no spec contributes nothing to the comparison.
+
+Before a fan-out there is no spec and no worktree yet, only an estimate per task.
+`--impact <label>=<files>` feeds those through the same comparison, so the answer
+is computed in one place either way — and the tasks about to start are checked
+against the worktrees already in flight for free:
+
+```bash
+worktree-info.sh --json --impact "DE-1=src/app.module.ts" --impact "DE-2=src/app.module.ts"
+```
 
 ## What isolation refuses
 
