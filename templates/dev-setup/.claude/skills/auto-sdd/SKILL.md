@@ -11,25 +11,26 @@ disable-model-invocation: true
 The launcher of the `auto-sdd` workflow. The orchestration lives in
 `workflows/auto-sdd.js` — JavaScript the harness runs, so its bounds are bounds
 and its control flow never enters the context. What is left here is what code
-cannot do: resolve the task, launch the run, act on the outcome.
+cannot do: resolve the task, launch the run, act on what comes back.
 
-**Usage**: `/dev-setup:auto-sdd [TASK_ID]`.
+**Usage**: `/dev-setup:auto-sdd [TASK_ID]`. For several tasks at once,
+`multi-sdd` composes this same workflow.
 
 ## Before you start
 
-- **`reference/outcomes.md`** — the three outcomes, the merge request, the
-  bail-out, and the worktree a run leaves behind.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`** — the three outcomes,
+  the merge request, the bail-out, the resume, the worktree left behind.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the
-  transitions and how the task list id is resolved.
+  transitions, the list id.
 
 ## 1. The task
 
 **With a task id in `$ARGUMENTS`**: `INTENT: read`, `PARAMS: task_id: <id>`.
 
 **Without one**: resolve the list id as the contract describes, then
-`INTENT: next-task`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>` — the same
-highest-priority `SPRINT` task this flow has always picked. Nothing in `SPRINT`
-→ say so and stop: no run, no board write.
+`INTENT: next-task`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>` — the
+highest-priority `SPRINT` task. Nothing in `SPRINT` → say so and stop: no run,
+no board write.
 
 Keep `custom_id`, `name`, `description` (verbatim), `url` and `task_id`.
 
@@ -68,24 +69,25 @@ Workflow({
 ```
 
 `branchType` follows the task: feature → `feat`, bug → `fix`, maintenance →
-`chore`. A command `detect-stack.sh` left empty stays empty: the workflow skips
+`chore`. A command `detect-stack.sh` left empty stays empty — the workflow skips
 it rather than inventing one.
 
 The harness asks the developer to approve the workflow script before it runs —
 the checkpoint this flow keeps, and why it needs no `AskUserQuestion`. The run
-then works in the background: wait for its notification, do not poll.
+then works in the background: wait for its notification, never poll.
 
 ## 4. The outcome
 
 Exactly one of `needs-human`, `ready-for-mr` or `failed`, each handled in
-`reference/outcomes.md` — which also holds what the merge request carries.
-Anything else means the run broke: show the raw result and stop.
+`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`, which also holds what the
+merge request carries and how an answered `needs-human` resumes. Anything else
+means the run broke: show the raw result and stop.
 
 ## Expected output
 
 - the task moved `SPRINT` → `IN PROGRESS`, then → `CODE REVIEW` or `BLOCKED`;
 - on `ready-for-mr`, a pushed branch and a merge request against the project
   base branch, carrying the spec and the real test output;
-- otherwise the objections or the failing output in chat, the branch and the
-  worktree left in place, and no merge request;
+- otherwise the objections or the failing output in chat, with the branch and
+  the worktree left in place;
 - either way, no edit in the developer checkout.
