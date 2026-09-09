@@ -225,7 +225,25 @@ status other than 0.
 | `sdd-start.sh --task DE-123` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
+| `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW` |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug |
+
+### The UPDATE path is part of the contract
+
+A change to what the setup writes is only half done until UPDATE can carry an
+existing project across it. The chain nearly shipped the counter-example: PR 5
+added the Bash sandbox to the settings template and verified it on a *fresh*
+session, but conflict detection reads an existing `.claude/settings.json` as the
+team's file and keeps it — so on every project already set up, the sandbox never
+arrived, while `core.md` went on telling each session that "the sandbox denies
+reading `.env`". A rule describing a mechanism the project does not have is the
+defect this plugin exists to remove, reintroduced through the upgrade path.
+
+`migrate-settings.sh` is the fix and the pattern: the migration is a script with
+fixtures in CI, not prose asking the model to perform jq surgery on a file whose
+team-added entries must survive. When you change a generated artefact, ask the
+three questions — does UPDATE detect the old shape, does it migrate rather than
+ask-and-skip, and does a declined migration get reported instead of assumed?
 
 **Never hard-code the base branch.** `check-prerequisites.sh` resolves it from the
 repository and returns the fork point as `MERGE_BASE`. Among the candidates (the

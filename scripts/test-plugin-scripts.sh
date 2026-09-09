@@ -550,6 +550,78 @@ assert_eq "code-style covers the team's languages" "" "${CS_UNMATCHED# }"
 assert_eq "a frontend project resolves no service glob" "" \
   "$( (cd "$WORK_DIR/nextjs" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json) | jq -r .SERVICES_GLOB)"
 
+echo ""
+echo "── migrate-settings.sh ──"
+
+# The upgrade path the chain nearly shipped broken: a project set up before the
+# sandbox landed keeps a settings.json holding only `permissions`, conflict
+# detection leaves it alone, and none of the protection the rules promise ever
+# arrives. These tests pin the merge.
+
+MIG_DIR="$WORK_DIR/migrate-settings"
+mkdir -p "$MIG_DIR"
+SETTINGS_TEMPLATE="$REPO_ROOT/templates/dev-setup/.claude/settings.json"
+
+# The pre-sandbox shape: permissions only, wide allowlist, no ask, no sandbox.
+cat > "$MIG_DIR/old.json" <<'OLDJSON'
+{
+  "permissions": {
+    "allow": ["Bash(git *)", "Bash(npm *)", "Bash(npx *)", "Bash(node *)",
+              "Bash(claude *)", "mcp__context7__*", "Bash(terraform *)"],
+    "deny": ["Bash(git push --force*)", "Bash(kubectl delete*)"]
+  }
+}
+OLDJSON
+
+MIG_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/old.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/merged.json" --json 2>/dev/null)
+
+assert_eq "a pre-sandbox settings is migrated" "true" \
+  "$(printf '%s' "$MIG_REPORT" | jq -r .MIGRATED)"
+
+# The whole point: after the merge the project actually has the sandbox the
+# unconditional rule claims it has.
+assert_eq "the merged settings carries the sandbox" "true" \
+  "$(jq -r '.sandbox.enabled' "$MIG_DIR/merged.json")"
+
+assert_eq "the merged settings denies reading .env" "true" \
+  "$(jq -r '[.sandbox.filesystem.denyRead[], .permissions.deny[]]
+            | map(select(test("\\.env"))) | length > 0' "$MIG_DIR/merged.json")"
+
+assert_eq "the ask checkpoints arrive" "true" \
+  "$(jq -r '.permissions.ask | any(startswith("Bash(gh pr create"))' "$MIG_DIR/merged.json")"
+
+# Arbitrary-execution entries go: allowing them allows everything, including the
+# `claude --dangerously-skip-permissions` the deny list forbids by name.
+assert_eq "the retired allow entries are dropped" "0" \
+  "$(jq -r '.permissions.allow
+            | map(select(. == "Bash(npx *)" or . == "Bash(node *)"
+                         or . == "Bash(claude *)" or . == "mcp__context7__*"))
+            | length' "$MIG_DIR/merged.json")"
+
+# And the reason this is a script and not three jq snippets in prose: whatever
+# the team added has to survive, in both lists.
+assert_eq "the team's own allow entry survives" "true" \
+  "$(jq -r '.permissions.allow | index("Bash(terraform *)") != null' "$MIG_DIR/merged.json")"
+
+assert_eq "the team's own deny entry survives" "true" \
+  "$(jq -r '.permissions.deny | index("Bash(kubectl delete*)") != null' "$MIG_DIR/merged.json")"
+
+assert_contains "the report names what it dropped" "$MIG_REPORT" "Bash(npx *)"
+assert_contains "the report names what it kept" "$MIG_REPORT" "Bash(terraform *)"
+
+# Idempotent: a settings that already has a sandbox is the team's file, and the
+# script refuses to touch it (exit 3, so the caller can tell the two apart).
+bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/merged.json" \
+  --template "$SETTINGS_TEMPLATE" --json >"$MIG_DIR/again.json" 2>/dev/null
+assert_eq "a current settings is left alone" "3" "$?"
+assert_eq "and reports why" "already-sandboxed" "$(jq -r .REASON "$MIG_DIR/again.json")"
+
+# It never writes in place: the caller shows the diff and asks first.
+assert_eq "the input file is never modified" "true" \
+  "$(jq -r 'has("sandbox") | not' "$MIG_DIR/old.json")"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════════════════════════

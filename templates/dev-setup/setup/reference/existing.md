@@ -210,6 +210,21 @@ Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, the
 framework convention checks, and the ones `rules-generation.md` and
 `mcp-env.md` ask for), plus whatever the step-7b branch protection reported.
 
+**In UPDATE mode**, say what happened to `.claude/settings.json` — one of:
+
+```
+  - settings.json migrated: sandbox on, <n> deny rules and the ask checkpoints added,
+    <retired> dropped from the allowlist; your own entries kept
+  - settings.json already current — nothing to migrate
+  - settings.json migration DECLINED: the project runs WITHOUT the Bash sandbox.
+    .env is not denied to shell commands, gh/glab writes are not behind a confirmation,
+    and force push is not blocked. Re-run setup to apply it.
+```
+
+The third line is not decoration. `dev-setup-core.md` tells every session that
+the sandbox denies reading `.env`; if the developer declined, the summary is the
+only place that says otherwise.
+
 ### Multi-project variant
 
 Same shape, with the root files listed once and the per-sub-project files

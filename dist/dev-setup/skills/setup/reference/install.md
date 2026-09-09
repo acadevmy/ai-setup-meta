@@ -10,6 +10,7 @@ reference has produced them.
 - [Step 2c — VCS detection](#step-2c--vcs-detection)
 - [3.1 — Transformed files](#31--transformed-files-read-into-memory)
 - [3.2 — Verbatim files](#32--verbatim-files-straight-to-destination)
+- [3.2b — Migrate a pre-sandbox settings.json](#32b--migrate-a-settingsjson-written-before-the-sandbox)
 - [3.3 — Adapt the allowlist to the package manager](#33--adapt-the-allowlist-to-the-detected-package-manager)
 - [3.4 — Compose the sandbox network allowlist](#34--compose-the-sandbox-network-allowlist)
 - [3.5 — Credential masking](#35--credential-masking-user-scope-optional)
@@ -145,10 +146,59 @@ reformat, do not adjust, do not improve. The content must be verbatim.
 **Check**: verify that the written files are not empty. If one is, tell the
 developer and stop.
 
-**In UPDATE mode**: these files are the project's, not generated artefacts — a
-team edits its own settings and REGISTRY. Keep conflict detection on, and ask
-before touching any of them. (The `dev-setup-*.md` rules are the exception, and
+**In UPDATE mode** `REGISTRY.md`, `.gitignore` and `.env.example` are the
+project's, not generated artefacts: keep conflict detection on and ask before
+touching them. (The `dev-setup-*.md` rules are the other exception, and
 `rules-generation.md` explains why.)
+
+`.claude/settings.json` is the case where "keep theirs" is the wrong answer —
+see 3.2b.
+
+### 3.2b — Migrate a settings.json written before the sandbox
+
+Earlier versions of this setup wrote a `settings.json` holding nothing but
+`permissions`: a wide allowlist (`npx`, `node`, `claude`), a deny list without
+the force-push, `--no-verify` and `.env` entries, no `ask` block, and no
+`sandbox` block at all. Conflict detection reads that file as the team's and
+keeps it — so on a project set up before the sandbox landed, **none of the
+protection arrives**, while `dev-setup-core.md` goes on telling every session
+that the sandbox denies reading `.env`. A rule that describes a mechanism the
+project does not have is the exact defect this plugin exists to remove.
+
+So: a settings.json **with** a `sandbox` key is the team's, and conflict
+detection applies. One **without** it is an old artefact, and it gets migrated.
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/migrate-settings.sh \
+  --in .claude/settings.json \
+  --template "${CLAUDE_SKILL_DIR}/templates/settings.json" \
+  --out .claude/settings.json.migrated \
+  --json
+```
+
+The script never writes in place. It reports `MIGRATED`, `REASON`,
+`ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW` and `KEPT_ALLOW`,
+and exits `3` with `REASON: already-sandboxed` when there is nothing to do — in
+which case delete the `.migrated` file and move on.
+
+When it did migrate, show the developer what it changed and ask once:
+
+> "`.claude/settings.json` predates the Bash sandbox. Migrating it adds the
+> sandbox block (filesystem, network and credential isolation), the `ask`
+> checkpoints on `gh pr create` / `glab mr create` and on ClickUp writes,
+> `<ADDED_DENY>` deny rules (force push, protected branches, `--no-verify`,
+> `.env`, lock files), and drops `<RETIRED_ALLOW>` from the allowlist. Your own
+> entries are kept: `<KEPT_ALLOW>`. Apply it? (yes / skip)"
+
+- **yes** → replace `.claude/settings.json` with the migrated file. From here on
+  the sandbox is real, and the rest of Step 3 treats the file as freshly
+  written.
+- **skip** → delete the `.migrated` file, leave theirs, and **say plainly in the
+  summary that the project is running without the sandbox**, listing what is
+  missing. Do not report a protection that was declined.
+
+Never hand-edit the old file into shape instead of running the script: the merge
+has to keep every entry the team added, and that is what it is for.
 
 ### 3.3 — Adapt the allowlist to the detected package manager
 
@@ -161,8 +211,8 @@ conventions.
 
 **Skip if**:
 
-- `.claude/settings.json` already existed at 3.2 and was not overwritten
-  (conflict detection left it intact — post-hoc edits are not yours to make);
+- `.claude/settings.json` was neither written at 3.2 nor migrated at 3.2b — the
+  file is the team's and post-hoc edits are not yours to make;
 - `LANG` does not include `node` (e.g. a pure Python/Go/Terraform project): the
   three entries stay to support the occasional `npx <tool>`.
 
@@ -227,8 +277,8 @@ The template ships a deliberately small `sandbox.network.allowedDomains`.
 Rewrite it from what Steps 2 and 2c detected, so the project pre-allows the
 registries and the forge it actually uses and nothing else.
 
-**Skip if** `.claude/settings.json` already existed at 3.2 and was not
-overwritten.
+**Skip if** `.claude/settings.json` was neither written at 3.2 nor migrated at
+3.2b.
 
 Start from an empty list and add the rows that apply:
 
@@ -273,6 +323,9 @@ entries with `"mode": "mask"`, `sandbox.network.tlsTerminate`, and
 `sandbox.network.strictAllowlist`. Shipping them in the project template would
 produce a config that reads as protection and enforces nothing — so they live in
 `~/.claude/settings.json` instead, and the developer installs them.
+
+Skip this if `.claude/settings.json` was neither written at 3.2 nor migrated at
+3.2b: the deny entries this trades against are not in the project's file.
 
 **You must not write `~/.claude/settings.json` yourself.** It is a protected
 path: print the command and let the developer run it.

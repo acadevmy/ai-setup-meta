@@ -45,6 +45,7 @@
     "detect-stack.sh",
     "sdd-start.sh",
     "check-prerequisites.sh",
+    "migrate-settings.sh",
     "render-template.sh"
   ],
   "hooks": [

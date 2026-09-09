@@ -45,10 +45,28 @@ values changes.
   - `gitlab` → `` > GitLab operations (branch, MR, commit) are performed with the `glab` CLI. MR descriptions follow `.gitlab/merge_request_templates/Default.md` when present. ``
   - `none` / `other` → `` > Git operations via the `git` CLI. No remote provider configured. ``
 
-**For UPDATE mode**: regenerate as for EXISTING or GREENFIELD, depending on the
-project's state.
-
 **Conflict detection**: if `AGENTS.md` already exists, ask before overwriting.
+
+**For UPDATE mode**, offer the narrow change first. A regenerated `AGENTS.md`
+loses everything the team wrote into it — the Project Identity answers, the
+sections they added — so a blanket overwrite is rarely what they want. But an
+`AGENTS.md` from an earlier version carries a `## Workflows` table listing
+`/dev-setup:sdd-spec`, `/dev-setup:sdd-plan` and `/dev-setup:sdd-dev`, which are
+no longer commands: the plugin invokes those skills itself. A table that names
+commands the plugin does not expose is worse than no table.
+
+So, when `AGENTS.md` exists:
+
+1. Compare its `## Workflows` table against the template's. If they match,
+   there is nothing to do — leave the file alone.
+2. If they differ, offer to replace **that table only**, quoting the rows that
+   would go and the rows that would arrive, and leave every other line of the
+   file untouched.
+3. Offer the full regeneration as the second option, and say what it costs: the
+   hand-written sections do not survive it.
+
+Take the same approach to the `| Agent | Role |` table above it, when the set of
+distributed agents has changed.
 
 Write the result to `AGENTS.md` in the project root.
 
