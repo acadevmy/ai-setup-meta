@@ -8,25 +8,66 @@ deals with it day to day.
 > GitHub **or** GitLab projects — see [developer-guide.md](./developer-guide.md) for that
 > side. The `gh` commands below only concern releasing the plugin.
 
+## Branching
+
+Two long-lived branches, and they have different jobs.
+
+| Branch | Job |
+|---|---|
+| `next` | **The base branch.** Every feature and fix PR targets it |
+| `main` | **The release branch.** release-please watches it and nothing else |
+
+So a change lands on `next`, and `next` reaches `main` when the maintainer wants
+a release cut. Opening a PR against `main` is the mistake to watch for: it
+bypasses the accumulation `next` exists to provide, and it triggers a release
+computation on a change nobody has decided to release.
+
+**Stacked PRs.** When a chain of PRs depends on the one before it, the next
+branch starts from **the previous PR's branch**, not from `next` — otherwise it
+carries none of the work it builds on and the diff is unreadable. Retarget it
+onto `next` once the parent merges. Always branch from the most up-to-date thing
+available:
+
+```bash
+# The parent PR is merged into next
+git checkout next && git pull && git checkout -b feat/DE-124-second-step
+
+# The parent PR is still open
+git checkout feat/DE-123-first-step && git checkout -b feat/DE-124-second-step
+# …and retarget onto next after the parent merges:
+gh pr edit <number> --base next
+```
+
+Branch names carry the ClickUp customId: `feat/DE-123-add-user-auth`,
+`fix/DE-456-broken-contract`, `chore/sync-constitution-v2` for work with no
+ticket.
+
 ## The typical life of a change
 
 ```
-A contributor (human or agent) opens a branch on feat/<scope>
+A contributor (human or agent) opens a branch off next (or off the
+parent PR's branch, when the chain is stacked)
          │
          ▼
   Edits the sources under templates/, shared/, scripts/
   following the project rules in .claude/rules/ and AGENTS.md
          │
          ▼
-  /project:validate  — static checks on skill quality
+  bash scripts/build-plugin.sh dev-setup   — if templates/ or shared/ changed
+         │
+         ▼
+  /project:validate  — static checks on skill, workflow and doc quality
          │
          ▼
   Conventional commit subject (feat:/fix:/feat!:/docs:/…) +
-  push the branch + open a PR
-  - build-verify.yml checks that dist/ is in sync
+  push the branch + open a PR against next
+  - ci.yml runs four jobs, build-verify.yml checks that dist/ is in sync
          │
          ▼
-  Review + squash-merge into main (build-verify green)
+  Review + squash-merge into next (all five jobs green)
+         │
+         ▼
+  next → main, when a release is wanted
          │
          ▼
   release-please.yml runs automatically on push to main:
@@ -53,7 +94,49 @@ A contributor (human or agent) opens a branch on feat/<scope>
   - rebuilds dist/ and commits it ("chore(dist): rebuild after release …")
 ```
 
-> **A note on the helper skills**: the `/project:*` skills are **optional** meta-repo tools (they live in `.claude/skills/`). They are not part of CI. They exist so a contributor can make guided changes (for example updating a rule template while keeping the root and the template coherent). A contributor can equally well edit the files by hand — the release flow depends only on the conventional commits, not on how the changes were produced. See [`AGENTS.md → Available skills`](../AGENTS.md#available-skills) for the full list and what each one does.
+### The maintainer's commands
+
+These live in the meta-repo, not in the plugin. They are optional: a contributor
+can equally well edit the files and run the scripts by hand, because the release
+flow depends only on the conventional commits, not on how the changes were
+produced.
+
+| Command | What it does |
+|---|---|
+| `/project:validate` | The static checks on skill, workflow and documentation quality — the same script CI runs |
+| `/project:build-plugin` | Builds `dist/` from a template's `manifest.json` |
+| `/project:auto-maintain` | One unsupervised maintenance cycle: picks the top ClickUp task, applies it, opens a PR |
+
+See [`AGENTS.md → Available skills`](../AGENTS.md#available-skills) for what each
+one does in detail.
+
+## What CI checks
+
+Five jobs, on every PR to `main` or `next` and on every push to those branches.
+Nothing lands with one of them red.
+
+| Job | Workflow | Checks |
+|---|---|---|
+| `plugin-validate` | `ci.yml` | `claude plugin validate --strict` on the built plugin and on the marketplace catalogue |
+| `shellcheck` | `ci.yml` | Every `*.sh` under `scripts/`, `templates/`, `dist/`, at `--severity=warning` |
+| `static-checks` | `ci.yml` | Manifest references, plus the static checks in `scripts/validate-plugin.sh` |
+| `bash-tests` | `ci.yml` | `scripts/test-plugin-scripts.sh`: the plugin scripts and hooks against their fixtures |
+| `verify` | `build-verify.yml` | `dist/` is in sync with `templates/`, `shared/` and the build scripts |
+
+**The documentation is one of the things `static-checks` checks.** Every command,
+script, path and rule name cited in `README.md`, `AGENTS.md` and `docs/*.md` has
+to exist in the repo, and every public command has to be documented in the
+developer guide. Docs cannot go stale in silence: renaming a script without
+touching the page that names it turns the job red. The one exception is
+[migration-v2-to-v3.md](./migration-v2-to-v3.md), whose subject is precisely the
+things that no longer exist.
+
+**The baseline.** `scripts/validate-baseline.txt` lists findings that are
+reported without failing CI. It has been empty since DE-16478 and the rule is
+that it stays that way: a new finding gets fixed, not baselined, and whoever
+fixes a baselined defect removes its line in the same PR (`--fail-on-stale`
+turns the job red on an orphaned entry). The repo's real state, baseline
+ignored: `bash scripts/validate-plugin.sh --strict`.
 
 ## How the release works
 
@@ -81,11 +164,15 @@ The `extra-files` configured for the version bump:
 
 Every generated file carrying the version has to be on this list: a release PR that bumps only some of them is born out of sync with a rebuild, and the `dist/` drift check goes red on the release PR itself.
 
-Claude Code is the only build target (DE-16489): the `.cursor-plugin/` manifest and catalogue no longer exist.
+Claude Code is the only build target (DE-16489): the manifest and catalogue for the
+other runtimes no longer exist.
 
 ### Build verification (PR check)
 
-`build-verify.yml` runs on every PR that touches `templates/`, `shared/`, `scripts/builders/`, the marketplace files, or `dist/`:
+`build-verify.yml` runs on every PR to `main` or `next` and on every push to
+them — no path filter, because the previous one let through direct pushes and
+changes outside its list, which are exactly the cases where `dist/` drift
+reached a branch without turning the job red:
 
 - Runs `bash scripts/build-plugin.sh <template>`
 - Fails if `git diff` finds any difference against the committed `dist/`
@@ -106,18 +193,34 @@ Alternatively you can write `release-please-action`-style annotations (see the [
 
 ## Common operations
 
-### Adding a rule to the Constitution
+### Adding or changing a rule
 ```bash
-git checkout -b feat/constitution-new-rule
-# Edit templates/dev-setup/rules/<rule>.md, then:
+git checkout -b feat/DE-123-new-rule next
+# Edit the template under templates/dev-setup/rules/, then:
 bash scripts/build-plugin.sh dev-setup
 ```
 
+Two invariants the static checks enforce: `core.md` stays the only template
+without `paths:` frontmatter, and it stays under 150 lines. A rule a machine can
+check does not belong here at all — it belongs in ESLint, the test runner or
+branch protection. Projects pick a rule change up on the setup's UPDATE run.
+
 ### Updating a library's versions
 ```bash
-git checkout -b chore/update-web-stack
+git checkout -b chore/update-web-stack next
 # Edit the profile under templates/dev-setup/profiles/, then:
 bash scripts/build-plugin.sh dev-setup
+```
+
+### Changing the documentation
+
+The pages under `docs/` and the two root files are checked in CI: a command,
+script, path or rule name they cite has to exist, and a public command has to be
+cited by the developer guide. So renaming a script means touching the page that
+names it, in the same PR.
+
+```bash
+bash scripts/validate-plugin.sh --strict     # the docs checks run with the rest
 ```
 
 ### Rebuilding the plugin after a source change
@@ -130,19 +233,21 @@ bash scripts/build-plugin.sh dev-setup
 
 Nothing explicit is required:
 
-1. Merge your feature/fix PRs with conventional commits (`feat:`, `fix:`, …). release-please opens or updates a release PR automatically on every push to `main`.
-2. When you want to publish, merge the release PR. release-please creates the tag and the GitHub Release on its own.
+1. Merge your feature/fix PRs into `next` with conventional commits (`feat:`, `fix:`, …).
+2. Merge `next` into `main` when you want a release computed. release-please opens or updates a release PR automatically on every push to `main`.
+3. When you want to publish, merge the release PR. release-please creates the tag and the GitHub Release on its own.
 
 To force a specific version (an override): add `Release-As: X.Y.Z` to a commit footer.
 
 ## Rules for the maintainer
 
-1. **Never work on `main` directly** — always a branch and a PR
-2. **Read every PR Claude opens** before approving it — the responsibility stays human
-3. **Do not approve PRs that touch `templates/*/rules/`** without a careful review
-4. **Update `AGENTS.md`** whenever the team's tools, profiles or processes change
-5. **Test `/dev-setup:setup`** on a clean project before every minor/major release
-6. **Never edit the template repo directly** — always go through the meta-repo
+1. **Never work on `main` or `next` directly** — always a branch and a PR
+2. **Feature PRs target `next`**, never `main`; `main` is where releases are computed
+3. **Read every PR Claude opens** before approving it — the responsibility stays human
+4. **Do not approve PRs that touch `templates/*/rules/`** without a careful review
+5. **Update `AGENTS.md`** whenever the team's tools, profiles or processes change
+6. **Test `/dev-setup:setup`** on a clean project before every minor/major release
+7. **Never edit a generated file under `dist/`** — edit the source and rebuild
 
 ## Handling Claude Code mistakes
 

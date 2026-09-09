@@ -8,7 +8,7 @@ name: Release Please
 #   - release-please-config.json (root): release type, extra-files, changelog path
 #   - .release-please-manifest.json (root): the current version (source of truth)
 #
-# Convenzione commit: vedi AGENTS.md → "Tipi e impatto sulla release"
+# Commit convention: see AGENTS.md → "Types and their effect on the release"
 
 on:
   push:
