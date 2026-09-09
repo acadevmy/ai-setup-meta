@@ -100,13 +100,17 @@ automatically when needed — no need to invoke them manually.
 |---|---|
 | `/dev-setup:setup` | Re-run the setup: refresh the generated rules and files from the current plugin |
 | `/dev-setup:sdd [TASK_ID]` | Interactive Spec-Driven Development: generates a technical spec, discusses it at each checkpoint, then develops |
-| `/dev-setup:auto-sdd [TASK_ID]` | Autonomous Spec-Driven Development: runs the full SDD flow end-to-end to the MR/PR with no human checkpoints |
+| `/dev-setup:auto-sdd [TASK_ID]` | Autonomous Spec-Driven Development: a background workflow takes the task to a review-ready MR/PR — it stops on its own when the spec does not survive review |
 | `/dev-setup:review` | Code review of the current branch; updates `REGISTRY.md` |
 
 > `/dev-setup:sdd` drives the flow interactively, with supervision at each
-> checkpoint; `/dev-setup:auto-sdd` runs the same flow unsupervised. The steps of
-> the flow — discovery, spec, approval, development, verify — are skills the
-> orchestrator invokes, not commands: there is nothing to type for them.
+> checkpoint — its steps (discovery, spec, approval, development, verify) are
+> skills the orchestrator invokes, not commands: there is nothing to type for
+> them. `/dev-setup:auto-sdd` runs unsupervised instead, as a workflow: the spec
+> is written, then attacked by three reviewers with one objection each, and two
+> objections stop the run and hand it back to you. Development happens in its
+> own git worktree, so your checkout never moves, and the MR still waits for
+> your confirmation.
 
 ## Where the rules live
 

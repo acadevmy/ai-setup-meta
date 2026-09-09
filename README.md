@@ -133,10 +133,12 @@ ai-setup-meta/
 │       ├── .claude/
 │       │   ├── settings.json           # Permissions + sandbox + hooks (source)
 │       │   ├── settings.user.json      # User-scope snippet: credential masking
-│       │   ├── hooks/                  # post-edit, on-compact
-│       │   ├── agents/                 # 4 domain-specific agents
+│       │   ├── hooks/                  # gate-commit, post-edit, on-compact
+│       │   ├── scripts/                # The deterministic steps (bash + jq, --json)
+│       │   ├── agents/                 # review — the one domain agent left
 │       │   ├── reference/              # Contracts shared by several skills
-│       │   └── skills/                 # 10 workflow skills (SKILL.md + reference/)
+│       │   ├── skills/                 # 8 workflow skills (SKILL.md + reference/)
+│       │   └── workflows/              # auto-sdd.js — the autonomous run, as code
 │       └── profiles/
 │           ├── web-frontend.md
 │           ├── backend-node.md
@@ -146,15 +148,17 @@ ai-setup-meta/
 ├── dist/                        # Built plugins (generated, committed)
 │   └── dev-setup/               # Claude Code plugin
 │       ├── .claude-plugin/      # Plugin manifest
-│       ├── skills/              # 14 skills (10 from the template + 3 shared + setup)
-│       ├── agents/              # 5 agents (4 from the template + the shared clickup)
+│       ├── skills/              # 11 skills (8 from the template + 2 shared + setup)
+│       ├── agents/              # 2 agents (review + the shared clickup)
+│       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
+│       ├── workflows/           # dev-setup:auto-sdd
 │       └── hooks/               # hooks.json + hooks/scripts/
 ├── scripts/
 │   ├── build-plugin.sh          # Orchestrator: reads the manifest, calls the builder
 │   ├── builders/
 │   │   ├── common.sh            # Shared helpers (ok, warn, fail, step)
 │   │   └── build-claude.sh      # Claude Code builder (the only target)
-│   ├── validate-plugin.sh       # 12 static checks on skill quality
+│   ├── validate-plugin.sh       # 13 static checks on skill and workflow quality
 │   ├── validate-baseline.txt    # Known failures, reported but non-blocking in CI
 │   └── validate-setup-urls.sh   # Link check for the URLs the setup skill cites
 └── docs/
@@ -207,7 +211,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 |---|---|
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
 | `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → approval → dev → simplify → verify → review → PR |
-| `/dev-setup:auto-sdd` | The same flow end to end with no human checkpoints |
+| `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd.js`) writes the spec, has three adversarial reviewers attack it, develops in an isolated worktree and runs the project real quality commands. It returns `needs-human`, `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
 | `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
 
 ### The skills behind them
@@ -223,7 +227,6 @@ readable.
 | `sdd-plan` | Presents the spec and iterates until it is approved |
 | `sdd-dev` | Development against the approved plan, in TDD, BDD or direct mode |
 | `verify` | Checks the diff against the spec: requirements, tests, impact, decisions |
-| `tdd` / `bdd` | The Red-Green-Refactor and Given/When/Then cycles, on their own |
 | `clickup` | The board's conventions: statuses, prerequisites, operations |
 | `vcs-ops` | Branches, commits, PRs/MRs, releases. Reads `git remote` and loads the GitHub (`gh`) or GitLab (`glab`) reference on demand |
 
@@ -231,6 +234,28 @@ Each `SKILL.md` is a routing document under 500 words; the detail sits in
 `reference/*.md` next to it and is read on demand. The contracts more than one
 skill needs — how to call the ClickUp agent, how to behave at an interactive
 step — live once in `dist/dev-setup/reference/`.
+
+The Red-Green-Refactor and Given/When/Then cycles are not skills of their own:
+they are `sdd-dev/reference/methodologies.md`, read by whoever writes the code —
+the `sdd-dev` skill in the interactive flow, the dev agent in the workflow.
+
+### The workflow
+
+`dist/dev-setup/workflows/auto-sdd.js` is the one piece of the plugin the model
+does not read: the harness executes it, so its control flow stays out of the
+context window and its bounds are bounds. The plugin loads every `*.js` in that
+directory and registers it as `dev-setup:<meta.name>`, which is the name the
+`auto-sdd` skill calls.
+
+| Phase | What runs |
+|---|---|
+| Spec | one agent, read-only, drafts the spec from the task and the codebase |
+| Challenge | three verifiers in parallel — simpler design / scope / testability — each told to refute; two objections stop the run |
+| Dev | one agent with `isolation: 'worktree'`: the developer checkout never moves |
+| Verify | `LINT_CMD`, `TYPECHECK_CMD` and `TEST_CMD` from `detect-stack.sh`, so the same workflow verifies Next, NestJS, Flutter or Terraform |
+
+It pushes nothing, opens nothing and never writes to the board: the launcher
+does that in the session, where the `ask` rules put a person in front of it.
 
 ### Agents
 

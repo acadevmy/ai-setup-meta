@@ -297,7 +297,7 @@ Project configuration:
 
 Available commands (provided by the plugin):
   - /dev-setup:sdd         — interactive SDD (spec → approval → development, with checkpoints)
-  - /dev-setup:auto-sdd    — autonomous end-to-end SDD (up to the PR, no human input)
+  - /dev-setup:auto-sdd    — autonomous SDD in a workflow (spec challenged, worktree, PR behind a confirmation)
   - /dev-setup:review      — code review against the project rules
 
 Detected VCS: <github|gitlab|none|other>
