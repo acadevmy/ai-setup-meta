@@ -16,9 +16,9 @@ Task on ClickUp (SPRINT)
        │
        ▼
 /dev-setup:sdd DE-123          ← interactive flow (recommended)
-  → creates the branch feat/DE-123-description
+  → creates the branch feat/DE-123-description (sdd-start.sh resolves the base)
   → moves the task to IN PROGRESS
-  → discovery + technical spec + approval
+  → discovery + technical spec + your approval  ← the one checkpoint
        │
        ▼
 Development driven by the spec
@@ -26,16 +26,12 @@ Development driven by the spec
   → frontend: BDD cycle (Given/When/Then)
        │
        ▼
-Commits following Conventional Commits
-  feat(auth): add login endpoint [DE-123]
+Closure, in this order
+  → simplify, verify against the spec, review + REGISTRY
+  → one commit: code + spec + REGISTRY, with the gate running here
        │
        ▼
-/dev-setup:review
-  → checks the project rules
-  → updates REGISTRY.md
-       │
-       ▼
-Push + Pull Request
+Push + Pull Request  ← the confirmation prompt is the checkpoint
        │
        ▼
 The sdd flow moves the task to IN REVIEW and posts the PR link
@@ -44,10 +40,23 @@ The sdd flow moves the task to IN REVIEW and posts the PR link
 Merge → semantic-release (greenfield projects)
 ```
 
+> **A fix or a chore does not need any of that.** At most three files, and no new
+> component, dependency or public interface → `/dev-setup:quick DE-123` (a plain
+> description works too, with no ticket): branch, change, commit behind the gate,
+> PR. Zero discovery, zero spec. Anything larger goes through `sdd`, whose spec is
+> what a reviewer reads the diff against. Claude may say a task looks misrouted;
+> the choice is yours, and the command you type is the choice.
+
 > Alternatively, `/dev-setup:auto-sdd DE-123` runs the whole thing as a background
 > workflow — spec, three adversarial reviews of it, development in its own
 > worktree, the real test suite — and comes back with the PR ready for your
 > confirmation, or with the objections that stopped it.
+
+> **Two tasks at once?** One worktree each: `claude --worktree DE-123` in one
+> terminal, `claude --worktree DE-124` in another. The setup installs
+> `.worktreeinclude` so `.env` follows you in, and
+> `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-info.sh` gives each worktree a
+> different dev-server port and warns when two of them declare the same file.
 
 ---
 
@@ -125,7 +134,9 @@ plan step at a time:
 2. **GREEN** — the minimum code that makes it pass
 3. **REFACTOR** — improve it while the tests stay green
 
-and it stops for your confirmation between steps.
+It runs the plan through without stopping: the plan was approved as a whole, and
+a per-step confirmation was a second approval wearing a different hat. A step
+that cannot be carried out as written does stop, and says why.
 
 **BDD, on a frontend component.** The same loop, one level up:
 
@@ -150,6 +161,11 @@ test(auth): add integration tests for login flow [DE-123]
 refactor(auth): extract token service from controller [DE-123]
 ```
 
+Inside the `sdd` flow you get one commit per task, made at the end, after
+simplify, verify and review — the three bookkeeping commits the flow used to add
+(`refactor: simplify`, `docs(registry)`, `docs(spec)`) are gone. Committing more
+often while you work is fine; nothing requires it.
+
 The git hooks (configured by the setup skill) validate automatically:
 - **commitlint** — the commit message format
 - **prettier** — code formatting
@@ -169,6 +185,11 @@ Claude Code:
 1. Checks compliance with the **project rules** in `.claude/rules/`
 2. Reviews code quality (duplication, complexity, security)
 3. Updates **REGISTRY.md** with the new components/services/patterns
+
+Inside `/dev-setup:sdd` this runs before the commit, together with `simplify` and
+the spec check, so one commit carries the code and everything the gates produced.
+Invoked on its own it changes `REGISTRY.md` in your working tree and commits
+nothing — you decide which commit takes it.
 
 ### 3.5 Push and open the MR/PR
 
@@ -248,7 +269,8 @@ wrote it or Claude Code did.
 
 | Command | When to use it |
 |---|---|
-| `/dev-setup:sdd [ID]` | Interactive SDD flow on a ClickUp task (spec → approval → development) |
+| `/dev-setup:quick [ID \| description]` | A fix or chore: ≤3 files, no new component, dependency or public interface. Branch → change → commit → PR, no spec |
+| `/dev-setup:sdd [ID] [--worktree]` | Interactive SDD flow on a ClickUp task (spec → your approval → development). Anything above the `quick` bar |
 | `/dev-setup:auto-sdd [ID]` | Autonomous SDD as a workflow: spec, three challenges, worktree, real tests — PR behind your confirmation |
 | `/dev-setup:review` | Code review before opening the PR |
 

@@ -1,0 +1,25 @@
+# Files carried into every worktree Claude Code creates.
+#
+# .gitignore syntax. Only a file that matches a pattern here *and* is gitignored
+# gets copied — tracked files are never duplicated, so listing one does nothing.
+# A worktree is a clean checkout: without this file the app boots without its
+# environment and fails for a reason that looks like a code problem.
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+
+# Monorepo: the same files inside each package
+**/.env
+**/.env.local
+
+# Add the project's own untracked-but-needed files below. Some stacks need more:
+#   Flutter   android/local.properties, ios/Flutter/Generated.xcconfig
+#   Next.js   .env.production.local
+#   Terraform *.tfvars, .terraform/terraform.tfstate
+# A pattern that has to reach inside a wholly ignored directory must name that
+# directory (`vendor/**/config.json`), because a leading `**/` does not descend
+# into one.

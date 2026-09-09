@@ -137,7 +137,7 @@ ai-setup-meta/
 │       │   ├── scripts/                # The deterministic steps (bash + jq, --json)
 │       │   ├── agents/                 # review — the one domain agent left
 │       │   ├── reference/              # Contracts shared by several skills
-│       │   ├── skills/                 # 8 workflow skills (SKILL.md + reference/)
+│       │   ├── skills/                 # 9 workflow skills (SKILL.md + reference/)
 │       │   └── workflows/              # auto-sdd.js — the autonomous run, as code
 │       └── profiles/
 │           ├── web-frontend.md
@@ -148,7 +148,7 @@ ai-setup-meta/
 ├── dist/                        # Built plugins (generated, committed)
 │   └── dev-setup/               # Claude Code plugin
 │       ├── .claude-plugin/      # Plugin manifest
-│       ├── skills/              # 11 skills (8 from the template + 2 shared + setup)
+│       ├── skills/              # 12 skills (9 from the template + 2 shared + setup)
 │       ├── agents/              # 2 agents (review + the shared clickup)
 │       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
 │       ├── workflows/           # dev-setup:auto-sdd
@@ -195,13 +195,15 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 
 ## Skills the dev-setup plugin distributes
 
-### The four commands
+### The five commands
 
 ```
 /dev-setup:setup      ← one-off, project bootstrap
        │
+       ├── /dev-setup:quick   ← fix or chore: branch, change, commit, PR
+       │
        ▼
-/dev-setup:sdd        ← the whole flow, with a checkpoint at each decision
+/dev-setup:sdd        ← the whole flow, with one approval checkpoint
        │                (or /dev-setup:auto-sdd for the same flow unsupervised)
        ▼
 /dev-setup:review     ← code review against the project rules
@@ -210,9 +212,16 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | Command | Description |
 |---|---|
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
-| `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → approval → dev → simplify → verify → review → PR |
+| `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
+| `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify → review → one commit → PR |
 | `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd.js`) writes the spec, has three adversarial reviewers attack it, develops in an isolated worktree and runs the project real quality commands. It returns `needs-human`, `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
 | `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
+
+**Which of the two dev flows.** At most three files, and no new component,
+dependency or public interface → `quick`. Everything else → `sdd`, whose spec is
+what a reviewer reads the diff against. The agent may say a task looks
+misrouted; the route is the developer's, and the command they type is the
+choice.
 
 ### The skills behind them
 
@@ -225,7 +234,7 @@ readable.
 | `sdd-discovery` | The structured interview that gathers the requirements |
 | `sdd-spec` | Writes the technical spec into `.specs/` |
 | `sdd-plan` | Presents the spec and iterates until it is approved |
-| `sdd-dev` | Development against the approved plan, in TDD, BDD or direct mode |
+| `sdd-dev` | Development against the approved plan; the layer decides the cycle |
 | `verify` | Checks the diff against the spec: requirements, tests, impact, decisions |
 | `clickup` | The board's conventions: statuses, prerequisites, operations |
 | `vcs-ops` | Branches, commits, PRs/MRs, releases. Reads `git remote` and loads the GitHub (`gh`) or GitLab (`glab`) reference on demand |
@@ -237,7 +246,26 @@ step — live once in `dist/dev-setup/reference/`.
 
 The Red-Green-Refactor and Given/When/Then cycles are not skills of their own:
 they are `sdd-dev/reference/methodologies.md`, read by whoever writes the code —
-the `sdd-dev` skill in the interactive flow, the dev agent in the workflow.
+the `sdd-dev` skill in the interactive flow, the dev agent in the workflow. Which
+of the two applies is not a question either: the layer decides it and the
+`tests.md` rule states it, which is why the flow no longer asks.
+
+### Parallel work: the worktree conventions
+
+One task per worktree, `n` tasks per `n` invocations — there is no interactive
+multi-task orchestrator. `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` is the
+convention, and four pieces make it work:
+
+| Piece | What it solves |
+|---|---|
+| `.worktreeinclude` (installed by the setup) | a worktree is a clean checkout, so `.env` is absent and the app fails for a reason that looks like a code bug |
+| `worktree.baseRef` (Step 7c) | it takes only `fresh` or `head` — never a branch name — so on a project targeting `next` the setup writes `head` and `sdd-start.sh --base` passes the fork point explicitly |
+| `worktree-info.sh` → `PORT_OFFSET` | every worktree runs the same `dev` script; the offset is the worktree's index in `git worktree list` |
+| `worktree-info.sh` → `OVERLAPS` | the files two active worktrees both declare in their spec's `## Impact` — a warning, never a gate |
+
+Dependencies are installed as a step of the flow, not by a hook: a
+`WorktreeCreate` hook replaces worktree creation wholesale and would disable
+`.worktreeinclude`, which is the one thing that has to keep working.
 
 ### The workflow
 

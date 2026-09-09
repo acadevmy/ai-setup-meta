@@ -1,8 +1,8 @@
 # Turn discipline at an interactive step
 
 Several skills in this plugin stop and wait for the developer: task selection,
-the discovery interview, spec approval, the methodology choice, the final OK.
-This is the rule for those moments, written once.
+the discovery interview, spec approval, a warning that needs confirming. This is
+the rule for those moments, written once.
 
 **After you ask, your message ends.** Produce zero further tokens. The tool call
 that asks the question — `AskUserQuestion`, or the question itself in plain text

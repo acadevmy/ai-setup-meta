@@ -40,11 +40,12 @@ Run the steps **in this order**, reading only the reference each one names.
 | 2 | Stack detection (`detect-stack.sh --json`) | EXISTING, UPDATE | `existing.md` |
 | 2b | Stack selection — ask the developer | GREENFIELD | `greenfield.md` |
 | 2c | VCS detection — which host `origin` belongs to | all | `install.md` |
-| 3 | Install the plugin's resources (3.1–3.6) | all | `install.md` |
+| 3 | Install the plugin's resources (3.1–3.7) | all | `install.md` |
 | 4 | Render the path-scoped rules | all | `rules-generation.md` |
 | 5, 5b | Generate AGENTS.md and CLAUDE.md | all | `agents-generation.md` |
 | 6, 7 | MCP servers and `.env.example` | all | `mcp-env.md` |
 | 7b | Branch protection on the reference branch | github, gitlab | `mcp-env.md` |
+| 7c | `worktree.baseRef`, from the reference branch | all | `mcp-env.md` |
 | 8 | Scaffold the project | GREENFIELD | `greenfield.md` |
 | 9 | Summary — collects the one-line reports of the steps above | all | the mode's |
 
