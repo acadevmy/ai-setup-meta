@@ -1,10 +1,9 @@
 ---
 name: verify
 description: Checks the branch's diff against the approved spec — every requirement covered, every planned test present, the Impact list respected, the technical decisions followed. Use when development is finished and spec conformance has to be established before review.
-effort: high
+effort: medium
 user-invocable: false
 disable-model-invocation: false
-allowed-tools: AskUserQuestion
 ---
 
 # SDD verify
@@ -16,10 +15,15 @@ conformance**, and the two are not substitutes.
 **Input**: optionally a spec path. Without one, the spec is resolved from the
 current branch (`feat/DE-123-slug` → `.specs/DE-123-*.md`).
 
+The comparison itself runs in the `spec-verifier` agent, the same shape `review`
+uses: the diff is unbounded and belongs in an isolated context, while this skill
+handles the resolution before it and the reporting after it.
+
 ## Before you start
 
 - **`reference/checks.md`** — the three checks (completeness, correctness,
-  coherence), the result block, and how the status is classified.
+  coherence), the result block, and how the status is classified. The agent
+  works from this file; read it to interpret what comes back.
 
 ## Procedure
 
@@ -35,30 +39,26 @@ It returns `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `BASE_BRANCH`,
 `MERGE_BASE`, `TASK_ID`, `AVAILABLE_DOCS`. With a path in `$ARGUMENTS`, use that
 file instead of the `SPEC` key (`--task <customId>` looks a different task up).
 
-If `SPEC` is empty, say so and stop. If `SPEC_STATUS` is `draft`, warn that the
-spec was never approved and ask whether to proceed anyway.
+If `SPEC` is empty, say so and stop. If `CHANGED_FILES` is empty, say so and
+stop. If `SPEC_STATUS` is `draft`, warn that the spec was never approved and ask
+whether to proceed anyway.
 
-### 2. Load the diff
+### 2. Launch the verification agent
 
-`MERGE_BASE` is the commit the branch forked from, so the diff holds this
-branch's own work and nothing else:
+Launch the `spec-verifier` agent with:
 
-```bash
-git diff <MERGE_BASE> --stat
-git diff <MERGE_BASE>
-```
+- `SPEC`: the spec path from step 1
+- `MERGE_BASE`: the `MERGE_BASE` from step 1 — the fork point, never a
+  hard-coded `main`
+- `CHECKS_PATH`: `${CLAUDE_PLUGIN_ROOT}/skills/verify/reference/checks.md`
+- `TASK_ID`: the `TASK_ID` from step 1, if there is one
 
-Never diff against a hard-coded `main`: on a project whose work targets `next`
-or `develop`, that reports the whole delta between the long-lived branches as
-part of the branch, and every file in it comes back as "Unexpected".
+**Do not run `git diff` here.** The agent reads it; pulling it into this context
+too pays for it twice and is what this split exists to avoid.
 
-If `CHANGED_FILES` is empty, say so and stop.
+### 3. Read the result
 
-### 3. Run the three checks
-
-Follow `reference/checks.md` and produce the `---VERIFY-RESULT---` block.
-
-### 4. Report
+Parse the `---VERIFY-RESULT---` block the agent returns.
 
 - **fail** — show the block, list exactly what is missing or divergent, suggest
   the concrete next step ("implement REQ-3", "add a test for the expired token
@@ -66,6 +66,8 @@ Follow `reference/checks.md` and produce the `---VERIFY-RESULT---` block.
 - **pass-with-warnings** — show the block, highlight the warnings, and ask
   whether they are intentional scope reductions. Proceed on a confirmation.
 - **pass** — show the block and confirm the implementation matches the spec.
+- **error** — the agent could not run the check (a spec or a ref it could not
+  resolve). Report what it says and stop: an error is not a pass.
 
 ## Expected output
 

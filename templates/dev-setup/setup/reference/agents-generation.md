@@ -7,7 +7,7 @@ skill, never written from scratch.
 ## Index
 
 - [5A — Single project](#5a--single-project)
-- [Project Identity (interactive)](#project-identity-interactive)
+- [Project Identity (derive, then confirm)](#project-identity-derive-then-confirm)
 - [Infrastructure (auto-detect + TODO)](#infrastructure-auto-detect--todo)
 - [GREENFIELD placeholder values](#greenfield-placeholder-values)
 - [Framework-specific block — Next.js](#framework-specific-block--nextjs)
@@ -70,22 +70,58 @@ distributed agents has changed.
 
 Write the result to `AGENTS.md` in the project root.
 
-## Project Identity (interactive)
+## Project Identity (derive, then confirm)
 
-EXISTING and GREENFIELD alike. Ask ONE batched question with three sub-fields
-and collect the answers. Leave `TODO — <hint>` for empty fields — do not invent
-values.
+EXISTING and GREENFIELD alike. Two of the three fields are already written down
+somewhere in the repository — asking for them blind spends a question on
+something the working tree answers. **Derive first, ask once, and only about
+what is left.**
 
-> "To fill in the `Project Identity` section of AGENTS.md I need three short
-> pieces of information (press Enter to skip a field and I will leave it as a
-> TODO):
-> - **Name**: the project's short name (e.g. 'Acme Web App')
-> - **Purpose**: one sentence on what the project does
+### Derive
+
+- `{{PROJECT_NAME}}` — first hit wins:
+  1. the `name` field of `package.json` (root, or the workspace root of a
+     monorepo), de-slugified: `orientamento-web` → `Orientamento Web`;
+  2. the `name` of `pyproject.toml`, `pubspec.yaml`, `Cargo.toml` or the module
+     path's last segment in `go.mod`;
+  3. the first H1 of `README.md`;
+  4. the repository name from `origin` in `.git/config`.
+- `{{PROJECT_PURPOSE}}` — first hit wins:
+  1. the `description` field of the same manifest, when it is a sentence and not
+     a placeholder (`""`, `TODO`, the scaffolder's default such as
+     `"A new Flutter project."` or `"Get started with Create React App"`);
+  2. the first paragraph of `README.md` under the H1, trimmed to one sentence
+     and only when it describes the product rather than how to install it.
+- `{{PROJECT_PRIMARY_USERS}}` — **not derivable.** Nothing in a repository
+  reliably says who uses the thing. This one is always asked.
+
+A GREENFIELD project has no manifest and no README yet: nothing derives, and all
+three fields are asked.
+
+### Ask
+
+One batched question. Show what was derived and where it came from, so the
+developer confirms or corrects instead of retyping:
+
+> "I filled the `Project Identity` section of AGENTS.md from the repository:
+> - **Name**: `Orientamento Web` — from `package.json`
+> - **Purpose**: `Orientation platform for secondary school students` — from `README.md`
+>
+> Correct them if they are wrong, and tell me the one thing I cannot read
+> anywhere:
 > - **Primary users**: who uses it (e.g. 'consumer travelers', 'internal ops')"
 
-- `{{PROJECT_NAME}}` → the answer, or `TODO — short app name`
-- `{{PROJECT_PURPOSE}}` → the answer, or `TODO — one-sentence purpose`
-- `{{PROJECT_PRIMARY_USERS}}` → the answer, or `TODO — who uses this app`
+- a confirmed value stands; a corrected value replaces it;
+- a field that derived nothing is asked outright, with its hint —
+  `Name`: the project's short name (e.g. 'Acme Web App') ·
+  `Purpose`: one sentence on what the project does;
+- a field left empty becomes `TODO — <hint>`: `TODO — short app name`,
+  `TODO — one-sentence purpose`, `TODO — who uses this app`. **Never invent a
+  value**, and never promote a scaffolder's default to a purpose.
+
+In UPDATE mode the existing `AGENTS.md` already carries these three answers.
+Read them and keep them: they are the team's words, and a derivation is not an
+improvement on them.
 
 ## Infrastructure (auto-detect + TODO)
 

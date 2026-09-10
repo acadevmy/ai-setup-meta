@@ -368,6 +368,38 @@ A spec is a requirements document. How the run went is in git and in the merge
 request, and a section of the spec recording which gate ran on which day was
 read by nobody.
 
+### What the main thread is not allowed to carry
+
+Two rules, both paid for in the benchmark of 10 September 2026 (`:sdd` on
+DE-16505, next vs v2.3.1) and both about the same resource: the context the
+interactive flow drags from one phase to the next.
+
+**An unbounded artefact is read by an agent, never by the flow.** `review`
+already had this shape; `verify` did not — it ran `git diff <MERGE_BASE>` in the
+main thread, which is fine on a 324-line branch and is not fine on a branch ten
+times that. The `spec-verifier` agent now reads the diff and returns only the
+`---VERIFY-RESULT---` block, exactly as `code-reviewer` returns only
+`---REVIEW-RESULT---`. The test for a new phase is: *can the thing it reads grow
+without bound?* If yes, it goes in an agent.
+
+**No flow skill declares `allowed-tools`.** `sdd`, `sdd-discovery`, `sdd-plan`,
+`quick` and `verify` all declared `allowed-tools: AskUserQuestion` while using
+Bash, Read, Edit and the agent launcher — a restriction none of them respected,
+which is how you can tell it was never doing the job it claimed. It was also the
+only frontmatter key that separated the three skills that re-keyed the whole
+prompt cache on entry (46k, 137k and 202k tokens of cache write, ~$3.85 of a
+$19.34 run) from the three that did not. Cause is not proven — the same
+declarations sat on the same skills in v2.3.1, which never re-keyed, so the
+change from `model: opus` to `effort:` is the other variable in play — but a
+declaration that restricts nothing is not worth keeping while it is a suspect.
+`setup/SKILL.md` keeps its own `allowed-tools`: there the list is real, it
+denies the agent launcher and the network, and setup is one skill at the start
+of a session rather than a transition inside a flow.
+
+Whoever measures the next run: the number to watch is `cache_creation` on the
+request that loads a skill, and the tell is `cache_read` collapsing to the size
+of the bare system prompt.
+
 ## The autonomous flow is a workflow script
 
 `templates/<domain>/.claude/workflows/*.js` → `dist/<domain>/workflows/`. The
@@ -652,4 +684,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.13.0 — bump the version number on every substantial change*
+*Version: 2.14.0 — bump the version number on every substantial change*
