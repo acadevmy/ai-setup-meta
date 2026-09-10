@@ -71,14 +71,34 @@ Only if `HAS_FRONTEND` or `HAS_MOBILE` is `true`, or if the stack chosen at Step
 2b is web-frontend / mobile / fullstack. On a pure backend, Figma is **not**
 registered.
 
-Ask: "Do you want to configure the Figma MCP? Authentication happens via OAuth in
-the browser." If yes:
+Read `claude mcp list` first. A plugin can carry the server itself, and those
+rows are named `plugin:<plugin>:<server>` — a project-scope `figma` added on top
+of one of them is a duplicate, not a configuration.
 
-```bash
-claude mcp add figma -t http -s project https://mcp.figma.com/mcp
+- **a `figma` row is already there** (project, user or `plugin:` scope) →
+  register nothing.
+- **no `figma` row** → ask "Do you want to configure the Figma MCP?
+  Authentication happens via OAuth in the browser." On a yes:
+
+  ```bash
+  claude mcp add figma -t http -s project https://mcp.figma.com/mcp
+  ```
+
+  On first use, Figma asks for authorization via the browser (like ClickUp).
+
+Close with **exactly one** line for the summary — one of:
+
+```
+  - Figma MCP registered (project scope) — authorize it in the browser on first use
+  - Figma MCP declined: the design tools stay unavailable in this project
+  - Figma MCP already available from <the row `claude mcp list` printed> — nothing to register
+  - Figma MCP skipped: no frontend and no mobile in this stack
 ```
 
-On first use, Figma asks for authorization via the browser (like ClickUp).
+The line is not decoration. This step is the flow's only optional registration,
+and it is the one that went missing when 6.3 moved out of the skill body and in
+here: with no reported outcome, a skipped ask and a declined ask and a step that
+never ran all look identical from the summary.
 
 ---
 
