@@ -31,12 +31,15 @@
 #   13 WORKFLOW_CONTRACT       a workflow script the harness would refuse or misgroup
 #   14 DOC_REFERENCE           the docs cite a command, script, path or rule that does not exist
 #   15 DOC_COMMAND_COVERAGE    a public command the user guide never documents
+#   16 SETUP_ASK_UNREPORTED    a setup step that asks and reports no outcome
 #
-# Checks 11 to 15 are not in the original list: they are regression guards on
+# Checks 11 to 16 are not in the original list: they are regression guards on
 # defects the chain removed (the broken `pm-setup` entry, DE-16471; the
 # Cursor/Codex/Gemini support, DE-16489), on the one artefact whose mistakes
-# only surface at run time (the workflow scripts, DE-16479), and on the one
-# artefact nothing else validates at all (the documentation, DE-16488).
+# only surface at run time (the workflow scripts, DE-16479), on the one
+# artefact nothing else validates at all (the documentation, DE-16488), and on
+# the one failure that leaves no trace anywhere — a setup step that asks the
+# developer nothing and says nothing about it (check 16).
 # ---8<--- end of the --help message
 #
 # Scoping notes:
@@ -57,6 +60,15 @@
 #     subject is precisely the things that were removed. Nothing else belongs on
 #     that list: a document that has to name a dead reference belongs in the
 #     migration page.
+#   - Check 16 covers the setup skill only — its `SKILL.md` and its
+#     `reference/*.md`, found through `.setup_skill` in the manifest. It is the
+#     one skill that runs a long procedure and closes with a summary, so there
+#     an unreported ask is invisible: a question nobody was asked, a question
+#     answered no, and a sub-step the model never read all produce the same
+#     silence. The flow skills are deliberately out of scope: there the ask *is*
+#     the step, and `turn-discipline.md` governs it. A block is exempt when it
+#     declares a default — an ask with a default cannot change the outcome
+#     silently, only an ask without one decides whether the step happens.
 #   - Check 13 reads the `export const meta` block the harness itself parses. A
 #     wrong extension, a missing meta, a name that does not match the file or a
 #     `phase()` with no entry in `meta.phases` are all silent at load time: the
@@ -824,6 +836,61 @@ check_doc_command_coverage() {
   done
 }
 
+# ── Check 16: an ask nobody hears about ──────────────────────────────────────
+# The setup is one long procedure that closes with a summary, and that summary is
+# the only witness an interactive step ever gets. Step 6.3 — the Figma MCP — is
+# how the defect was found: DE-16478 moved it out of the skill body and into
+# `mcp-env.md`, and from then on a run could skip the question with nothing to
+# show for it. A skipped ask, a declined ask and a sub-step the model never read
+# are the same silence, which is why the fix is a required line and not a
+# reminder to be careful.
+# Matched against the lowercased line. Every form is a question put to the
+# developer: the tool, the imperative, the arrow form, and the quoted question
+# itself. `asks for authorization` — Figma's OAuth prompt, not a step of ours —
+# deliberately matches none of them.
+ASK_PATTERN='askuserquestion|^ask[:, ]|ask the developer|ask with|ask "|→ ask'
+ASK_REPORT_PATTERN='summary|report in the|report the'
+ASK_DEFAULT_PATTERN='\\(default:|default is |, default '
+
+check_setup_ask_outcome() {
+  step "Check 16 — every setup step that asks says what it reports"
+  local scope name skill_md skill_dir f rel_f line heading
+  while IFS=$'\t' read -r scope name skill_md skill_dir; do
+    [ "$name" = "setup" ] || continue
+    for f in "$REPO_ROOT/$skill_md" "$REPO_ROOT/$skill_dir"/reference/*.md; do
+      [ -f "$f" ] || continue
+      rel_f="$(rel "$f")"
+      while IFS=$'\t' read -r line heading; do
+        [ -n "${heading:-}" ] || continue
+        add_finding SETUP_ASK_UNREPORTED "$scope" "$rel_f" "$line" \
+          "$rel_f:$heading" \
+          "'$heading' asks the developer something and declares neither a default nor a line for the summary: a skipped step leaves no trace"
+      done < <(awk -v ask="$ASK_PATTERN" -v rep="$ASK_REPORT_PATTERN" \
+                   -v def="$ASK_DEFAULT_PATTERN" '
+        function scan(l) {
+          # An ask guarding a write is out of scope: what the summary reports
+          # there is the file, not the question.
+          if (tolower(l) ~ ask && l !~ /overwrit/) seen_ask = 1
+          if (tolower(l) ~ rep) seen_rep = 1
+          if (tolower(l) ~ def) seen_def = 1
+        }
+        function flush(  t) {
+          if (h == "" || !seen_ask || seen_rep || seen_def) return
+          t = h; sub(/^#+[[:space:]]*/, "", t)
+          printf "%d\t%s\n", hline, t
+        }
+        /^##+[[:space:]]/ {
+          flush(); h = $0; hline = FNR
+          seen_ask = 0; seen_rep = 0; seen_def = 0
+          scan($0); next
+        }
+        { scan($0) }
+        END { flush() }
+      ' "$f")
+    done
+  done < "$SKILLS"
+}
+
 # ── Run ──────────────────────────────────────────────────────────────────────
 collect_skills
 [ -s "$SKILLS" ] || die "no skill found: run this from the repo root"
@@ -839,6 +906,7 @@ check_legacy_runtime_residue
 check_workflows
 check_doc_references
 check_doc_command_coverage
+check_setup_ask_outcome
 
 sort -o "$FINDINGS" "$FINDINGS"
 
