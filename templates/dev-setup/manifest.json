@@ -25,7 +25,8 @@
     "worktree.md"
   ],
   "template_agents": [
-    "review.md"
+    "review.md",
+    "verify.md"
   ],
   "template_skills": [
     "auto-sdd",

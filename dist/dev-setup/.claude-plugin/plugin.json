@@ -8,7 +8,8 @@
   "skills": "./skills",
   "agents": [
     "./agents/clickup.md",
-    "./agents/review.md"
+    "./agents/review.md",
+    "./agents/verify.md"
   ],
   "userConfig": {
     "CLICKUP_SETUP_LIST_ID": {
