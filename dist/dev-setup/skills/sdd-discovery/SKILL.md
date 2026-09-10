@@ -4,7 +4,6 @@ description: Runs a structured discovery interview that turns a raw task into a 
 effort: max
 user-invocable: false
 disable-model-invocation: false
-allowed-tools: AskUserQuestion
 ---
 
 # SDD discovery

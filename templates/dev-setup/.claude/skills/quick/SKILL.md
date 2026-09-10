@@ -4,7 +4,6 @@ description: Fast path from a small change to a merge request — branch, edit, 
 effort: medium
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: AskUserQuestion
 ---
 
 # Quick

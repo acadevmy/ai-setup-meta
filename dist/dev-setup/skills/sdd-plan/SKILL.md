@@ -4,7 +4,6 @@ description: Presents a technical spec to the developer and iterates on it until
 effort: medium
 user-invocable: false
 disable-model-invocation: false
-allowed-tools: AskUserQuestion
 ---
 
 # SDD plan

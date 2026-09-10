@@ -4,7 +4,6 @@ description: Runs the interactive Spec-Driven Development flow for a task — di
 effort: medium
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: AskUserQuestion
 ---
 
 # SDD
