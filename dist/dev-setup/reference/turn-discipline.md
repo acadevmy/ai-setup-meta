@@ -25,6 +25,12 @@ Never emit a list of questions. Ask one — at most two closely related ones —
 then end the turn. A questionnaire gets answered as a block and loses the
 follow-ups, which is where the information actually is.
 
+## A summary is not a question
+
+A step that ends by reporting — a development summary, a verify or review
+result block — is a hand-off, not a stop: the flow it belongs to continues in
+the same turn. End the turn on a question, or when the flow itself is done.
+
 ## Where this does not apply
 
 An autonomous flow has no human to wait for: there, an "incomplete work" signal
