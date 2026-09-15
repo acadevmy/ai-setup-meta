@@ -49,15 +49,16 @@ Steps 5 to 8 are sub-skills: invoke each one by name, passing the task context,
 and wait for it to finish before moving on. They are not user-invocable — this
 flow is their entry point.
 
-**Step 7 is this flow's only unconditional stop.** A failure still stops it, of
-course. What is gone is the two questions it asked on every task: the
-methodology, because the layer decides the cycle and `tests.md` states it, and
-the final OK, because the `ask` rule on `gh pr create` / `glab mr create` puts
-the developer in front of the real command instead of a summary of it.
+**Two questions stop this flow: the fork point in step 2 — the resolved base
+branch is the default, the developer confirms it — and the spec approval in
+step 7.** A failure still stops it, of course. The methodology question and
+the final OK in chat are gone: the layer decides the cycle, and the `ask` rule
+on `gh pr create` / `glab mr create` is the real final OK.
 
 ## Expected output
 
-- a branch named after the task's custom id, created by `sdd-start.sh`;
+- a branch named after the task's custom id, created by `sdd-start.sh` from
+  the confirmed fork point;
 - a spec in `.specs/`, status `implemented`;
 - one commit carrying the code, the spec and whatever the gates changed;
 - the task moved `SPRINT` → `IN PROGRESS` → `CODE REVIEW`;

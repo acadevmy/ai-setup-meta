@@ -72,14 +72,15 @@ repository, not in yours — see [workflow.md](./workflow.md).
 ```
 /dev-setup:sdd DE-123
        │
-       ├─ reads the task, creates feat/DE-123-…, moves it to IN PROGRESS
-       │  (the base branch comes from the repository, never hard-coded)
+       ├─ reads the task, asks which branch to fork from — the default is
+       │  resolved from the repository, never hard-coded — then creates
+       │  feat/DE-123-… and moves the task to IN PROGRESS
        │
        ├─ discovery — a structured interview, only the questions that matter
        │
        ├─ the technical spec, written to .specs/
        │        ↓
-       │   ★ you approve it — the flow's one unconditional stop
+       │   ★ you approve it — the flow's approval checkpoint
        │
        ├─ development against the approved plan, one step at a time
        │

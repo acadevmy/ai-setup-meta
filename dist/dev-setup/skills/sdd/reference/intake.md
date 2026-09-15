@@ -1,8 +1,9 @@
 # Intake — task, branch, status, brief
 
 Steps 1 to 4 of the flow: from "start this task" to a working branch with the
-task in progress and the developer looking at the brief. Two of the four steps
-are a script call, not a judgement call. The ClickUp calls follow
+task in progress and the developer looking at the brief. The judgement calls
+here are two questions — the task and the fork point — and a script does the
+rest. The ClickUp calls follow
 `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`; the turn rule for every
 question here is in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 
@@ -50,33 +51,68 @@ these.
 
 ## 2. The working branch
 
-One call names the branch, resolves the base and creates it:
+The script names the branch and resolves the default fork point, the developer
+confirms the fork point, and the script creates the branch. First, report only
+— no `--create`:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --task <custom_id> --type <feat|fix|chore> --title "<name>" --create --json
+  --task <custom_id> --type <feat|fix|chore> --title "<name>" --json
 ```
 
 The type comes from the task: a feature → `feat`, a bug → `fix`, maintenance →
 `chore`. The script slugifies the title, keeps the id verbatim (the spec lookup
 and the merge request title read it back out of the branch name), and resolves
-`BASE_BRANCH` itself — the branch HEAD forked from most recently, never a
-hard-coded `main`. Do not ask the developer which base to use, and do not run
-`git checkout`/`git pull` by hand: that question is what the script answers, and
-a wrong answer makes every diff downstream cover two branches' work.
+`BASE_BRANCH` — the branch HEAD forked from most recently, never a hard-coded
+`main`.
 
-Report `BRANCH` and `BASE_BRANCH` from the output.
-
-`BRANCH_EXISTS: true` means the task already had a branch and the script checked
-it out rather than creating one. Say so: the task is being resumed, and step 4
+`BRANCH_EXISTS: true` means the task already had a branch: re-run the call with
+`--create` (it checks the branch out), skip the question below — the fork point
+was decided when the branch was born — and say the task is being resumed; step 4
 will show how far it got.
 
-With `--worktree`, the order matters: read `BASE_BRANCH` from
-`check-prerequisites.sh` **in the main checkout**, enter the worktree named after
-the task, and only then run the call above with `--base <that ref>`. A fresh
-worktree forks from the remote default, so its local HEAD is not a fork point
-worth resolving. `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` covers the rest —
-the dependency install, the port, the overlap warning.
+Otherwise confirm the fork point. The resolved `BASE_BRANCH` is the default,
+never the decision:
+
+```json
+AskUserQuestion({
+  "questions": [{
+    "question": "Which branch should <BRANCH> fork from?",
+    "header": "Base branch",
+    "options": [
+      { "label": "<BASE_BRANCH> (Recommended)",
+        "description": "Resolved from the repository: the ref HEAD forked from most recently" },
+      { "label": "<candidate>",
+        "description": "Any of develop / next / main that exists and is not the default" }
+    ],
+    "multiSelect": false
+  }]
+})
+```
+
+The resolved `BASE_BRANCH` is the first option; after it, whichever of
+`develop`, `next` and `main` exist in the repository and are not the default.
+Any other ref arrives through "Other". **End the turn on the tool call.**
+
+Then create the branch from the answer:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
+  --task <custom_id> --type <type> --title "<name>" \
+  --base <the chosen ref> --create --json
+```
+
+Never run `git checkout`/`git pull` by hand in place of these calls: a wrong
+fork point makes every diff downstream cover two branches' work. Report
+`BRANCH` and `BASE_BRANCH` from the output.
+
+With `--worktree`, the order matters: resolve and confirm the fork point **in
+the main checkout** — the report-only call and the question above — then
+enter the worktree named after the task, and only there run the `--create`
+call with `--base <the chosen ref>`. A fresh worktree forks from the remote default, so
+its local HEAD is not a fork point worth resolving.
+`${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` covers the rest — the dependency
+install, the port, the overlap warning.
 
 ## 3. Task status
 
