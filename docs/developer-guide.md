@@ -93,7 +93,13 @@ repository, not in yours — see [workflow.md](./workflow.md).
        └─ the task moves to review, with the link posted on it
 ```
 
-Three things are worth knowing about that shape.
+Four things are worth knowing about that shape.
+
+**A backlog task is your call.** A task read in `BACKLOG` was never planned
+into a sprint, so the flow stops and asks before anything else happens — no
+branch, no board write. Confirming moves it to `IN PROGRESS` like any sprint
+task; declining leaves it exactly where it was. No command moves a task out of
+the backlog automatically.
 
 **One approval, not five.** The spec is the checkpoint. Development does not
 stop between plan steps — the plan was approved whole, and a per-step

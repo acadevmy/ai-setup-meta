@@ -97,6 +97,7 @@ Do NOT use abbreviated names — they will fail.
 ## Workflow statuses
 
 ```
+BACKLOG  ->  IN PROGRESS  (only on the developer's explicit confirmation)
 SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
                 ^                  |
                 |                  v
@@ -107,6 +108,7 @@ SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 
 | From | To | When |
 |----|---|--------|
+| BACKLOG | IN PROGRESS | The developer explicitly confirmed implementing an unplanned task — never an automatic pickup |
 | SPRINT | IN PROGRESS | Work begins |
 | SPRINT | BLOCKED | Bail-out before work could start (e.g. preflight failed after lock attempt) |
 | IN PROGRESS | IN REVIEW | PR opened |
@@ -118,6 +120,11 @@ SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 | BLOCKED | IN PROGRESS | Recovery: a human resumes the work directly |
 
 Any other transition is invalid. Return an error with the allowed transitions.
+
+`BACKLOG -> IN PROGRESS` exists for the interactive flows only: the calling
+flow asks the developer first and requests it as the recorded answer. An
+autonomous caller never requests it — `next-task` reads `SPRINT` and treats a
+backlog task as out of scope.
 
 ## Output format
 

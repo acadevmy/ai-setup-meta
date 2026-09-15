@@ -49,9 +49,10 @@ Workflow({
 })
 ```
 
-Move each task `SPRINT → IN PROGRESS` — `INTENT: update` — as you launch it, and
-not before: the pre-flight deliberately leaves the board alone so that a dropped
-task is never touched.
+Move each task to `IN PROGRESS` — `INTENT: update` — as you launch it, and not
+before: the pre-flight deliberately leaves the board alone so that a dropped
+task is never touched. For a task confirmed out of `BACKLOG` at phase A, this
+is the move the developer authorised there.
 
 `branchType` follows the task — feature → `feat`, bug → `fix`, maintenance →
 `chore`. Each call returns immediately with a `runId`; the run itself works in

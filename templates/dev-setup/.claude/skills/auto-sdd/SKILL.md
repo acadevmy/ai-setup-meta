@@ -13,19 +13,21 @@ The launcher of the `auto-sdd` workflow. The orchestration lives in
 and its control flow never enters the context. What is left here is what code
 cannot do: resolve the task, launch the run, act on what comes back.
 
-**Usage**: `/dev-setup:auto-sdd [TASK_ID]`. For several tasks at once,
-`multi-sdd` composes this same workflow.
+**Usage**: `/dev-setup:auto-sdd [TASK_ID]`. For several tasks, `multi-sdd`
+composes this same workflow.
 
 ## Before you start
 
 - **`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`** — the three outcomes,
-  the merge request, the bail-out, the resume, the worktree left behind.
+  the merge request, the bail-out, the resume.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the
-  transitions, the list id.
+  transitions, the backlog gate, the list id.
 
 ## 1. The task
 
 **With a task id in `$ARGUMENTS`**: `INTENT: read`, `PARAMS: task_id: <id>`.
+`BACKLOG` → the contract's backlog gate; declined means stop, no run, no board
+write.
 
 **Without one**: resolve the list id as the contract describes, then
 `INTENT: next-task`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>` — the
@@ -73,15 +75,14 @@ Workflow({
 it rather than inventing one.
 
 The harness asks the developer to approve the workflow script before it runs —
-the checkpoint this flow keeps, and why it needs no `AskUserQuestion`. The run
-then works in the background: wait for its notification, never poll.
+the checkpoint this flow keeps; in chat it asks only step 1's backlog gate. The
+run then works in the background: wait for its notification, never poll.
 
 ## 4. The outcome
 
 Exactly one of `needs-human`, `ready-for-mr` or `failed`, each handled in
-`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`, which also holds what the
-merge request carries and how an answered `needs-human` resumes. Anything else
-means the run broke: show the raw result and stop.
+`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`. Anything else means the run
+broke: show the raw result and stop.
 
 ## Expected output
 
