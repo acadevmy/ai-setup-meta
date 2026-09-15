@@ -19,7 +19,7 @@ Runs the meta-repo's two static gates. They are the same commands CI runs
    bash scripts/validate-setup-urls.sh
    ```
 
-2. Static checks on skill, workflow and documentation quality (15 checks, see the
+2. Static checks on skill, workflow and documentation quality (16 checks, see the
    script header):
 
    ```bash

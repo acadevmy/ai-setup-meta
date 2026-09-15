@@ -1186,6 +1186,65 @@ PUBLIC_CMDS="$(for S in "$REPO_ROOT"/dist/dev-setup/skills/*/SKILL.md; do
 assert_eq "the guide documents exactly the public commands" "$PUBLIC_CMDS" "$GUIDE_CMDS"
 
 echo ""
+echo "══ check 16 — a setup step that asks reports what it answered ══"
+
+# On the repo as committed the check is silent. A finding here means a setup step
+# can ask the developer something and leave no trace of the answer.
+ASK_FINDINGS="$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict --json 2>/dev/null \
+  | jq -r '[.FINDINGS[]? | select(.CHECK_ID == "SETUP_ASK_UNREPORTED")
+            | "\(.FILE): \(.MESSAGE)"] | join("\n")')"
+assert_eq "no setup step asks without reporting or defaulting" "" "$ASK_FINDINGS"
+
+# And it has to bite. Three blocks: the defect, and the two shapes that are
+# deliberately exempt — an ask whose default decides for the developer, and an
+# ask whose outcome reaches the summary.
+ASK_PROBE="$REPO_ROOT/templates/dev-setup/setup/reference/zz-ask-probe.md"
+cat > "$ASK_PROBE" <<'ASK_EOF'
+# ask probe (temporary — removed by test-plugin-scripts.sh)
+
+## 9.1 — Unreported
+
+Ask: "Do you want the probe?" If yes, run the probe.
+
+## 9.2 — Defaulted
+
+Otherwise → ask the developer (default: **no**).
+
+## 9.3 — Reported
+
+Ask: "Do you want the other probe?" Close with one line for the summary:
+`probe registered` or `probe declined`.
+ASK_EOF
+ASK_PROBE_KEYS="$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict --json 2>/dev/null \
+  | jq -r '[.FINDINGS[]? | select(.CHECK_ID == "SETUP_ASK_UNREPORTED" and (.FILE | test("zz-ask-probe")))
+            | .KEY] | join("\n")')"
+rm -f "$ASK_PROBE"
+
+assert_contains "the check catches an unreported ask" "$ASK_PROBE_KEYS" "9.1 — Unreported"
+assert_eq "an ask with a declared default is exempt" "false" \
+  "$(printf '%s' "$ASK_PROBE_KEYS" | grep -q '9.2' && echo true || echo false)"
+assert_eq "an ask that reaches the summary is exempt" "false" \
+  "$(printf '%s' "$ASK_PROBE_KEYS" | grep -q '9.3' && echo true || echo false)"
+
+# The step the check was written for, pinned on the shipped artefact: 6.3 offers
+# the Figma MCP and says what it contributes to the summary.
+assert_contains "6.3 states the line it contributes to the summary" \
+  "$(cat "$REPO_ROOT/dist/dev-setup/skills/setup/reference/mcp-env.md")" \
+  "Figma MCP registered"
+
+# `--type url` is not a transport: a server added that way is discarded without a
+# word. It is how 2.3.1 registered Figma, and no setup reference may go back to it.
+assert_eq "no setup reference registers an MCP server with --type url" "false" \
+  "$(grep -rq -- '--type url' "$REPO_ROOT/templates/dev-setup/setup" \
+       "$REPO_ROOT/dist/dev-setup/skills/setup" && echo true || echo false)"
+
+# The asks in the setup are real tool calls: the skill has to be allowed to make
+# them. `install.md` alone instructs three of them.
+assert_contains "the setup skill may call AskUserQuestion" \
+  "$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")" \
+  "AskUserQuestion"
+
+echo ""
 echo "── frontmatter parseability ──"
 
 # A `: ` inside an unquoted YAML scalar does not parse, and the failure is

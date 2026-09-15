@@ -303,7 +303,7 @@ Only relevant if you maintain the plugin.
 | `mcp/mcp.json.example` | MCP is registered by the setup, per project |
 | `templates/dev-setup/setup-skill.md` | `templates/dev-setup/setup/SKILL.md` plus six references |
 
-New: `scripts/validate-plugin.sh` (15 static checks), `scripts/test-plugin-scripts.sh`
+New: `scripts/validate-plugin.sh` (16 static checks), `scripts/test-plugin-scripts.sh`
 with fixtures, and a CI workflow running both plus `claude plugin validate` and
 `shellcheck`.
 

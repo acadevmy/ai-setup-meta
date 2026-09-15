@@ -4,7 +4,7 @@ description: Grafts the AI-native workflow onto a project — path-scoped rules,
 model: opus
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---
 
 # Dev Setup

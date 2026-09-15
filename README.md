@@ -169,7 +169,7 @@ ai-setup-meta/
 │   ├── builders/
 │   │   ├── common.sh            # Shared helpers (ok, warn, fail, step)
 │   │   └── build-claude.sh      # Claude Code builder (the only target)
-│   ├── validate-plugin.sh       # 15 static checks on skill, workflow and doc quality
+│   ├── validate-plugin.sh       # 16 static checks on skill, workflow and doc quality
 │   ├── validate-baseline.txt    # Known failures, reported but non-blocking in CI
 │   └── validate-setup-urls.sh   # Link check for the URLs the setup skill cites
 │   ├── test-plugin-scripts.sh   # The plugin scripts and hooks, against scripts/fixtures/

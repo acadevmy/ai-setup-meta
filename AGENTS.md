@@ -200,7 +200,7 @@ Agents are isolated sub-processes with their own context.
 | Skill | Description |
 |---|---|
 | `/project:auto-maintain` | Autonomous pipeline: picks a ClickUp task from the maintenance list and opens a PR (see the dedicated section) |
-| `/project:validate` | Pre-release validation: manifest references + 15 static checks on skill, workflow and documentation quality |
+| `/project:validate` | Pre-release validation: manifest references + 16 static checks on skill, workflow and documentation quality |
 
 ### Commands (`/project:<name>`)
 
@@ -308,7 +308,7 @@ there is no sandbox, the repo-local default works.
 
 A `SKILL.md` is a routing document, not a manual. The static checks cap it at 500
 lines and 500 words; everything past that lives in `reference/*.md` next to it,
-read by name and only when the run needs it. Three rules hold the shape:
+read by name and only when the run needs it. Four rules hold the shape:
 
 1. **One hop, no chains.** A reference is linked from its own `SKILL.md` and links
    on to nothing. Check 5 fails a file reachable only through another reference.
@@ -316,6 +316,15 @@ read by name and only when the run needs it. Three rules hold the shape:
    is still a useful read.
 3. **Cite by name, never with `@path`.** An `@path` force-load injects the file
    into every session, which is the opposite of what a reference is for (check 7).
+4. **A step that asks reports what it answered.** Moving prose into a reference
+   moves it behind a decision to read, so a step nobody reads now looks exactly
+   like a step nobody needed. In the setup — the one skill that runs a long
+   procedure and closes with a summary — every interactive step therefore states
+   the line it contributes to that summary, or declares a default. Check 16
+   fails the build on the third case. It cost a real defect to learn: 6.3, the
+   Figma MCP question, moved into `mcp-env.md` with DE-16478 and stopped being
+   asked, and the summary said nothing either way, so on a Next.js project the
+   design tooling was simply never offered and nobody could tell.
 
 Contracts more than one skill needs are defined once under
 `templates/<domain>/.claude/reference/` and shipped to `dist/<domain>/reference/`.
@@ -684,4 +693,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.14.0 — bump the version number on every substantial change*
+*Version: 2.15.0 — bump the version number on every substantial change*
