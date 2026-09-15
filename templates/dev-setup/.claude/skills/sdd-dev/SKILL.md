@@ -77,13 +77,14 @@ Tests: <result>
 Linter: <result>
 ```
 
-Hand control back without committing, simplifying or touching the spec's status:
-the flow's closure stages the work, runs `simplify` once, verifies against the
-spec and produces a single commit. Doing any of it here is what made a task cost
-four commits and two `simplify` runs.
+Do not commit, simplify or touch the spec's status: the flow's closure stages
+the work, runs `simplify` once, verifies, reviews and produces the single
+commit — doing any of it here once cost a task four commits. The summary is
+not a stop: inside the `sdd` flow, closure runs next, in this same turn,
+without waiting for a prompt.
 
 ## Expected output
 
 - the code implemented as the approved spec describes;
 - tests and linter run, and passing;
-- nothing committed and nothing pushed.
+- nothing committed and nothing pushed — that is the closure's job.

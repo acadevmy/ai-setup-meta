@@ -51,9 +51,9 @@ flow is their entry point.
 
 **Two questions stop this flow: the fork point in step 2 — the resolved base
 branch is the default, the developer confirms it — and the spec approval in
-step 7.** A failure still stops it, of course. The methodology question and
-the final OK in chat are gone: the layer decides the cycle, and the `ask` rule
-on `gh pr create` / `glab mr create` is the real final OK.
+step 7.** Nothing else does: `sdd-dev`'s closing summary is not a stop — go
+straight to step 9, in the same turn. The final OK in chat is gone: the `ask`
+rule on `gh pr create`/`glab mr create` is the real one.
 
 ## Expected output
 

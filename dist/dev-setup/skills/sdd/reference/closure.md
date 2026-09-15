@@ -4,6 +4,12 @@ Step 9 of the flow: from finished code to an open merge request and a task in
 review. The ClickUp calls follow
 `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`.
 
+Closure starts the moment `sdd-dev` hands back its summary — same turn, no
+prompt in between. The flow is finished when the merge request is open (or
+explicitly declined) and the task has moved: a turn that ends on the
+development summary leaves the branch uncommitted, which is the failure this
+page exists to prevent.
+
 The order matters and it is not the obvious one: **the gates run before the
 commit, and there is one commit.** Two reasons. The commit hook is the gate that
 runs `LINT_CMD`, `TYPECHECK_CMD` and `TEST_CMD`, and it skips when nothing is
