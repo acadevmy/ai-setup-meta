@@ -67,9 +67,9 @@ interface:
 /dev-setup:sdd DE-124
 ```
 
-Discovery, then a technical spec you approve — that approval is the flow's one
-unconditional stop — then development, the gates, one commit and the merge
-request.
+It asks which branch to fork from (the base resolved from the repository is
+the default), then discovery, a technical spec you approve, development, the
+gates, one commit and the merge request.
 
 ## Where to go next
 

@@ -363,8 +363,10 @@ Four things left `sdd`, and each one was paid for on every task:
 - **the methodology question** — the layer decides the cycle and `tests.md`
   states it, so asking produced an answer the rules already had;
 - **the final OK in chat** — the `ask` rule on `gh pr create` / `glab mr create`
-  puts the developer in front of the real command instead of a summary of it, so
-  the spec approval in `sdd-plan` is now the flow's only unconditional stop;
+  puts the developer in front of the real command instead of a summary of it.
+  The flow's stops are now two: the fork-point confirmation at intake (the
+  resolved base branch is the default, the developer confirms it) and the spec
+  approval in `sdd-plan`;
 - **the second `simplify` run** — it ran in `sdd-dev` and again in the closure;
   it now runs once, in the closure, over the staged change;
 - **three bookkeeping commits** — `refactor: simplify`, `docs(registry)` and
@@ -693,4 +695,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.15.0 — bump the version number on every substantial change*
+*Version: 2.16.0 — bump the version number on every substantial change*
