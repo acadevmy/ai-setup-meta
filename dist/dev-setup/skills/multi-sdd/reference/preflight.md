@@ -22,6 +22,12 @@ ends.
 `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`. Keep `custom_id`, `name`,
 `description` **verbatim**, `url` and `task_id`.
 
+A task that comes back in `BACKLOG` was never planned: put it through the
+contract's backlog gate — ask, end the turn. Confirmed, it stays in the set
+and moves to `IN PROGRESS` at launch like the others. Declined, it drops out
+of the set with the board untouched — rerun `multi-preflight.sh` with the ids
+that remain, and zero remaining is a refusal like any other.
+
 **`--from-sprint <n>`.** Resolve the list id as the contract describes, then
 `INTENT: filter`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`.
 Sort by `priority` ascending — `1` is urgent — and take the first `n`. Then run

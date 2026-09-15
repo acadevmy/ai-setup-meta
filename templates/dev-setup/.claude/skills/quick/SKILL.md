@@ -33,8 +33,9 @@ feature without a spec, and never abandon a nearly-done change.
 1. **The change.** With a task id, read it through the `clickup` agent
    (`INTENT: read`, per
    `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`) and move it to
-   `IN PROGRESS`. Without one, `$ARGUMENTS` is the whole input — do not ask for
-   a ticket.
+   `IN PROGRESS`. A `BACKLOG` task first passes that contract's backlog gate
+   (declined → stop, task untouched). Without one, `$ARGUMENTS` is the whole
+   input — do not ask for a ticket.
 
 2. **The branch.** With `--worktree`, the order matters: read `BASE_BRANCH`
    from `check-prerequisites.sh` **in the main checkout**, enter the worktree
@@ -68,5 +69,4 @@ feature without a spec, and never abandon a nearly-done change.
 ## Expected output
 
 - a branch, one commit, one merge request linking the task when there is one;
-- four turns for a one-line fix. Skip the preamble and the plan — that is the
-  whole point of this command.
+- four turns for a one-line fix. Skip the preamble and the plan.

@@ -12,6 +12,7 @@ written once — cite it, do not restate it.
 - [Reading the result](#reading-the-result)
 - [Resolving the task list id](#resolving-the-task-list-id)
 - [Status transitions](#status-transitions)
+- [The backlog gate](#the-backlog-gate)
 - [The bail-out call](#the-bail-out-call)
 
 ## How to call the agent
@@ -69,6 +70,7 @@ through the plugin config.
 ## Status transitions
 
 ```
+BACKLOG  -- the backlog gate -->  IN PROGRESS
 SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
    |            ^  |
    |            |  v
@@ -79,6 +81,36 @@ The agent validates the transition and refuses an invalid one, so ask for the
 transition the flow is actually at: `SPRINT -> IN PROGRESS` when work starts,
 `IN PROGRESS -> CODE REVIEW` (fallback `IN REVIEW`) when the PR/MR is open,
 `-> BLOCKED` on a bail-out, `BLOCKED -> SPRINT` on recovery.
+`BACKLOG -> IN PROGRESS` is requested only as the recorded answer to the
+backlog gate below — never on the flow's own initiative.
+
+## The backlog gate
+
+`BACKLOG` holds work nobody planned into a sprint. No flow picks a backlog
+task up on its own: `filter` and `next-task` read `SPRINT`, so a backlog task
+only ever arrives as an id the developer typed. When a `read` comes back with
+`status: BACKLOG`, stop — before any branch, spec or board write — and ask:
+
+```json
+AskUserQuestion({
+  "questions": [{
+    "question": "<custom_id> is in BACKLOG — it was never planned into a sprint. Implement it anyway?",
+    "header": "Backlog",
+    "options": [
+      { "label": "Implement it", "description": "The task moves to IN PROGRESS and the flow continues" },
+      { "label": "Leave it", "description": "Stop here — the task is not touched" }
+    ],
+    "multiSelect": false
+  }]
+})
+```
+
+End the turn on the call (`turn-discipline.md`). **Implement it** is the only
+thing that authorises `BACKLOG -> IN PROGRESS`; from there the flow proceeds
+exactly as if the task had been in `SPRINT`. **Leave it** ends the flow with
+the task exactly as it was found. The move never happens automatically: a path
+with nobody to ask (`next-task`, a scheduled run) treats a backlog task as out
+of scope and says so instead of moving it.
 
 ## The bail-out call
 

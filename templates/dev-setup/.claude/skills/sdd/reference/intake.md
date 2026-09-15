@@ -20,6 +20,14 @@ question here is in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 `clickup` agent (`INTENT: read`, `PARAMS: task_id: <id>`). On `STATUS: error`,
 tell the developer and stop.
 
+A task that comes back in `BACKLOG` was never planned: before the branch
+exists, put it through the backlog gate in
+`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` — ask whether to
+implement it anyway, and **end the turn on the tool call**. Declined → stop,
+leaving the task exactly where it was. Confirmed → carry on: step 3's status
+move is the one the developer just authorised, and the rest of the flow is
+unchanged.
+
 **Without one**: resolve the task list id as the ClickUp contract describes,
 then list what is available:
 
@@ -117,6 +125,9 @@ install, the port, the overlap warning.
 ## 3. Task status
 
 `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`.
+
+For a task found in `BACKLOG` at step 1, this is the move the developer
+authorised through the backlog gate — never make it without that answer.
 
 ## 4. The brief, and what is already on disk
 

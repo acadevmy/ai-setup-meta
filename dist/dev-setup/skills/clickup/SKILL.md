@@ -24,11 +24,13 @@ goes through the `clickup` agent described there.
 ## The workflow
 
 ```
+BACKLOG  ->  (developer confirms)  ->  IN PROGRESS
 SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 ```
 
 | Status | Meaning |
 |---|---|
+| BACKLOG | not planned into any sprint; a flow never picks it up or moves it on its own |
 | SPRINT | planned in the current sprint, ready to be picked up |
 | IN PROGRESS | someone is working on it |
 | IN REVIEW / CODE REVIEW | the PR/MR is open, waiting for a reviewer |
@@ -59,5 +61,7 @@ reached.
 ## What not to do
 
 - Do not close or delete tasks: status updates and comments only.
+- Do not move a task out of `BACKLOG` without the developer's explicit
+  confirmation — the flows ask first, and nothing moves it automatically.
 - Do not write a task's description from a flow — it is the human's input to the
   work, not the work's output.

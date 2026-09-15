@@ -78,6 +78,7 @@ Do NOT use abbreviated names like `clickup_get_task` — they will fail.
 ## Workflow statuses
 
 ```
+BACKLOG  ->  IN PROGRESS  (only on the developer's explicit confirmation)
 SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
    |            ^  |
    |            |  v
@@ -88,6 +89,7 @@ SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 
 | From | To | When |
 |----|---|--------|
+| BACKLOG | IN PROGRESS | The developer explicitly confirmed implementing an unplanned task — never an automatic pickup |
 | SPRINT | IN PROGRESS | Work begins |
 | SPRINT | BLOCKED | Bail-out before work could start |
 | IN PROGRESS | IN REVIEW | PR opened |
@@ -99,6 +101,11 @@ SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 | BLOCKED | IN PROGRESS | Recovery: a human resumes the work directly |
 
 Any other transition is invalid. Return an error with the allowed transitions.
+
+`BACKLOG -> IN PROGRESS` exists for the interactive flows only: the calling
+flow asks the developer first and requests it as the recorded answer. An
+autonomous caller never requests it — `next-task` reads `SPRINT` and treats a
+backlog task as out of scope.
 
 A bail-out is a single `update` call: the status change to `BLOCKED` and the explanatory
 note travel together in the `comment` parameter. There is no standalone comment intent.
