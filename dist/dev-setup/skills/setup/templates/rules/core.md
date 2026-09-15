@@ -8,9 +8,9 @@ language and layer.
 ## Secrets
 
 - Secrets live in environment variables. `.env` is not tracked; `.env.example`
-  lists the variable names with no values. Never read `.env` or its
-  per-environment variants — not with a file tool, not through a shell command.
-  If a procedure seems to need it, the procedure is wrong.
+  lists the variable names with no values. Read `.env` only when the task
+  genuinely needs a value — a real API call, a local service. Never write it:
+  the file is the developer's, and the sandbox denies writes to it.
 - Never repeat a secret you happened to read into a spec, a commit message, a
   PR/MR description or a tracker comment. Not even partially, not even masked.
 

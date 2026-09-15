@@ -55,9 +55,9 @@ this split removes.
 
 ## Two rules that hold everywhere
 
-- **Never read or write `.env`.** Step 3.2 denies it to the file tools and to
-  sandboxed commands. No step needs it: a step that appears to require it is
-  wrong — report it, do not work around the deny.
+- **Never write `.env` — and no setup step reads it.** Step 3.2 denies writes
+  at both levels; every step works on `.env.example`. A step that appears to
+  require the real file is wrong — report it.
 - **Ask before overwriting.** Conflict detection runs before every write. The
   one exception is `.claude/rules/dev-setup-*.md` in UPDATE mode: those are
   generated artefacts, and `rules-generation.md` holds the prefix contract that

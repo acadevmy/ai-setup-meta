@@ -215,15 +215,16 @@ framework convention checks, and the ones `rules-generation.md` and
 ```
   - settings.json migrated: sandbox on, <n> deny rules and the ask checkpoints added,
     <retired> dropped from the allowlist; your own entries kept
+  - settings.json read-unblocked: the retired .env read denies removed; writes stay denied
   - settings.json already current — nothing to migrate
   - settings.json migration DECLINED: the project runs WITHOUT the Bash sandbox.
-    .env is not denied to shell commands, gh/glab writes are not behind a confirmation,
-    and force push is not blocked. Re-run setup to apply it.
+    .env writes are not denied to shell commands, gh/glab writes are not behind a
+    confirmation, and force push is not blocked. Re-run setup to apply it.
 ```
 
-The third line is not decoration. `dev-setup-core.md` tells every session that
-the sandbox denies reading `.env`; if the developer declined, the summary is the
-only place that says otherwise.
+The DECLINED line is not decoration. `dev-setup-core.md` tells every session
+that the sandbox denies writing `.env`; if the developer declined, the summary
+is the only place that says otherwise.
 
 ### Multi-project variant
 

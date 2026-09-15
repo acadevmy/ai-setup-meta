@@ -135,8 +135,9 @@ and removed the wrong stack's rules.
 feels like, and all of them are deliberate.
 
 **A `sandbox` block.** OS-level isolation for every Bash command (Seatbelt on
-macOS, bubblewrap on Linux and WSL2): the `.env` family denied for read and
-write, `~/.ssh` / `~/.aws` / `~/.kube` denied, the usual token variables
+macOS, bubblewrap on Linux and WSL2): the `.env` family denied for write —
+reads stay open, so a task can use the values it needs —
+`~/.ssh` / `~/.aws` / `~/.kube` denied for read, the usual token variables
 (`GH_TOKEN`, `GITLAB_TOKEN`, `NPM_TOKEN`, `AWS_*`, …) unset inside sandboxed
 commands, and a network allowlist composed from your stack — your package
 registry, your forge, and ClickUp if it is configured.
@@ -161,13 +162,15 @@ uses.
 Conflict detection reads an existing `.claude/settings.json` as *your* file and
 keeps it. On a project configured before the sandbox landed, that would mean
 none of the protection ever arrives while `dev-setup-core.md` goes on telling
-every session that the sandbox denies reading `.env` — a rule describing a
+every session that the sandbox denies writing `.env` — a rule describing a
 mechanism the project does not have.
 
 So the setup treats it as a special case:
 
 - A settings.json **with** a `sandbox` key is yours, and conflict detection
-  applies.
+  applies — with one exception: if it still carries the `.env` read denies an
+  earlier template shipped, `migrate-settings.sh` removes exactly those entries
+  and nothing else (reads of `.env` are open again; writes stay denied).
 - One **without** it is an old artefact, and `migrate-settings.sh` merges the
   template into it. Your own allowlist entries survive; the script never writes
   in place, and shows you what it changed before you accept.
@@ -350,8 +353,8 @@ One edit happens without asking on a file the setup did not write: the
 `.claude/worktrees/` line appended to `.gitignore`. It adds and removes nothing.
 
 **6. Check the sandbox against your own commands.** If `pnpm test` or
-`pnpm dev` loads a file the sandbox denies, remove that filename from
-`sandbox.filesystem.denyRead` in `.claude/settings.json`. A deny cannot be
+`pnpm dev` writes a file the sandbox denies, remove that filename from
+`sandbox.filesystem.denyWrite` in `.claude/settings.json`. A deny cannot be
 re-opened from `.claude/settings.local.json`.
 
 ---

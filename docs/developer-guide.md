@@ -196,7 +196,7 @@ configured decision, not a bug.
 
 | Denied | Why |
 |---|---|
-| Reading or writing `.env`, `.env.local`, `.env.production`, … | A secret that never enters the context cannot leak from it. Both as a permission rule and in the sandbox, so a shell command cannot go around it |
+| Writing `.env`, `.env.local`, `.env.production`, … | The file is yours: reads are open so a task can use the values it needs, but the agent never edits it. Both as a permission rule and in the sandbox, so a shell command cannot go around it |
 | Reading `~/.ssh`, `~/.aws`, `~/.kube` | Same reason, one level up |
 | `GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, `NPM_TOKEN`, `AWS_*`, … | Unset inside sandboxed commands, so a token cannot end up in a URL, in `ps` or in a log |
 | `git push --force` / `-f`, in every spelling | Rewriting a shared branch |
@@ -221,11 +221,13 @@ The pattern is the same throughout: **reads are free, outward-facing writes ask.
 
 ### If a deny is in your way
 
-A denied read of `.env` is usually correct and the flow is written to work
-without it. The one case that is not: **the project's own test or dev command
-loads a denied file**, and the sandbox breaks it for every command, not just the
-ones Claude writes. The fix is to remove that filename from
-`sandbox.filesystem.denyRead` in `.claude/settings.json` — a deny cannot be
+Reads of `.env` are open — a task that calls a real API needs the values, and
+the rule that remains is behavioural: a value never lands in a tracked file, a
+command line or a tracker comment. What stays denied is writing the `.env`
+family and the lock files. If **the project's own test or dev command writes a
+denied file**, the sandbox breaks it for every command, not just the ones
+Claude writes. The fix is to remove that filename from
+`sandbox.filesystem.denyWrite` in `.claude/settings.json` — a deny cannot be
 re-opened from `.claude/settings.local.json`, which can only add. The token
 variables stay unset either way.
 

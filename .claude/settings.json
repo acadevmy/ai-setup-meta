@@ -40,8 +40,6 @@
       "Bash(claude *--permission-mode bypassPermissions*)",
       "Bash(npm publish*)",
       "Bash(rm -rf /*)",
-      "Read(**/.env)",
-      "Read(**/.env.local)",
       "Edit(**/.env)",
       "Edit(**/.env.local)"
     ]
@@ -50,7 +48,6 @@
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
     "filesystem": {
-      "denyRead": [".env", ".env.local", "**/.env", "**/.env.local"],
       "denyWrite": [".env", ".env.local", "**/.env", "**/.env.local"]
     },
     "network": {

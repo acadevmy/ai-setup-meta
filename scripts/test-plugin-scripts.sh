@@ -628,8 +628,16 @@ assert_eq "a pre-sandbox settings is migrated" "true" \
 assert_eq "the merged settings carries the sandbox" "true" \
   "$(jq -r '.sandbox.enabled' "$MIG_DIR/merged.json")"
 
-assert_eq "the merged settings denies reading .env" "true" \
-  "$(jq -r '[.sandbox.filesystem.denyRead[], .permissions.deny[]]
+# Reads of .env are open again (a task that makes a real call needs the
+# values); writes stay denied at both levels.
+assert_eq "the merged settings does not deny reading .env" "0" \
+  "$(jq -r '[(.sandbox.filesystem.denyRead // [])[],
+             (.permissions.deny[] | select(startswith("Read(")))]
+            | map(select(test("\\.env"))) | length' "$MIG_DIR/merged.json")"
+
+assert_eq "the merged settings still denies writing .env" "true" \
+  "$(jq -r '[.sandbox.filesystem.denyWrite[],
+             (.permissions.deny[] | select(startswith("Edit(")))]
             | map(select(test("\\.env"))) | length > 0' "$MIG_DIR/merged.json")"
 
 assert_eq "the ask checkpoints arrive" "true" \
@@ -664,6 +672,38 @@ assert_eq "and reports why" "already-sandboxed" "$(jq -r .REASON "$MIG_DIR/again
 # It never writes in place: the caller shows the diff and asks first.
 assert_eq "the input file is never modified" "true" \
   "$(jq -r 'has("sandbox") | not' "$MIG_DIR/old.json")"
+
+# A settings written by an earlier sandbox-era template still carries the .env
+# read denies the template later retired. UPDATE removes exactly those entries
+# and nothing else: write denies and the team's own additions stay.
+jq '.permissions.deny += ["Read(**/.env)", "Read(**/.env.local)"]
+    | .sandbox.filesystem.denyRead = [".env", "**/.env", "secrets/"]' \
+  "$MIG_DIR/merged.json" > "$MIG_DIR/read-blocked.json"
+
+LIGHT_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/read-blocked.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/unblocked.json" --json 2>/dev/null)
+
+assert_eq "a sandboxed settings with the read block is migrated" "env-read-unblocked" \
+  "$(printf '%s' "$LIGHT_REPORT" | jq -r .REASON)"
+
+assert_eq "the retired read denies are removed" "0" \
+  "$(jq -r '[.permissions.deny[] | select(startswith("Read("))] | length' \
+     "$MIG_DIR/unblocked.json")"
+
+assert_eq "a denyRead the team added survives" '["secrets/"]' \
+  "$(jq -c '.sandbox.filesystem.denyRead' "$MIG_DIR/unblocked.json")"
+
+assert_eq "the write denies stay after the retire pass" "true" \
+  "$(jq -r '.sandbox.filesystem.denyWrite
+            | map(select(test("\\.env"))) | length > 0' "$MIG_DIR/unblocked.json")"
+
+assert_contains "the report names the retired denies" "$LIGHT_REPORT" "Read(**/.env)"
+
+# And once unblocked the file is current: the next run refuses to touch it.
+bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unblocked.json" \
+  --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
+assert_eq "an unblocked settings is then left alone" "3" "$?"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)
