@@ -110,24 +110,25 @@ theirs.
 
 The file carries a `sandbox` block that turns on OS-level filesystem and network
 isolation for every Bash command Claude runs (Seatbelt on macOS, bubblewrap on
-Linux/WSL2). It denies reads and writes of the `.env` family, denies reads of
-`~/.ssh`, `~/.aws` and `~/.kube`, unsets the usual token variables inside
-sandboxed commands, and pre-allows a small set of network domains that 3.4
-adapts to this project. **The file you have just written is the security
-boundary of the project: from here on, you cannot read or write `.env`, and
-neither can the shell commands you run.** That is intentional —
-`mcp-env.md` is written to work without ever touching it.
+Linux/WSL2). It denies writes of the `.env` family — reads stay open, so a task
+can use the values it needs — denies reads of `~/.ssh`, `~/.aws` and `~/.kube`,
+unsets the usual token variables inside sandboxed commands, and pre-allows a
+small set of network domains that 3.4 adapts to this project. **The file you
+have just written is the security boundary of the project: from here on,
+neither you nor the shell commands you run can write `.env`.** The setup itself
+still never touches the real file — `mcp-env.md` works on `.env.example`.
 
 `.claude/settings.user.json` is **not** installed here: it is a user-scope
 snippet, handled in 3.5.
 
-**If the project's own test or dev command loads one of the denied files**, the
-sandbox will break it — the deny covers every sandboxed command, not just the
-ones Claude writes. Tell the developer, and fix it by deleting that filename
-from `sandbox.filesystem.denyRead` in `.claude/settings.json`. A `denyRead`
-entry cannot be re-opened from another settings file: `.claude/settings.local.json`
-can only add denies, never remove them. The `credentials.envVars` block stays
-either way, so the token variables remain unset inside sandboxed commands.
+**If the project's own test or dev command writes one of the denied files**,
+the sandbox will break it — the deny covers every sandboxed command, not just
+the ones Claude writes. Tell the developer, and fix it by deleting that
+filename from `sandbox.filesystem.denyWrite` in `.claude/settings.json`. A deny
+entry cannot be re-opened from another settings file:
+`.claude/settings.local.json` can only add denies, never remove them. The
+`credentials.envVars` block stays either way, so the token variables remain
+unset inside sandboxed commands.
 
 **REGISTRY.md** — single project: if `REGISTRY.md` does not exist (or the
 developer confirms the overwrite), read
@@ -167,11 +168,14 @@ the force-push, `--no-verify` and `.env` entries, no `ask` block, and no
 `sandbox` block at all. Conflict detection reads that file as the team's and
 keeps it — so on a project set up before the sandbox landed, **none of the
 protection arrives**, while `dev-setup-core.md` goes on telling every session
-that the sandbox denies reading `.env`. A rule that describes a mechanism the
+that the sandbox denies writing `.env`. A rule that describes a mechanism the
 project does not have is the exact defect this plugin exists to remove.
 
-So: a settings.json **with** a `sandbox` key is the team's, and conflict
-detection applies. One **without** it is an old artefact, and it gets migrated.
+So: a settings.json **without** a `sandbox` key is an old artefact, and it gets
+migrated wholesale. One **with** it is the team's, and conflict detection
+applies — with one exception: if it still carries the `.env` read denies this
+template retired, the script removes exactly those entries and touches nothing
+else (`REASON: env-read-unblocked`).
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-settings.sh \
@@ -182,18 +186,27 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-settings.sh \
 ```
 
 The script never writes in place. It reports `MIGRATED`, `REASON`,
-`ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW` and `KEPT_ALLOW`,
-and exits `3` with `REASON: already-sandboxed` when there is nothing to do — in
-which case delete the `.migrated` file and move on.
+`ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW` and
+`RETIRED_DENY`, and exits `3` with `REASON: already-sandboxed` when there is
+nothing to do — in which case delete the `.migrated` file and move on.
 
-When it did migrate, show the developer what it changed and ask once:
+When it did migrate with `REASON: migrated`, show the developer what it changed
+and ask once:
 
 > "`.claude/settings.json` predates the Bash sandbox. Migrating it adds the
 > sandbox block (filesystem, network and credential isolation), the `ask`
 > checkpoints on `gh pr create` / `glab mr create` and on ClickUp writes,
 > `<ADDED_DENY>` deny rules (force push, protected branches, `--no-verify`,
-> `.env`, lock files), and drops `<RETIRED_ALLOW>` from the allowlist. Your own
-> entries are kept: `<KEPT_ALLOW>`. Apply it? (yes / skip)"
+> `.env` writes, lock files), and drops `<RETIRED_ALLOW>` from the allowlist.
+> Your own entries are kept: `<KEPT_ALLOW>`. Apply it? (yes / skip)"
+
+With `REASON: env-read-unblocked` the file already has the sandbox and only the
+retired `.env` read denies were removed. Ask once:
+
+> "`.claude/settings.json` still denies reading `.env`, which this plugin
+> version no longer does — reads are open so a task can use the values it
+> needs; writes stay denied. Migrating removes `<RETIRED_DENY>` and changes
+> nothing else. Apply it? (yes / skip)"
 
 - **yes** → replace `.claude/settings.json` with the migrated file. From here on
   the sandbox is real, and the rest of Step 3 treats the file as freshly

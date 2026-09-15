@@ -61,11 +61,10 @@ A flow that starts without a task id needs the list to read from. Look for
 1. the environment variable;
 2. the plugin's `userConfig` (set at install time).
 
-**Do not read the project's `.env`.** The setup denies that file to the file
-tools and to sandboxed shell commands, and one list id does not justify pulling
-a file of secrets into the context window. If neither source has the value, say
-so and stop: the fix is for the developer to export the variable or fill it in
-through the plugin config.
+**Do not read the project's `.env` for this.** Reads of that file are open, but
+one list id does not justify pulling a file of secrets into the context window.
+If neither source has the value, say so and stop: the fix is for the developer
+to export the variable or fill it in through the plugin config.
 
 ## Status transitions
 

@@ -31,7 +31,8 @@ not, print the commands to run manually and move on.
 ClickUp is only useful if the team tracks tasks there. Resolve
 `CLICKUP_SETUP_LIST_ID` as `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`
 describes — environment variable, then the plugin's `userConfig`, and **never**
-the project's `.env`, which 3.2 denied to you and to your shell commands.
+the project's `.env`: one list id does not justify pulling a file of secrets
+into the context window.
 
 - **Set** → check with `claude mcp list` whether `clickup` is already configured.
   If it is not:
@@ -104,10 +105,10 @@ never ran all look identical from the summary.
 
 ## Step 7 — Declare the environment variables
 
-**You never read or write `.env`.** Step 3.2 denied it at two levels — the file
-tools refuse it and the sandbox refuses it to your shell commands — so the real
-file stays the developer's. Work on `.env.example`, which is tracked, carries no
-values, and is explicitly excluded from those deny rules.
+**You never write `.env`, and no setup step reads it.** Step 3.2 denies writes
+at two levels — the file tools refuse them and the sandbox refuses them to your
+shell commands — and the values are the developer's: nothing in this step needs
+one. Work on `.env.example`, which is tracked and carries no values.
 
 1. `.env.example` exists and already contains `CLICKUP_SETUP_LIST_ID` → do
    nothing.

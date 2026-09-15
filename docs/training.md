@@ -61,7 +61,7 @@ so those interruptions read as design rather than as bugs.
   read in full, every session     the harness injects the ones that
                                   match the file you just opened
 
-  "never read .env"            →  OS-level sandbox deny; the shell
+  "never write .env"           →  OS-level sandbox deny; the shell
   in a deny list a `sed`          cannot go around it either
   walked around
 
@@ -196,8 +196,8 @@ ever — "don't ask again" records it). Everything else is denied silently or
 allowed silently.
 
 **"The sandbox will break my dev server."** It can, and there is a documented
-fix: if the project's own command loads a file the sandbox denies, remove that
-filename from `sandbox.filesystem.denyRead`. Say this before someone discovers
+fix: if the project's own command writes a file the sandbox denies, remove that
+filename from `sandbox.filesystem.denyWrite`. Say this before someone discovers
 it at 6pm.
 
 **"I liked reading the constitution — now I do not know the rules."** The rules

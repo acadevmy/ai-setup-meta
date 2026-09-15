@@ -23,21 +23,30 @@
 #                      and a half-configured sandbox is worse than none
 #   permissions.ask    taken from the template wholesale, same reason
 #   permissions.deny   union: every template entry, plus anything the project
-#                      added. A deny is never dropped
+#                      added — minus the `.env` read denies the template
+#                      retired (see RETIRED_DENY below). Writes stay denied
 #   permissions.allow  the template's list, plus the project's own additions,
 #                      minus the entries the refactor deliberately removed
 #                      (see RETIRED_ALLOW below)
 #   anything else      the project's value wins — these are keys the template
 #                      does not manage
 #
+# A settings that already carries a `sandbox` block is the team's file and is
+# normally left alone — with one exception: if it still holds the `.env` read
+# denies the template retired (`Read(**/.env*)` permission rules, the `.env`
+# family in `sandbox.filesystem.denyRead`), those entries are removed and
+# nothing else is touched. Write denies are kept either way.
+#
 # Report keys (--json):
 #   MIGRATED        true | false
-#   REASON          migrated | already-sandboxed | no-template-sandbox
+#   REASON          migrated | env-read-unblocked | already-sandboxed |
+#                   no-template-sandbox
 #   ADDED_SANDBOX   true | false
 #   ADDED_ASK       number of `ask` entries the project did not have
 #   ADDED_DENY      number of `deny` entries the project did not have
 #   RETIRED_ALLOW   comma-separated allow entries dropped, or ""
 #   KEPT_ALLOW      comma-separated allow entries kept that the template lacks
+#   RETIRED_DENY    comma-separated `.env` read denies removed, or ""
 #
 # Exit code: 0 = merged · 3 = nothing to migrate · other = error.
 # The merged output is written; it is never applied in place. The caller shows
@@ -60,6 +69,36 @@ RETIRED_ALLOW=(
   'Bash(node *)'
   'Bash(claude *)'
   'mcp__context7__*'
+)
+
+# Deny entries the current template no longer ships: the `.env` read block.
+# The lists name exactly what older templates wrote, so a deny the team added
+# on its own is never touched. The write denies are not in these lists — they
+# stay in the template and in every migrated file.
+RETIRED_DENY=(
+  'Read(**/.env)'
+  'Read(**/.env.local)'
+  'Read(**/.env.*.local)'
+  'Read(**/.env.development)'
+  'Read(**/.env.production)'
+  'Read(**/.env.staging)'
+  'Read(**/.env.test)'
+)
+
+RETIRED_DENYREAD=(
+  '.env'
+  '.env.local'
+  '.env.development'
+  '.env.production'
+  '.env.staging'
+  '.env.test'
+  '**/.env'
+  '**/.env.local'
+  '**/.env.*.local'
+  '**/.env.development'
+  '**/.env.production'
+  '**/.env.staging'
+  '**/.env.test'
 )
 
 # ── Arguments ─────────────────────────────────────────────────────────────────
@@ -108,6 +147,7 @@ report_and_exit() {
     json_set ADDED_DENY 0
     json_set RETIRED_ALLOW ""
     json_set KEPT_ALLOW ""
+    json_set RETIRED_DENY ""
     json_emit
   else
     warn "nothing to migrate: $reason"
@@ -115,8 +155,57 @@ report_and_exit() {
   exit "$code"
 }
 
+RETIRED_DENY_JSON=$(printf '%s\n' "${RETIRED_DENY[@]}" | jq -R . | jq -s .)
+RETIRED_DENYREAD_JSON=$(printf '%s\n' "${RETIRED_DENYREAD[@]}" | jq -R . | jq -s .)
+
+csv_of() { jq -r 'if length == 0 then "" else join(",") end'; }
+
 if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
-  report_and_exit already-sandboxed 3
+  # The team's file, normally left alone. One check remains: the `.env` read
+  # denies the template retired. If any is still there, remove exactly those
+  # entries and touch nothing else.
+  FOUND_RETIRED=$(jq --argjson rd "$RETIRED_DENY_JSON" --argjson rr "$RETIRED_DENYREAD_JSON" '
+    [ ((.permissions // {}).deny // [])[] | select(. as $e | $rd | index($e)) ] +
+    [ (((.sandbox // {}).filesystem // {}).denyRead // [])[] | select(. as $e | $rr | index($e)) ]
+    ' "$IN_FILE")
+
+  if [ "$(printf '%s' "$FOUND_RETIRED" | jq 'length')" -eq 0 ]; then
+    report_and_exit already-sandboxed 3
+  fi
+
+  MERGED=$(jq --argjson rd "$RETIRED_DENY_JSON" --argjson rr "$RETIRED_DENYREAD_JSON" '
+    (if ((.permissions // {}) | has("deny")) then
+       .permissions.deny |= map(select(. as $e | $rd | index($e) | not))
+     else . end)
+    | (if (((.sandbox // {}).filesystem // {}) | has("denyRead")) then
+         .sandbox.filesystem.denyRead |= map(select(. as $e | $rr | index($e) | not))
+         | (if (.sandbox.filesystem.denyRead | length) == 0
+            then del(.sandbox.filesystem.denyRead) else . end)
+       else . end)
+    ' "$IN_FILE")
+  [ -n "$MERGED" ] || die "the retire pass produced nothing — is $IN_FILE a settings.json?"
+
+  RETIRED_DENY_FOUND=$(printf '%s' "$FOUND_RETIRED" | csv_of)
+
+  if [ -n "$OUT_FILE" ]; then
+    mkdir -p "$(dirname "$OUT_FILE")" 2>/dev/null || true
+    printf '%s\n' "$MERGED" > "$OUT_FILE" || die "cannot write: $OUT_FILE"
+  fi
+
+  if [ "$AS_JSON" = true ]; then
+    json_set MIGRATED true
+    json_set REASON env-read-unblocked
+    json_set ADDED_SANDBOX false
+    json_set ADDED_ASK 0
+    json_set ADDED_DENY 0
+    json_set RETIRED_ALLOW ""
+    json_set KEPT_ALLOW ""
+    json_set RETIRED_DENY "$RETIRED_DENY_FOUND"
+    json_emit
+  elif [ -z "$OUT_FILE" ]; then
+    printf '%s\n' "$MERGED"
+  fi
+  exit 0
 fi
 
 if ! jq -e 'has("sandbox")' "$TEMPLATE_FILE" >/dev/null 2>&1; then
@@ -132,14 +221,16 @@ RETIRED_JSON=$(printf '%s\n' "${RETIRED_ALLOW[@]}" | jq -R . | jq -s .)
 MERGED=$(jq -n \
   --slurpfile proj "$IN_FILE" \
   --slurpfile tpl "$TEMPLATE_FILE" \
-  --argjson retired "$RETIRED_JSON" '
+  --argjson retired "$RETIRED_JSON" \
+  --argjson retired_deny "$RETIRED_DENY_JSON" '
   ($proj[0]) as $p | ($tpl[0]) as $t |
   ($p.permissions // {}) as $pp | ($t.permissions // {}) as $tp |
   # allow: the template first (it is the intended baseline and its order is
   # deliberate), then whatever the project added and the refactor did not retire.
   (($tp.allow // []) + (($pp.allow // []) | map(select(. as $e | ($tp.allow // []) | index($e) | not))
                                           | map(select(. as $e | $retired | index($e) | not)))) as $allow |
-  (($tp.deny // []) + (($pp.deny // []) | map(select(. as $e | ($tp.deny // []) | index($e) | not)))) as $deny |
+  (($tp.deny // []) + (($pp.deny // []) | map(select(. as $e | ($tp.deny // []) | index($e) | not))
+                                        | map(select(. as $e | $retired_deny | index($e) | not)))) as $deny |
   $p
   + { sandbox: $t.sandbox }
   + { permissions: ($pp + {
@@ -161,10 +252,12 @@ count_added() {
     ($t | map(select(. as $e | $p | index($e) | not)) | length)'
 }
 
-csv_of() { jq -r 'if length == 0 then "" else join(",") end'; }
-
 ADDED_ASK=$(count_added ask)
 ADDED_DENY=$(count_added deny)
+
+RETIRED_DENY_FOUND=$(jq -n --slurpfile proj "$IN_FILE" --argjson rd "$RETIRED_DENY_JSON" '
+  (($proj[0].permissions // {}).deny // []) as $p |
+  ($rd | map(select(. as $e | $p | index($e))))' | csv_of)
 
 RETIRED_FOUND=$(jq -n --slurpfile proj "$IN_FILE" --argjson retired "$RETIRED_JSON" '
   (($proj[0].permissions // {}).allow // []) as $p |
@@ -191,6 +284,7 @@ if [ "$AS_JSON" = true ]; then
   json_set ADDED_DENY "$ADDED_DENY"
   json_set RETIRED_ALLOW "$RETIRED_FOUND"
   json_set KEPT_ALLOW "$KEPT_ALLOW"
+  json_set RETIRED_DENY "$RETIRED_DENY_FOUND"
   json_emit
 elif [ -z "$OUT_FILE" ]; then
   printf '%s\n' "$MERGED"

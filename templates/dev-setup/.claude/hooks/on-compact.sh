@@ -10,8 +10,7 @@
 #     the path-scoped ones as soon as a matching file is read again), and the
 #     rest is in AGENTS.md, which is loaded anyway.
 #   - the stack no longer comes from a STACK_PROFILE key in .env.local that no
-#     step ever wrote (and that the sandbox denies reading): detect-stack.sh
-#     derives it from the files on disk.
+#     step ever wrote: detect-stack.sh derives it from the files on disk.
 
 set -uo pipefail
 

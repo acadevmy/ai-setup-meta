@@ -150,8 +150,9 @@ release-please groups the entries by type (Features / Bug Fixes / Documentation 
 - Never put an API key, a token or a secret in any git-tracked file
 - Never use `any` in TypeScript, not even in generated configuration files
 - Never `force push` a shared branch
-- Never read `.env` / `.env.local`: they are denied to the file tools and to the sandbox.
-  If a procedure seems to require it, the procedure is wrong — report it instead of working around it
+- Never write `.env` / `.env.local`: writes are denied to the file tools and to the sandbox.
+  Reading them is allowed when a task needs a value for a real call — but a value read there
+  never lands in a git-tracked file, a command line or any output
 - Never let a token appear on a command line (a push URL, a `curl` header, an `echo`):
   it ends up in `ps aux` and in the logs. Use `gh`/`glab`, which read it from the environment
 - Never run `claude` with `--dangerously-skip-permissions` or
@@ -239,7 +240,7 @@ status other than 0.
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
-| `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW` |
+| `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY` |
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug |
 
@@ -698,4 +699,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.17.0 — bump the version number on every substantial change*
+*Version: 2.18.0 — bump the version number on every substantial change*
