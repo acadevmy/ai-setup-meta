@@ -810,12 +810,20 @@ fi
 # The surface the workflow replaced: three agents that let the model approve its
 # own spec, and two standalone skills that duplicated sdd-dev. Acceptance
 # criterion 5 of DE-16479, made permanent.
+#
+# CHANGELOG.md is excluded for the same reason `docs/migration-v2-to-v3.md` is
+# excluded from checks 14-15: its subject *is* what was removed. release-please
+# generates it from the commit messages, so the BREAKING CHANGE footer of
+# DE-16479 — "/dev-setup:tdd and /dev-setup:bdd no longer exist" — lands there on
+# the release cut and matches a grep looking for the names. A record of a removal
+# is the opposite of a live reference to a retired command, and the file is
+# regenerated on every release, so editing it around the check would not hold.
 assert_eq "the replaced agents are gone from the distributed surface" "" \
-  "$(grep -rl -E "sdd-approver|discovery-responder|methodology-picker" \
+  "$(grep -rl --exclude=CHANGELOG.md -E "sdd-approver|discovery-responder|methodology-picker" \
        "$REPO_ROOT/templates" "$REPO_ROOT/dist" 2>/dev/null || true)"
 
 assert_eq "no command points at the retired tdd/bdd skills" "" \
-  "$(grep -rl -E "dev-setup:(tdd|bdd)" \
+  "$(grep -rl --exclude=CHANGELOG.md -E "dev-setup:(tdd|bdd)" \
        "$REPO_ROOT/templates" "$REPO_ROOT/dist" 2>/dev/null || true)"
 
 assert_eq "the workflow ships in the built plugin" "true" \
