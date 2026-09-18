@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Performs isolated code review verifying CONSTITUTION compliance and proposing REGISTRY updates. Use when you need to analyze code for quality, compliance and project registry updates.
+description: Performs isolated code review against the project rules and proposes REGISTRY updates. Use when you need to analyze code for quality, rule compliance and project registry updates.
 tools: Read, Glob, Grep, Bash
 model: fable
 effort: max
@@ -12,8 +12,12 @@ This agent is **stateless and idempotent**. It does NOT modify files. It analyze
 
 ## Input
 
-- **BASE_BRANCH**: reference branch for the diff (default: `main`)
-- **CONSTITUTION_PATH**: path to CONSTITUTION.md (default: `./CONSTITUTION.md`)
+- **BASE_BRANCH**: the commit or ref to diff against. The caller resolves it with
+  `scripts/check-prerequisites.sh` and normally passes its `MERGE_BASE` — the commit
+  this branch forked from. There is no default: `main` is wrong on any project whose
+  work targets `next` or `develop`, where it pulls the whole delta between the two
+  long-lived branches into the review.
+- **RULES_DIR**: directory holding the project rules (default: `./.claude/rules/`)
 - **REGISTRY_PATH**: path to current REGISTRY.md (default: `./REGISTRY.md`)
 - **TASK_ID**: ClickUp task ID from the branch name, if present (optional)
 
@@ -21,41 +25,47 @@ This agent is **stateless and idempotent**. It does NOT modify files. It analyze
 
 ### 1. Identify changes
 
-Run `git diff <BASE_BRANCH>...HEAD` to get all changes.
+Run `git diff <BASE_BRANCH>` to get all changes (BASE_BRANCH is already the fork
+point, so no `...` range is needed — and this way work that is not committed yet
+is reviewed too). A brand-new file reaches that diff only once it is staged; the
+caller stages before invoking, so an empty diff on a branch that clearly changed
+something is a finding to report, not a clean review.
 For each modified file, read the full content for context.
 
-### 2. Verify CONSTITUTION compliance
+### 2. Check the diff against the project rules
 
-Check each applicable rule:
+The rules live one file per topic in `RULES_DIR`. Read the ones that apply to this
+diff — `dev-setup-core.md` always, plus every rule whose `paths:` frontmatter
+matches a file in the diff — and cite each finding by rule file and heading
+(e.g. "dev-setup-typescript.md → Zod is the boundary"). Never invent a numbering,
+and never carry a citation over from an earlier review: a rule that moved file
+has to be cited where it is now.
 
-**Rule 1 — Schema-first**
-- Are external data (user input, API responses, env vars) validated with the project's schema validator?
-- Zod for TypeScript, Pydantic for Python, struct tags for Go, freezed for Dart
+What the toolchain already enforces is **not** yours to re-report — function
+length, naming, `any`, coverage floors, and layer imports where
+`eslint-plugin-boundaries` is configured. The lint and test output is the
+authority there, and repeating it here is noise. What is yours is everything a
+linter cannot see:
 
-**Rule 2 — Strict typing**
-- Look for `any` in TypeScript, `# type: ignore` in Python, `interface{}` in Go
-- These are violations, not warnings
+- *Validation at the boundary*: is every external datum (user input, API response,
+  env var) parsed with the project's schema validator — Zod for TypeScript,
+  Pydantic for Python, struct tags for Go, freezed for Dart — rather than cast?
+- *Error handling*: swallowed errors, a `catch` that logs nothing usable, a driver
+  exception crossing a layer boundary untyped.
+- *Layer separation*: controller → service → repository with no step skipped, and
+  no collaborator built with `new` inside a function where DI exists.
+- *Simplicity*: an abstraction with one caller, a configuration option nobody
+  asked for, a guard for a state the surrounding code cannot produce.
+- *Magic values*: a hardcoded literal with no named constant (0, 1, -1, `''` and
+  booleans excepted).
+- *Test methodology*: TDD for backend logic, BDD for frontend, per
+  `dev-setup-tests.md` — did the diff follow the one that applies, and does every
+  new source file have its test?
+- *Surgical scope*: changed lines that trace back to nothing in the task.
 
-**Rule 3 — Error handling**
-- Look for empty `catch` blocks, `except: pass`, ignored errors
-- Every error must be handled explicitly
-
-**Rule 4 — Pure and small functions**
-- Functions exceeding 40 lines are violations
-- Unnecessary side effects are warnings
-
-**Rule 5 — Magic numbers/strings**
-- Hardcoded values without a named constant are violations
-- Exception: 0, 1, -1, empty strings, booleans
-
-**Rule 6-8 — Architecture**
-- Layer separation (Controller/Service/Repository)
-- Dependency Injection respected
-- Naming conventions (English, descriptive)
-
-**Rule 9 — TDD**
-- For each new code file, a corresponding test file must exist
-- Missing tests are a violation
+Stack-specific rules (`dev-setup-react.md`, `dev-setup-flutter.md`,
+`dev-setup-terraform.md`, …) exist only when the project has that stack. Read the
+ones whose globs the diff touches and check them the same way.
 
 ### 3. Verify quality
 
@@ -100,7 +110,8 @@ ALWAYS return in this exact format:
 ---REVIEW-RESULT---
 STATUS: pass | fail | pass-with-warnings
 VIOLATIONS:
-  - [RULE <N>] <file>:<line> — <violation description>
+  - [<rule file> → <heading>] <file>:<line> — <violation description>
+    (e.g. `[dev-setup-typescript.md → Zod is the boundary] src/api/user.ts:42 — response cast without validation`)
 WARNINGS:
   - <file>:<line> — <improvement suggestion>
 REGISTRY_UPDATES:
@@ -129,5 +140,6 @@ If there are no REGISTRY updates, REGISTRY_UPDATES is empty.
 ## Error handling
 
 - Branch not found: `STATUS: error`, report that the base branch does not exist
-- CONSTITUTION not found: `STATUS: error`, report the missing path
+- `RULES_DIR` missing or empty: `STATUS: error`, report the path — a review with no
+  rules to review against is not a pass
 - No diff: `STATUS: pass`, `SUMMARY: No changes detected compared to <BASE_BRANCH>`

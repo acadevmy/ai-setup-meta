@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# build-plugin.sh — Orchestratore: legge manifest.json e invoca i builder specifici
+# build-plugin.sh — orchestrator: reads manifest.json and calls the builder
 #
-# Uso: bash scripts/build-plugin.sh [template-name]
+# Usage: bash scripts/build-plugin.sh [template-name]
 #
-# Prerequisiti: jq
+# Prerequisites: jq
 #
-# Struttura builder:
-#   scripts/builders/common.sh       — Funzioni condivise (ok, warn, fail, step)
-#   scripts/builders/build-claude.sh — Build plugin Claude Code (sempre eseguito)
-#   scripts/builders/build-gemini.sh — Build variante Gemini CLI (se gemini_support)
-#   scripts/builders/build-codex.sh  — Build variante Codex CLI (se codex_support)
+# Builder layout:
+#   scripts/builders/common.sh       — shared helpers (ok, warn, fail, step)
+#   scripts/builders/build-claude.sh — Claude Code plugin build (the only target)
 
 set -euo pipefail
 
@@ -21,10 +19,10 @@ source "$BUILDERS_DIR/common.sh"
 TEMPLATE_NAME="${1:-}"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# ── Prerequisiti ──────────────────────────────────────────────────────────────
-command -v jq >/dev/null 2>&1 || fail "jq non trovato. Installa con: brew install jq"
+# ── Prerequisites ─────────────────────────────────────────────────────────────
+command -v jq >/dev/null 2>&1 || fail "jq not found. Install it with: brew install jq"
 
-# ── Seleziona template ────────────────────────────────────────────────────────
+# ── Select the template ───────────────────────────────────────────────────────
 if [ -z "$TEMPLATE_NAME" ]; then
   TEMPLATES=()
   while IFS= read -r MF; do
@@ -32,27 +30,27 @@ if [ -z "$TEMPLATE_NAME" ]; then
     TEMPLATES+=("$(basename "$(dirname "$MF")")")
   done < <(find "$ROOT_DIR/templates" -maxdepth 2 -name "manifest.json" 2>/dev/null)
   if [ ${#TEMPLATES[@]} -eq 0 ]; then
-    fail "Nessun template trovato in templates/"
+    fail "No template found under templates/"
   elif [ ${#TEMPLATES[@]} -eq 1 ]; then
     TEMPLATE_NAME="${TEMPLATES[0]}"
-    ok "Template selezionato automaticamente: $TEMPLATE_NAME"
+    ok "Template selected automatically: $TEMPLATE_NAME"
   else
-    echo "Template disponibili:"
+    echo "Available templates:"
     for i in "${!TEMPLATES[@]}"; do
       echo "  $((i+1)). ${TEMPLATES[$i]}"
     done
-    read -rp "Scegli un numero: " CHOICE
+    read -rp "Pick a number: " CHOICE
     TEMPLATE_NAME="${TEMPLATES[$((CHOICE-1))]}"
   fi
 fi
 
-# ── Variabili condivise (esportate per i builder) ─────────────────────────────
+# ── Shared variables (exported for the builders) ──────────────────────────────
 export TEMPLATE_DIR="$ROOT_DIR/templates/$TEMPLATE_NAME"
 export MANIFEST="$TEMPLATE_DIR/manifest.json"
 export DIST_DIR="$ROOT_DIR/dist/$TEMPLATE_NAME"
 
-[ -d "$TEMPLATE_DIR" ] || fail "Template '$TEMPLATE_NAME' non trovato in templates/"
-[ -f "$MANIFEST" ] || fail "manifest.json non trovato in $TEMPLATE_DIR/"
+[ -d "$TEMPLATE_DIR" ] || fail "Template '$TEMPLATE_NAME' not found under templates/"
+[ -f "$MANIFEST" ] || fail "manifest.json not found in $TEMPLATE_DIR/"
 
 step "Build plugin: $TEMPLATE_NAME"
 
@@ -64,34 +62,19 @@ VERSION=$(sed -n 's/^TEMPLATE_VERSION=\([^ #]*\).*/\1/p' "$TEMPLATE_DIR/.env.exa
 AUTHOR=$(jq -r '.author // "Acadevmy"' "$MANIFEST")
 export NAME DESCRIPTION VERSION AUTHOR ROOT_DIR
 
-ok "Manifest letto: $NAME v$VERSION"
+ok "Manifest read: $NAME v$VERSION"
 
-# ── Pulisci dist ──────────────────────────────────────────────────────────────
-step "Creazione struttura plugin in dist/$TEMPLATE_NAME/"
+# ── Clean dist ────────────────────────────────────────────────────────────────
+step "Creating the plugin layout under dist/$TEMPLATE_NAME/"
 rm -rf "$DIST_DIR"
 
-# ── 1. Build Claude Code (sempre) ────────────────────────────────────────────
+# ── Claude Code build (the only target) ──────────────────────────────────────
+# DE-16489: the builders for the other runtimes were removed. A SKILL.md that
+# conforms to the Agent Skills standard is readable elsewhere without conversion,
+# so there is nothing left to convert.
 bash "$BUILDERS_DIR/build-claude.sh"
 
-# ── 2. Build Gemini CLI (se abilitato) ────────────────────────────────────────
-GEMINI_SUPPORT=$(jq -r '.gemini_support // false' "$MANIFEST")
-if [ "$GEMINI_SUPPORT" = "true" ]; then
-  bash "$BUILDERS_DIR/build-gemini.sh"
-fi
-
-# ── 3. Build Codex CLI (se abilitato) ────────────────────────────────────────
-CODEX_SUPPORT=$(jq -r '.codex_support // false' "$MANIFEST")
-if [ "$CODEX_SUPPORT" = "true" ]; then
-  bash "$BUILDERS_DIR/build-codex.sh"
-fi
-
-# ── 4. Build Cursor (se abilitato) ───────────────────────────────────────────
-CURSOR_SUPPORT=$(jq -r '.cursor_support // false' "$MANIFEST")
-if [ "$CURSOR_SUPPORT" = "true" ]; then
-  bash "$BUILDERS_DIR/build-cursor.sh"
-fi
-
-# ── Riepilogo ─────────────────────────────────────────────────────────────────
+# ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "║       Plugin $NAME v$VERSION built                      ║"
@@ -100,33 +83,17 @@ echo ""
 echo "  Output: dist/$TEMPLATE_NAME/"
 echo ""
 
-# Conta i componenti
+# Count the components
 SKILL_COUNT=$(find "$DIST_DIR/skills" -name "SKILL.md" | wc -l | tr -d ' ')
 AGENT_COUNT=$(find "$DIST_DIR/agents" -name "*.md" | wc -l | tr -d ' ')
 HOOK_COUNT=$(find "$DIST_DIR/hooks/scripts" -name "*.sh" 2>/dev/null | wc -l | tr -d ' ')
+WORKFLOW_COUNT=$(find "$DIST_DIR/workflows" -name "*.js" 2>/dev/null | wc -l | tr -d ' ')
 
-echo "  Skills: $SKILL_COUNT"
-echo "  Agents: $AGENT_COUNT"
-echo "  Hooks:  $HOOK_COUNT"
-
-if [ "$GEMINI_SUPPORT" = "true" ]; then
-  echo "  Gemini: GEMINI.md generato"
-fi
-
-if [ "$CODEX_SUPPORT" = "true" ]; then
-  echo "  Codex:  AGENTS.md + plugin generato"
-fi
-
-if [ "$CURSOR_SUPPORT" = "true" ]; then
-  CMD_COUNT=$(find "$DIST_DIR/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
-  echo "  Cursor: plugin.json + mcp.json + $CMD_COUNT commands generati"
-  echo ""
-  echo "  Test locale Cursor:"
-  echo "    ln -s \$(pwd)/dist/$TEMPLATE_NAME ~/.cursor/plugins/local/$TEMPLATE_NAME"
-  echo "    # poi: Developer → Reload Window in Cursor"
-fi
-
+echo "  Skills:    $SKILL_COUNT"
+echo "  Agents:    $AGENT_COUNT"
+echo "  Hooks:     $HOOK_COUNT"
+echo "  Workflows: $WORKFLOW_COUNT"
 echo ""
-echo "  Validazione: claude plugin validate dist/$TEMPLATE_NAME/"
-echo "  Test locale:  claude --plugin-dir dist/$TEMPLATE_NAME/"
+echo "  Validate:   claude plugin validate dist/$TEMPLATE_NAME/"
+echo "  Try it:     claude --plugin-dir dist/$TEMPLATE_NAME/"
 echo ""

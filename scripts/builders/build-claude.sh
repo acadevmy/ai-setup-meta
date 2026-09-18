@@ -1,27 +1,31 @@
 #!/usr/bin/env bash
-# build-claude.sh — Builder per Claude Code plugin
+# build-claude.sh — Claude Code plugin builder
 #
-# Genera la struttura plugin Claude Code in $DIST_DIR.
-# Variabili richieste dall'orchestratore:
+# Generates the Claude Code plugin layout under $DIST_DIR.
+# Variables the orchestrator has to provide:
 #   ROOT_DIR, TEMPLATE_DIR, MANIFEST, DIST_DIR, NAME, DESCRIPTION, VERSION, AUTHOR
 #
-# Importa common.sh per le funzioni condivise.
+# Sources common.sh for the shared helpers.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 step "Build Claude Code plugin"
 
-# ── Crea struttura ───────────────────────────────────────────────────────────
+# ── Create the layout ────────────────────────────────────────────────────────
 mkdir -p "$DIST_DIR/.claude-plugin"
 mkdir -p "$DIST_DIR/skills/setup/templates/profiles"
+mkdir -p "$DIST_DIR/skills/setup/templates/rules"
+mkdir -p "$DIST_DIR/skills/setup/reference"
+mkdir -p "$DIST_DIR/reference"
 mkdir -p "$DIST_DIR/agents"
 mkdir -p "$DIST_DIR/hooks/scripts"
+mkdir -p "$DIST_DIR/scripts"
 
-ok "Struttura directory creata"
+ok "Directory layout created"
 
-# ── Copia shared skills ──────────────────────────────────────────────────────
-step "Copia skills condivise"
+# ── Copy the shared skills ───────────────────────────────────────────────────
+step "Copying the shared skills"
 
 for SKILL in $(jq -r '.shared_skills[]' "$MANIFEST"); do
   SRC="$ROOT_DIR/shared/skills/$SKILL"
@@ -31,12 +35,12 @@ for SKILL in $(jq -r '.shared_skills[]' "$MANIFEST"); do
     cp -r "$SRC"/* "$DST/"
     ok "Shared skill: $SKILL"
   else
-    warn "Shared skill non trovata: $SKILL"
+    warn "Shared skill not found: $SKILL"
   fi
 done
 
-# ── Copia template skills ────────────────────────────────────────────────────
-step "Copia skills del template"
+# ── Copy the template skills ─────────────────────────────────────────────────
+step "Copying the template skills"
 
 for SKILL in $(jq -r '.template_skills[]' "$MANIFEST"); do
   SRC="$TEMPLATE_DIR/.claude/skills/$SKILL"
@@ -46,22 +50,75 @@ for SKILL in $(jq -r '.template_skills[]' "$MANIFEST"); do
     cp -r "$SRC"/* "$DST/"
     ok "Template skill: $SKILL"
   else
-    warn "Template skill non trovata: $SKILL"
+    warn "Template skill not found: $SKILL"
   fi
 done
 
-# ── Crea setup skill ─────────────────────────────────────────────────────────
-step "Creazione setup skill"
+# ── Copy the workflow scripts ────────────────────────────────────────────────
+#
+# The autonomous orchestration is code, not prose (DE-16479): the harness loads
+# every *.js in the plugin's workflows/ directory and registers it as
+# `<plugin>:<meta.name>`, which is the name the launcher skill calls.
+step "Copying the workflows"
 
-SETUP_SKILL_SRC="$TEMPLATE_DIR/setup-skill.md"
+WORKFLOWS_SRC="$TEMPLATE_DIR/.claude/workflows"
+
+for WORKFLOW in $(jq -r '.workflows[]? // empty' "$MANIFEST"); do
+  SRC="$WORKFLOWS_SRC/$WORKFLOW"
+  if [ -f "$SRC" ]; then
+    mkdir -p "$DIST_DIR/workflows"
+    cp "$SRC" "$DIST_DIR/workflows/$WORKFLOW"
+    ok "Workflow: $WORKFLOW"
+  else
+    warn "Workflow not found: $WORKFLOW"
+  fi
+done
+
+# ── Copy the plugin-level shared references ──────────────────────────────────
+#
+# The contracts more than one skill needs (DE-16478): defined once here, cited by
+# name from the skills as ${CLAUDE_PLUGIN_ROOT}/reference/<name>.md. They are not
+# a skill: nothing routes to them, the skills that need them say so.
+step "Copying the shared references"
+
+REFERENCE_SRC="$TEMPLATE_DIR/.claude/reference"
+
+for REF in $(jq -r '.plugin_reference[]? // empty' "$MANIFEST"); do
+  SRC="$REFERENCE_SRC/$REF"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$DIST_DIR/reference/$REF"
+    ok "Shared reference: $REF"
+  else
+    warn "Shared reference not found: $REF"
+  fi
+done
+
+# ── Build the setup skill ────────────────────────────────────────────────────
+step "Building the setup skill"
+
+SETUP_SKILL_REL=$(jq -r '.setup_skill // "setup/SKILL.md"' "$MANIFEST")
+SETUP_SKILL_SRC="$TEMPLATE_DIR/$SETUP_SKILL_REL"
 if [ -f "$SETUP_SKILL_SRC" ]; then
   cp "$SETUP_SKILL_SRC" "$DIST_DIR/skills/setup/SKILL.md"
-  ok "Setup skill copiata"
+  ok "Setup skill copied"
 else
-  fail "File sorgente setup-skill.md non trovato in $TEMPLATE_DIR/"
+  fail "Source file $SETUP_SKILL_REL not found in $TEMPLATE_DIR/"
 fi
 
-# Bundle template files per la setup skill
+# The setup skill's own reference files: progressive disclosure (DE-16478). They
+# sit next to SKILL.md so the model reaches them by name, one hop, on demand.
+SETUP_REFERENCE_SRC="$(dirname "$SETUP_SKILL_SRC")/reference"
+for REF in $(jq -r '.setup_reference[]? // empty' "$MANIFEST"); do
+  SRC="$SETUP_REFERENCE_SRC/$REF"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$DIST_DIR/skills/setup/reference/$REF"
+    ok "Setup reference: $REF"
+  else
+    warn "Setup reference not found: $REF"
+  fi
+done
+
+# Bundle the template files the setup skill needs
 TEMPLATES_DST="$DIST_DIR/skills/setup/templates"
 
 for FILE in $(jq -r '.required_files[]' "$MANIFEST"); do
@@ -71,31 +128,43 @@ for FILE in $(jq -r '.required_files[]' "$MANIFEST"); do
     cp "$SRC" "$TEMPLATES_DST/$BASENAME"
     ok "Template file: $FILE"
   else
-    warn "Required file non trovato: $FILE"
+    warn "Required file not found: $FILE"
   fi
 done
 
-# File di governance non nel required_files
-for EXTRA in "CONSTITUTION.md" "REGISTRY.md"; do
-  SRC="$TEMPLATE_DIR/$EXTRA"
-  if [ -f "$SRC" ] && [ ! -f "$TEMPLATES_DST/$EXTRA" ]; then
-    cp "$SRC" "$TEMPLATES_DST/$EXTRA"
-    ok "Extra template: $EXTRA"
+# REGISTRY.md ships even when the manifest forgets to list it: the setup writes
+# one into every project, so a build without it produces a skill that cannot run.
+REGISTRY_SRC="$TEMPLATE_DIR/REGISTRY.md"
+if [ -f "$REGISTRY_SRC" ] && [ ! -f "$TEMPLATES_DST/REGISTRY.md" ]; then
+  cp "$REGISTRY_SRC" "$TEMPLATES_DST/REGISTRY.md"
+  ok "Extra template: REGISTRY.md"
+fi
+
+# Path-scoped rule templates (DE-16477). The setup skill renders these into the
+# project's .claude/rules/dev-setup-*.md — they replace the CONSTITUTION.md the
+# setup used to copy whole into every project.
+for RULE in $(jq -r '.rules[]? // empty' "$MANIFEST"); do
+  SRC="$TEMPLATE_DIR/rules/$RULE"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$TEMPLATES_DST/rules/$RULE"
+    ok "Rule: $RULE"
+  else
+    warn "Rule not found: $RULE"
   fi
 done
 
-# Profili
+# Profiles
 for PROFILE in $(jq -r '.profiles[]' "$MANIFEST"); do
   SRC="$TEMPLATE_DIR/profiles/$PROFILE"
   if [ -f "$SRC" ]; then
     cp "$SRC" "$TEMPLATES_DST/profiles/$PROFILE"
-    ok "Profilo: $PROFILE"
+    ok "Profile: $PROFILE"
   else
-    warn "Profilo non trovato: $PROFILE"
+    warn "Profile not found: $PROFILE"
   fi
 done
 
-# Boilerplate files (greenfield config, scaricati verbatim a runtime dal setup-agent)
+# Boilerplate files (greenfield config, read verbatim at runtime by the setup skill)
 mkdir -p "$TEMPLATES_DST/boilerplate"
 for BP in $(jq -r '.boilerplate_files[] // empty' "$MANIFEST"); do
   SRC="$TEMPLATE_DIR/boilerplate/$BP"
@@ -105,19 +174,19 @@ for BP in $(jq -r '.boilerplate_files[] // empty' "$MANIFEST"); do
     cp "$SRC" "$DST"
     ok "Boilerplate: $BP"
   else
-    warn "Boilerplate non trovato: $BP"
+    warn "Boilerplate not found: $BP"
   fi
 done
 
-# Settings.json (solo permessi, senza hooks)
+# Settings.json (permissions + sandbox, no hooks: the plugin mounts those itself)
 SETTINGS_SRC="$TEMPLATE_DIR/.claude/settings.json"
 if [ -f "$SETTINGS_SRC" ]; then
-  jq '{permissions: .permissions}' "$SETTINGS_SRC" > "$TEMPLATES_DST/settings.json"
-  ok "Settings (solo permessi) estratto"
+  jq '{permissions: .permissions, sandbox: .sandbox}' "$SETTINGS_SRC" > "$TEMPLATES_DST/settings.json"
+  ok "Settings (permissions + sandbox) extracted"
 fi
 
-# ── Copia agents ──────────────────────────────────────────────────────────────
-step "Copia agents"
+# ── Copy the agents ───────────────────────────────────────────────────────────
+step "Copying the agents"
 
 for AGENT in $(jq -r '.shared_agents[]' "$MANIFEST"); do
   SRC="$ROOT_DIR/shared/agents/$AGENT"
@@ -125,7 +194,7 @@ for AGENT in $(jq -r '.shared_agents[]' "$MANIFEST"); do
     cp "$SRC" "$DIST_DIR/agents/$AGENT"
     ok "Shared agent: $AGENT"
   else
-    warn "Shared agent non trovato: $AGENT"
+    warn "Shared agent not found: $AGENT"
   fi
 done
 
@@ -135,12 +204,22 @@ for AGENT in $(jq -r '.template_agents[]' "$MANIFEST"); do
     cp "$SRC" "$DIST_DIR/agents/$AGENT"
     ok "Template agent: $AGENT"
   else
-    warn "Template agent non trovato: $AGENT"
+    warn "Template agent not found: $AGENT"
   fi
 done
 
-# ── Genera plugin.json ───────────────────────────────────────────────────────
-step "Generazione plugin.json"
+# ── Generate plugin.json ─────────────────────────────────────────────────────
+step "Generating plugin.json"
+
+# The plugin declares MCP servers only if the template ships a .mcp.json.
+# The servers that depend on the stack (figma) or on the team's configuration
+# (clickup) are registered by the setup skill at project/user scope: see Step 6.
+MCP_SRC="$TEMPLATE_DIR/.mcp.json"
+if [ -f "$MCP_SRC" ]; then
+  MCP_REF='"./.mcp.json"'
+else
+  MCP_REF='null'
+fi
 
 AGENTS_JSON=$(find "$DIST_DIR/agents" -name "*.md" -exec basename {} \; | sort | \
   sed 's|^|"./agents/|;s|$|"|' | paste -sd',' - | sed 's/^/[/;s/$/]/')
@@ -149,7 +228,7 @@ if [ "$NAME" = "dev-setup" ]; then
   USER_CONFIG='{
     "CLICKUP_SETUP_LIST_ID": {
       "title": "ClickUp Sprint List ID",
-      "description": "ID della lista ClickUp per i task di sprint (trovalo nell'\''URL: app.clickup.com/.../li/<ID>)",
+      "description": "ClickUp list id for the sprint tasks (find it in the URL: app.clickup.com/.../li/<ID>)",
       "type": "string",
       "sensitive": false,
       "required": false
@@ -166,6 +245,7 @@ jq -n \
   --arg author "$AUTHOR" \
   --argjson agents "$AGENTS_JSON" \
   --argjson userConfig "$USER_CONFIG" \
+  --argjson mcpRef "$MCP_REF" \
   '{
     name: $name,
     version: $version,
@@ -173,19 +253,57 @@ jq -n \
     author: { name: $author },
     skills: "./skills",
     agents: $agents,
-    mcpServers: "./.mcp.json",
+    mcpServers: $mcpRef,
     userConfig: $userConfig
-  }' > "$DIST_DIR/.claude-plugin/plugin.json"
+  }
+  | if .mcpServers == null then del(.mcpServers) else . end' > "$DIST_DIR/.claude-plugin/plugin.json"
 
-ok "plugin.json generato"
+ok "plugin.json generated"
 
-# ── Copia hooks ──────────────────────────────────────────────────────────────
-step "Generazione hooks"
+# ── Copy the plugin scripts ──────────────────────────────────────────────────
+#
+# The deterministic work the agent used to re-derive from prose on every run
+# (DE-16476): detect-stack, sdd-start, check-prerequisites, render-template.
+# They land at $DIST_DIR/scripts/, which is what ${CLAUDE_PLUGIN_ROOT}/scripts
+# resolves to at runtime.
+step "Copying the plugin scripts"
+
+SCRIPTS_SRC="$TEMPLATE_DIR/.claude/scripts"
+
+for SCRIPT in $(jq -r '.plugin_scripts[]? // empty' "$MANIFEST"); do
+  SRC="$SCRIPTS_SRC/$SCRIPT"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$DIST_DIR/scripts/$SCRIPT"
+    chmod +x "$DIST_DIR/scripts/$SCRIPT"
+    ok "Script: $SCRIPT"
+  else
+    warn "Script not found: $SCRIPT"
+  fi
+done
+
+# ── Copy the hooks ───────────────────────────────────────────────────────────
+step "Generating the hooks"
 
 HOOKS_SRC="$TEMPLATE_DIR/.claude/hooks"
 HAS_HOOKS=false
 
-if [ -d "$HOOKS_SRC" ]; then
+# The manifest is authoritative when it lists the hooks; otherwise every *.sh
+# in the hooks directory ships.
+MANIFEST_HOOKS=$(jq -r '.hooks[]? // empty' "$MANIFEST")
+
+if [ -n "$MANIFEST_HOOKS" ]; then
+  for HOOK in $MANIFEST_HOOKS; do
+    SRC="$HOOKS_SRC/$HOOK"
+    if [ -f "$SRC" ]; then
+      cp "$SRC" "$DIST_DIR/hooks/scripts/$HOOK"
+      chmod +x "$DIST_DIR/hooks/scripts/$HOOK"
+      ok "Hook script: $HOOK"
+      HAS_HOOKS=true
+    else
+      warn "Hook not found: $HOOK"
+    fi
+  done
+elif [ -d "$HOOKS_SRC" ]; then
   for SCRIPT in "$HOOKS_SRC"/*.sh; do
     [ -f "$SCRIPT" ] || continue
     cp "$SCRIPT" "$DIST_DIR/hooks/scripts/"
@@ -203,18 +321,19 @@ if [ "$SETTINGS_HOOKS" != "{}" ] && [ -n "$SETTINGS_HOOKS" ]; then
       gsub("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/"; "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/")
     else . end)' | \
     jq '{hooks: .}' > "$DIST_DIR/hooks/hooks.json"
-  ok "hooks.json generato con path plugin"
+  ok "hooks.json generated with plugin paths"
 elif [ "$HAS_HOOKS" = true ]; then
   cat > "$DIST_DIR/hooks/hooks.json" << 'HOOKSJSON'
 {
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/protect-files.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh",
+            "timeout": 600
           }
         ]
       }
@@ -240,92 +359,28 @@ elif [ "$HAS_HOOKS" = true ]; then
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "Verifica che il lavoro richiesto dall'utente sia completo. Se ci sono test pertinenti alle modifiche fatte, sono stati eseguiti e passano? Se il lavoro non e' completo o i test falliscono, rispondi con {\"ok\": false, \"reason\": \"descrizione di cosa manca\"}. Se tutto e' a posto, rispondi con {\"ok\": true}."
-          }
-        ]
-      }
     ]
   }
 }
 HOOKSJSON
-  ok "hooks.json generato (fallback)"
+  ok "hooks.json generated (fallback)"
 else
   echo '{"hooks": {}}' > "$DIST_DIR/hooks/hooks.json"
-  ok "hooks.json generato (vuoto — template senza hooks)"
+  ok "hooks.json generated (empty — the template has no hooks)"
 fi
 
-# ── Genera .mcp.json ─────────────────────────────────────────────────────────
-step "Generazione .mcp.json"
+# ── Copy .mcp.json ───────────────────────────────────────────────────────────
+step "The plugin's MCP servers"
 
-if [ "$NAME" = "dev-setup" ]; then
-  cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
-{
-  "mcpServers": {
-    "clickup": {
-      "type": "url",
-      "url": "https://mcp.clickup.com/mcp"
-    },
-    "figma": {
-      "type": "http",
-      "url": "https://mcp.figma.com/mcp"
-    },
-    "context7": {
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@latest"]
-    }
-  }
-}
-MCPJSON
-  ok ".mcp.json generato (clickup, figma, context7)"
-elif [ "$NAME" = "pm-setup" ]; then
-  cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
-{
-  "mcpServers": {
-    "clickup": {
-      "type": "url",
-      "url": "https://mcp.clickup.com/mcp"
-    },
-    "gdrive": {
-      "command": "npx",
-      "args": ["@piotr-agier/google-drive-mcp"],
-      "env": {
-        "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "${GOOGLE_DRIVE_OAUTH_CREDENTIALS}"
-      }
-    },
-    "figma": {
-      "type": "http",
-      "url": "https://mcp.figma.com/mcp"
-    }
-  }
-}
-MCPJSON
-  ok ".mcp.json generato (clickup, gdrive, figma)"
+if [ -f "$MCP_SRC" ]; then
+  cp "$MCP_SRC" "$DIST_DIR/.mcp.json"
+  ok ".mcp.json copied from the template ($(jq -r '.mcpServers | keys | join(", ")' "$MCP_SRC"))"
 else
-  cat > "$DIST_DIR/.mcp.json" << 'MCPJSON'
-{
-  "mcpServers": {
-    "clickup": {
-      "type": "url",
-      "url": "https://mcp.clickup.com/mcp"
-    },
-    "figma": {
-      "type": "http",
-      "url": "https://mcp.figma.com/mcp"
-    }
-  }
-}
-MCPJSON
-  ok ".mcp.json generato (clickup, figma)"
+  ok "no MCP server in the plugin — the setup skill registers them per project"
 fi
 
-# ── Aggiorna marketplace.json ────────────────────────────────────────────────
-step "Aggiornamento marketplace.json"
+# ── Update marketplace.json ──────────────────────────────────────────────────
+step "Updating marketplace.json"
 
 MARKETPLACE="$ROOT_DIR/.claude-plugin/marketplace.json"
 mkdir -p "$ROOT_DIR/.claude-plugin"
@@ -336,12 +391,12 @@ if [ -f "$MARKETPLACE" ]; then
     jq --arg name "$NAME" --arg ver "$VERSION" --arg desc "$DESCRIPTION" \
       '(.plugins[] | select(.name == $name)) |= (.version = $ver | .description = $desc)' \
       "$MARKETPLACE" > "${MARKETPLACE}.tmp" && mv "${MARKETPLACE}.tmp" "$MARKETPLACE"
-    ok "Plugin aggiornato in marketplace.json"
+    ok "Plugin updated in marketplace.json"
   else
     jq --arg name "$NAME" --arg ver "$VERSION" --arg desc "$DESCRIPTION" --arg src "./dist/$NAME" \
       '.plugins += [{"name": $name, "source": $src, "version": $ver, "description": $desc}]' \
       "$MARKETPLACE" > "${MARKETPLACE}.tmp" && mv "${MARKETPLACE}.tmp" "$MARKETPLACE"
-    ok "Plugin aggiunto a marketplace.json"
+    ok "Plugin added to marketplace.json"
   fi
 else
   cat > "$MARKETPLACE" << MKJSON
@@ -363,5 +418,5 @@ else
   ]
 }
 MKJSON
-  ok "marketplace.json creato"
+  ok "marketplace.json created"
 fi

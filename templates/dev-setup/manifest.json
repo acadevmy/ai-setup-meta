@@ -1,21 +1,94 @@
 {
   "name": "dev-setup",
-  "description": "Setup AI-native per progetti di sviluppo software",
+  "description": "AI-native setup for software development projects",
   "author": "Acadevmy",
-  "cursor_support": true,
-  "agent": "dev-setup-agent.md",
-  "setup_skill": "setup-skill.md",
-  "shared_agents": ["clickup.md"],
-  "shared_skills": ["clickup", "github-ops", "gitlab-ops"],
-  "template_agents": ["review.md", "sdd-discovery-responder.md", "sdd-approver.md", "sdd-methodology-picker.md"],
-  "template_skills": ["auto-sdd", "review", "tdd", "bdd", "sdd", "sdd-discovery", "sdd-spec", "sdd-plan", "sdd-dev", "verify"],
-  "profiles": ["web-frontend.md", "web-frontend-nuxt.md", "backend-node.md", "mobile.md", "terraform.md", "nextjs.md"],
+  "setup_skill": "setup/SKILL.md",
+  "setup_reference": [
+    "existing.md",
+    "greenfield.md",
+    "install.md",
+    "rules-generation.md",
+    "agents-generation.md",
+    "mcp-env.md"
+  ],
+  "shared_agents": [
+    "clickup.md"
+  ],
+  "shared_skills": [
+    "clickup",
+    "vcs-ops"
+  ],
+  "plugin_reference": [
+    "clickup-contract.md",
+    "run-outcomes.md",
+    "turn-discipline.md",
+    "worktree.md"
+  ],
+  "template_agents": [
+    "review.md",
+    "verify.md"
+  ],
+  "template_skills": [
+    "auto-sdd",
+    "quick",
+    "multi-sdd",
+    "review",
+    "sdd",
+    "sdd-discovery",
+    "sdd-spec",
+    "sdd-plan",
+    "sdd-dev",
+    "verify"
+  ],
+  "workflows": [
+    "auto-sdd.js"
+  ],
+  "plugin_scripts": [
+    "common.sh",
+    "detect-stack.sh",
+    "sdd-start.sh",
+    "check-prerequisites.sh",
+    "multi-preflight.sh",
+    "task-clock.sh",
+    "migrate-settings.sh",
+    "render-template.sh",
+    "worktree-info.sh"
+  ],
+  "hooks": [
+    "gate-commit.sh",
+    "post-edit.sh",
+    "on-compact.sh"
+  ],
+  "rules": [
+    "core.md",
+    "code-style.md",
+    "typescript.md",
+    "nestjs.md",
+    "react.md",
+    "react-native.md",
+    "vue.md",
+    "flutter.md",
+    "dart-analysis.md",
+    "terraform.md",
+    "tests.md",
+    "backend-services.md"
+  ],
+  "profiles": [
+    "web-frontend.md",
+    "backend-node.md",
+    "mobile.md",
+    "terraform.md",
+    "nextjs.md"
+  ],
   "boilerplate_files": [
     ".commitlintrc.json",
+    ".lintstagedrc.json",
     ".prettierrc.json",
+    ".prettierrc.tailwind.json",
     ".releaserc.github.json",
     ".releaserc.gitlab.json",
-    ".eslintrc.base.json",
+    "eslint.config.base.mjs",
+    ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
     ".gitlab-ci.yml",
     ".gitignore"
@@ -25,9 +98,10 @@
     "AGENTS.workspace-template.md",
     "AGENTS.project-template.md",
     "REGISTRY.md",
-    "CONSTITUTION.md",
     ".env.example",
     ".claude/settings.json",
-    ".gitignore"
+    ".claude/settings.user.json",
+    ".gitignore",
+    ".worktreeinclude"
   ]
 }

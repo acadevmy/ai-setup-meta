@@ -1,152 +1,63 @@
 ---
 name: sdd-spec
-description: Generates a technical specification and implementation plan for a ClickUp task following the Spec-Driven Development approach
-model: fable
+description: Turns a task and its discovery summary into a technical specification with an ordered implementation plan, written to .specs/. Use when a task's requirements are gathered and the implementation has to be designed before any code is written.
 effort: max
-user-invocable: true
+user-invocable: false
 disable-model-invocation: false
 ---
 
-# /project:sdd-spec
+# SDD spec
 
-Generates a complete technical specification and implementation plan for a task.
-This skill analyzes the task, the project context and produces a structured spec document
-in the `.specs/` directory.
+Produce the technical specification and implementation plan for a task, as
+`.specs/<customId>-<slug>.md` with status `draft`. The orchestrator (`sdd`)
+invokes this skill with the task context and the Discovery Summary already in
+the conversation; on its own, it takes a task id.
 
-**Usage**: `/project:sdd-spec [TASK_ID]`
-- With `TASK_ID` (e.g. `DE-123`): retrieves the task from ClickUp and generates the spec
-- Without arguments: uses the context already present in the conversation (when invoked by the `sdd` orchestrator)
+## Before you start
+
+- **`reference/spec-template.md`** — the document's exact sections and the rules
+  for filling them in. The spec is written from that template, not from memory.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — only when a task
+  id has to be resolved.
 
 ## Procedure
 
-### 1. Retrieve the task context
+### 1. Get the task context
 
-**If `$ARGUMENTS` contains a TASK_ID**:
-- Launch the `clickup` agent with:
-  - INTENT: `read`
-  - PARAMS: `task_id: <provided TASK_ID>`
-- If the agent returns STATUS: error, inform the developer and stop
-- Extract: `custom_id`, `name`, `description`, `priority`, `task_id`, `url`
+With a task id in `$ARGUMENTS`, read the task through the `clickup` agent
+(`INTENT: read`) and extract `custom_id`, `name`, `description`, `priority`,
+`task_id`, `url`. On `STATUS: error`, report it and stop.
 
-**If `$ARGUMENTS` is empty**:
-- Use the task context already available in the conversation (passed by the orchestrator)
-- If no context is available, ask the developer to provide a TASK_ID
+Without one, use the context the orchestrator passed. If there is none, ask the
+developer for a task id.
 
 ### 2. Analyze the project
 
-- Read `CONSTITUTION.md` to understand applicable technical constraints
-- Read `REGISTRY.md` to learn about existing components, adopted patterns and architectural decisions
-- Identify relevant files in the project based on the task requirements
-- Check `.specs/` to verify a spec doesn't already exist for the same task
+- read the rules in `.claude/rules/` — the technical constraints that apply;
+- read `REGISTRY.md` — existing components, adopted patterns, past decisions;
+- find the files the requirements touch;
+- check `.specs/` for a spec that already covers this task.
 
-### 3. Discovery (conditional)
+### 3. Make sure discovery happened
 
-**If a Discovery Summary is present in the conversation context** (passed by the `sdd` orchestrator or from a previous invocation of `/project:sdd-discovery`):
-- Use the Discovery Summary as the base for spec generation
-- Do not repeat the interview
+A Discovery Summary in the conversation is the input. If one is there, use it and
+do not repeat the interview. If it is not, invoke the `sdd-discovery` skill with
+the task context and wait for it to finish.
 
-**If a Discovery Summary is NOT present**:
-- Invoke `/project:sdd-discovery` passing the task context
-- Wait for the discovery to complete before proceeding to generation
+**Do not generate the spec without a Discovery Summary.** Requirements invented
+at this stage are the ones that get discovered wrong during development.
 
-Do not proceed with generation until a Discovery Summary is available.
+### 4. Write the spec
 
-### 4. Create the specs directory
-
-If `.specs/` does not exist in the project root:
 ```bash
 mkdir -p .specs
 ```
 
-### 5. Generate the spec document
+`<slug>` is a short kebab-case form of the task title. Fill in every section of
+`reference/spec-template.md`.
 
-Create the file `.specs/<customId>-<slug>.md` where `<slug>` is a short kebab-case version of the task title.
+### 5. Show it
 
-The document must follow this format:
-
-```markdown
-# Spec: <Task Title> [<customId>]
-
-> Status: draft
-> Task: <ClickUp task URL>
-> Branch: <branch name, if already created>
-> Created: <today's date YYYY-MM-DD>
-> Approved: pending
-
-## Context
-<Why this task exists. Background and motivation extracted from the
-ClickUp task description and the developer interview.>
-
-## Requirements
-<Requirements extracted from the ClickUp task description, structured as bullet points.
-Each requirement must be verifiable.>
-
-- REQ-1: <requirement>
-- REQ-2: <requirement>
-- ...
-
-## Technical decisions
-<Architectural and technical decisions made for this implementation.
-Include: chosen approach, patterns to use, libraries, motivations.
-Reference patterns already present in REGISTRY.md where applicable.>
-
-## Impact
-- **Files to create**: <list of new files with relative path>
-- **Files to modify**: <list of existing files to modify with relative path>
-- **Dependencies**: <new dependencies to install, or "none">
-
-## Implementation plan
-<Ordered sequence of steps to implement the solution.
-Each step must be atomic and verifiable.>
-
-1. <Step 1> — <detailed description>
-2. <Step 2> — <detailed description>
-...
-
-## Test strategy
-<Recommended testing approach (TDD/BDD/none) with rationale.
-List of main test cases to implement.>
-
-- Test 1: <description>
-- Test 2: <description>
-- ...
-
-## Simplify phase
-<Stato di esecuzione della skill `simplify` dopo lo sviluppo.
-Da compilare dal flusso `/project:sdd-dev` (step Simplify) al termine dell'esecuzione.>
-
-- **Stato**: pending | completata | skipped
-- **Data**: <YYYY-MM-DD quando eseguita, altrimenti "—">
-- **Esito**: <`changes-applied` | `no-changes` | `skipped` quando completata, altrimenti "—">
-- **Modifiche applicate**: <elenco sintetico dei file/refactor applicati, oppure "nessuna">
-- **Note**: <eventuali osservazioni, file fuori scope, motivi di skip>
-
-## Review phase
-<Stato di esecuzione della skill `/project:review` dopo lo sviluppo.
-Da compilare dal flusso `/project:review` al termine dell'esecuzione.>
-
-- **Stato**: pending | completata
-- **Data**: <YYYY-MM-DD quando eseguita, altrimenti "—">
-- **Esito**: <`pass` | `pass-with-warnings` | `fail` quando completata, altrimenti "—">
-- **Violazioni**: <numero di violazioni CONSTITUTION rilevate, oppure 0>
-- **Warning**: <elenco sintetico W-1, W-2, ... con motivazione, oppure "nessuno">
-- **REGISTRY updates**: <numero entry applicate + breve riassunto add/update per sezione, oppure "nessuna">
-
-## Notes
-<Risks, open questions, additional considerations, useful references.>
-```
-
-**Guidelines for generation**:
-- Requirements must be faithfully extracted from the ClickUp task description
-- Technical decisions must comply with CONSTITUTION.md
-- The implementation plan must be ordered by dependencies (foundations first, then features)
-- Reuse components and patterns already present in REGISTRY.md
-- Test cases must cover the listed requirements
-- Le sezioni `## Simplify phase` e `## Review phase` devono essere generate sempre con stato `pending` (placeholder "—" nei campi data/esito): verranno compilate automaticamente dai flussi `/project:sdd-dev` e `/project:review` al termine dell'esecuzione
-
-### 6. Show the spec
-
-Present the complete spec to the developer and confirm the file path:
 ```
 Spec generated: .specs/<customId>-<slug>.md
 Status: draft
@@ -155,5 +66,6 @@ Status: draft
 ```
 
 ## Expected output
-- Spec file created in `.specs/<customId>-<slug>.md` with status `draft`
-- Spec shown in full to the developer
+
+- `.specs/<customId>-<slug>.md` created with status `draft`;
+- the spec shown in full to the developer.

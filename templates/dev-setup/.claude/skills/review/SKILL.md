@@ -1,88 +1,60 @@
 ---
 name: review
-description: Performs code review of the current branch verifying CONSTITUTION compliance and updating REGISTRY
-model: fable
+description: Reviews the current branch's diff against the project rules through the review agent, then records the components it found in REGISTRY.md. Use when a branch is ready and its code quality and rule compliance have to be checked before a merge request.
 effort: max
 user-invocable: true
 disable-model-invocation: false
 ---
 
-# /project:review
+# Review
 
-Perform a code review of the modified code in the current branch via the Review Agent.
+Review the code this branch changed, against the rules this project declares.
+`verify` checks that the implementation matches the spec; this skill checks the
+code itself.
+
+## Before you start
+
+- **`reference/registry-updates.md`** — how the findings land in `REGISTRY.md`,
+  why nothing here commits, and the final report's shape.
 
 ## Procedure
 
-### 1. Launch the Review Agent
+### 1. Resolve the base branch
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
+```
+
+Use its `MERGE_BASE` (the fork point), `TASK_ID` and `SPEC`. Never assume
+`main`: on a project targeting `next`, that reviews the whole delta between the
+two long-lived branches.
+
+### 2. Launch the review agent
 
 Launch the `review` agent with:
-- BASE_BRANCH: `main`
-- CONSTITUTION_PATH: `./CONSTITUTION.md`
-- REGISTRY_PATH: `./REGISTRY.md`
-- TASK_ID: extracted from the current branch name (e.g. `feat/DE-123-desc` → `DE-123`), if present
 
-### 2. Analyze the result
+- `BASE_BRANCH`: the `MERGE_BASE` from step 1
+- `RULES_DIR`: `./.claude/rules/`
+- `REGISTRY_PATH`: `./REGISTRY.md`
+- `TASK_ID`: the `TASK_ID` from step 1, if there is one
 
-Parse the `---REVIEW-RESULT---` output returned by the agent.
+### 3. Read the result
 
-**If STATUS = fail**:
-- Show all VIOLATIONS with file, line and violated rule
-- Show WARNINGS as suggestions
-- Inform the developer that the review did not pass
-- Stop — the code must be fixed before proceeding
+Parse the `---REVIEW-RESULT---` block the agent returns.
 
-**If STATUS = pass-with-warnings**:
-- Show WARNINGS as improvement suggestions
-- Proceed to the next step
+- **fail** — show every violation with its file, line and the rule it breaks,
+  and the warnings as suggestions. Stop: the code has to be fixed first.
+- **pass-with-warnings** — show the warnings as improvements and carry on.
+- **pass** — confirm compliance and carry on.
 
-**If STATUS = pass**:
-- Confirm that the code is compliant
-- Proceed to the next step
+### 4. Write the findings back
 
-### 3. Apply REGISTRY updates
-
-If the agent returned non-empty REGISTRY_UPDATES:
-
-1. Read the current `REGISTRY.md`
-2. For each entry with ACTION: `add`:
-   - Add the ENTRY block in the indicated SECTION
-   - Remove any placeholder `_No ... registered._` from the section
-3. For each entry with ACTION: `update`:
-   - Find the existing entry in the section and update the modified fields
-4. Commit the update: `docs(registry): update REGISTRY.md`
-
-### 4. Track the outcome in the spec
-
-Locate the spec for the current task:
-- Extract the customId from the current branch name (e.g. `feat/DE-123-desc` → `DE-123`)
-- Find `.specs/<customId>-*.md`
-- If no spec exists, skip this step (the review was likely invoked outside the SDD flow)
-
-Update the `## Review phase` section of the spec with:
-- `Stato`: `completata`
-- `Data`: data odierna in formato `YYYY-MM-DD`
-- `Esito`: il valore di STATUS restituito dal Review Agent (`pass`, `pass-with-warnings`, `fail`)
-- `Violazioni`: numero di violazioni CONSTITUTION rilevate
-- `Warning`: elenco sintetico dei warning con motivazione (es. `W-1: missing test for X`), oppure `nessuno`
-- `REGISTRY updates`: numero di entry applicate + breve riassunto add/update per sezione, oppure `nessuna`
-
-Sovrascrivi la sezione esistente preservando il resto dello spec. Se sono già stati prodotti commit di REGISTRY (`docs(registry): update REGISTRY.md`), includi l'aggiornamento dello spec in un commit aggiuntivo `docs(spec): track review outcome` oppure aggiungilo allo stesso commit di REGISTRY se la stage è ancora aperta.
-
-### 5. Final report
-
-Show a summary:
-```
-Review: <STATUS>
-Violations: <count>
-Warnings: <count>
-REGISTRY updated: <yes/no>
-Spec updated: <yes/no>
-
-<SUMMARY from agent>
-```
+Follow `reference/registry-updates.md`: the `REGISTRY.md` entries, then the
+report. Commit neither — inside the SDD flow, closure commits once and carries
+them.
 
 ## Expected output
-- CONSTITUTION compliance report
-- `REGISTRY.md` updated with new entries (if any)
-- Commit `docs(registry): update REGISTRY.md` (if registry changes)
-- Spec file aggiornato con la sezione `## Review phase` compilata (se lo spec esiste)
+
+- a compliance report against the project rules;
+- `REGISTRY.md` updated in the working tree, uncommitted, when there were
+  entries to add.

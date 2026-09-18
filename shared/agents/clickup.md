@@ -3,7 +3,6 @@ name: clickup
 description: Handles all ClickUp operations (read, update, create, filter tasks) in isolation. Use when you need to interact with ClickUp to read tasks, update statuses, create tasks, or filter lists.
 tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments
 model: haiku
-permissionMode: dontAsk
 ---
 
 ## Core principle: CONTENT FIDELITY
@@ -79,20 +78,37 @@ Do NOT use abbreviated names like `clickup_get_task` — they will fail.
 ## Workflow statuses
 
 ```
+BACKLOG  ->  IN PROGRESS  (only on the developer's explicit confirmation)
 SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
+   |            ^  |
+   |            |  v
+   +--------- BLOCKED  (terminal until a human resolves the blocker)
 ```
 
 ### Valid transitions
 
 | From | To | When |
 |----|---|--------|
+| BACKLOG | IN PROGRESS | The developer explicitly confirmed implementing an unplanned task — never an automatic pickup |
 | SPRINT | IN PROGRESS | Work begins |
+| SPRINT | BLOCKED | Bail-out before work could start |
 | IN PROGRESS | IN REVIEW | PR opened |
 | IN PROGRESS | CODE REVIEW | Alternative to IN REVIEW |
+| IN PROGRESS | BLOCKED | Bail-out during an automated run |
 | IN REVIEW | DONE | After merge |
 | CODE REVIEW | DONE | After merge |
+| BLOCKED | SPRINT | Recovery: the task goes back in the queue for the pipeline |
+| BLOCKED | IN PROGRESS | Recovery: a human resumes the work directly |
 
 Any other transition is invalid. Return an error with the allowed transitions.
+
+`BACKLOG -> IN PROGRESS` exists for the interactive flows only: the calling
+flow asks the developer first and requests it as the recorded answer. An
+autonomous caller never requests it — `next-task` reads `SPRINT` and treats a
+backlog task as out of scope.
+
+A bail-out is a single `update` call: the status change to `BLOCKED` and the explanatory
+note travel together in the `comment` parameter. There is no standalone comment intent.
 
 ## Output format
 

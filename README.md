@@ -1,233 +1,358 @@
 # ai-setup-meta
 
-Repository di governance AI. Contiene i template multi-dominio, gli asset condivisi (agents, skills, profili)
-e il sistema **plugin + marketplace** che li distribuisce ai progetti degli sviluppatori.
+AI governance repository. It holds the multi-domain templates, the shared assets (agents, skills, profiles)
+and the **plugin + marketplace** system that distributes them to developer projects.
 
-## Setup per sviluppatori
+## Documentation
+
+| Page | For |
+|---|---|
+| [docs/onboarding.md](docs/onboarding.md) | One page: install, configure a project, do a first task |
+| [docs/developer-guide.md](docs/developer-guide.md) | Using the plugin day to day — the commands, the sandbox and the ask rules, the commit gate, worktrees, extending it, troubleshooting |
+| [docs/migration-v2-to-v3.md](docs/migration-v2-to-v3.md) | Coming from plugin v2: every breaking change and the UPDATE procedure |
+| [docs/training.md](docs/training.md) | Running a team session on the v3 model — three live demos |
+| [docs/workflow.md](docs/workflow.md) | Maintaining this repo: branching, CI, releases |
+| [AGENTS.md](AGENTS.md) | The ground truth for an agent working in this repo |
+
+## Setup for developers
 
 ### Claude Code
 
-Per aggiungere il workflow AI-Native a qualsiasi progetto (nuovo o esistente):
+To add the AI-native workflow to any project, new or existing:
 
 ```bash
-# 1. Aggiungi il marketplace Acadevmy (una tantum)
+# 1. Add the Acadevmy marketplace (one-off)
 /plugin marketplace add acadevmy/ai-setup-meta
 
-# 2. Installa il plugin dev-setup
+# 2. Install the dev-setup plugin
 /plugin install dev-setup@acadevmy
 
-# 3. Avvia il setup nel tuo progetto
+# 3. Run the setup in your project
 /dev-setup:setup
 ```
 
-L'agente analizzera' il progetto e applichera' tutto in modo adattivo:
-- **Progetto esistente**: innesta solo il workflow AI (CONSTITUTION, AGENT, skills, MCP) senza toccare il tooling
-- **Progetto nuovo (greenfield)**: setup completo con quality tools, profilo stack, MCP
+The agent reads the project and adapts what it installs:
+- **Existing project**: it grafts on the AI workflow only (path-scoped rules, AGENTS.md, skills, MCP) without touching your tooling
+- **New project (greenfield)**: full setup with quality tools, stack profile and MCP
 
-**Prerequisiti**: `git`, `claude` CLI. Opzionale: `gh` CLI (per MCP ClickUp e operazioni greenfield).
+**Prerequisites**: `git`, the `claude` CLI. Optional: the `gh` CLI (for the ClickUp MCP and greenfield work).
 
-### Cursor
+### Session context cost
 
-Il plugin `dev-setup` è distribuito nativamente anche per Cursor. Per installarlo localmente:
+The plugin declares **no** MCP servers of its own: the ones that depend on the stack (Figma)
+or on the team's configuration (ClickUp) are registered by `/dev-setup:setup` at project
+scope, and only when they are needed (Step 6 of the setup skill). For library documentation
+the default is the `ctx7` CLI rather than the Context7 server: the CLI does the same job
+without paying for the tool definitions in every session.
 
-```bash
-# 1. Build del plugin (se non è già aggiornato)
-bash scripts/build-plugin.sh dev-setup
+**Safety net — `ENABLE_TOOL_SEARCH`.** Claude Code keeps MCP tool definitions out of the
+context and loads them on demand (*tool search*, on by default). With that in place a
+58-tool server costs ~1,000 tokens at session zero instead of ~31,000. The variable matters
+when the default does not apply — `ANTHROPIC_BASE_URL` pointing at a non-first-party proxy,
+`CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`, Foundry deployments on Azure, pre-4.5 Agent
+Platform models:
 
-# 2. Installa il plugin locale in Cursor
-ln -s $(pwd)/dist/dev-setup ~/.cursor/plugins/local/dev-setup
+| Value | Effect |
+|---|---|
+| unset | tool search on, with the fallbacks above |
+| `true` | always on (the beta header passes through proxies too) |
+| `auto` | turns on when the deferrable definitions reach 10% of the window |
+| `auto:N` | like `auto` with an N% threshold (e.g. `auto:5`) |
+| `false` | off: every definition enters the context on every turn |
 
-# 3. Ricarica Cursor
-# Developer → Reload Window
-```
+Set it as an environment variable or in the `env` block of `settings.json`. Measured with
+`scripts/measure-session-zero.sh` (pure backend fixture, sonnet, `--strict-mcp-config`):
 
-Il plugin Cursor condivide skills e agents con la versione Claude. Aggiunge:
-- `commands/` — invocabili da Cursor con `/skill-name`
-- `mcp.json` — MCP servers (ClickUp, Figma, Context7) compatibili con Cursor
-- `hooks/hooks.cursor.json` — hooks con path variable Cursor-native
+| MCP servers registered | tools | tool search on | tool search off |
+|---|---|---|---|
+| none | 0 | 35,479 | 51,282 |
+| clickup | 58 | 36,525 | 82,030 |
+| clickup + figma + context7 | 101 | 37,512 | 120,956 |
 
-**Prerequisiti**: Cursor, `jq`.
+The absolute values include the measuring machine's own global configuration (user
+CLAUDE.md, installed skills and plugins): what is comparable is the difference between two
+runs in the same environment, not the totals across different machines.
 
-### Gemini CLI
+**Model overrides in skills**: no distributed skill sets `model:`. The `model:` frontmatter
+moves the main loop's model, and the prompt cache is model-scoped, so every switch along
+the chain pays for a cold prefix — and the override stays active in the turns *after* the
+skill runs. The skills only differentiate `effort`; you pick the model for the session.
 
-I template che supportano Gemini (attualmente `pm-setup`) distribuiscono comandi `.toml`
-in `dist/<template>/gemini/`. Per la guida completa vedi
-[dist/pm-setup/gemini/README.md](dist/pm-setup/gemini/README.md).
+### Other tools (Cursor, Codex, Copilot…)
 
-**Prerequisiti**: `gemini` CLI, Node.js 18+, account ClickUp.
+The plugin has a single build target: **Claude Code**. The builders for the other runtimes
+have been removed, because the plugin's skills follow the open
+[Agent Skills](https://agentskills.io) standard: a conforming `SKILL.md` is readable by the
+other tools **without conversion**.
 
-## Architettura
+If you work in another editor, point your tool at the `SKILL.md` files under
+`dist/dev-setup/skills/` (or copy them into the project's skills directory). Nothing that
+worked is lost compared to the dedicated plugin we used to ship: its hooks were the Claude
+Code schema with one variable renamed — inert outside Claude Code — and its `commands/`
+were literal copies of the skill bodies.
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      ai-setup-meta                          │
-│  (questo repo — sorgente di verita' E marketplace)          │
+│  (this repo — source of truth AND marketplace)              │
 │                                                             │
-│  templates/     — sorgente dei template per dominio         │
-│  shared/        — agents e skills condivisi                 │
-│  dist/          — plugin built (generati da build script)   │
-│  marketplace.json — indice plugin per Claude Code           │
+│  templates/     — source of the per-domain templates        │
+│  shared/        — shared agents and skills                  │
+│  dist/          — built plugins (generated by build script) │
+│  marketplace.json — plugin index for Claude Code            │
 │                                                             │
-│  Ogni modifica a main passa per PR obbligatoria.            │
+│  Every change goes through a PR, and it targets next.       │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          │  /plugin marketplace add
                          │  /plugin install dev-setup@acadevmy
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│            Repo progetto sviluppatore                        │
+│              Developer project repo                          │
 │                                                             │
 │  /dev-setup:setup                                           │
-│  → Rileva modalita' (UPDATE/GREENFIELD/EXISTING)            │
-│  → Auto-detect stack                                        │
-│  → Installa CONSTITUTION, AGENTS.md, CLAUDE.md, REGISTRY    │
-│  → Configura MCP (ClickUp, Context7, Figma)                │
-│  → Skills disponibili via plugin                            │
+│  → Detects the mode (UPDATE/GREENFIELD/EXISTING)            │
+│  → Auto-detects the stack                                   │
+│  → Generates .claude/rules/, AGENTS.md, CLAUDE.md, REGISTRY │
+│  → Registers only the MCPs the stack uses (Step 6)          │
+│  → Skills available through the plugin                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Struttura del meta-repo
+## Meta-repo layout
 
 ```
 ai-setup-meta/
-├── marketplace.json             # Indice plugin per Claude Code
-├── shared/                      # Asset comuni distribuiti ai template
+├── .claude-plugin/
+│   └── marketplace.json         # Plugin index for Claude Code
+├── shared/                      # Common assets distributed to the templates
 │   ├── agents/
 │   │   └── clickup.md
 │   └── skills/
 │       ├── clickup/
-│       └── github-ops/
-├── templates/                   # Sorgente dei template per dominio
+│       └── vcs-ops/
+├── templates/                   # Source of the per-domain templates
 │   └── dev-setup/
-│       ├── manifest.json               # Dipendenze da shared/ e file specifici
-│       ├── setup-skill.md              # Setup skill (logica di bootstrap)
-│       ├── dev-setup-agent.md          # Agent legacy (reference)
-│       ├── AGENTS.template.md          # Template per AGENTS.md generato
-│       ├── CONSTITUTION.md
+│       ├── manifest.json               # Dependencies on shared/ and the domain files
+│       ├── setup/                      # Setup skill: SKILL.md + reference/
+│       ├── AGENTS.template.md          # Template for the generated AGENTS.md
+│       ├── rules/                    # Path-scoped rule templates
 │       ├── REGISTRY.md
 │       ├── CHANGELOG.md
 │       ├── .claude/
-│       │   ├── settings.json           # Permessi + hooks (sorgente)
-│       │   ├── hooks/                  # protect-files, post-edit, on-compact
-│       │   └── skills/                 # 9 workflow skills
+│       │   ├── settings.json           # Permissions + sandbox + hooks (source)
+│       │   ├── settings.user.json      # User-scope snippet: credential masking
+│       │   ├── hooks/                  # gate-commit, post-edit, on-compact
+│       │   ├── scripts/                # The deterministic steps (bash + jq, --json)
+│       │   ├── agents/                 # review — the one domain agent left
+│       │   ├── reference/              # Contracts shared by several skills
+│       │   ├── skills/                 # 10 workflow skills (SKILL.md + reference/)
+│       │   └── workflows/              # auto-sdd.js — the autonomous run, as code
 │       └── profiles/
 │           ├── web-frontend.md
 │           ├── backend-node.md
-│           └── mobile.md
-├── dist/                        # Plugin built (generati, committati)
-│   ├── dev-setup/               # Plugin Claude + Cursor (root condivisa)
-│   │   ├── .claude-plugin/      # Manifest Claude Code
-│   │   ├── .cursor-plugin/      # Manifest Cursor
-│   │   ├── skills/              # 13 skills (condiviso Claude + Cursor)
-│   │   ├── agents/              # 2 agents (condiviso Claude + Cursor)
-│   │   ├── hooks/               # hooks.json (Claude) + hooks.cursor.json (Cursor)
-│   │   ├── commands/            # Commands Cursor (generati da skills)
-│   │   ├── .mcp.json            # MCP config Claude
-│   │   └── mcp.json             # MCP config Cursor (type rimosso)
-│   └── pm-setup/                # Plugin PM multi-piattaforma
-│       ├── .claude-plugin/      # Claude Code
-│       ├── gemini/              # Gemini CLI (comandi .toml, mcp-remote)
-│       └── codex/               # Codex CLI (SKILL.md nativi, config.toml)
+│           ├── mobile.md
+│           ├── nextjs.md
+│           └── terraform.md
+├── dist/                        # Built plugins (generated, committed)
+│   └── dev-setup/               # Claude Code plugin
+│       ├── .claude-plugin/      # Plugin manifest
+│       ├── skills/              # 13 skills (10 from the template + 2 shared + setup)
+│       ├── agents/              # 2 agents (review + the shared clickup)
+│       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
+│       ├── workflows/           # dev-setup:auto-sdd
+│       └── hooks/               # hooks.json + hooks/scripts/
 ├── scripts/
-│   ├── build-plugin.sh          # Orchestratore: legge manifest, invoca i builder
+│   ├── build-plugin.sh          # Orchestrator: reads the manifest, calls the builder
 │   ├── builders/
-│   │   ├── common.sh            # Funzioni condivise (ok, warn, fail, step)
-│   │   ├── build-claude.sh      # Builder Claude Code (sempre eseguito)
-│   │   ├── build-gemini.sh      # Builder Gemini CLI (se gemini_support)
-│   │   ├── build-codex.sh       # Builder Codex CLI (se codex_support)
-│   │   └── build-cursor.sh      # Builder Cursor (se cursor_support)
-│   ├── release-plugin.sh        # Release: version bump + build + tag + push
-│   ├── init-meta.sh
-│   └── validate-setup-urls.sh
-├── mcp/
-│   └── mcp.json.example
+│   │   ├── common.sh            # Shared helpers (ok, warn, fail, step)
+│   │   └── build-claude.sh      # Claude Code builder (the only target)
+│   ├── validate-plugin.sh       # 16 static checks on skill, workflow and doc quality
+│   ├── validate-baseline.txt    # Known failures, reported but non-blocking in CI
+│   └── validate-setup-urls.sh   # Link check for the URLs the setup skill cites
+│   ├── test-plugin-scripts.sh   # The plugin scripts and hooks, against scripts/fixtures/
+│   └── measure-session-zero.sh  # Session-zero token measurement
 └── docs/
-    ├── onboarding.md
-    ├── developer-guide.md
-    └── workflow.md
+    ├── onboarding.md            # One page, from install to first task
+    ├── developer-guide.md       # The plugin's user guide
+    ├── migration-v2-to-v3.md    # Breaking changes and the UPDATE procedure
+    ├── training.md              # Team session material
+    ├── workflow.md              # Maintaining this repo
+    └── legacy/                  # Archived material, outside the product
 ```
 
-## Build e release
+## Branching and releases
+
+Two long-lived branches:
+
+- **`next` is the base branch.** Every feature and fix PR targets it. When a
+  chain of PRs depends on the one before it, the next branch starts from the
+  previous PR's branch (stacked) and is retargeted onto `next` after the parent
+  merges.
+- **`main` is the release branch.** release-please watches it and nothing else:
+  `next` reaches `main` when a release is wanted.
+
+Full detail, including the CI jobs that gate both, in
+[docs/workflow.md](docs/workflow.md).
+
+## Build and release
 
 ```bash
-# Build plugin (genera dist/dev-setup/)
+# Build the plugin (generates dist/dev-setup/)
 bash scripts/build-plugin.sh dev-setup
 
-# Validazione plugin
+# Validate the plugin
 claude plugin validate dist/dev-setup/
+bash scripts/validate-plugin.sh --strict
 
-# Test locale
+# Try it locally
 claude --plugin-dir dist/dev-setup/
-
-# Release (version bump + build + changelog + tag + push + GitHub Release)
-bash scripts/release-plugin.sh patch dev-setup
 ```
 
-## Regole operative
+**Releases are automatic**: [release-please](https://github.com/googleapis/release-please)
+computes the bump from the conventional commits merged into `main`, opens a release PR and —
+when that PR is merged — creates the tag and the GitHub Release. There is no release script
+to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 
-- **Nessun push diretto su `main`** — nemmeno dall'agente. Sempre PR.
-- **La `CONSTITUTION.md`** nel template e' la sorgente di verita' per quel dominio.
-- **Le API key non entrano mai nel repo** — solo in `.env.local` (gitignored) o nei secret GitHub.
-- `dist/` e' generato da `build-plugin.sh` ma committato (il marketplace punta li').
+## Operating rules
 
-## Skills distribuite dal plugin dev-setup
+- **No direct pushes to `main` or `next`** — not even from the agent. Always a PR, and it targets `next`.
+- **The template's `rules/`** is the source of truth for that domain's governance.
+- **The docs are checked in CI** — a command, script or path a page names has to exist, and a public command has to be documented. Renaming something means touching the page that names it, in the same PR.
+- **API keys never enter the repo** — only `.env.local` (gitignored) or GitHub secrets.
+- `dist/` is generated by `build-plugin.sh` but committed (the marketplace points at it).
 
-### Flusso consigliato
+## Skills the dev-setup plugin distributes
+
+### The six commands
 
 ```
-/dev-setup:setup          ← una tantum, bootstrap del progetto
+/dev-setup:setup      ← one-off, project bootstrap
+       │
+       ├── /dev-setup:quick   ← fix or chore: branch, change, commit, PR
        │
        ▼
-/dev-setup:sdd-discovery  ← intervista strutturata per raccogliere requisiti
-       │
+/dev-setup:sdd        ← the whole flow, with one approval checkpoint
+       │                (or /dev-setup:auto-sdd for the same flow unsupervised,
+       │                 /dev-setup:multi-sdd for up to five of those at once)
        ▼
-/dev-setup:sdd-spec       ← genera specifica tecnica dal discovery
-       │
-       ▼
-/dev-setup:sdd-plan       ← presenta la spec per discussione e approvazione
-       │
-       ▼
-/dev-setup:sdd-dev        ← sviluppo guidato dalla spec approvata (TDD/BDD)
-       │
-       ▼
-/dev-setup:review         ← code review con conformita' CONSTITUTION
+/dev-setup:review     ← code review against the project rules
 ```
 
-> **`/dev-setup:sdd`** orchestra l'intero flusso in un unico comando:
-> task selection → branch → discovery → spec → approval → dev → simplify → verify → review → PR.
->
-
-### Workflow skills
-
-| Skill | Descrizione |
+| Command | Description |
 |---|---|
-| `/dev-setup:setup` | Bootstrap AI-Native (rileva stack, installa governance) |
-| `/dev-setup:sdd` | Flow Spec-Driven completo: task → discovery → spec → approval → dev → review → PR |
-| `/dev-setup:sdd-discovery` | Intervista strutturata per raccogliere requisiti prima della spec |
-| `/dev-setup:sdd-spec` | Genera specifica tecnica |
-| `/dev-setup:sdd-plan` | Presenta spec per discussione |
-| `/dev-setup:sdd-dev` | Sviluppo da spec approvata |
+| `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
+| `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
+| `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify → review → one commit → PR |
+| `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd.js`) writes the spec, has three adversarial reviewers attack it, develops in an isolated worktree and runs the project real quality commands. It returns `needs-human`, `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
+| `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |
+| `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
 
-### Methodology skills
+**Which of the two dev flows.** At most three files, and no new component,
+dependency or public interface → `quick`. Everything else → `sdd`, whose spec is
+what a reviewer reads the diff against. The agent may say a task looks
+misrouted; the route is the developer's, and the command they type is the
+choice.
 
-| Skill | Descrizione |
+**Every flow with a task id clocks itself.** The move to `IN PROGRESS` stamps
+`task-clock.sh --start`, the move that closes the task reads the stamp back and
+posts one line on it — `Time in progress: 2h 15m (14:03 → 16:18)`. The stamp
+lives in the repository's git directory, shared with every worktree and never
+committed; a clock nobody started posts nothing at all, because the only
+alternative is a number the model made up.
+
+### The skills behind them
+
+These are not commands: the orchestrator invokes them by name, and each one is a
+step of the flow above. They carry `user-invocable: false` so `/help` stays
+readable.
+
+| Skill | Step it is |
 |---|---|
-| `/dev-setup:tdd` | Test-Driven Development (Red-Green-Refactor) |
-| `/dev-setup:bdd` | Behavior-Driven Development (Given/When/Then) |
-| Nessuna | Sviluppo diretto senza ciclo test-first |
-| `/dev-setup:review` | Code review con conformita' CONSTITUTION |
+| `sdd-discovery` | The structured interview that gathers the requirements |
+| `sdd-spec` | Writes the technical spec into `.specs/` |
+| `sdd-plan` | Presents the spec and iterates until it is approved |
+| `sdd-dev` | Development against the approved plan; the layer decides the cycle |
+| `verify` | Checks the diff against the spec: requirements, tests, impact, decisions |
+| `clickup` | The board's conventions: statuses, prerequisites, operations |
+| `vcs-ops` | Branches, commits, PRs/MRs, releases. Reads `git remote` and loads the GitHub (`gh`) or GitLab (`glab`) reference on demand |
 
-### Shared skills
+Each `SKILL.md` is a routing document under 500 words; the detail sits in
+`reference/*.md` next to it and is read on demand. The contracts more than one
+skill needs — how to call the ClickUp agent, how to behave at an interactive
+step — live once in `dist/dev-setup/reference/`.
 
-| Skill | Descrizione |
+The Red-Green-Refactor and Given/When/Then cycles are not skills of their own:
+they are `sdd-dev/reference/methodologies.md`, read by whoever writes the code —
+the `sdd-dev` skill in the interactive flow, the dev agent in the workflow. Which
+of the two applies is not a question either: the layer decides it and the
+`tests.md` rule states it, which is why the flow no longer asks.
+
+### Parallel work: the worktree conventions
+
+One task per worktree. `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` is the
+convention, and four pieces make it work:
+
+| Piece | What it solves |
 |---|---|
-| `/dev-setup:clickup` | Operazioni ClickUp via MCP |
-| `/dev-setup:github-ops` | Branch, PR, release su GitHub (`gh` CLI). Si auto-disattiva se il repo non punta a GitHub. |
-| `/dev-setup:gitlab-ops` | Branch, MR, release su GitLab (`glab` CLI). Legge `.gitlab/merge_request_templates/Default.md` quando presente. Si auto-disattiva se il repo non punta a GitLab. |
+| `.worktreeinclude` (installed by the setup) | a worktree is a clean checkout, so `.env` is absent and the app fails for a reason that looks like a code bug |
+| `worktree.baseRef` (Step 7c) | it takes only `fresh` or `head` — never a branch name — so on a project targeting `next` the setup writes `head` and `sdd-start.sh --base` passes the fork point explicitly |
+| `worktree-info.sh` → `PORT_OFFSET` | every worktree runs the same `dev` script; the offset is the worktree's index in `git worktree list` |
+| `worktree-info.sh` → `OVERLAPS` | the files two declarers both claim — the `## Impact` section of an active worktree's spec, or an `--impact` estimate a fan-out has not started yet. A warning, never a gate |
+
+Dependencies are installed as a step of the flow, not by a hook: a
+`WorktreeCreate` hook replaces worktree creation wholesale and would disable
+`.worktreeinclude`, which is the one thing that has to keep working.
+
+**How many at once, and by which command.** `n` *interactive* tasks are `n`
+invocations of `sdd` or `quick`, one terminal each: a flow that stops to ask
+needs a chat of its own, and that is a choice rather than a missing feature. `n`
+*autonomous* tasks are one `/dev-setup:multi-sdd`, which fans out one `auto-sdd`
+run per task from a single session — the chat becomes a control tower, with the
+human parts before the fan-out (triage, the business decisions no agent can
+invent, the overlap warning) or after it (the outcomes, each behind its own `ask`
+rule), never braided through the middle.
+
+The cap is **five**, and it is enforced by `multi-preflight.sh` rather than
+stated in prose: the sixth task exits 3 with the reason. Five is where review
+becomes the bottleneck — the cost of a fan-out is `n` times a single run (five
+tasks is five spec agents, fifteen adversarial verifiers, five developers and
+five merge requests for one person to read), and compute is not what runs out
+first.
+
+### The workflow
+
+`dist/dev-setup/workflows/auto-sdd.js` is the one piece of the plugin the model
+does not read: the harness executes it, so its control flow stays out of the
+context window and its bounds are bounds. The plugin loads every `*.js` in that
+directory and registers it as `dev-setup:<meta.name>`, which is the name the
+`auto-sdd` skill calls.
+
+| Phase | What runs |
+|---|---|
+| Spec | one agent, read-only, drafts the spec from the task and the codebase |
+| Challenge | three verifiers in parallel — simpler design / scope / testability — each told to refute; two objections stop the run |
+| Dev | one agent with `isolation: 'worktree'`: the developer checkout never moves |
+| Verify | `LINT_CMD`, `TYPECHECK_CMD` and `TEST_CMD` from `detect-stack.sh`, so the same workflow verifies Next, NestJS, Flutter or Terraform |
+
+It pushes nothing, opens nothing and never writes to the board: the launcher
+does that in the session, where the `ask` rules put a person in front of it.
+Two skills are launchers of that one workflow — `auto-sdd` for a task,
+`multi-sdd` for up to five — and both act on the outcome through the single
+`reference/run-outcomes.md` contract.
+
+When two lenses object, the run stops at `needs-human` and a person answers. The
+lenses they overrule go back in as `resolved`, with their reasoning as
+`guidance`, and both are read *after* the Challenge phase — so a resumed run
+replays the spec and the three verdicts from its journal cache and restarts at
+Dev. An overrule is recorded in the outcome and quoted in the merge request: the
+gate moves only for a human, and never silently.
 
 ### Agents
 
-| Agent | Ruolo |
+| Agent | Role |
 |---|---|
-| **review** | Code review, conformita' CONSTITUTION, aggiorna REGISTRY |
-| **clickup** | CRUD ClickUp generico (passthrough MCP) |
+| **review** | Code review against `.claude/rules/`, updates the REGISTRY |
+| **clickup** | Generic ClickUp CRUD (MCP passthrough) |

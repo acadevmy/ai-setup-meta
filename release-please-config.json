@@ -21,22 +21,12 @@
         },
         {
           "type": "json",
-          "path": "dist/dev-setup/.cursor-plugin/plugin.json",
-          "jsonpath": "$.version"
-        },
-        {
-          "type": "json",
           "path": ".claude-plugin/marketplace.json",
-          "jsonpath": "$.plugins[?(@.name == 'dev-setup')].version"
-        },
-        {
-          "type": "json",
-          "path": ".cursor-plugin/marketplace.json",
           "jsonpath": "$.plugins[?(@.name == 'dev-setup')].version"
         }
       ]
     }
   },
   "plugins": ["sentence-case"],
-  "$comment": "Single-package mode at repo root. Source of truth is .release-please-manifest.json. extra-files propagate the bump into BOTH copies of .env.example (marker x-release-please-version) — the template source and the copy the build makes under dist/dev-setup/skills/setup/templates/, since .env.example is in the manifest required_files — plus the two dist/ plugin.json files (jsonpath $.version) and the two marketplace.json catalogs (jsonpath filter to the dev-setup plugin entry). Every generated file carrying the version must be listed here: a release PR that bumps only some of them is born out of sync with a rebuild, and the dist/ drift check fails on the release PR itself, before the post-merge rebuild step can fix it."
+  "$comment": "Single-package mode at repo root. Source of truth is .release-please-manifest.json. extra-files propagate the bump into BOTH copies of .env.example (marker x-release-please-version) — the template source and the copy the build makes under dist/dev-setup/skills/setup/templates/, since .env.example is in the manifest required_files — plus the dist/ plugin.json (jsonpath $.version) and the marketplace.json catalog (jsonpath filter to the dev-setup plugin entry). Claude Code is the only build target since DE-16489: the .cursor-plugin/ manifest and catalog are gone. Every generated file carrying the version must be listed here: a release PR that bumps only some of them is born out of sync with a rebuild, and the dist/ drift check fails on the release PR itself, before the post-merge rebuild step can fix it."
 }

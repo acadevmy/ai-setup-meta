@@ -1,163 +1,81 @@
-# Onboarding sviluppatori — AI-Native Setup
+# Onboarding — from zero to your first task
 
-Guida per configurare l'ambiente AI-native sul proprio computer.
-Tempo stimato: **30–45 minuti** (prima installazione).
+One page. Four steps. Everything else is in
+[developer-guide.md](./developer-guide.md).
 
-## Prerequisiti
+**You need**: `git`, the `claude` CLI, and `gh` (GitHub repos) or `glab` (GitLab
+repos) already authenticated.
 
-| Strumento | Versione minima | Installazione |
-|---|---|---|
-| Node.js | 20.x LTS | [nodejs.org](https://nodejs.org) |
-| git | 2.40+ | preinstallato su macOS/Linux |
-| gh CLI | 2.x+ | `brew install gh` oppure [cli.github.com](https://cli.github.com) — serve se il progetto e' su GitHub |
-| glab CLI | 1.30+ | `brew install glab` oppure [gitlab.com/gitlab-org/cli](https://gitlab.com/gitlab-org/cli) — serve se il progetto e' su GitLab |
-| Claude Code | ultima | `npm install -g @anthropic-ai/claude-code` |
-| Account Claude | Piano Pro o Max | [claude.ai](https://claude.ai) |
+## 1. Add the marketplace, install the plugin
 
-> Installa **`gh`** o **`glab`** in base al provider del tuo progetto (entrambi se lavori su repo misti). Il setup rileva il provider leggendo il remote `origin` e attiva la skill VCS corrispondente.
+Once per machine, in any Claude Code session:
 
-## Passo 1 — Creare il progetto
-
-Crea un nuovo repo (o usa uno esistente) e posizionati nella root:
-
-```bash
-# Nuovo progetto su GitHub
-gh repo create YOUR_ORG/nome-progetto --private --clone
-cd nome-progetto
-
-# Oppure, nuovo progetto su GitLab
-glab repo create YOUR_GROUP/nome-progetto --private && git clone <url-clone> && cd nome-progetto
-
-# Oppure, progetto esistente
-cd /path/to/progetto-esistente
+```
+/plugin marketplace add acadevmy/ai-setup-meta
+/plugin install dev-setup@acadevmy
 ```
 
-## Passo 2 — Configurare autenticazione e MCP (account personale)
+## 2. Configure the project
 
-Ogni sviluppatore deve usare i **propri account personali**.
-Non condividere mai token o credenziali con altri membri del team.
-
-1. **GitHub / GitLab** — autenticazione via CLI (non serve PAT manuale):
-   ```bash
-   # Per progetti GitHub
-   gh auth login
-
-   # Per progetti GitLab (incluso self-hosted: aggiungi --hostname <host>)
-   glab auth login
-   ```
-   Si apre il browser: accedi con il tuo account e autorizza.
-   Le operazioni git useranno la tua identita'. Nessuno dei due provider usa MCP — sempre `gh`/`glab` CLI + `git`.
-
-2. Copia il template MCP nella tua configurazione locale:
-   ```bash
-   cp mcp/mcp.json.example mcp/mcp.json
-   ```
-
-3. **ClickUp** — autenticazione OAuth (non serve API key):
-   La configurazione e' gia' nel `mcp.json.example`. Al primo utilizzo, `mcp-remote`
-   apre il browser per l'autenticazione OAuth con il tuo account ClickUp.
-   Funziona anche per utenti guest.
-
-4. **Figma** (opzionale) — nessun token da generare manualmente:
-   Il server MCP remoto di Figma usa autenticazione OAuth via browser.
-   Al primo utilizzo, verra' aperta una finestra del browser per autorizzare l'accesso.
-
-5. **Context7** — nessuna configurazione necessaria:
-   Gia' incluso nel `mcp.json.example`, funziona senza token.
-
-## Passo 3 — Eseguire il setup agent
+From the project root:
 
 ```bash
-# Clona il repo di distribuzione e copia skill + agents nel progetto
-gh repo clone YOUR_ORG/dev-setup-template .tmp-ai-setup && \
-  cp -r .tmp-ai-setup/.claude/skills .claude/skills && \
-  cp -r .tmp-ai-setup/.claude/agents .claude/agents && \
-  rm -rf .tmp-ai-setup
-
-# Avvia Claude Code ed esegui il setup
-claude
-# poi digita: /project:setup
-```
-
-L'agente analizza il progetto e opera in tre modalita':
-- **GREENFIELD** — progetto nuovo: setup completo con quality tools (husky, commitlint, prettier, eslint), profilo stack, MCP, semantic-release
-- **EXISTING** — progetto con codice esistente: innesta solo il workflow AI (CONSTITUTION, AGENTS.md, CLAUDE.md, skills, MCP) senza toccare il tooling
-- **UPDATE** — setup gia' presente: aggiorna solo i file necessari alla nuova versione
-
-## Passo 4 — Verificare la configurazione
-
-```bash
-# Verifica Claude Code
-claude --version
-
-# Verifica MCP (dovrebbero apparire 3: clickup, figma, context7)
-claude mcp list
-
-# Verifica git hooks (solo per progetti greenfield)
-cat .husky/pre-commit
-```
-
-## Passo 5 — Primo avvio
-
-```bash
+cd <your-project>
 claude
 ```
 
-Al primo avvio Claude Code legge automaticamente `CLAUDE.md` (che importa `AGENTS.md`) e `CONSTITUTION.md`.
-Puoi subito usare i comandi slash disponibili per il tuo stack.
+```
+/dev-setup:setup
+```
 
-## Comandi slash disponibili (dopo il setup)
+It reads the repository and picks its own mode — **GREENFIELD** for an empty
+directory, **EXISTING** for a project that already has code, **UPDATE** for one
+this plugin has configured before. Then it writes:
 
-| Comando | Descrizione |
+| What | Where |
 |---|---|
-| `/project:sdd` | Prende un task da ClickUp e avvia il flusso SDD interattivo (spec → approvazione → sviluppo) |
-| `/project:auto-sdd` | Esegue lo stesso flusso SDD in autonomia end-to-end (fino alla PR, senza checkpoint) |
-| `/project:tdd` | Ciclo Red-Green-Refactor per codice backend |
-| `/project:bdd` | Ciclo Given/When/Then per codice frontend |
-| `/project:review` | Code review del branch corrente con verifica CONSTITUTION |
-| `/project:sync-task` | Sincronizza lo stato del task con ClickUp |
+| The rules the harness loads by file type | `.claude/rules/dev-setup-*.md` |
+| Permissions, Bash sandbox, quality gate | `.claude/settings.json` |
+| Project context for any agent | `AGENTS.md`, `CLAUDE.md` |
+| What already exists in the project | `REGISTRY.md` |
 
-## Release automatiche con semantic-release
+It asks before overwriting anything, and it never reads or writes `.env`.
+Coming from an older version of the plugin? Read
+[migration-v2-to-v3.md](./migration-v2-to-v3.md) before the UPDATE run.
 
-Per i progetti **greenfield**, il setup agent configura automaticamente **semantic-release** con la CI del provider rilevato:
+## 3. Do a small task
 
-- GitHub → `.github/workflows/release.yml` (GitHub Actions) + `.releaserc.json` con `@semantic-release/github`
-- GitLab → `.gitlab-ci.yml` + `.releaserc.json` con `@semantic-release/gitlab` (serve una variabile CI `GITLAB_TOKEN` con scope `api` + `write_repository`)
+A one-line fix does not need a spec:
 
-Ad ogni push sul branch di default, la CI analizza i commit (Conventional Commits) e:
+```
+/dev-setup:quick DE-123
+```
 
-- Calcola la nuova versione (major/minor/patch)
-- Genera `CHANGELOG.md`
-- Aggiorna la versione nel `package.json`
-- Crea tag e Release (GitHub Release o GitLab Release)
+or, with no ticket, `/dev-setup:quick fix the empty-state copy on the dashboard`.
 
-Non serve fare nulla di manuale: basta seguire le convenzioni di commit della Costituzione.
+It creates the branch, makes the change, commits it behind the quality gate and
+opens the merge request. Two things will stop and ask you: the gate refuses a
+commit whose lint, types or tests are red — read the output, fix, commit again —
+and opening the merge request needs your confirmation.
 
-| Tipo di commit | Effetto sulla versione |
+## 4. Do a real one
+
+Anything above three files, or that adds a component, a dependency or a public
+interface:
+
+```
+/dev-setup:sdd DE-124
+```
+
+It asks which branch to fork from (the base resolved from the repository is
+the default), then discovery, a technical spec you approve, development, the
+gates, one commit and the merge request.
+
+## Where to go next
+
+| Question | Read |
 |---|---|
-| `feat(...)` | MINOR (1.0.0 -> 1.1.0) |
-| `fix(...)`, `perf(...)`, `refactor(...)` | PATCH (1.0.0 -> 1.0.1) |
-| Commit con `BREAKING CHANGE` nel footer | MAJOR (1.0.0 -> 2.0.0) |
-
-> **Nota**: per progetti **existing**, semantic-release non viene configurato automaticamente.
-> Se lo desideri, chiedi al setup agent di aggiungerlo.
-
-## FAQ
-
-**Posso usare Codex invece di Claude Code?**
-Sì. La `CONSTITUTION.md` e i profili stack si applicano a qualsiasi agente.
-Per Codex, la configurazione MCP è diversa — chiedi al maintainer del meta-repo.
-
-**Come aggiorno il setup quando esce una nuova versione?**
-Il maintainer crea un task ClickUp quando c'è una nuova release.
-Segui le istruzioni nel task — di solito si tratta di rieseguire `/project:setup` che rileva e aggiorna automaticamente.
-
-**Posso modificare la Costituzione per il mio progetto?**
-No — la `CONSTITUTION.md` e' gestita centralmente nel template del meta-repo e distribuita a tutti i progetti.
-Se hai una proposta di modifica, aprila come task ClickUp o parla con il maintainer.
-
-**Qualcosa non funziona nel setup — a chi mi rivolgo?**
-Apri un task ClickUp nella lista "AI Setup" con:
-- Errore esatto (copia il testo)
-- Sistema operativo e versione Node.js
-- Output di `claude mcp list`
+| Which command for which job, and what the sandbox blocks | [developer-guide.md](./developer-guide.md) |
+| Coming from plugin v2 — what broke | [migration-v2-to-v3.md](./migration-v2-to-v3.md) |
+| Why the rules are enforced instead of written down | [training.md](./training.md) |
+| Changing the plugin itself | [workflow.md](./workflow.md) |

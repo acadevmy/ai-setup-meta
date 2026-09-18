@@ -2,7 +2,7 @@
 
 > Concise registry of reusable components, adopted patterns, and architectural decisions.
 > Claude Code reads this at the start of each session for immediate context.
-> Automatically updated by `/project:review`.
+> Automatically updated by `/dev-setup:review`.
 
 ## Conventions
 

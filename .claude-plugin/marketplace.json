@@ -4,14 +4,14 @@
     "name": "Acadevmy"
   },
   "metadata": {
-    "description": "Plugin AI-native per workflow di sviluppo"
+    "description": "AI-native plugins for software development workflows"
   },
   "plugins": [
     {
       "name": "dev-setup",
       "source": "./dist/dev-setup",
       "version": "2.3.1",
-      "description": "Setup AI-native per progetti di sviluppo software"
+      "description": "AI-native setup for software development projects"
     }
   ]
 }

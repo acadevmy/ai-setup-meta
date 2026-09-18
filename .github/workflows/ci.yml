@@ -1,13 +1,16 @@
 name: CI
 
-# Rete di sicurezza del meta-repo (DE-16471). Tre gate indipendenti:
-#   - plugin-validate: i manifest del plugin e dei cataloghi marketplace sono validi
-#   - shellcheck:      gli script sh non hanno warning
-#   - static-checks:   i check statici sulla qualita' delle skill (validate-plugin.sh)
+# The meta-repo's safety net (DE-16471). Four independent gates:
+#   - plugin-validate: the plugin and marketplace catalogue manifests are valid
+#   - shellcheck:      the sh scripts carry no warnings
+#   - static-checks:   the static checks on skill, workflow and documentation
+#                      quality (validate-plugin.sh) — checks 14-15 resolve every
+#                      command, script and path the docs cite (DE-16488)
+#   - bash-tests:      the plugin scripts and hooks against their fixtures (DE-16476)
 #
-# `static-checks` gira contro una baseline di fail noti (scripts/validate-baseline.txt):
-# i difetti censiti dall'audit sono riportati ma non bloccano; ogni nuovo difetto si.
-# La baseline si svuota con le PR successive della catena — vedi il suo header.
+# `static-checks` runs against a baseline of known failures (scripts/validate-baseline.txt):
+# the defects the audit recorded are reported but do not block; any new defect does.
+# The baseline shrinks with the later PRs of the chain — see its own header.
 
 on:
   pull_request:
@@ -32,8 +35,8 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      # `plugin validate` e' una verifica locale dei manifest: non richiede
-      # autenticazione ne' rete verso l'API.
+      # `plugin validate` is a local check of the manifests: it needs neither
+      # authentication nor network access to the API.
       - name: Validate plugin manifest (dist/dev-setup)
         run: claude plugin validate --strict dist/dev-setup/
 
@@ -49,8 +52,8 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
 
-      # Tutti gli script del repo: quelli del meta-repo, gli hook nei template
-      # e la loro copia in dist/.
+      # Every script in the repo: the meta-repo's own, the scripts and hooks in
+      # the templates, and their copy under dist/.
       - name: Run shellcheck
         run: |
           find scripts templates dist -type f -name '*.sh' -print0 \
@@ -65,7 +68,27 @@ jobs:
       - name: Validate manifest references
         run: bash scripts/validate-setup-urls.sh
 
-      # --fail-on-stale: quando una PR risolve un difetto baselinato, la riga va
-      # rimossa dalla baseline nella stessa PR. Impedisce che la baseline invecchi.
+      # --fail-on-stale: when a PR fixes a baselined defect, its line has to be
+      # removed from the baseline in that same PR. This keeps the baseline from ageing.
       - name: Static skill checks
         run: bash scripts/validate-plugin.sh --fail-on-stale
+
+  bash-tests:
+    name: bash tests (plugin scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # node is what the full-gate tests need: the commit gate runs the project's
+      # own `npm run test`, and the fixture declares one.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install jq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+
+      # detect-stack snapshots, the merge-base resolution of the base branch, the
+      # branch naming, the template rendering and both modes of gate-commit.
+      - name: Run the plugin script tests
+        run: bash scripts/test-plugin-scripts.sh
