@@ -32,24 +32,23 @@ feature without a spec, and never abandon a nearly-done change.
 
 1. **The change.** With a task id, read it through the `clickup` agent
    (`INTENT: read`, per
-   `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`) and move it to
-   `IN PROGRESS`. A `BACKLOG` task first passes that contract's backlog gate
-   (declined → stop, task untouched). Without one, `$ARGUMENTS` is the whole
-   input — do not ask for a ticket.
+   `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`), move it to
+   `IN PROGRESS` and start that contract's work clock (`task-clock.sh
+   --start`). A `BACKLOG` task first
+   passes its backlog gate (declined → stop, task untouched). Without one,
+   `$ARGUMENTS` is the whole input — do not ask for a ticket.
 
-2. **The branch.** With `--worktree`, the order matters: read `BASE_BRANCH`
-   from `check-prerequisites.sh` **in the main checkout**, enter the worktree
-   named after the task, and only then run the call below, adding
-   `--base <that ref>`. `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` names the
-   tool that enters it, and covers the dependency install and the port.
+2. **The branch.** With `--worktree`, first read `BASE_BRANCH` from
+   `check-prerequisites.sh` **in the main checkout**, then
+   enter the worktree named after the task and pass `--base <that ref>` below.
+   `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` has the order and the rest.
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
      --type <fix|chore> --title "<what changes>" [--task <custom_id>] --create --json
    ```
 
-   It resolves `BASE_BRANCH` itself — never a hard-coded `main` — so `--base`
-   is for the worktree case only.
+   It resolves `BASE_BRANCH` itself — never a hard-coded `main`.
 
 3. **The change itself.** The path-scoped rules load on the files you open.
    Run the project's test and lint commands on what you touched.
@@ -64,7 +63,9 @@ feature without a spec, and never abandon a nearly-done change.
    `gh pr create` / `glab mr create` is the checkpoint — do not ask for the same
    confirmation in chat first.
 
-6. **The board.** With a task id: `INTENT: update`, status `CODE REVIEW`.
+6. **The board.** With a task id: stop the clock, then `INTENT: update`,
+   status `CODE REVIEW`, comment `COMMENT` — its line verbatim, nothing when
+   it is empty.
 
 ## Expected output
 

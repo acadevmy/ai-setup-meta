@@ -28,7 +28,7 @@ commits this flow used to mandate (`refactor: simplify`, `docs(registry)`,
 - [6. Commit](#6-commit)
 - [7. Push](#7-push)
 - [8. Open the merge request](#8-open-the-merge-request)
-- [9. Move the task](#9-move-the-task)
+- [9. Stop the clock and move the task](#9-stop-the-clock-and-move-the-task)
 
 ## 1. Stage
 
@@ -116,7 +116,18 @@ checkpoint, and it is a permission rule — do not ask for the same confirmation
 in chat first, and do not work around a refusal. Declined means declined: report
 it and leave the branch pushed.
 
-## 9. Move the task
+## 9. Stop the clock and move the task
 
-`INTENT: update`, `PARAMS: task_id: <task_id>, status: CODE REVIEW` — and
-`IN REVIEW` if the list does not have `CODE REVIEW`.
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --stop --json
+```
+
+Then one call carries both the move and what the work took:
+`INTENT: update`, `PARAMS: task_id: <task_id>, status: CODE REVIEW, comment:
+"<COMMENT>"` — and `IN REVIEW` if the list does not have `CODE REVIEW`.
+
+`COMMENT` is the clock's own line, posted verbatim. Empty means the clock has
+nothing to report (`REASON` says why): the move goes out without a comment, and
+you say so in one line. Never compose a duration yourself — the work clock
+section of `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` is the rule,
+and an estimate posted as a measurement is the one failure it names.

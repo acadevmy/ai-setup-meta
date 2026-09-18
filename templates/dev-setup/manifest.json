@@ -49,6 +49,7 @@
     "sdd-start.sh",
     "check-prerequisites.sh",
     "multi-preflight.sh",
+    "task-clock.sh",
     "migrate-settings.sh",
     "render-template.sh",
     "worktree-info.sh"

@@ -1149,6 +1149,169 @@ if [ -f "$AUTO_SDD" ]; then
     "$(cat "$AUTO_SDD")" "overruled,"
 fi
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 11. task-clock.sh: how long the task took
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The clock is stamped at the IN PROGRESS move and read back when the merge
+# request opens. Two properties matter more than the arithmetic: the state
+# cannot reach the working tree (the closure runs `git add -A` right before it),
+# and a clock nobody started reports *nothing* rather than a plausible number.
+
+echo ""
+echo "── task-clock.sh (the work clock) ──"
+
+CLOCK_REPO="$WORK_DIR/clock-repo"
+mkdir -p "$CLOCK_REPO"
+(
+  cd "$CLOCK_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+) >/dev/null 2>&1
+
+clock() { (cd "${CLOCK_CWD:-$CLOCK_REPO}" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
+clock_exit() {
+  (cd "${CLOCK_CWD:-$CLOCK_REPO}" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@") >/dev/null 2>&1
+  printf '%s' "$?"
+}
+
+CLOCK_START=$(clock --task DE-700 --start)
+
+# ClickUp's own format, and the one a human reads in the brief.
+assert_eq "--start stamps a minute-precision local timestamp" "true" \
+  "$(printf '%s' "$CLOCK_START" | jq -r '.STARTED_AT' \
+     | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$' && echo true || echo false)"
+assert_eq "and reports the clock as running" "true" \
+  "$(printf '%s' "$CLOCK_START" | jq -r '.RUNNING')"
+
+# A resumed task re-runs intake. The first stamp is the real start, so it stands:
+# restarting it would silently discard the hours already spent.
+CLOCK_AGAIN=$(clock --task DE-700 --start)
+assert_eq "a second --start does not restart the clock" "already-running" \
+  "$(printf '%s' "$CLOCK_AGAIN" | jq -r '.REASON')"
+assert_eq "and keeps the first stamp" \
+  "$(printf '%s' "$CLOCK_START" | jq -r '.STARTED_AT')" \
+  "$(printf '%s' "$CLOCK_AGAIN" | jq -r '.STARTED_AT')"
+
+# The state lives in the git directory, which `git add -A` cannot reach. The
+# closure stages the whole tree one step before it stops the clock.
+assert_eq "the clock leaves the working tree clean" "" \
+  "$(cd "$CLOCK_REPO" && git status --porcelain)"
+assert_eq "and keeps its state under the git directory" "true" \
+  "$(printf '%s' "$CLOCK_START" | jq -r '.STATE_FILE' | grep -q '/\.git/dev-setup/task-clock/' \
+     && echo true || echo false)"
+
+CLOCK_STOP=$(clock --task DE-700 --stop)
+
+# COMMENT is the whole contract with the board: the flows post it verbatim, so
+# it has to arrive written, not as numbers for the model to phrase.
+assert_contains "--stop returns the line to post" \
+  "$(printf '%s' "$CLOCK_STOP" | jq -r '.COMMENT')" "Time in progress:"
+assert_contains "and the line names both ends of the interval" \
+  "$(printf '%s' "$CLOCK_STOP" | jq -r '.COMMENT')" \
+  "$(printf '%s' "$CLOCK_START" | jq -r '.STARTED_AT')"
+assert_eq "a closed interval is never reported as 0m" "false" \
+  "$(printf '%s' "$CLOCK_STOP" | jq -r '.DURATION' | grep -qE '^0m$' && echo true || echo false)"
+
+# Stopping twice is not a second measurement.
+assert_eq "a second --stop measures nothing" "already-stopped" \
+  "$(clock --task DE-700 --stop | jq -r '.REASON')"
+assert_eq "and posts nothing" "" "$(clock --task DE-700 --stop | jq -r '.COMMENT')"
+
+# The failure this guards is the one the contract forbids in prose: a flow that
+# reaches the merge request with no start stamp must post no duration at all,
+# because the only other option is an invented one.
+NEVER_STARTED=$(clock --task DE-701 --stop)
+assert_eq "a clock nobody started reports no-start-stamp" "no-start-stamp" \
+  "$(printf '%s' "$NEVER_STARTED" | jq -r '.REASON')"
+assert_eq "and offers no duration to post" "" \
+  "$(printf '%s' "$NEVER_STARTED" | jq -r '.COMMENT')$(printf '%s' "$NEVER_STARTED" | jq -r '.DURATION')"
+assert_eq "and exits zero — it is an answer, not a failure" "0" \
+  "$(clock_exit --task DE-702 --stop)"
+
+# Two sittings on one task: each interval is its own reading and the total adds
+# up, so a task that goes BLOCKED and comes back is not counted twice or lost.
+CLOCK_LOG="$CLOCK_REPO/.git/dev-setup/task-clock/DE-703.log"
+mkdir -p "$(dirname "$CLOCK_LOG")"
+CLOCK_NOW=$(date +%s)
+{
+  printf 'start\t%s\t%s\n' "$((CLOCK_NOW - 20000))" "2026-09-17 09:00"
+  printf 'stop\t%s\t%s\t%s\n' "$((CLOCK_NOW - 11900))" "2026-09-17 11:15" "135"
+  printf 'start\t%s\t%s\n' "$((CLOCK_NOW - 5400))" "2026-09-18 10:00"
+} > "$CLOCK_LOG"
+CLOCK_MULTI=$(clock --task DE-703 --stop)
+
+assert_eq "the second interval measures itself" "1h 30m" \
+  "$(printf '%s' "$CLOCK_MULTI" | jq -r '.DURATION')"
+assert_eq "the total carries both sittings" "3h 45m" \
+  "$(printf '%s' "$CLOCK_MULTI" | jq -r '.TOTAL_DURATION')"
+assert_contains "and the line says it is a total over two sessions" \
+  "$(printf '%s' "$CLOCK_MULTI" | jq -r '.COMMENT')" "total over 2 sessions"
+
+# The task id reaches a file path here, exactly as it reaches a branch name in
+# sdd-start.sh. Both refuse anything that is not a plain identifier.
+assert_eq "a task id that would escape the state directory is refused" "1" \
+  "$(clock_exit --task '../../hooks/pre-commit' --start)"
+assert_eq "and so is one carrying a shell command" "1" \
+  "$(clock_exit --task 'DE-1; rm -rf /' --stop)"
+assert_eq "a call with neither --start nor --stop is a usage error" "1" \
+  "$(clock_exit --task DE-700)"
+
+# One clock per task, shared by every checkout of the repository: the
+# interactive flow stamps the start inside its worktree, `auto-sdd` stamps it in
+# the launcher's checkout, and the same task must not end up with two clocks.
+if git -C "$CLOCK_REPO" worktree add -q "$WORK_DIR/clock-wt" -b clock-side >/dev/null 2>&1; then
+  # Compared by suffix: on macOS $TMPDIR sits under /tmp, a symlink to
+  # /private/tmp, and git reports the physical path from inside the worktree.
+  assert_contains "a worktree reads the same clock as the main checkout" \
+    "$(CLOCK_CWD="$WORK_DIR/clock-wt" clock --task DE-700 --stop | jq -r '.STATE_FILE')" \
+    "/clock-repo/.git/dev-setup/task-clock/DE-700.log"
+fi
+
+assert_eq "the script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/task-clock.sh" ] && echo true || echo false)"
+
+# ── Both ends, in every flow ──
+#
+# A clock started and never read is a file nobody looks at; a clock read and
+# never started is the no-start-stamp path on every task. Each flow has to call
+# both sides, and the rule they all cite has to live in one place.
+CLOCK_CONTRACT="$REPO_ROOT/templates/dev-setup/.claude/reference/clickup-contract.md"
+assert_contains "the contract owns the clock rule" \
+  "$(cat "$CLOCK_CONTRACT")" "## The work clock"
+assert_contains "and forbids composing a duration" \
+  "$(cat "$CLOCK_CONTRACT")" "Never write the duration yourself"
+
+# sdd stamps at intake and reads at closure; quick does both in its SKILL.md;
+# the launchers stamp at launch and read in the shared outcomes contract.
+for CLOCK_SIDE in \
+  "sdd/reference/intake.md=--start" \
+  "sdd/reference/closure.md=--stop" \
+  "quick/SKILL.md=stop the clock" \
+  "auto-sdd/SKILL.md=--start" \
+  "multi-sdd/reference/fan-out.md=--start"; do
+  CLOCK_FILE="${CLOCK_SIDE%%=*}"
+  CLOCK_NEEDLE="${CLOCK_SIDE#*=}"
+  assert_contains "$CLOCK_FILE calls the clock" \
+    "$(cat "$SDD_DIR/$CLOCK_FILE")" "task-clock.sh"
+  assert_contains "$CLOCK_FILE names its side of it" \
+    "$(cat "$SDD_DIR/$CLOCK_FILE")" "$CLOCK_NEEDLE"
+done
+
+# Both autonomous outcomes that close a task carry the reading: ready-for-mr on
+# the CODE REVIEW move, failed on the BLOCKED one. Scoped per section, so the
+# check cannot be satisfied by one of them mentioning it twice.
+CLOCK_OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+for CLOCK_SECTION in failed ready-for-mr; do
+  assert_contains "the $CLOCK_SECTION outcome closes the clock" \
+    "$(awk -v s="^## $CLOCK_SECTION" '$0 ~ s { p = 1; next } /^## / { p = 0 } p' \
+         "$CLOCK_OUTCOMES")" \
+    "clock"
+done
+
 echo ""
 echo "══ DE-16488 — the documentation cannot go stale in silence ══"
 

@@ -11,10 +11,10 @@ disable-model-invocation: true
 The launcher of the `auto-sdd` workflow. The orchestration lives in
 `workflows/auto-sdd.js` — JavaScript the harness runs, so its bounds are bounds
 and its control flow never enters the context. What is left here is what code
-cannot do: resolve the task, launch the run, act on what comes back.
+cannot do: resolve the task, launch the run, act on the outcome.
 
 **Usage**: `/dev-setup:auto-sdd [TASK_ID]`. For several tasks, `multi-sdd`
-composes this same workflow.
+composes it.
 
 ## Before you start
 
@@ -26,7 +26,7 @@ composes this same workflow.
 ## 1. The task
 
 **With a task id in `$ARGUMENTS`**: `INTENT: read`, `PARAMS: task_id: <id>`.
-`BACKLOG` → the contract's backlog gate; declined means stop, no run, no board
+`BACKLOG` → the contract's backlog gate; declined means stop: no run, no board
 write.
 
 **Without one**: resolve the list id as the contract describes, then
@@ -47,10 +47,15 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
 
 The base branch is neither guessed nor hard-coded — the second call answers it:
 
-- `TASK_ID` empty → the session sits on a long-lived branch, `BRANCH` is the base;
-- `TASK_ID` present → it sits on a task branch already, `BASE_BRANCH` is.
+- `TASK_ID` empty → a long-lived branch, and `BRANCH` is the base;
+- `TASK_ID` present → a task branch already, and `BASE_BRANCH` is.
 
-Then `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`.
+Then `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`, then
+the clock:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --start --json
+```
 
 ## 3. The run
 
@@ -86,9 +91,9 @@ broke: show the raw result and stop.
 
 ## Expected output
 
-- the task moved `SPRINT` → `IN PROGRESS`, then → `CODE REVIEW` or `BLOCKED`;
-- on `ready-for-mr`, a pushed branch and a merge request against the project
-  base branch, carrying the spec and the real test output;
-- otherwise the objections or the failing output in chat, with the branch and
-  the worktree left in place;
+- the task moved `SPRINT` → `IN PROGRESS` → `CODE REVIEW` or `BLOCKED`;
+- on `ready-for-mr`, a pushed branch and a merge request carrying the spec and
+  the real test output;
+- otherwise the objections or the failing output, with the branch and the
+  worktree left in place;
 - either way, no edit in the developer checkout.

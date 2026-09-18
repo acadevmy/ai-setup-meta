@@ -239,6 +239,7 @@ status other than 0.
 | `sdd-start.sh --task DE-123 \| --title <text> [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
+| `task-clock.sh --task <id> --start \| --stop` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
 | `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY` |
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
@@ -699,4 +700,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.18.0 — bump the version number on every substantial change*
+*Version: 2.19.0 — bump the version number on every substantial change*
