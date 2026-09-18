@@ -28,7 +28,8 @@ writing any code. There is no branch, no worktree and no merge request.
 2. Ask the developer, and read the next section for what their answer means.
 3. Only if they do not want to deal with it now, move the task to `BLOCKED` with
    the bail-out call of the contract — one `update` carrying the status and the
-   note. The note holds the objections verbatim.
+   note. The note holds the objections verbatim, and the clock's `COMMENT`
+   (`--stop`) goes after it: the spec phase was work too.
 
 Do not argue with the objections yourself and do not re-run the workflow hoping
 for a different verdict. Two lenses out of three is the gate, it is in code, and
@@ -76,8 +77,9 @@ typecheck or test command came back red).
 
 1. Show `reason` and, when `verify` failed, the `output` as it came — that is the
    real command output, not a summary of it.
-2. Move the task to `BLOCKED` with the same bail-out call, naming the stage, the
-   reason and the branch.
+2. Stop the clock, then move the task to `BLOCKED` with the same bail-out call:
+   one `update` naming the stage, the reason and the branch, with the clock's
+   `COMMENT` after the note.
 3. Leave the branch and the worktree alone. They are the debugging material, and
    deleting them is the one thing that makes the failure unreadable.
 
@@ -105,9 +107,18 @@ The `ask` rule on `gh pr create` / `glab mr create` is what puts a person in
 front of this. It is a permission rule, not something to work around: if the
 developer declines, report that and leave everything in place.
 
-Finally, `INTENT: update`, `PARAMS: task_id: <task_id>, status: CODE REVIEW`
-(`IN REVIEW` when the list has no `CODE REVIEW`), and show the merge request
-link, the branch, the spec path and the commit subjects.
+Finally, stop the clock and let the move carry what the task took:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <taskId> --stop --json
+```
+
+`INTENT: update`, `PARAMS: task_id: <task_id>, status: CODE REVIEW, comment:
+"<COMMENT>"` (`IN REVIEW` when the list has no `CODE REVIEW`) — `COMMENT`
+verbatim, or no comment at all when the clock has nothing (`REASON` says why).
+Never write a duration of your own: the work clock section of
+`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` is the rule. Then show
+the merge request link, the branch, the spec path and the commit subjects.
 
 ## The merge request
 

@@ -256,6 +256,13 @@ what a reviewer reads the diff against. The agent may say a task looks
 misrouted; the route is the developer's, and the command they type is the
 choice.
 
+**Every flow with a task id clocks itself.** The move to `IN PROGRESS` stamps
+`task-clock.sh --start`, the move that closes the task reads the stamp back and
+posts one line on it — `Time in progress: 2h 15m (14:03 → 16:18)`. The stamp
+lives in the repository's git directory, shared with every worktree and never
+committed; a clock nobody started posts nothing at all, because the only
+alternative is a number the model made up.
+
 ### The skills behind them
 
 These are not commands: the orchestrator invokes them by name, and each one is a

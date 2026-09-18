@@ -12,6 +12,7 @@ written once — cite it, do not restate it.
 - [Reading the result](#reading-the-result)
 - [Resolving the task list id](#resolving-the-task-list-id)
 - [Status transitions](#status-transitions)
+- [The work clock](#the-work-clock)
 - [The backlog gate](#the-backlog-gate)
 - [The bail-out call](#the-bail-out-call)
 
@@ -82,6 +83,38 @@ transition the flow is actually at: `SPRINT -> IN PROGRESS` when work starts,
 `-> BLOCKED` on a bail-out, `BLOCKED -> SPRINT` on recovery.
 `BACKLOG -> IN PROGRESS` is requested only as the recorded answer to the
 backlog gate below — never on the flow's own initiative.
+
+## The work clock
+
+Two of those transitions bracket the work, so they bracket the clock too. A
+script holds the reading in between — every flow calls it at both ends:
+
+| At the move to | Call | What comes back |
+|---|---|---|
+| `IN PROGRESS` | `task-clock.sh --task <custom_id> --start --json` | `STARTED_AT`. Already open, it reports `already-running` and keeps the first stamp — a resumed task does not restart its clock |
+| `CODE REVIEW` / `BLOCKED` | `task-clock.sh --task <custom_id> --stop --json` | `COMMENT`: the line to post, already written |
+
+Both are `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" …`. `COMMENT`
+reads `Time in progress: 2h 15m (2026-09-18 14:03 → 2026-09-18 16:18)`, and it
+travels as the `comment` of the status `update` that closes the task — the same
+one call, never a second write. On a bail-out it goes after the note, on the
+same `BLOCKED` call.
+
+Three rules:
+
+1. **Never write the duration yourself.** Not from the session's length, not
+   from the timestamps in the transcript, not as an estimate. The number comes
+   from `COMMENT` or it does not exist — a made-up duration on a tracked task
+   is worse than a missing one, because it reads like a measurement.
+2. **An empty `COMMENT` posts nothing.** `REASON` says why:
+   `no-start-stamp` (nobody stamped the start — a flow resumed in a fresh
+   clone, say) or `already-stopped`. Move the task, say the clock had nothing,
+   and carry on.
+3. **No task id, no clock.** `quick` on a plain description has nothing to
+   stamp and no task to post it on.
+
+A non-zero exit from the clock is one line of report and nothing more. The
+flow's job is the merge request; a stopwatch that failed never holds it up.
 
 ## The backlog gate
 

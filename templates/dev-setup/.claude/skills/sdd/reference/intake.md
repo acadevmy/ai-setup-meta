@@ -11,7 +11,7 @@ question here is in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 
 - [1. Task selection](#1-task-selection)
 - [2. The working branch](#2-the-working-branch)
-- [3. Task status](#3-task-status)
+- [3. Task status, and the clock](#3-task-status-and-the-clock)
 - [4. The brief, and what is already on disk](#4-the-brief-and-what-is-already-on-disk)
 
 ## 1. Task selection
@@ -122,12 +122,23 @@ its local HEAD is not a fork point worth resolving.
 `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` covers the rest — the dependency
 install, the port, the overlap warning.
 
-## 3. Task status
+## 3. Task status, and the clock
 
 `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`.
 
 For a task found in `BACKLOG` at step 1, this is the move the developer
 authorised through the backlog gate — never make it without that answer.
+
+Then start the clock the closure reads back:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --start --json
+```
+
+`STARTED_AT` goes in the brief below. A `REASON: already-running` means this
+task was here before and its first stamp stands — say the clock is being
+resumed, and report the `TOTAL_DURATION` it already holds. The work clock
+section of the ClickUp contract holds the rest.
 
 ## 4. The brief, and what is already on disk
 
@@ -158,7 +169,7 @@ from and why, then show the brief:
 Task:     DE-123 — Task title
 Priority: High
 Branch:   feat/DE-123-add-user-auth  (base: origin/next)
-Status:   IN PROGRESS
+Status:   IN PROGRESS  (clock started 2026-09-18 14:03)
 Spec:     .specs/DE-123-add-user-auth.md (approved) — or "none yet"
 
 Description:

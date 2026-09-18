@@ -74,7 +74,7 @@ repository, not in yours — see [workflow.md](./workflow.md).
        │
        ├─ reads the task, asks which branch to fork from — the default is
        │  resolved from the repository, never hard-coded — then creates
-       │  feat/DE-123-… and moves the task to IN PROGRESS
+       │  feat/DE-123-…, moves the task to IN PROGRESS and starts the clock
        │
        ├─ discovery — a structured interview, only the questions that matter
        │
@@ -90,10 +90,11 @@ repository, not in yours — see [workflow.md](./workflow.md).
        │
        ├─ push, then the merge request  ← your confirmation is required
        │
-       └─ the task moves to review, with the link posted on it
+       └─ the task moves to review, with the link and the time it took
+          posted on it
 ```
 
-Four things are worth knowing about that shape.
+Five things are worth knowing about that shape.
 
 **A backlog task is your call.** A task read in `BACKLOG` was never planned
 into a sprint, so the flow stops and asks before anything else happens — no
@@ -109,6 +110,16 @@ carried out as written does stop, and says why.
 **One commit, not four.** The gates run *before* the commit, so the code, the
 spec and the REGISTRY entries land together. Committing more often while you
 work is fine; nothing requires it.
+
+**The clock runs from IN PROGRESS to the merge request.** The move that starts
+the work stamps `task-clock.sh --start`; the move that ends it reads the stamp
+back and posts one line on the task — `Time in progress: 2h 15m (14:03 →
+16:18)`. It is wall-clock time between two board writes, not an estimate of
+effort, and it is never invented: if nothing stamped the start — a flow resumed
+in a fresh clone, say — the task moves with no time on it and the session says
+so. The stamp lives in the repository's git directory, so it is shared with
+every worktree and never lands in a commit. A task picked up twice keeps both
+sittings and reports the total.
 
 **The methodology is not a question.** Backend logic is test-first, UI is
 scenario-first, and `.claude/rules/dev-setup-tests.md` says so — it loads by
@@ -477,6 +488,19 @@ network commands run outside the sandbox.
 
 The first call opens the browser for OAuth. If the session expired, restart
 Claude Code and the flow starts again on its own.
+
+### The task moved but carries no time
+
+The clock had nothing to report, and that is the designed outcome rather than a
+silent one: the session says which reason it got. `no-start-stamp` means the
+start was never stamped — a task resumed in another clone, or a flow that began
+before this plugin version. `already-stopped` means the clock was closed
+earlier, on a bail-out to `BLOCKED`, and the sitting after it was never opened.
+
+Neither is worth reconstructing by hand, and nothing in the flow will estimate
+the number for you: a duration posted on a task reads as a measurement, and an
+invented one is worse than none. Start the next sitting by moving the task to
+`IN PROGRESS` again.
 
 ### The setup did not detect my stack
 

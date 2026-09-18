@@ -54,6 +54,15 @@ before: the pre-flight deliberately leaves the board alone so that a dropped
 task is never touched. For a task confirmed out of `BACKLOG` at phase A, this
 is the move the developer authorised there.
 
+Start that task's clock on the same beat:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --start --json
+```
+
+One clock per task id, so five runs in flight keep five separate readings —
+and each is closed by the outcome that lands for it, never by the set.
+
 `branchType` follows the task — feature → `feat`, bug → `fix`, maintenance →
 `chore`. Each call returns immediately with a `runId`; the run itself works in
 the background, in a worktree the harness gives its dev agent, so the developer
