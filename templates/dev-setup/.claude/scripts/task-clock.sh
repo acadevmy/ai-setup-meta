@@ -21,12 +21,19 @@
 # `git clean` cannot delete it.
 #
 # Usage:
-#   task-clock.sh --task DE-123 --start [--json]
-#   task-clock.sh --task DE-123 --stop  [--json]
+#   task-clock.sh --task DE-123 --start  [--json]
+#   task-clock.sh --task DE-123 --stop   [--json]
+#   task-clock.sh [--task DE-123] --status [--json]
 #
-#   --task <id>   the task's custom id — the clock is per task, not per branch
+#   --task <id>   the task's custom id — the clock is per task, not per branch.
+#                 Required by --start and --stop, optional for --status
 #   --start       open an interval; already open, it is left alone
 #   --stop        close the open interval and report what it measured
+#   --status      report without writing: is this task's clock running, and
+#                 which clocks are open in this repository. The reader of the
+#                 state, for anything that must not consume a measurement —
+#                 the merge-request hook asks it whether there is still a task
+#                 in progress here
 #   --json        emit a flat JSON object
 #
 # Keys:
@@ -43,7 +50,11 @@
 #                   `comment` of the board's status update — empty when there
 #                   is nothing to report, and then nothing is posted
 #   REASON          why COMMENT is empty: no-start-stamp | already-stopped
-#   STATE_FILE      where the clock is kept
+#   OPEN_TASKS      every task with an open interval in this repository,
+#                   space-separated — a fan-out has one per worktree, and they
+#                   share the common git directory
+#   OPEN_COUNT      how many they are
+#   STATE_FILE      where the clock is kept — empty for a --status with no task
 #
 # Exit: 0 on success, including a --stop with nothing to measure · 1 usage error
 # ---8<--- end of the --help message
@@ -73,8 +84,8 @@ while [ $# -gt 0 ]; do
     --task)
       [ $# -ge 2 ] || die "--task requires an id"
       TASK="$2"; shift 2 ;;
-    --start|--stop)
-      [ -z "$MODE" ] || die "--start and --stop are two calls, not one"
+    --start|--stop|--status)
+      [ -z "$MODE" ] || die "--start, --stop and --status are separate calls, not one"
       MODE="${1#--}"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
@@ -83,10 +94,17 @@ done
 
 require_jq
 
-[ -n "$MODE" ] || die "nothing to do: pass --start or --stop (see --help)"
-[ -n "$TASK" ] || die "--task is required: the clock is kept per task id"
-printf '%s' "$TASK" | grep -qE "$TASK_ID_SHAPE" \
-  || die "\"$TASK\" is not a plain task id (letters, digits, dot, dash, underscore)"
+[ -n "$MODE" ] || die "nothing to do: pass --start, --stop or --status (see --help)"
+# --status answers for the repository when no task is named, which is how a
+# caller that does not know the task id — the merge-request hook — finds out
+# there is one in progress at all.
+if [ "$MODE" != "status" ]; then
+  [ -n "$TASK" ] || die "--task is required: the clock is kept per task id"
+fi
+if [ -n "$TASK" ]; then
+  printf '%s' "$TASK" | grep -qE "$TASK_ID_SHAPE" \
+    || die "\"$TASK\" is not a plain task id (letters, digits, dot, dash, underscore)"
+fi
 
 # ── Where the clock lives ─────────────────────────────────────────────────────
 
@@ -101,7 +119,8 @@ case "$GIT_COMMON" in
 esac
 
 STATE_DIR="$GIT_COMMON/dev-setup/task-clock"
-STATE_FILE="$STATE_DIR/$TASK.log"
+STATE_FILE=""
+[ -n "$TASK" ] && STATE_FILE="$STATE_DIR/$TASK.log"
 
 # ── Reading the log ───────────────────────────────────────────────────────────
 #
@@ -136,6 +155,21 @@ read_log() {
         ;;
     esac
   done < "$STATE_FILE"
+}
+
+# The open interval's stamp for any log, or the empty string when the clock is
+# closed. Same file format as read_log, read without touching the globals: the
+# repository scan below needs an answer per task, not the running totals.
+open_stamp_of() {
+  local file="$1" kind epoch stamp minutes open=""
+  [ -f "$file" ] || return 0
+  while IFS=$'\t' read -r kind epoch stamp minutes; do
+    case "$kind" in
+      start) open="$stamp" ;;
+      stop) open="" ;;
+    esac
+  done < "$file"
+  printf '%s' "$open"
 }
 
 # Minutes between two epochs, rounded to the nearest minute. An interval that
@@ -216,7 +250,38 @@ case "$MODE" in
       REASON="no-start-stamp"
     fi
     ;;
+
+  status)
+    # Reports, writes nothing. A caller that only wants to know whether work is
+    # still open must not be the one that closes it: --stop is a measurement,
+    # and taking it twice is how a duration gets lost.
+    if [ -n "$OPEN_EPOCH" ]; then
+      STARTED_AT="$OPEN_STAMP"
+      RUNNING=true
+    elif [ -n "$TASK" ] && [ "$SESSIONS" -eq 0 ]; then
+      REASON="no-start-stamp"
+    elif [ -n "$TASK" ]; then
+      REASON="already-stopped"
+    fi
+    ;;
 esac
+
+# ── What is open in this repository ───────────────────────────────────────────
+#
+# Reported in every mode, after the mutation: the answer is about the clocks,
+# not about the call. A fan-out keeps one log per task and every worktree shares
+# the common git directory, so this is the whole repository's view.
+
+OPEN_TASKS=""
+OPEN_COUNT=0
+if [ -d "$STATE_DIR" ]; then
+  for LOG in "$STATE_DIR"/*.log; do
+    [ -f "$LOG" ] || continue
+    [ -n "$(open_stamp_of "$LOG")" ] || continue
+    OPEN_TASKS="${OPEN_TASKS:+$OPEN_TASKS }$(basename "$LOG" .log)"
+    OPEN_COUNT=$((OPEN_COUNT + 1))
+  done
+fi
 
 # ── Output ────────────────────────────────────────────────────────────────────
 
@@ -238,6 +303,8 @@ json_set TOTAL_DURATION "$TOTAL_DURATION"
 json_set SESSIONS "$SESSIONS"
 json_set COMMENT "$COMMENT"
 json_set REASON "$REASON"
+json_set OPEN_TASKS "$OPEN_TASKS"
+json_set OPEN_COUNT "$OPEN_COUNT"
 json_set STATE_FILE "$STATE_FILE"
 
 if [ "$AS_JSON" = true ]; then

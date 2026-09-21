@@ -239,7 +239,7 @@ status other than 0.
 | `sdd-start.sh --task DE-123 \| --title <text> [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
-| `task-clock.sh --task <id> --start \| --stop` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why |
+| `task-clock.sh --task <id> --start \| --stop`, `task-clock.sh [--task <id>] --status` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON`, `OPEN_TASKS`, `OPEN_COUNT` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why. `--status` reads without writing and, with no task, answers for the whole repository: asking whether work is open must not consume the measurement |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
 | `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY` |
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
@@ -292,6 +292,47 @@ The hook is fail-open — no `jq`, no `detect-stack.sh`, and it warns on stderr 
 lets the call through. It is a quality gate, not a security boundary: the security
 boundary is the `deny` rules plus the sandbox, and blocking every commit on a broken
 toolchain would be worse than reporting it.
+
+### The obligation travels with the event, not with the flow
+
+`hooks/post-merge-request.sh` is a `PostToolUse` hook on `Bash`. It fires on the
+`gh pr create` / `glab mr create` that actually created a merge request — the URL
+in the output is the proof — and, when a task's work clock is still open in the
+repository, it names that task and asks for the two calls that end it: `--stop`,
+then the `CODE REVIEW` move with `COMMENT` as the comment.
+
+It exists because the closure was context-bound. Both calls live in the last step
+of the skill that opens the merge request, which holds until the merge request is
+opened by something else: on DE-16879 the push failed against an empty remote, the
+session was cleared, and the pull request went out through `vcs-ops` alone the
+next hour. `vcs-ops` knows nothing about a board, so the task stayed `IN PROGRESS`
+with its clock running and **nothing anywhere said otherwise** — the failure was
+silent, which is the only kind this plugin cannot absorb. The same sentence now
+sits in `vcs-ops` itself, the one skill guaranteed to be loaded when a merge
+request is opened by hand.
+
+Two properties are the design, not details:
+
+1. **It reads, it does not stop the clock.** `--stop` is a measurement, and a
+   hook that took it would hand the duration to a session that may never post it
+   — while the flow's own `--stop` would then find an already-stopped clock with
+   nothing to report. Hence `task-clock.sh --status`.
+2. **It is quiet unless there is something to say.** No merge request created, no
+   open clock, no `jq` → exit 0 in silence. An open clock is the precise signal
+   that a flow of this plugin moved a task to `IN PROGRESS` here; a hook that
+   fired on every `gh` call would be switched off within the week.
+
+Exit 2 is the channel and not a verdict: on `PostToolUse` it is what puts stderr
+in front of the model (stdout there reaches the debug log only). The merge request
+was created and stays created.
+
+**Hooks reach a project through the plugin, not through its `settings.json`.**
+`build-claude.sh` generates `dist/<domain>/hooks/hooks.json` from the `hooks` block
+of `templates/<domain>/.claude/settings.json`, rewriting the paths to
+`${CLAUDE_PLUGIN_ROOT}/hooks/scripts/`, while the settings the setup writes into a
+project carries only `permissions` and `sandbox`. So a new hook reaches every
+project on the plugin update, and `migrate-settings.sh` has nothing to do with it —
+which is the one UPDATE-path question a new hook has to answer.
 
 ### Running the tests
 
@@ -700,4 +741,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.19.0 — bump the version number on every substantial change*
+*Version: 2.20.0 — bump the version number on every substantial change*

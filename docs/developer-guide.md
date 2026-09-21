@@ -121,6 +121,17 @@ so. The stamp lives in the repository's git directory, so it is shared with
 every worktree and never lands in a commit. A task picked up twice keeps both
 sittings and reports the total.
 
+**The merge request closes the task, whoever opened it.** Those two closing
+calls used to live only in the flow's last step, which holds right up to the
+moment the merge request is opened by something else — a push that failed and
+was retried the next day, a session cleared in between, `vcs-ops` invoked on its
+own. The task then stayed `IN PROGRESS` with its clock running, and nothing
+anywhere said so. A `PostToolUse` hook now fires on the `gh pr create` /
+`glab mr create` that created it: when a task's clock is still open in the
+repository it names that task and asks for both calls. It reads the clock and
+never stops it — the measurement belongs to whoever posts it. With no task in
+progress here, it says nothing at all.
+
 **The methodology is not a question.** Backend logic is test-first, UI is
 scenario-first, and `.claude/rules/dev-setup-tests.md` says so — it loads by
 itself when you open a test file. Both cycles are written out in the plugin's
@@ -156,6 +167,38 @@ The cap is **five**, and it is a script that enforces it — the sixth task exit
 with the reason. Five is where the review queue becomes the bottleneck: a
 fan-out costs `n` times a single run, and it ends with `n` merge requests for
 one person to read.
+
+### The file an unattended run reads
+
+Step 7d of the setup offers to write `.claude/auto-dev.json` — the project facts
+a run nobody is watching cannot ask anyone for:
+
+```json
+{
+  "clickup_list_ids": ["901214692298"],
+  "tag": "claudio",
+  "status": { "ready": "sprint", "in_progress": "in progress", "in_review": "in review", "blocked": "blocked" },
+  "base_branch": null,
+  "figma": { "file_key": "wMJHvCjPaCfK6765aKTfgn", "url": "https://www.figma.com/design/wMJHvCjPaCfK6765aKTfgn/V-Program" },
+  "dry_run": false
+}
+```
+
+| Field | What it decides |
+|---|---|
+| `clickup_list_ids` | the lists a run pulls work from |
+| `tag` | the tag that marks a task as the agent's |
+| `status` | this board's own status names, for the moves the flow makes |
+| `base_branch` | `null` means "resolve it per run" — the fork point comes from the repository, never from a name frozen on setup day |
+| `figma` | the design file, when the project has one; `null` otherwise |
+| `dry_run` | `true` runs everything up to the push and stops before the push, the merge request and the board write |
+
+It holds ids and names, no credential, and it is tracked — a runner that clones
+the repository is configured by the clone. The plugin's own commands do not read
+it: `/dev-setup:sdd`, `/dev-setup:quick`, `/dev-setup:auto-sdd` and
+`/dev-setup:multi-sdd` resolve the same facts from your session and from the
+repo. Decline it and nothing else changes; a later `/dev-setup:setup` offers it
+again.
 
 ---
 
@@ -407,6 +450,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | `AGENTS.md`, `CLAUDE.md` — after asking | Git hooks, ESLint, Prettier, CI config |
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
+| `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
 
 The one unasked edit to a file the setup did not write is a single `.gitignore`
 line, `.claude/worktrees/`. It adds, never removes; without it every file of
@@ -488,6 +532,21 @@ network commands run outside the sandbox.
 
 The first call opens the browser for OAuth. If the session expired, restart
 Claude Code and the flow starts again on its own.
+
+### The merge request is open but the task is still IN PROGRESS
+
+`post-merge-request.sh` exists to catch exactly this: it fires on the command
+that created the merge request and names the task whose clock is still running.
+If no reminder arrived — the merge request was opened from the web UI, `jq` is
+missing, the installed plugin predates the hook — the two calls are:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task DE-123 --stop --json
+```
+
+then move the task to `CODE REVIEW` with the `COMMENT` it returns, verbatim. To
+see what is still open in the repository without closing anything, the same
+script with `--status` and no `--task` lists it.
 
 ### The task moved but carries no time
 
