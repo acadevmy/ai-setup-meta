@@ -8,8 +8,8 @@ disable-model-invocation: false
 # VCS operations
 
 Everything runs through `git` plus the host CLI — `gh` on GitHub, `glab` on
-GitLab. Do not use the GitHub or GitLab MCP servers: the CLIs read the token from
-the environment, so it never lands on a command line or in a log. `git` needs
+GitLab. Not the GitHub or GitLab MCP servers: the CLIs read the token from the
+environment, so it never lands on a command line or in a log. `git` needs
 `user.name` and `user.email` configured.
 
 Work out the host once, before anything else:
@@ -25,7 +25,7 @@ Neither, on a self-hosted host → probe `gh auth status --hostname <host>` and
 does, stop and ask.
 
 Those two files hold **only** what differs: the CLI invocations and each tool's
-quirks. Everything below is plain git, or a convention, and is the same on both.
+quirks. Everything below is the same on both hosts.
 
 ## Branch
 
@@ -34,20 +34,18 @@ quirks. Everything below is plain git, or a convention, and is the same on both.
 ```
 
 `<type>` is `feat`, `fix`, `chore` or `hotfix`; `<TASK-ID>` is the tracker's
-custom id (`DE-123`), dropped when there is no task; the description is short,
-kebab-case and in English.
+custom id (`DE-123`), dropped when there is none; the description is short,
+kebab-case, English.
 
-The base is the project's reference branch, which is **not always `main`**:
+The base is **not always `main`**, and `origin/HEAD` says it is: a project whose
+work targets `next` or `develop` keeps `main` for production. So it is resolved,
+never guessed — the script names the branch and returns `BASE_BRANCH`, the ref
+HEAD forked from most recently:
 
 ```bash
-BASE=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's|refs/remotes/origin/||')
-git checkout "$BASE" && git pull --ff-only
-git checkout -b feat/DE-123-add-user-auth
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
+  --type feat --task DE-123 --title "add user auth" --create --json
 ```
-
-If `origin/HEAD` is unset locally, `git branch -r --sort=-committerdate | head`
-shows which long-lived branches the project uses — several target `next` or
-`develop` and keep `main` for production.
 
 ## Commits
 
@@ -84,13 +82,16 @@ Title follows Conventional Commits and carries the task id:
 - [DE-XXX](link to task)
 ```
 
-Never fill the body from the commit log (`--fill`): it drops that structure.
-Labels come from what the repository defines — list them, pick from those, do
-not invent one. On GitLab the body usually comes from the repo's own MR
-template; its reference explains when.
+Never `--fill` the body from the commit log: it drops that structure. Labels are
+the ones the repository defines — list them and pick, never invent. On GitLab the
+body often comes from the repo's own MR template; its reference says when.
 
-Read the repository's `AGENTS.md` first: the team's conventions on title,
-language and target branch win over the defaults here.
+The repository's `AGENTS.md` wins over every default here.
+
+**A merge request carrying a task id does not end the task**: the board still
+says `IN PROGRESS` and its work clock is still running. Close both as
+`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` describes, here, even when
+no flow sent you.
 
 ## Tag and release
 
@@ -99,6 +100,5 @@ git tag -a v1.2.0 -m "v1.2.0"
 git push origin v1.2.0
 ```
 
-Then the host's release command. On a repository driven by release-please or
-semantic-release, do none of this by hand — merging the release PR creates the
-tag and the release.
+Then the host's release command. Under release-please or semantic-release, none
+of this by hand: merging the release PR creates the tag and the release.
