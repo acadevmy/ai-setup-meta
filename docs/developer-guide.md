@@ -121,6 +121,17 @@ so. The stamp lives in the repository's git directory, so it is shared with
 every worktree and never lands in a commit. A task picked up twice keeps both
 sittings and reports the total.
 
+**The merge request closes the task, whoever opened it.** Those two closing
+calls used to live only in the flow's last step, which holds right up to the
+moment the merge request is opened by something else — a push that failed and
+was retried the next day, a session cleared in between, `vcs-ops` invoked on its
+own. The task then stayed `IN PROGRESS` with its clock running, and nothing
+anywhere said so. A `PostToolUse` hook now fires on the `gh pr create` /
+`glab mr create` that created it: when a task's clock is still open in the
+repository it names that task and asks for both calls. It reads the clock and
+never stops it — the measurement belongs to whoever posts it. With no task in
+progress here, it says nothing at all.
+
 **The methodology is not a question.** Backend logic is test-first, UI is
 scenario-first, and `.claude/rules/dev-setup-tests.md` says so — it loads by
 itself when you open a test file. Both cycles are written out in the plugin's
@@ -488,6 +499,21 @@ network commands run outside the sandbox.
 
 The first call opens the browser for OAuth. If the session expired, restart
 Claude Code and the flow starts again on its own.
+
+### The merge request is open but the task is still IN PROGRESS
+
+`post-merge-request.sh` exists to catch exactly this: it fires on the command
+that created the merge request and names the task whose clock is still running.
+If no reminder arrived — the merge request was opened from the web UI, `jq` is
+missing, the installed plugin predates the hook — the two calls are:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task DE-123 --stop --json
+```
+
+then move the task to `CODE REVIEW` with the `COMMENT` it returns, verbatim. To
+see what is still open in the repository without closing anything, the same
+script with `--status` and no `--task` lists it.
 
 ### The task moved but carries no time
 

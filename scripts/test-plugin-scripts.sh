@@ -1282,6 +1282,40 @@ fi
 assert_eq "the script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/task-clock.sh" ] && echo true || echo false)"
 
+# ── --status: the reader that consumes nothing ──
+#
+# The merge-request hook asks whether a task is still in progress here. Asking
+# must not be answering: a --stop in its place would hand the measurement to a
+# session that may never post it, and the flow's own --stop would then find an
+# already-stopped clock with nothing to report.
+
+CLOCK_OPEN=$(clock --task DE-704 --start)
+CLOCK_LOG_704="$CLOCK_REPO/.git/dev-setup/task-clock/DE-704.log"
+CLOCK_LINES_BEFORE=$(wc -l < "$CLOCK_LOG_704" | tr -d ' ')
+CLOCK_STATUS=$(clock --task DE-704 --status)
+
+assert_eq "--status sees the running clock" "true" \
+  "$(printf '%s' "$CLOCK_STATUS" | jq -r '.RUNNING')"
+assert_eq "and reports the stamp --start wrote" \
+  "$(printf '%s' "$CLOCK_OPEN" | jq -r '.STARTED_AT')" \
+  "$(printf '%s' "$CLOCK_STATUS" | jq -r '.STARTED_AT')"
+assert_eq "and writes nothing" "$CLOCK_LINES_BEFORE" \
+  "$(wc -l < "$CLOCK_LOG_704" | tr -d ' ')"
+
+# Without --task it answers for the repository: which clocks are open at all.
+# That is the question a caller who does not know the task id has to ask.
+assert_eq "--status with no task lists what is open" "DE-704" \
+  "$(clock --status | jq -r '.OPEN_TASKS')"
+assert_eq "and counts it" "1" "$(clock --status | jq -r '.OPEN_COUNT')"
+
+CLOCK_STATUS_STOPPED=$(clock --task DE-704 --stop >/dev/null && clock --task DE-704 --status)
+assert_eq "a stopped clock is not running" "false" \
+  "$(printf '%s' "$CLOCK_STATUS_STOPPED" | jq -r '.RUNNING')"
+assert_eq "and leaves nothing open in the repository" "0" \
+  "$(clock --status | jq -r '.OPEN_COUNT')"
+assert_eq "--status still measures nothing on a clock nobody started" "no-start-stamp" \
+  "$(clock --task DE-705 --status | jq -r '.REASON')"
+
 # ── Both ends, in every flow ──
 #
 # A clock started and never read is a file nobody looks at; a clock read and
@@ -1319,6 +1353,139 @@ for CLOCK_SECTION in failed ready-for-mr; do
          "$CLOCK_OUTCOMES")" \
     "clock"
 done
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12. post-merge-request.sh: the closure that survives the flow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The defect: on DE-16879 the push failed, the session was cleared, and the pull
+# request was opened later through `vcs-ops` alone. The clock stop and the
+# CODE REVIEW move live in the closure step of the skill that normally opens the
+# merge request, so with that context gone nothing asked for them — the task sat
+# in IN PROGRESS with its clock running and no one could tell.
+#
+# The hook carries the obligation on the event instead. What is tested here is
+# when it speaks (an open clock and a merge request that exists) and when it
+# stays quiet, because a hook that fires on every `gh` call would be turned off.
+
+echo ""
+echo "── post-merge-request.sh (the board is not closed by the flow) ──"
+
+MR_REPO="$WORK_DIR/mr-repo"
+mkdir -p "$MR_REPO"
+(
+  cd "$MR_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b feat/DE-810-thing
+) >/dev/null 2>&1
+
+MR_URL_GH="https://github.com/acme/repo/pull/12"
+
+# Feeds a PostToolUse payload to the hook and prints its stderr — which is the
+# channel that reaches the model on this event.
+mr_hook() {
+  local command="$1" response="$2"
+  jq -n --arg c "$command" --arg r "$response" --arg cwd "$MR_REPO" \
+    '{tool_name: "Bash", tool_input: {command: $c}, tool_response: $r, cwd: $cwd}' \
+    | { bash "$PLUGIN_HOOKS/post-merge-request.sh" >/dev/null; } 2>&1
+}
+
+mr_clock() { (cd "$MR_REPO" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
+
+# ── Quiet by default ──
+assert_eq "a command that is not a merge request is ignored" "" \
+  "$(mr_hook 'git status' "$MR_URL_GH")"
+
+assert_eq "a quoted mention of the command is not the command" "" \
+  "$(mr_hook 'git commit -m "explain how gh pr create works"' "$MR_URL_GH")"
+
+assert_eq "a merge request that was not created says nothing" "" \
+  "$(mr_hook 'gh pr create --fill' 'error: pull request create failed')"
+
+# No task in progress here — a project that does not use the board must never
+# see this hook at all.
+assert_eq "no open clock, no reminder" "" \
+  "$(mr_hook 'gh pr create --fill' "$MR_URL_GH")"
+
+# ── With a task in progress ──
+mr_clock --task DE-810 --start >/dev/null
+
+MR_FIRED=$(mr_hook 'gh pr create --title "feat: thing [DE-810]" --base next' "$MR_URL_GH")
+
+assert_contains "an open clock turns the merge request into a reminder" \
+  "$MR_FIRED" "DE-810 is still IN PROGRESS"
+assert_contains "which quotes the merge request it is about" "$MR_FIRED" "$MR_URL_GH"
+assert_contains "and asks for the clock" "$MR_FIRED" "--task DE-810 --stop --json"
+assert_contains "and for the board" "$MR_FIRED" "CODE REVIEW"
+assert_contains "citing the contract that holds the call" \
+  "$MR_FIRED" "reference/clickup-contract.md"
+
+# Exit 2 is what puts stderr in front of the model on PostToolUse. The merge
+# request was created either way: the hook reports, it does not undo.
+jq -n --arg cwd "$MR_REPO" \
+  '{tool_name: "Bash", tool_input: {command: "gh pr create --fill"}, tool_response: "https://github.com/acme/repo/pull/12", cwd: $cwd}' \
+  | bash "$PLUGIN_HOOKS/post-merge-request.sh" >/dev/null 2>&1
+assert_eq "it reports through exit 2" "2" "$?"
+
+assert_contains "glab is the same event" \
+  "$(mr_hook 'glab mr create --fill' 'https://gitlab.com/g/p/-/merge_requests/7')" \
+  "DE-810 is still IN PROGRESS"
+
+# The measurement belongs to whoever posts it. A hook that stopped the clock
+# would close the interval in a session that may never reach the board.
+assert_eq "the hook does not stop the clock" "true" \
+  "$(mr_clock --task DE-810 --status | jq -r '.RUNNING')"
+assert_contains "so the flow's own --stop still has something to post" \
+  "$(mr_clock --task DE-810 --stop | jq -r '.COMMENT')" "Time in progress:"
+
+# ── A fan-out shares the git directory ──
+#
+# Five tasks can be open at once (multi-sdd's cap). Naming the wrong one moves
+# the wrong task, so the id has to come from the branch or the title, and when
+# it comes from neither the hook reports them all rather than choosing.
+mr_clock --task DE-811 --start >/dev/null
+mr_clock --task DE-812 --start >/dev/null
+
+(cd "$MR_REPO" && git checkout -q -b feat/DE-812-other) >/dev/null 2>&1
+assert_contains "the branch picks the task out of several open clocks" \
+  "$(mr_hook 'gh pr create --fill' "$MR_URL_GH")" "DE-812 is still IN PROGRESS"
+
+# The id is matched between delimiters. DE-81 is a prefix of DE-811, and a
+# reminder that closed the wrong task would be worse than no reminder.
+mr_clock --task DE-81 --start >/dev/null
+assert_contains "a shorter id is not matched inside a longer one" \
+  "$(mr_hook 'gh pr create --title "feat: x [DE-811]" --fill' "$MR_URL_GH")" \
+  "DE-811 is still IN PROGRESS"
+(cd "$MR_REPO" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --task DE-81 --stop --json) >/dev/null 2>&1
+
+(cd "$MR_REPO" && git checkout -q -b chore/nothing-in-the-name) >/dev/null 2>&1
+MR_AMBIGUOUS=$(mr_hook 'gh pr create --fill' "$MR_URL_GH")
+assert_contains "with nothing naming one, every open task is reported" \
+  "$MR_AMBIGUOUS" "DE-811 DE-812"
+assert_contains "and the hook refuses to choose" "$MR_AMBIGUOUS" "Do not guess"
+
+# ── It ships mounted ──
+#
+# The hooks reach a project through the plugin, not through its settings.json:
+# hooks.json is generated from the template's `hooks` block. A hook that is
+# built but not mounted runs nowhere.
+assert_eq "the hook ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/hooks/scripts/post-merge-request.sh" ] && echo true || echo false)"
+assert_eq "and is mounted as a PostToolUse hook on Bash" "true" \
+  "$(jq -e '[.hooks.PostToolUse[] | select(.matcher == "Bash")
+            | .hooks[].command | select(endswith("/post-merge-request.sh"))] | length == 1' \
+       "$REPO_ROOT/dist/dev-setup/hooks/hooks.json" >/dev/null 2>&1 && echo true || echo false)"
+
+# The skill that actually opens a merge request is the one place the obligation
+# is certain to be loaded when it happens.
+assert_contains "vcs-ops says the merge request does not end the task" \
+  "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "does not end the task"
+assert_contains "citing the contract that holds both calls" \
+  "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "reference/clickup-contract.md"
 
 echo ""
 echo "══ DE-16488 — the documentation cannot go stale in silence ══"
