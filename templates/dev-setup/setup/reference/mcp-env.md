@@ -1,9 +1,10 @@
-# Steps 6, 7, 7b and 7c — MCP servers, environment, branches
+# Steps 6 to 7d — MCP servers, environment, branches, auto-dev
 
 What the project needs from the outside world: the MCP servers worth their
 context cost, the environment keys declared in `.env.example`, the two
-governance settings that belong on the host rather than in a document, and the
-one setting that decides where a parallel session starts from.
+governance settings that belong on the host rather than in a document, the one
+setting that decides where a parallel session starts from, and the file an
+unattended run reads instead of asking.
 
 ## Index
 
@@ -11,6 +12,7 @@ one setting that decides where a parallel session starts from.
 - [Step 7 — Declare the environment variables](#step-7--declare-the-environment-variables)
 - [Step 7b — Branch protection on the reference branch](#step-7b--branch-protection-on-the-reference-branch)
 - [Step 7c — The worktree base ref](#step-7c--the-worktree-base-ref)
+- [Step 7d — The auto-dev configuration](#step-7d--the-auto-dev-configuration)
 
 ---
 
@@ -279,3 +281,133 @@ convention: the port offset, the overlap warning, the dependency install.
 
 **Report in the summary** (a single line):
 `worktree.baseRef: <fresh|head> (reference branch <name>, remote default <name>) — or "left as the team set it"`
+
+---
+
+## Step 7d — The auto-dev configuration
+
+An unattended run has nobody to ask. Which board it pulls work from, what that
+board calls its statuses, which tag marks a task as the agent's and where the
+designs live are **project** facts, not session facts — so they belong in a file
+the project owns rather than in answers nobody will be there to give.
+
+That file is `.claude/auto-dev.json`. It holds ids, status names and a tag, and
+no credential ever: the ClickUp authorization stays in the MCP server's OAuth
+and the Figma one in its own. So the file is tracked — a runner that clones the
+repository is configured by the clone.
+
+The plugin's own commands do not read it: `sdd`, `quick`, `auto-sdd` and
+`multi-sdd` resolve those facts from the session and from the repository. This
+file is what a runner with no session to ask — a scheduled routine, a CI job —
+starts from, and writing it is how a project declares itself available for one.
+
+Runs in every mode, on every project.
+
+### 7d.1 — The gate
+
+`.claude/auto-dev.json` **already exists** → print what it configures (lists,
+tag, statuses) and ask "Reconfigure the autonomous dev flow?" — **default: keep
+it**. On a keep the step ends with the summary line
+`auto-dev configuration kept as it was (<n> list(s), tag <tag>)`.
+
+Otherwise ask, once:
+
+> "Configure the autonomous dev flow (auto-dev)? It writes
+> `.claude/auto-dev.json`: the ClickUp lists an unsupervised run reads, the tag
+> that marks a task as the agent's, this board's status names and the Figma file
+> the designs live in. (yes / skip)"
+
+A **skip** writes nothing and ends the step with one line for the summary:
+`auto-dev declined: no .claude/auto-dev.json — an unattended run has nothing to read; run the setup again to add it`.
+Nothing else in the procedure depends on the answer.
+
+### 7d.2 — The four answers
+
+Ask them in **one** `AskUserQuestion` call and end the turn on it: they are four
+fields of a single file, with no follow-up to lose between them.
+
+| Field | Question | First option (the default) | What free text accepts |
+|---|---|---|---|
+| `clickup_list_ids` | "Which ClickUp list does an unattended run read?" | the `CLICKUP_SETUP_LIST_ID` resolved at 6.1, when there is one | one id, or several comma-separated |
+| `tag` | "Which ClickUp tag marks a task as the agent's?" | `claude` | any tag name, as the board spells it |
+| `status` | "What does this board call its statuses?" | `sprint · in progress · in review · blocked`, second option `sprint · in progress · code review · blocked` | four names, in the order ready, in progress, in review, blocked |
+| `figma` | "Which Figma file holds this project's designs?" | "No Figma file" | the file URL |
+
+The Figma question is asked under the same condition as 6.3 — `HAS_FRONTEND` or
+`HAS_MOBILE`, or a web/mobile/fullstack stack chosen at 2b. On a pure backend it
+is not asked and `figma` is `null`.
+
+The status names are the board's own, copied exactly as ClickUp shows them: a
+name that does not exist there makes every transition of the flow fail, and the
+setup does not invent one. If the list question comes back with nothing — no
+environment variable, nothing typed — write no file and report in the summary
+`auto-dev not configured: no ClickUp list id (set CLICKUP_SETUP_LIST_ID, then run the setup again)`.
+
+### 7d.3 — The two fields nobody is asked about
+
+- **`base_branch` is always `null`.** Null means "resolve it per run", which is
+  what `check-prerequisites.sh` does from the repository itself. A name written
+  here pins every future run to whatever was the reference branch on the day of
+  the setup — the defect Step 7b.1 exists to avoid, one layer down. Pinning one
+  deliberately is a one-line edit of the file.
+- **`dry_run` is `false`.** `true` makes a run do everything up to the push —
+  branch, spec, code, commit — and stop before the push, the merge request and
+  the board write. It is worth one rehearsal run on a project nobody has tried
+  this on yet, and it is a one-word edit, not another question here.
+
+### 7d.4 — Write it
+
+```bash
+mkdir -p .claude
+
+LISTS=$(printf '%s\n' "$LIST_ANSWER" | tr ',' '\n' | sed 's/[[:space:]]//g' \
+        | grep -v '^$' | jq -R . | jq -s .)
+
+if [ -n "$FIGMA_URL" ]; then
+  FILE_KEY=$(printf '%s' "$FIGMA_URL" \
+             | sed -E 's#.*figma\.com/(design|file|board|proto)/([A-Za-z0-9]+).*#\2#')
+  [ "$FILE_KEY" = "$FIGMA_URL" ] && FILE_KEY=""   # no match: sed echoed the input back
+  FIGMA=$(jq -n --arg k "$FILE_KEY" --arg u "$FIGMA_URL" '{file_key: $k, url: $u}')
+else
+  FIGMA=null
+fi
+
+jq -n \
+  --argjson lists "$LISTS" \
+  --arg tag "$TAG" \
+  --arg ready "$READY" --arg progress "$IN_PROGRESS" \
+  --arg review "$IN_REVIEW" --arg blocked "$BLOCKED" \
+  --argjson figma "$FIGMA" \
+  '{
+     clickup_list_ids: $lists,
+     tag: $tag,
+     status: { ready: $ready, in_progress: $progress, in_review: $review, blocked: $blocked },
+     base_branch: null,
+     figma: $figma,
+     dry_run: false
+   }' > .claude/auto-dev.json
+```
+
+An empty `FILE_KEY` means the URL was not a Figma file URL: write `"figma": null`
+instead of an object with a blank key, and say so in the summary line. What
+lands looks like this:
+
+```json
+{
+  "clickup_list_ids": ["901214692298"],
+  "tag": "claudio",
+  "status": { "ready": "sprint", "in_progress": "in progress", "in_review": "in review", "blocked": "blocked" },
+  "base_branch": null,
+  "figma": { "file_key": "wMJHvCjPaCfK6765aKTfgn", "url": "https://www.figma.com/design/wMJHvCjPaCfK6765aKTfgn/V-Program" },
+  "dry_run": false
+}
+```
+
+**Report in the summary** exactly one line — one of:
+
+```
+  - auto-dev configured: <n> ClickUp list(s), tag <tag>, statuses <ready>/<in progress>/<in review>/<blocked>, Figma <file_key|none>, dry_run false
+  - auto-dev configuration kept as it was (<n> list(s), tag <tag>)
+  - auto-dev declined: .claude/auto-dev.json not written — an unattended run has nothing to read
+  - auto-dev not configured: no ClickUp list id available
+```

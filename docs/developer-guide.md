@@ -168,6 +168,38 @@ with the reason. Five is where the review queue becomes the bottleneck: a
 fan-out costs `n` times a single run, and it ends with `n` merge requests for
 one person to read.
 
+### The file an unattended run reads
+
+Step 7d of the setup offers to write `.claude/auto-dev.json` — the project facts
+a run nobody is watching cannot ask anyone for:
+
+```json
+{
+  "clickup_list_ids": ["901214692298"],
+  "tag": "claudio",
+  "status": { "ready": "sprint", "in_progress": "in progress", "in_review": "in review", "blocked": "blocked" },
+  "base_branch": null,
+  "figma": { "file_key": "wMJHvCjPaCfK6765aKTfgn", "url": "https://www.figma.com/design/wMJHvCjPaCfK6765aKTfgn/V-Program" },
+  "dry_run": false
+}
+```
+
+| Field | What it decides |
+|---|---|
+| `clickup_list_ids` | the lists a run pulls work from |
+| `tag` | the tag that marks a task as the agent's |
+| `status` | this board's own status names, for the moves the flow makes |
+| `base_branch` | `null` means "resolve it per run" — the fork point comes from the repository, never from a name frozen on setup day |
+| `figma` | the design file, when the project has one; `null` otherwise |
+| `dry_run` | `true` runs everything up to the push and stops before the push, the merge request and the board write |
+
+It holds ids and names, no credential, and it is tracked — a runner that clones
+the repository is configured by the clone. The plugin's own commands do not read
+it: `/dev-setup:sdd`, `/dev-setup:quick`, `/dev-setup:auto-sdd` and
+`/dev-setup:multi-sdd` resolve the same facts from your session and from the
+repo. Decline it and nothing else changes; a later `/dev-setup:setup` offers it
+again.
+
 ---
 
 ## 3. The rules, and when each one loads
@@ -418,6 +450,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | `AGENTS.md`, `CLAUDE.md` — after asking | Git hooks, ESLint, Prettier, CI config |
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
+| `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
 
 The one unasked edit to a file the setup did not write is a single `.gitignore`
 line, `.claude/worktrees/`. It adds, never removes; without it every file of
