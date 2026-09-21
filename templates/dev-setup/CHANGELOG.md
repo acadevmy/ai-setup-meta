@@ -6,6 +6,16 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [3.1.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.0.0...dev-setup-v3.1.0) (2026-09-21)
+
+
+### Features
+
+* **dev-setup:** Close the task on the merge request, whoever opened it ([43e9f5d](https://github.com/acadevmy/ai-setup-meta/commit/43e9f5d5717124d512ff3b3f70167d216d92976c))
+* **dev-setup:** Close the task on the merge request, whoever opened it ([7ed5ddc](https://github.com/acadevmy/ai-setup-meta/commit/7ed5ddcd3ff54b7b3658e1c24dffdeecbbf6d665))
+* **setup:** Add step 7d writing .claude/auto-dev.json for unattended runs ([60b06c6](https://github.com/acadevmy/ai-setup-meta/commit/60b06c6aa8b8c74bff248f3608158819d9614da4))
+* **setup:** Add step 7d writing .claude/auto-dev.json for unattended runs ([db9f769](https://github.com/acadevmy/ai-setup-meta/commit/db9f7698d05e98d7737b01489e9f619b29a06f09))
+
 ## [3.0.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v2.3.1...dev-setup-v3.0.0) (2026-09-18)
 
 
