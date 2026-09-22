@@ -6,6 +6,23 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [3.2.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.1.0...dev-setup-v3.2.0) (2026-09-22)
+
+
+### Features
+
+* **auto-sdd:** Confirm the fork point before the run starts ([677f75a](https://github.com/acadevmy/ai-setup-meta/commit/677f75aa444470e6ceb4a626c194a255cefe8d31))
+* **multi-sdd:** Confirm the fork point before the fan-out ([030ea44](https://github.com/acadevmy/ai-setup-meta/commit/030ea448aab59fa1ed75f50211e155c69ad7ae41))
+* **sdd:** Confirm the fork point in every autonomous launcher ([5d4ab41](https://github.com/acadevmy/ai-setup-meta/commit/5d4ab411dc6644578393840baa0fd64e0e9636ae))
+* **setup:** Write the pull request template and fill it on every merge request ([f17f27e](https://github.com/acadevmy/ai-setup-meta/commit/f17f27e70029b4530b646524bd25b25812e52c99))
+* **setup:** Write the pull request template and fill it on every merge request ([74fc7b6](https://github.com/acadevmy/ai-setup-meta/commit/74fc7b678207ba34a1b65fec8f4c033a2f418af1))
+
+
+### Bug Fixes
+
+* **hooks:** Scan for a bypass flag in the git commit segment only ([c772817](https://github.com/acadevmy/ai-setup-meta/commit/c77281771681de923c5df0c874946c2438c5014b))
+* **scripts:** Never rm -rf the directory TEST_TMPDIR points at ([9b733c2](https://github.com/acadevmy/ai-setup-meta/commit/9b733c245036652ca5094ec985599a8b02416b50))
+
 ## [3.1.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.0.0...dev-setup-v3.1.0) (2026-09-21)
 
 
