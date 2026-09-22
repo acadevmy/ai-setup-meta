@@ -284,7 +284,12 @@ the project already owns, so the checks run once and only once:
   the reason.
 
 The bypass scan reads the command with the quoted strings removed, so a commit
-*message* mentioning `HUSKY=0` is not treated as an attempt to set it. The full test
+*message* mentioning `HUSKY=0` is not treated as an attempt to set it. It also reads
+each kind of bypass where that kind can actually live: a **flag** is looked for in
+the `git commit` segments only — `git commit -m … && git show | sed -n '1,5p'` is a
+commit and an innocent `-n`, and refusing it is how a gate teaches people to work
+around it — while an **environment or config** bypass keeps the whole line, because
+`export HUSKY=0 && git commit` sets it from a segment of its own. The full test
 suite is deliberately not the per-commit gate: it belongs at the MR boundary and in
 CI, which stays the final gate.
 
@@ -344,8 +349,10 @@ bash scripts/test-plugin-scripts.sh --update     # rewrite the detect-stack snap
 Several tests create git repositories, which a **sandboxed session refuses to do
 inside the project** (writes under any `.git/` are blocked there, new repositories
 included). The harness probes for a usable directory and, when it cannot find one,
-says so: point `TEST_TMPDIR` at a writable path outside the project. In CI, where
-there is no sandbox, the repo-local default works.
+says so: point `TEST_TMPDIR` at a writable directory outside the project. It is a
+base to work *under*, not the work directory — the suite creates
+`dev-setup-script-tests/` inside it and removes only that, so a shared temp root
+is a safe answer. In CI, where there is no sandbox, the repo-local default works.
 
 ## The skills: progressive disclosure and public surface
 
@@ -377,6 +384,7 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 |---|---|
 | `clickup-contract.md` | How to call the `clickup` agent: intents, parameters, result format, list-id resolution, the bail-out call |
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
+| `fork-point.md` | The one fork-point question: how each flow resolves the default, the shape of the ask, what the answer binds, and where it is deliberately not asked. Cited by `sdd`, `auto-sdd` and `multi-sdd` |
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request, the bail-out, and how an answered `needs-human` resumes. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
@@ -473,17 +481,24 @@ The split that keeps it safe to run in the background:
   run), develops with `isolation: 'worktree'` so the developer checkout never
   moves, and runs the project own `LINT_CMD`/`TYPECHECK_CMD`/`TEST_CMD` from
   `detect-stack.sh`. It returns `needs-human | ready-for-mr | failed`.
-- **the launcher** — the `auto-sdd` skill — resolves the task, the plugin root
-  and the base branch, starts the run, and is the only side that pushes, opens a
+- **the launcher** — the `auto-sdd` skill — resolves the task and the plugin
+  root, has the developer confirm the fork point (`fork-point.md`, the same
+  question `sdd` asks, and before the board write so a declined launch leaves
+  the task untouched), starts the run, and is the only side that pushes, opens a
   merge request or writes to the board. Those are exactly the calls the `ask`
   rules cover, so they happen where a person can see them.
 
 The workflow has a second launcher, `multi-sdd` (DE-16487), which runs it once
 per task for up to five tasks from one session. It **composes** and adds no
 phase, no agent and no rule: what is new there is a sequential pre-flight (the
-triage, only the business decisions no agent can invent, the overlap warning) and
-a fan-out whose outcomes arrive as events. Two invariants keep it honest, and
-both are pinned by `test-plugin-scripts.sh`:
+triage, only the business decisions no agent can invent, the overlap warning, the
+fork point) and a fan-out whose outcomes arrive as events. The fork point is
+confirmed the way `sdd` confirms it — the ref resolved from the repository is the
+default, the developer decides — but **once for the set**, at the end of phase A:
+it is a project fact, the overlap warning only means anything while the tasks
+share one base, and the fan-out passes the answer to every run rather than
+resolving it again. Two invariants keep it honest, and both are pinned by
+`test-plugin-scripts.sh`:
 
 1. **The cap is `multi-preflight.sh`, not a sentence.** Five is where human
    review becomes the bottleneck; the script exits 3 on the sixth task. A number
@@ -741,4 +756,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.20.0 — bump the version number on every substantial change*
+*Version: 2.21.0 — bump the version number on every substantial change*

@@ -165,6 +165,11 @@ It comes back with one of three outcomes:
 | `needs-human` | Two of the three lenses refused the spec | Answer the objections (§9) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
+It asks you one thing before it starts — which branch the run forks from, the
+ref resolved from the repository offered as the default, the same question
+`/dev-setup:sdd` asks — and it asks it before the task moves on the board, so
+walking away costs nothing.
+
 It pushes nothing, opens nothing and writes nothing to the board on its own —
 those happen in your session, where you can see them.
 
@@ -172,8 +177,11 @@ those happen in your session, where you can see them.
 
 `/dev-setup:multi-sdd DE-1 DE-2 DE-3` fans that workflow out, one run per task,
 each in its own worktree. The human parts come first: a small/large triage, the
-questions no agent can answer for you, and a warning if two tasks declare the
-same file. Then the runs go, and the outcomes arrive in that chat as they land.
+questions no agent can answer for you, a warning if two tasks declare the same
+file, and the fork point every run inherits — asked once for the set, the ref
+resolved from the repository as the default, exactly as `/dev-setup:sdd` asks it
+for one branch. Then the runs go, and the outcomes arrive in that chat as they
+land.
 
 The cap is **five**, and it is a script that enforces it — the sixth task exits
 with the reason. Five is where the review queue becomes the bottleneck: a

@@ -20,6 +20,7 @@
   ],
   "plugin_reference": [
     "clickup-contract.md",
+    "fork-point.md",
     "run-outcomes.md",
     "turn-discipline.md",
     "worktree.md"

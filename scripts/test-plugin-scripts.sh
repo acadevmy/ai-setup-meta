@@ -30,7 +30,9 @@
 #
 # The work directory defaults to .tmp-script-tests/ inside the repository:
 # mktemp under /var/folders is denied in a sandboxed session, and a repo-local
-# path behaves the same locally and in CI. Override it with TEST_TMPDIR.
+# path behaves the same locally and in CI. TEST_TMPDIR overrides it, and names a
+# base to work *under*: the suite creates dev-setup-script-tests/ inside it and
+# removes only that. Pointing it at a shared temp root is safe.
 
 set -uo pipefail
 
@@ -45,6 +47,22 @@ FIXTURES="$REPO_ROOT/scripts/fixtures"
 # are blocked there, new repositories included).
 WORK_DIR=""
 EMPTY_GIT_TEMPLATE=""
+
+# The two names this script owns. Nothing else is ever removed: the suite wipes
+# its work directory on entry and on exit, and TEST_TMPDIR is a path the caller
+# chose — quite possibly $TMPDIR, ~/tmp or another directory holding work that
+# has nothing to do with these tests.
+WORK_DIR_NAME="dev-setup-script-tests"
+REPO_WORK_DIR_NAME=".tmp-script-tests"
+
+# `rm -rf` goes through here, never straight at a variable.
+discard_dir() {
+  case "${1:-}" in
+    */"$WORK_DIR_NAME"|*/"$REPO_WORK_DIR_NAME") rm -rf "$1" 2>/dev/null ;;
+    *) echo "refusing to remove $1: not a directory this suite owns" >&2 ;;
+  esac
+  return 0
+}
 
 UPDATE=false
 [ "${1:-}" = "--update" ] && UPDATE=true
@@ -106,19 +124,23 @@ git_init() {
 
 # ── Pick the work directory ───────────────────────────────────────────────────
 #
-# Candidates in order: an explicit TEST_TMPDIR, then a repo-local directory
-# (what CI uses), then the system temp directory. A candidate is only accepted
-# if `git init` actually succeeds in it: under the sandbox the repo-local one
-# fails, and silently losing the git-dependent tests would be worse than
-# spending a probe on it.
+# Candidates in order: a directory under an explicit TEST_TMPDIR, then a
+# repo-local directory (what CI uses), then one under the system temp directory.
+# Every candidate ends in a name this script owns, because it is created and
+# removed wholesale — TEST_TMPDIR itself is never the work directory, and never
+# the argument of an `rm -rf`.
+#
+# A candidate is only accepted if `git init` actually succeeds in it: under the
+# sandbox the repo-local one fails, and silently losing the git-dependent tests
+# would be worse than spending a probe on it.
 pick_work_dir() {
   local candidate
   for candidate in \
-    ${TEST_TMPDIR:+"$TEST_TMPDIR"} \
-    "$REPO_ROOT/.tmp-script-tests" \
-    "${TMPDIR:-/tmp}/dev-setup-script-tests"; do
+    ${TEST_TMPDIR:+"${TEST_TMPDIR%/}/$WORK_DIR_NAME"} \
+    "$REPO_ROOT/$REPO_WORK_DIR_NAME" \
+    "${TMPDIR:-/tmp}/$WORK_DIR_NAME"; do
 
-    rm -rf "$candidate" 2>/dev/null
+    discard_dir "$candidate"
     mkdir -p "$candidate/probe" 2>/dev/null || continue
 
     # `git init` creates .git/ before it writes the config, so neither the
@@ -138,14 +160,15 @@ pick_work_dir() {
       return 0
     fi
 
-    rm -rf "$candidate" 2>/dev/null
+    discard_dir "$candidate"
   done
   return 1
 }
 
 WORK_DIR=$(pick_work_dir) || {
   echo "cannot find a directory where git repositories can be created." >&2
-  echo "Set TEST_TMPDIR to a writable path outside the project." >&2
+  echo "Set TEST_TMPDIR to a writable directory outside the project: the suite" >&2
+  echo "works in $WORK_DIR_NAME/ inside it and removes nothing else." >&2
   exit 1
 }
 
@@ -472,6 +495,23 @@ assert_eq "a message mentioning HUSKY=0 is not a bypass" \
 
 assert_eq "a message containing -n is not a bypass" \
   "none" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'git commit -m "fix: handle -n flag"')")"
+
+# A flag belongs to the command that carries it. The gate used to scan the whole
+# line, so any `-n` anywhere in a chained command refused the commit — which is
+# how a quality gate teaches people to route around it.
+assert_eq "another command's -n is not a bypass" \
+  "none" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'git commit -m "feat: x" && git show --stat | sed -n "1,5p"')")"
+
+assert_eq "another command's --no-verify is not a bypass" \
+  "none" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'npm publish --no-verify && git commit -m "feat: x"')")"
+
+assert_eq "-n on a second chained commit is still refused" \
+  "deny" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'git commit -m "feat: a" && git commit -n -m "feat: b"')")"
+
+# The environment bypasses keep the whole line: they work from a segment of
+# their own, which the commit segment would never show.
+assert_eq "HUSKY=0 exported in an earlier segment is refused" \
+  "deny" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'export HUSKY=0 && git commit -m "feat: x"')")"
 
 # ── Anti-bypass mode: no check of its own ──
 # The husky fixture has "test": "jest" and no node_modules, so a check run here
@@ -1649,7 +1689,7 @@ assert_eq "no unquoted colon breaks a frontmatter scalar" "" "${FM_COLON# }"
 # Summary
 # ═══════════════════════════════════════════════════════════════════════════════
 
-rm -rf "$WORK_DIR"
+discard_dir "$WORK_DIR"
 
 echo ""
 if [ "$FAILED" -gt 0 ]; then

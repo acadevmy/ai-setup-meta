@@ -55,7 +55,7 @@ cost is `n` times a single run** — five tasks means fifteen verifiers.
 
 | # | Phase | Shape | Where |
 |---|---|---|---|
-| A | Intake, triage, the questions no agent can answer, the overlap warning | sequential, one task at a time | `reference/preflight.md` |
+| A | Intake, triage, the business questions, the overlap warning, the fork point | sequential, one task at a time | `reference/preflight.md` |
 | B | One `auto-sdd` run per task, each in its own worktree | parallel, in the background | `reference/fan-out.md` |
 | C | Each outcome reported here as it lands | as they arrive | `reference/fan-out.md` |
 
