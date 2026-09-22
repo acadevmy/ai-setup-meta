@@ -344,8 +344,10 @@ bash scripts/test-plugin-scripts.sh --update     # rewrite the detect-stack snap
 Several tests create git repositories, which a **sandboxed session refuses to do
 inside the project** (writes under any `.git/` are blocked there, new repositories
 included). The harness probes for a usable directory and, when it cannot find one,
-says so: point `TEST_TMPDIR` at a writable path outside the project. In CI, where
-there is no sandbox, the repo-local default works.
+says so: point `TEST_TMPDIR` at a writable directory outside the project. It is a
+base to work *under*, not the work directory — the suite creates
+`dev-setup-script-tests/` inside it and removes only that, so a shared temp root
+is a safe answer. In CI, where there is no sandbox, the repo-local default works.
 
 ## The skills: progressive disclosure and public surface
 
