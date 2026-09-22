@@ -165,6 +165,11 @@ It comes back with one of three outcomes:
 | `needs-human` | Two of the three lenses refused the spec | Answer the objections (§9) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
+It asks you one thing before it starts — which branch the run forks from, the
+ref resolved from the repository offered as the default, the same question
+`/dev-setup:sdd` asks — and it asks it before the task moves on the board, so
+walking away costs nothing.
+
 It pushes nothing, opens nothing and writes nothing to the board on its own —
 those happen in your session, where you can see them.
 

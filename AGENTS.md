@@ -377,6 +377,7 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 |---|---|
 | `clickup-contract.md` | How to call the `clickup` agent: intents, parameters, result format, list-id resolution, the bail-out call |
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
+| `fork-point.md` | The one fork-point question: how each flow resolves the default, the shape of the ask, what the answer binds, and where it is deliberately not asked. Cited by `sdd`, `auto-sdd` and `multi-sdd` |
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request, the bail-out, and how an answered `needs-human` resumes. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
@@ -473,8 +474,10 @@ The split that keeps it safe to run in the background:
   run), develops with `isolation: 'worktree'` so the developer checkout never
   moves, and runs the project own `LINT_CMD`/`TYPECHECK_CMD`/`TEST_CMD` from
   `detect-stack.sh`. It returns `needs-human | ready-for-mr | failed`.
-- **the launcher** — the `auto-sdd` skill — resolves the task, the plugin root
-  and the base branch, starts the run, and is the only side that pushes, opens a
+- **the launcher** — the `auto-sdd` skill — resolves the task and the plugin
+  root, has the developer confirm the fork point (`fork-point.md`, the same
+  question `sdd` asks, and before the board write so a declined launch leaves
+  the task untouched), starts the run, and is the only side that pushes, opens a
   merge request or writes to the board. Those are exactly the calls the `ask`
   rules cover, so they happen where a person can see them.
 

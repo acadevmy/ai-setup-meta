@@ -125,31 +125,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
 
 `TASK_ID` empty means the session sits on a long-lived branch and `BRANCH` is
 the resolved base; `TASK_ID` present means it sits on a task branch already and
-`BASE_BRANCH` is. Then confirm it — the resolved ref is the default, never the
-decision:
-
-```json
-AskUserQuestion({
-  "questions": [{
-    "question": "Which branch should the runs fork from?",
-    "header": "Base branch",
-    "options": [
-      { "label": "<the resolved base> (Recommended)",
-        "description": "Resolved from the repository: the ref HEAD forked from most recently" },
-      { "label": "<candidate>",
-        "description": "Any of develop / next / main that exists and is not the default" }
-    ],
-    "multiSelect": false
-  }]
-})
-```
-
-The resolved ref is the first option; after it, whichever of `develop`, `next`
-and `main` exist in the repository and are not the default. Any other ref
-arrives through "Other". **End the turn on the tool call.** The answer is what
-`fan-out.md` passes as `baseBranch` to every run, verbatim — nothing downstream
-resolves it a second time, and a run cutting its branch from the wrong ref
-carries the whole delta between two long-lived branches into its merge request.
+`BASE_BRANCH` is. Then confirm it as
+`${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md` defines the question — the
+resolved ref is the default and the first option, the turn ends on the tool
+call. Ask it for "the runs". The answer is what `fan-out.md` passes as
+`baseBranch` to every one of them, verbatim.
 
 **One question for the whole set**, asked once, not once per task: the fork
 point belongs to the project and not to the task, the overlap warning above

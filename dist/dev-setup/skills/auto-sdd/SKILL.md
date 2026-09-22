@@ -9,9 +9,9 @@ disable-model-invocation: true
 # Auto SDD
 
 The launcher of the `auto-sdd` workflow. The orchestration lives in
-`workflows/auto-sdd.js` — JavaScript the harness runs, so its bounds are bounds
-and its control flow never enters the context. What is left here is what code
-cannot do: resolve the task, launch the run, act on the outcome.
+`workflows/auto-sdd.js`, JavaScript the harness runs: its bounds are bounds and
+its control flow never enters the context. What is left here is what code cannot
+do — the task, the launch, the outcome.
 
 **Usage**: `/dev-setup:auto-sdd [TASK_ID]`. For several tasks, `multi-sdd`
 composes it.
@@ -22,21 +22,21 @@ composes it.
   the merge request, the bail-out, the resume.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the
   transitions, the backlog gate, the list id.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md`** — step 2's question.
 
 ## 1. The task
 
 **With a task id in `$ARGUMENTS`**: `INTENT: read`, `PARAMS: task_id: <id>`.
-`BACKLOG` → the contract's backlog gate; declined means stop: no run, no board
-write.
+`BACKLOG` → the contract's backlog gate.
 
 **Without one**: resolve the list id as the contract describes, then
 `INTENT: next-task`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>` — the
-highest-priority `SPRINT` task. Nothing in `SPRINT` → say so and stop: no run,
-no board write.
+highest-priority `SPRINT` task.
 
-Keep `custom_id`, `name`, `description` (verbatim), `url` and `task_id`.
+A declined gate or an empty `SPRINT` stops the flow: no run, no board write.
+Otherwise keep `custom_id`, `name`, `description` (verbatim), `url`, `task_id`.
 
-## 2. The project context
+## 2. The project context, and the fork point
 
 Two read-only calls:
 
@@ -45,10 +45,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh" --json
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
 ```
 
-The base branch is neither guessed nor hard-coded — the second call answers it:
-
-- `TASK_ID` empty → a long-lived branch, and `BRANCH` is the base;
-- `TASK_ID` present → a task branch already, and `BASE_BRANCH` is.
+The second resolves the base branch; `fork-point.md` holds how to read it and
+the question that confirms it. Ask before the board write below — a run the
+developer walks away from leaves the task where it was.
 
 Then `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`, then
 the clock:
@@ -69,7 +68,7 @@ Workflow({
     "url": "<url>",
     "branchType": "feat",
     "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
-    "baseBranch": "<the base from step 2>",
+    "baseBranch": "<the ref confirmed in step 2>",
     "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" }
   }
 })
@@ -79,9 +78,10 @@ Workflow({
 `chore`. A command `detect-stack.sh` left empty stays empty — the workflow skips
 it rather than inventing one.
 
-The harness asks the developer to approve the workflow script before it runs —
-the checkpoint this flow keeps; in chat it asks only step 1's backlog gate. The
-run then works in the background: wait for its notification, never poll.
+The harness asks the developer to approve the workflow script before it runs.
+That and the fork point are this flow's two stops — plus step 1's backlog gate
+when it applies. The run then works in the background: wait for its
+notification, never poll.
 
 ## 4. The outcome
 
