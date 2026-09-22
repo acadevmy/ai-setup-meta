@@ -38,6 +38,7 @@ this plugin has configured before. Then it writes:
 | Permissions, Bash sandbox, quality gate | `.claude/settings.json` |
 | Project context for any agent | `AGENTS.md`, `CLAUDE.md` |
 | What already exists in the project | `REGISTRY.md` |
+| The pull request template, in the language you pick | `.github/PULL_REQUEST_TEMPLATE.md` or `.gitlab/merge_request_templates/Default.md` |
 
 It asks before overwriting anything, and it never reads or writes `.env`.
 Coming from an older version of the plugin? Read

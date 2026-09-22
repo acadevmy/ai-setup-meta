@@ -16,6 +16,7 @@ reference has produced them.
 - [3.5 — Credential masking](#35--credential-masking-user-scope-optional)
 - [3.6 — Git over the sandbox: SSH remotes](#36--git-over-the-sandbox-ssh-remotes)
 - [3.7 — The worktree files](#37--the-worktree-files)
+- [3.8 — The pull/merge request template](#38--the-pullmerge-request-template)
 
 ---
 
@@ -477,3 +478,100 @@ which is resolved later.
 
 **Report in the summary** (a single line):
 `worktree files: .worktreeinclude <written|kept>, .gitignore worktrees entry <added|present>`
+
+### 3.8 — The pull/merge request template
+
+A merge request is reviewed against what its description says was done and how to
+check it. That description is not improvised once per branch: the repository
+carries the template, the flows fill it in, and every reviewer reads the same
+shape. `vcs-ops` is the other half of this — it fills whatever template it finds
+here, and falls back to its own body only when there is none.
+
+**Skip if** `{VCS}` is `none` or `other`: with no forge there is nowhere to put
+one. Report it in the summary and move on.
+
+**Where it goes** — the host's convention, not a choice:
+
+| `{VCS}` | Destination |
+|---|---|
+| `github` | `.github/PULL_REQUEST_TEMPLATE.md` |
+| `gitlab` | `.gitlab/merge_request_templates/Default.md` |
+
+GitLab reads merge request templates **only** from
+`.gitlab/merge_request_templates/`. A file at `.gitlab/PULL_REQUEST_TEMPLATE.md`
+is ignored by the web UI and invisible to `glab mr create --template`, so it
+would be a template nothing ever applies — the one failure mode this step exists
+to avoid. `Default.md` is the name both GitLab and `vcs-ops` look for first.
+
+**Conflict detection, and what UPDATE does.** The destination already exists →
+keep it, quote its first heading, and say so in the summary: a template is the
+team's own document, and `vcs-ops` fills the one that is there. The destination
+does not exist → write it, in every mode. That is how a project configured
+before this step existed gets the template on its next UPDATE run.
+
+**The language.** Ask once, with `AskUserQuestion`. The answer picks the file and
+nothing else asks about it again: `vcs-ops` writes each description in the
+language of the template it finds, so this single answer decides what the team
+reads on the forge.
+
+```
+question: "Which language should pull request descriptions be written in?"
+options: [ {label: "Italian"}, {label: "English"} ]
+```
+
+Italian → `PULL_REQUEST_TEMPLATE.it.md`; English → `PULL_REQUEST_TEMPLATE.en.md`
+(default: Italian, the team's own template). Everything else the setup writes
+stays in English — this one answer is about the document a reviewer reads, not
+about the code.
+
+**Resolve the placeholders.** The template carries three, and
+`render-template.sh` fails on any one left unresolved rather than committing a
+`{{TODO}}` into the project:
+
+```bash
+REPO_URL=$(git remote get-url origin \
+  | sed -E -e 's#^git@([^:]+):#https://\1/#' -e 's#^ssh://git@#https://#' -e 's#\.git$##')
+
+BASE=$(${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh --json | jq -r .BASE_BRANCH)
+REMOTE=$(git remote | head -1)
+BASE_BRANCH=${BASE#"$REMOTE/"}   # BASE_BRANCH comes back remote-qualified
+```
+
+| Placeholder | `github` | `gitlab` |
+|---|---|---|
+| `{{MR_LINK_BASE}}` | `$REPO_URL/pull` | `$REPO_URL/-/merge_requests` |
+| `{{BASE_BRANCH}}` | the branch resolved above — never a hard-coded `develop` | the same |
+| `{{CODE_CONVENTIONS_LINK}}` | a whole markdown link, composed below | the same |
+
+`{{CODE_CONVENTIONS_LINK}}` is a link and not a URL because what it points at
+depends on the project. With `BLOB="$REPO_URL/blob/$BASE_BRANCH"` on GitHub and
+`BLOB="$REPO_URL/-/blob/$BASE_BRANCH"` on GitLab:
+
+- the repository has a `CODE_CONVENTIONS.md` → `[CODE_CONVENTIONS.md]($BLOB/CODE_CONVENTIONS.md)`
+- it does not → the rules Step 4 writes are this project's conventions:
+  `[.claude/rules/]($BLOB/.claude/rules)`
+
+Then render it:
+
+```bash
+mkdir -p "$(dirname "$DEST")"
+${CLAUDE_PLUGIN_ROOT}/scripts/render-template.sh \
+  --in "${CLAUDE_SKILL_DIR}/templates/boilerplate/<the file chosen above>" \
+  --out "$DEST" \
+  --var MR_LINK_BASE="$REPO_URL/pull" \
+  --var BASE_BRANCH="$BASE_BRANCH" \
+  --var CODE_CONVENTIONS_LINK="[CODE_CONVENTIONS.md]($BLOB/CODE_CONVENTIONS.md)"
+```
+
+**The `Issue:` line ships as an example** — `DE-00000` on the team's ClickUp
+workspace. It is the shape a PR author overwrites, not a live link. If this
+project tracks its work somewhere else, say so in the summary line and leave the
+correction to the developer: the setup does not invent a tracker URL.
+
+**Report in the summary** (a single line) — one of:
+
+```
+  - pull request template written to <path> (<Italian|English>) — the flows fill it when they open a merge request
+  - pull request template already at <path> — kept as the team wrote it
+  - pull request template skipped: no forge configured for this repository
+```
