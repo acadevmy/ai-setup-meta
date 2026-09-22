@@ -60,31 +60,18 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`,
 
 ## Pull / merge requests
 
-Title follows Conventional Commits and carries the task id:
-`feat(auth): add refresh token rotation [DE-123]`. Body:
+Title: `<Type>: <what was done> <TASK-ID>` — `Feat: Add refresh token rotation
+DE-123`. The commits keep Conventional Commits; this names the merge request.
 
-```markdown
-## What changed
-<description of changes>
+The body is the repository's own template, **filled in**:
+`.github/PULL_REQUEST_TEMPLATE.md` on GitHub,
+`.gitlab/merge_request_templates/Default.md` on GitLab. Every section answered,
+in the template's language, and its test section carrying the steps to check the
+change by hand — commands to run, routes to open.
+[reference/merge-request.md](reference/merge-request.md) has the rest.
 
-## Why
-<motivation>
-
-## How to test
-- [ ] <step 1>
-
-## Checklist
-- [ ] No secrets or API keys included
-- [ ] CHANGELOG updated
-- [ ] project rules respected
-
-## Task
-- [DE-XXX](link to task)
-```
-
-Never `--fill` the body from the commit log: it drops that structure. Labels are
-the ones the repository defines — list them and pick, never invent. On GitLab the
-body often comes from the repo's own MR template; its reference says when.
+Never `--fill` from the commit log, and never pass a template unfilled. Labels
+are the repository's own — list them and pick, never invent.
 
 The repository's `AGENTS.md` wins over every default here.
 

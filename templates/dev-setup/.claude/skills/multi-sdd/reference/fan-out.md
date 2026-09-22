@@ -1,8 +1,9 @@
 # Phases B and C — the fan-out and the outcomes
 
 Phase A is over: every task has been triaged, its open business decisions are
-answered and appended to its description, and the overlap warning has been shown.
-From here nothing asks the developer anything until a run comes back.
+answered and appended to its description, the overlap warning has been shown and
+the fork point is confirmed. From here nothing asks the developer anything until
+a run comes back.
 
 ## Index
 
@@ -15,18 +16,18 @@ From here nothing asks the developer anything until a run comes back.
 
 ## The project context, read once
 
-The stack and the base branch belong to the project, not to the task, so they are
-resolved once in the main checkout and shared by every run:
+The stack belongs to the project, not to the task, so it is read once in the main
+checkout and shared by every run:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh" --json
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
 ```
 
-The base branch comes from the second call and is never guessed: `TASK_ID` empty
-means the session sits on a long-lived branch and `BRANCH` is the base; `TASK_ID`
-present means it sits on a task branch and `BASE_BRANCH` is. Getting this wrong
-costs `n` branches carrying the whole `main..next` delta, not one.
+The base branch is the other project fact every run shares, and it is already
+decided: it is the ref the developer confirmed at the end of phase A, passed on
+verbatim. Never re-resolve it here — a second resolution that disagreed with the
+answer would send `n` branches off a fork point nobody chose, each carrying the
+whole `main..next` delta into its merge request.
 
 ## The launch
 
@@ -43,7 +44,7 @@ Workflow({
     "url": "<url>",
     "branchType": "feat",
     "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
-    "baseBranch": "<the base resolved above>",
+    "baseBranch": "<the fork point confirmed in phase A>",
     "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" }
   }
 })

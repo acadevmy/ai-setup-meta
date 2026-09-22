@@ -4,7 +4,8 @@ Steps 1 to 4 of the flow: from "start this task" to a working branch with the
 task in progress and the developer looking at the brief. The judgement calls
 here are two questions — the task and the fork point — and a script does the
 rest. The ClickUp calls follow
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`; the turn rule for every
+`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`, the fork point
+`${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md`; the turn rule for every
 question here is in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 
 ## Index
@@ -79,28 +80,10 @@ and the merge request title read it back out of the branch name), and resolves
 was decided when the branch was born — and say the task is being resumed; step 4
 will show how far it got.
 
-Otherwise confirm the fork point. The resolved `BASE_BRANCH` is the default,
-never the decision:
-
-```json
-AskUserQuestion({
-  "questions": [{
-    "question": "Which branch should <BRANCH> fork from?",
-    "header": "Base branch",
-    "options": [
-      { "label": "<BASE_BRANCH> (Recommended)",
-        "description": "Resolved from the repository: the ref HEAD forked from most recently" },
-      { "label": "<candidate>",
-        "description": "Any of develop / next / main that exists and is not the default" }
-    ],
-    "multiSelect": false
-  }]
-})
-```
-
-The resolved `BASE_BRANCH` is the first option; after it, whichever of
-`develop`, `next` and `main` exist in the repository and are not the default.
-Any other ref arrives through "Other". **End the turn on the tool call.**
+Otherwise confirm the fork point, as
+`${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md` defines it: the resolved
+`BASE_BRANCH` is the default and the first option, never the decision, and the
+turn ends on the tool call. Ask it for `<BRANCH>`.
 
 Then create the branch from the answer:
 

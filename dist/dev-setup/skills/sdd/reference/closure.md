@@ -104,12 +104,16 @@ Invoke the `vcs-ops` skill. It reads `origin` itself and loads its GitHub or
 GitLab reference accordingly, so there is nothing to pick here. Target the
 **short name of the base branch** reported at intake (`origin/next` → `next`).
 
-- **Title** — Conventional Commits with the custom id, e.g.
-  `feat(auth): add refresh token rotation [DE-123]`.
-- **Body** — What / Why / How to test, plus the link to the task and the link to
-  the spec. On GitLab the body comes from
-  `.gitlab/merge_request_templates/Default.md` when the repository has one; the
-  skill's GitLab reference explains when and how.
+- **Title** — `<Type>: <what was done> <TASK-ID>`, e.g.
+  `Feat: Add refresh token rotation DE-123`. The commit keeps its Conventional
+  Commits form; this names the merge request.
+- **Body** — the repository's own template, filled in — the setup wrote it to
+  `.github/PULL_REQUEST_TEMPLATE.md` or
+  `.gitlab/merge_request_templates/Default.md`, and `vcs-ops` fills whichever is
+  there. The spec is what the description summarises; the test section carries
+  the commands and the routes a reviewer follows to see the change work. Link
+  the task and the spec. A repository with no template gets the fallback body
+  from that skill's `merge-request.md`.
 
 The `ask` rule on `gh pr create` / `glab mr create` is the developer's last
 checkpoint, and it is a permission rule — do not ask for the same confirmation
