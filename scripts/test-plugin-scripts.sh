@@ -496,6 +496,23 @@ assert_eq "a message mentioning HUSKY=0 is not a bypass" \
 assert_eq "a message containing -n is not a bypass" \
   "none" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'git commit -m "fix: handle -n flag"')")"
 
+# A flag belongs to the command that carries it. The gate used to scan the whole
+# line, so any `-n` anywhere in a chained command refused the commit — which is
+# how a quality gate teaches people to route around it.
+assert_eq "another command's -n is not a bypass" \
+  "none" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'git commit -m "feat: x" && git show --stat | sed -n "1,5p"')")"
+
+assert_eq "another command's --no-verify is not a bypass" \
+  "none" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'npm publish --no-verify && git commit -m "feat: x"')")"
+
+assert_eq "-n on a second chained commit is still refused" \
+  "deny" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'git commit -m "feat: a" && git commit -n -m "feat: b"')")"
+
+# The environment bypasses keep the whole line: they work from a segment of
+# their own, which the commit segment would never show.
+assert_eq "HUSKY=0 exported in an earlier segment is refused" \
+  "deny" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'export HUSKY=0 && git commit -m "feat: x"')")"
+
 # ── Anti-bypass mode: no check of its own ──
 # The husky fixture has "test": "jest" and no node_modules, so a check run here
 # would fail. Getting no decision back proves the gate delegated instead.

@@ -284,7 +284,12 @@ the project already owns, so the checks run once and only once:
   the reason.
 
 The bypass scan reads the command with the quoted strings removed, so a commit
-*message* mentioning `HUSKY=0` is not treated as an attempt to set it. The full test
+*message* mentioning `HUSKY=0` is not treated as an attempt to set it. It also reads
+each kind of bypass where that kind can actually live: a **flag** is looked for in
+the `git commit` segments only — `git commit -m … && git show | sed -n '1,5p'` is a
+commit and an innocent `-n`, and refusing it is how a gate teaches people to work
+around it — while an **environment or config** bypass keeps the whole line, because
+`export HUSKY=0 && git commit` sets it from a segment of its own. The full test
 suite is deliberately not the per-commit gate: it belongs at the MR boundary and in
 CI, which stays the final gate.
 

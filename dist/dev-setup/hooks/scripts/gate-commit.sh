@@ -108,9 +108,34 @@ strip_quoted() {
 
 SCAN=$(strip_quoted "$COMMAND")
 
+# A flag bypass belongs to the `git commit` invocation, so it is looked for
+# there rather than on the whole line. `git commit -m … && git show | sed -n
+# '1,5p'` is a commit, a pipe and a perfectly innocent `-n`, and refusing it
+# taught exactly the wrong lesson: the developer who hits that stops writing
+# the pipeline and starts working around the gate.
+#
+# An environment or config bypass is the opposite case — `export HUSKY=0 && git
+# commit` disables the hooks from a segment of its own — so those keep the whole
+# line. Every commit segment is scanned, not only the first: `git commit -m a &&
+# git commit -n -m b` is two commits.
+
+# The trailing newline is not cosmetic: without it `read` returns non-zero on
+# the last segment and the loop drops it — which is the segment holding the
+# commit in `npm publish … && git commit`.
+commit_scan() {
+  printf '%s\n' "$1" | tr ';&|' '\n\n\n' | while IFS= read -r SEGMENT; do
+    is_git_commit "$SEGMENT" && printf ' %s ' "$SEGMENT"
+  done
+}
+
+COMMIT_SCAN=$(commit_scan "$SCAN")
+# Belt and braces: an invocation shape the splitter does not recognise falls
+# back to the whole line, which over-refuses rather than under-refuses.
+[ -n "$COMMIT_SCAN" ] || COMMIT_SCAN=" $SCAN "
+
 BYPASS_REASON=""
 
-case " $SCAN " in
+case "$COMMIT_SCAN" in
   *--no-verify*)  BYPASS_REASON="the commit skips the git hooks (--no-verify)" ;;
   *" -n "*)       BYPASS_REASON="the commit skips the git hooks (-n)" ;;
 esac
@@ -175,8 +200,10 @@ TYPECHECK_CMD=$(stack_get TYPECHECK_CMD)
 TEST_CMD=$(stack_get TEST_CMD)
 
 # Nothing staged and no --amend/--all: git itself will refuse the commit, so
-# there is no point paying for a suite run first.
-case "$SCAN" in
+# there is no point paying for a suite run first. Read off the commit segment
+# for the same reason as the bypass flags: `ls -a && git commit` carries no
+# `-a` of its own.
+case "$COMMIT_SCAN" in
   *--amend*|*--all*|*" -a "*) ;;
   *)
     if git diff --cached --quiet 2>/dev/null; then
