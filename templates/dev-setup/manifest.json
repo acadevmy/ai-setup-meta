@@ -89,6 +89,8 @@
     ".releaserc.github.json",
     ".releaserc.gitlab.json",
     "eslint.config.base.mjs",
+    "PULL_REQUEST_TEMPLATE.it.md",
+    "PULL_REQUEST_TEMPLATE.en.md",
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
     ".gitlab-ci.yml",

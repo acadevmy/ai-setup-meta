@@ -16,9 +16,13 @@ identifies this as the right reference.
 | CI runs | `gh pr checks <n>` |
 | Release | `gh release create v1.2.0 --title "v1.2.0" --notes-file notes.md` |
 
-Two things that bite:
+Three things that bite:
 
 - **`--body-file`, not `--body`.** An inline body loses its newlines as soon as
   it contains a backtick or a `$`, and the PR arrives as one paragraph.
+- **`gh` does not apply `.github/PULL_REQUEST_TEMPLATE.md`** when a body is
+  passed — it inserts the template only into the editor it opens interactively.
+  So read that file yourself, fill it as `merge-request.md` describes, and write
+  the result to the file you pass with `--body-file`.
 - **A label that does not exist fails the whole call**, so the PR is never
   created. Check `gh label list` before passing `--label`.

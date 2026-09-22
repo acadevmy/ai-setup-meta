@@ -94,7 +94,7 @@ repository, not in yours — see [workflow.md](./workflow.md).
           posted on it
 ```
 
-Five things are worth knowing about that shape.
+Seven things are worth knowing about that shape.
 
 **A backlog task is your call.** A task read in `BACKLOG` was never planned
 into a sprint, so the flow stops and asks before anything else happens — no
@@ -131,6 +131,18 @@ anywhere said so. A `PostToolUse` hook now fires on the `gh pr create` /
 repository it names that task and asks for both calls. It reads the clock and
 never stops it — the measurement belongs to whoever posts it. With no task in
 progress here, it says nothing at all.
+
+**The description is the repository's template, filled in.** The setup writes
+one — `.github/PULL_REQUEST_TEMPLATE.md` on GitHub,
+`.gitlab/merge_request_templates/Default.md` on GitLab, in Italian or English,
+whichever you chose — and every flow fills that file instead of inventing a
+body: neither `gh` nor `glab` applies a template to a description passed on the
+command line. The title is `<Type>: <what was done> <TASK-ID>`, for instance
+`Feat: Add refresh token rotation DE-123`; the commits keep their Conventional
+Commits form. The section that matters is the test one: the commands to run and
+the route to open, written for a reviewer who has not read the branch. A
+template already in the repository is never overwritten — the flows fill the
+team's own.
 
 **The methodology is not a question.** Backend logic is test-first, UI is
 scenario-first, and `.claude/rules/dev-setup-tests.md` says so — it loads by
