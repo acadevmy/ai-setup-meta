@@ -481,9 +481,14 @@ The split that keeps it safe to run in the background:
 The workflow has a second launcher, `multi-sdd` (DE-16487), which runs it once
 per task for up to five tasks from one session. It **composes** and adds no
 phase, no agent and no rule: what is new there is a sequential pre-flight (the
-triage, only the business decisions no agent can invent, the overlap warning) and
-a fan-out whose outcomes arrive as events. Two invariants keep it honest, and
-both are pinned by `test-plugin-scripts.sh`:
+triage, only the business decisions no agent can invent, the overlap warning, the
+fork point) and a fan-out whose outcomes arrive as events. The fork point is
+confirmed the way `sdd` confirms it — the ref resolved from the repository is the
+default, the developer decides — but **once for the set**, at the end of phase A:
+it is a project fact, the overlap warning only means anything while the tasks
+share one base, and the fan-out passes the answer to every run rather than
+resolving it again. Two invariants keep it honest, and both are pinned by
+`test-plugin-scripts.sh`:
 
 1. **The cap is `multi-preflight.sh`, not a sentence.** Five is where human
    review becomes the bottleneck; the script exits 3 on the sixth task. A number
@@ -741,4 +746,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.20.0 — bump the version number on every substantial change*
+*Version: 2.21.0 — bump the version number on every substantial change*

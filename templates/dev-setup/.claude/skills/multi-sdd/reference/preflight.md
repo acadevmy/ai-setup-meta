@@ -13,6 +13,7 @@ ends.
 - [The only questions worth asking](#the-only-questions-worth-asking)
 - [Where the answers go](#where-the-answers-go)
 - [The overlap warning](#the-overlap-warning)
+- [The fork point](#the-fork-point)
 - [The board](#the-board)
 
 ## The intake
@@ -112,6 +113,50 @@ all** — the rebase is expected rather than discovered — or **Drop one** and 
 which. In a single interactive flow this is only a warning; here it earns a stop,
 because dropping a task now costs nothing, and two autonomous branches that
 rewrote the same file cost a reviewer twice.
+
+## The fork point
+
+The last thing phase A decides, and the one every run inherits. Resolve the
+default first:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
+```
+
+`TASK_ID` empty means the session sits on a long-lived branch and `BRANCH` is
+the resolved base; `TASK_ID` present means it sits on a task branch already and
+`BASE_BRANCH` is. Then confirm it — the resolved ref is the default, never the
+decision:
+
+```json
+AskUserQuestion({
+  "questions": [{
+    "question": "Which branch should the runs fork from?",
+    "header": "Base branch",
+    "options": [
+      { "label": "<the resolved base> (Recommended)",
+        "description": "Resolved from the repository: the ref HEAD forked from most recently" },
+      { "label": "<candidate>",
+        "description": "Any of develop / next / main that exists and is not the default" }
+    ],
+    "multiSelect": false
+  }]
+})
+```
+
+The resolved ref is the first option; after it, whichever of `develop`, `next`
+and `main` exist in the repository and are not the default. Any other ref
+arrives through "Other". **End the turn on the tool call.** The answer is what
+`fan-out.md` passes as `baseBranch` to every run, verbatim — nothing downstream
+resolves it a second time, and a run cutting its branch from the wrong ref
+carries the whole delta between two long-lived branches into its merge request.
+
+**One question for the whole set**, asked once, not once per task: the fork
+point belongs to the project and not to the task, the overlap warning above
+only means something while the tasks share one base, and `n` runs answered `n`
+times is the braiding this command exists to avoid. A task that genuinely needs
+a different base is a stacked task — run it on its own with `sdd` or
+`auto-sdd`.
 
 ## The board
 

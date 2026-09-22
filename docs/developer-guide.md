@@ -172,8 +172,11 @@ those happen in your session, where you can see them.
 
 `/dev-setup:multi-sdd DE-1 DE-2 DE-3` fans that workflow out, one run per task,
 each in its own worktree. The human parts come first: a small/large triage, the
-questions no agent can answer for you, and a warning if two tasks declare the
-same file. Then the runs go, and the outcomes arrive in that chat as they land.
+questions no agent can answer for you, a warning if two tasks declare the same
+file, and the fork point every run inherits — asked once for the set, the ref
+resolved from the repository as the default, exactly as `/dev-setup:sdd` asks it
+for one branch. Then the runs go, and the outcomes arrive in that chat as they
+land.
 
 The cap is **five**, and it is a script that enforces it — the sixth task exits
 with the reason. Five is where the review queue becomes the bottleneck: a

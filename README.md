@@ -312,8 +312,8 @@ needs a chat of its own, and that is a choice rather than a missing feature. `n`
 *autonomous* tasks are one `/dev-setup:multi-sdd`, which fans out one `auto-sdd`
 run per task from a single session — the chat becomes a control tower, with the
 human parts before the fan-out (triage, the business decisions no agent can
-invent, the overlap warning) or after it (the outcomes, each behind its own `ask`
-rule), never braided through the middle.
+invent, the overlap warning, the fork point) or after it (the outcomes, each
+behind its own `ask` rule), never braided through the middle.
 
 The cap is **five**, and it is enforced by `multi-preflight.sh` rather than
 stated in prose: the sixth task exits 3 with the reason. Five is where review
