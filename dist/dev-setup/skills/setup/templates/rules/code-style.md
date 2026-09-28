@@ -27,6 +27,10 @@ them fails, the fix is the code, not a disable comment.
   generic. One caller is not a pattern.
 - Duplicated logic is a bug in waiting: extract it when it is genuinely the same
   behaviour, leave it alone when it merely looks alike.
+- A boolean defaults to `false`, never to `true`. The absent value is the safe,
+  off state, so enabling a behaviour is always an explicit opt-in. Name the flag
+  for the thing it turns on (`enableCache`, not `disableCache`) so the default
+  reads as the quiet one.
 - Constants carry names. `MAX_RETRY_ATTEMPTS`, not `3` at the call site.
 - Names are descriptive and in English, and abbreviations are only the universal
   ones — `id`, `url`, `db`. Not `usr`, `btn`, `mgr`.
