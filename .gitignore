@@ -1,6 +1,9 @@
 # macOS
 .DS_Store
 
+# IDE — JetBrains (WebStorm/IntelliJ)
+.idea/
+
 # Secrets
 .env
 .env.*
