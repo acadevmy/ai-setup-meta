@@ -168,9 +168,14 @@ mechanism the project does not have.
 So the setup treats it as a special case:
 
 - A settings.json **with** a `sandbox` key is yours, and conflict detection
-  applies — with one exception: if it still carries the `.env` read denies an
-  earlier template shipped, `migrate-settings.sh` removes exactly those entries
-  and nothing else (reads of `.env` are open again; writes stay denied).
+  applies — with one exception, which is where the `.env` read block lives.
+  `migrate-settings.sh` adds the `Read(**/.env*)` permission rules if they are
+  missing, and removes the OS-level `.env` block from
+  `sandbox.filesystem.denyRead` if an earlier template left one there. It
+  touches nothing else. The two are one change: the block moved off the OS
+  layer, where it stopped the project's own dev server from reading its
+  configuration, onto the permission layer, where it stops the agent and leaves
+  the processes alone.
 - One **without** it is an old artefact, and `migrate-settings.sh` merges the
   template into it. Your own allowlist entries survive; the script never writes
   in place, and shows you what it changed before you accept.

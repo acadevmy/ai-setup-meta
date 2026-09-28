@@ -270,7 +270,8 @@ configured decision, not a bug.
 
 | Denied | Why |
 |---|---|
-| Writing `.env`, `.env.local`, `.env.production`, … | The file is yours: reads are open so a task can use the values it needs, but the agent never edits it. Both as a permission rule and in the sandbox, so a shell command cannot go around it |
+| Writing `.env`, `.env.local`, `.env.production`, … | The file is yours. Both as a permission rule and in the sandbox, so a shell command cannot go around it |
+| Reading the same files | A `Read(**/.env*)` permission rule: the file tools and the shell commands that name the file (`cat`, `sed`, `< .env`) refuse, so the values never reach a transcript. Deliberately *not* an OS-level deny — see below |
 | Reading `~/.ssh`, `~/.aws`, `~/.kube` | Same reason, one level up |
 | `GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, `NPM_TOKEN`, `AWS_*`, … | Unset inside sandboxed commands, so a token cannot end up in a URL, in `ps` or in a log |
 | `git push --force` / `-f`, in every spelling | Rewriting a shared branch |
@@ -293,17 +294,37 @@ These are not blocked — they wait for you:
 
 The pattern is the same throughout: **reads are free, outward-facing writes ask.**
 
+### Secrets: blocked from the transcript, not from the process
+
+The `.env` block sits on the permission layer and not in the sandbox, and that
+is the design rather than an oversight. A `Read` deny rule reaches the file
+tools and the shell commands that name the file; it does not reach a process
+that opens the file itself. So the agent cannot put your keys in a transcript,
+and this all still works:
+
+```bash
+npm run dev                      # the framework's own loader
+node --env-file=.env script.js
+docker compose --env-file .env up
+set -a; . ./.env; set +a; <cmd>   # the generic form, in a single call
+```
+
+An OS-level `sandbox.filesystem.denyRead` would block those too — it would take
+your dev server down on every project at once — which is why the template does
+not ship one. The trade is worth knowing: a command that never names the file,
+`grep -r` or a script that opens it, is not stopped either. The `Read` deny is
+a guardrail against the accident, the rule in `dev-setup-core.md` is what covers
+the rest, and a value still never lands in a tracked file, a command line or a
+tracker comment.
+
 ### If a deny is in your way
 
-Reads of `.env` are open — a task that calls a real API needs the values, and
-the rule that remains is behavioural: a value never lands in a tracked file, a
-command line or a tracker comment. What stays denied is writing the `.env`
-family and the lock files. If **the project's own test or dev command writes a
-denied file**, the sandbox breaks it for every command, not just the ones
-Claude writes. The fix is to remove that filename from
-`sandbox.filesystem.denyWrite` in `.claude/settings.json` — a deny cannot be
-re-opened from `.claude/settings.local.json`, which can only add. The token
-variables stay unset either way.
+What stays denied is writing the `.env` family and the lock files. If **the
+project's own test or dev command writes a denied file**, the sandbox breaks it
+for every command, not just the ones Claude writes. The fix is to remove that
+filename from `sandbox.filesystem.denyWrite` in `.claude/settings.json` — a deny
+cannot be re-opened from `.claude/settings.local.json`, which can only add. The
+token variables stay unset either way.
 
 ### SSH remotes
 

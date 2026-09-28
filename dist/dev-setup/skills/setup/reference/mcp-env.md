@@ -107,10 +107,11 @@ never ran all look identical from the summary.
 
 ## Step 7 — Declare the environment variables
 
-**You never write `.env`, and no setup step reads it.** Step 3.2 denies writes
-at two levels — the file tools refuse them and the sandbox refuses them to your
-shell commands — and the values are the developer's: nothing in this step needs
-one. Work on `.env.example`, which is tracked and carries no values.
+**You never write `.env`, and no setup step reads it.** Step 3.2 denies both:
+writes at two levels — the file tools refuse them and the sandbox refuses them
+to your shell commands — and reads through the `Read(**/.env*)` permission
+rules. The values are the developer's, and nothing in this step needs one. Work
+on `.env.example`, which is tracked, carries no values, and stays readable.
 
 1. `.env.example` exists and already contains `CLICKUP_SETUP_LIST_ID` → do
    nothing.

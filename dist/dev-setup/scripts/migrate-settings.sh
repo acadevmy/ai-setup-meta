@@ -23,8 +23,8 @@
 #                      and a half-configured sandbox is worse than none
 #   permissions.ask    taken from the template wholesale, same reason
 #   permissions.deny   union: every template entry, plus anything the project
-#                      added — minus the `.env` read denies the template
-#                      retired (see RETIRED_DENY below). Writes stay denied
+#                      added. The `.env` read and write denies come from the
+#                      template, so a migrated file always carries both
 #   permissions.allow  the template's list, plus the project's own additions,
 #                      minus the entries the refactor deliberately removed
 #                      (see RETIRED_ALLOW below)
@@ -32,21 +32,31 @@
 #                      does not manage
 #
 # A settings that already carries a `sandbox` block is the team's file and is
-# normally left alone — with one exception: if it still holds the `.env` read
-# denies the template retired (`Read(**/.env*)` permission rules, the `.env`
-# family in `sandbox.filesystem.denyRead`), those entries are removed and
-# nothing else is touched. Write denies are kept either way.
+# normally left alone — with one exception, and it has two halves, because the
+# `.env` read block lives on the permission layer and not on the OS one:
+#
+#   * the `Read(**/.env*)` permission rules are added if they are missing. They
+#     stop the file tools and the shell commands that name the file, and leave
+#     a process that opens `.env` itself — `npm run dev`, `node --env-file` —
+#     working, which is the whole point of putting the block here.
+#   * the `.env` family is removed from `sandbox.filesystem.denyRead` if it is
+#     still there. That block is OS-level: it stops the project's own dev server
+#     from reading its configuration, which is why the template retired it.
+#
+# Either half alone is enough to migrate. Nothing else is touched, and the write
+# denies are kept in every case.
 #
 # Report keys (--json):
 #   MIGRATED        true | false
-#   REASON          migrated | env-read-unblocked | already-sandboxed |
+#   REASON          migrated | env-read-scoped | already-sandboxed |
 #                   no-template-sandbox
 #   ADDED_SANDBOX   true | false
 #   ADDED_ASK       number of `ask` entries the project did not have
 #   ADDED_DENY      number of `deny` entries the project did not have
 #   RETIRED_ALLOW   comma-separated allow entries dropped, or ""
 #   KEPT_ALLOW      comma-separated allow entries kept that the template lacks
-#   RETIRED_DENY    comma-separated `.env` read denies removed, or ""
+#   RETIRED_DENY    comma-separated OS-level `.env` denyRead paths removed,
+#                   or ""
 #
 # Exit code: 0 = merged · 3 = nothing to migrate · other = error.
 # The merged output is written; it is never applied in place. The caller shows
@@ -71,11 +81,11 @@ RETIRED_ALLOW=(
   'mcp__context7__*'
 )
 
-# Deny entries the current template no longer ships: the `.env` read block.
-# The lists name exactly what older templates wrote, so a deny the team added
-# on its own is never touched. The write denies are not in these lists — they
-# stay in the template and in every migrated file.
-RETIRED_DENY=(
+# The `.env` read denies the current template ships. A settings that predates
+# them gets exactly these entries added; a deny the team added on its own is
+# never touched, and the write denies are in neither list — they stay in the
+# template and in every migrated file.
+ENV_READ_DENY=(
   'Read(**/.env)'
   'Read(**/.env.local)'
   'Read(**/.env.*.local)'
@@ -85,6 +95,9 @@ RETIRED_DENY=(
   'Read(**/.env.test)'
 )
 
+# The OS-level read block older templates wrote. It is removed wherever it is
+# found: it denies every process, so it takes the project's own dev server down
+# with it. The permission rules above replace it.
 RETIRED_DENYREAD=(
   '.env'
   '.env.local'
@@ -121,7 +134,7 @@ while [ $# -gt 0 ]; do
       OUT_FILE="$2"; shift 2 ;;
     --json) AS_JSON=true; shift ;;
     -h|--help)
-      sed -n '2,45p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+      sed -n '2,63p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
       exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
@@ -155,37 +168,44 @@ report_and_exit() {
   exit "$code"
 }
 
-RETIRED_DENY_JSON=$(printf '%s\n' "${RETIRED_DENY[@]}" | jq -R . | jq -s .)
+ENV_READ_DENY_JSON=$(printf '%s\n' "${ENV_READ_DENY[@]}" | jq -R . | jq -s .)
 RETIRED_DENYREAD_JSON=$(printf '%s\n' "${RETIRED_DENYREAD[@]}" | jq -R . | jq -s .)
 
 csv_of() { jq -r 'if length == 0 then "" else join(",") end'; }
 
 if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
-  # The team's file, normally left alone. One check remains: the `.env` read
-  # denies the template retired. If any is still there, remove exactly those
-  # entries and touch nothing else.
-  FOUND_RETIRED=$(jq --argjson rd "$RETIRED_DENY_JSON" --argjson rr "$RETIRED_DENYREAD_JSON" '
-    [ ((.permissions // {}).deny // [])[] | select(. as $e | $rd | index($e)) ] +
+  # The team's file, normally left alone. What remains is the two halves of the
+  # move of the `.env` read block from the OS layer to the permission layer: add
+  # the rules the template ships, drop the OS-level block it retired. Either one
+  # alone migrates; nothing else is touched.
+  MISSING_DENY=$(jq --argjson ed "$ENV_READ_DENY_JSON" '
+    . as $root
+    | [ $ed[] | select(. as $e | (($root.permissions // {}).deny // []) | index($e) | not) ]
+    ' "$IN_FILE")
+
+  FOUND_DENYREAD=$(jq --argjson rr "$RETIRED_DENYREAD_JSON" '
     [ (((.sandbox // {}).filesystem // {}).denyRead // [])[] | select(. as $e | $rr | index($e)) ]
     ' "$IN_FILE")
 
-  if [ "$(printf '%s' "$FOUND_RETIRED" | jq 'length')" -eq 0 ]; then
+  ADDED_DENY_COUNT=$(printf '%s' "$MISSING_DENY" | jq 'length')
+  FOUND_DENYREAD_COUNT=$(printf '%s' "$FOUND_DENYREAD" | jq 'length')
+
+  if [ "$ADDED_DENY_COUNT" -eq 0 ] && [ "$FOUND_DENYREAD_COUNT" -eq 0 ]; then
     report_and_exit already-sandboxed 3
   fi
 
-  MERGED=$(jq --argjson rd "$RETIRED_DENY_JSON" --argjson rr "$RETIRED_DENYREAD_JSON" '
-    (if ((.permissions // {}) | has("deny")) then
-       .permissions.deny |= map(select(. as $e | $rd | index($e) | not))
-     else . end)
+  MERGED=$(jq --argjson add "$MISSING_DENY" --argjson rr "$RETIRED_DENYREAD_JSON" '
+    (if ($add | length) == 0 then .
+     elif ((.permissions // {}) | has("deny")) then .permissions.deny += $add
+     else .permissions = ((.permissions // {}) + { deny: $add })
+     end)
     | (if (((.sandbox // {}).filesystem // {}) | has("denyRead")) then
          .sandbox.filesystem.denyRead |= map(select(. as $e | $rr | index($e) | not))
          | (if (.sandbox.filesystem.denyRead | length) == 0
             then del(.sandbox.filesystem.denyRead) else . end)
        else . end)
     ' "$IN_FILE")
-  [ -n "$MERGED" ] || die "the retire pass produced nothing — is $IN_FILE a settings.json?"
-
-  RETIRED_DENY_FOUND=$(printf '%s' "$FOUND_RETIRED" | csv_of)
+  [ -n "$MERGED" ] || die "the converge pass produced nothing — is $IN_FILE a settings.json?"
 
   if [ -n "$OUT_FILE" ]; then
     mkdir -p "$(dirname "$OUT_FILE")" 2>/dev/null || true
@@ -194,13 +214,13 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
 
   if [ "$AS_JSON" = true ]; then
     json_set MIGRATED true
-    json_set REASON env-read-unblocked
+    json_set REASON env-read-scoped
     json_set ADDED_SANDBOX false
     json_set ADDED_ASK 0
-    json_set ADDED_DENY 0
+    json_set ADDED_DENY "$ADDED_DENY_COUNT"
     json_set RETIRED_ALLOW ""
     json_set KEPT_ALLOW ""
-    json_set RETIRED_DENY "$RETIRED_DENY_FOUND"
+    json_set RETIRED_DENY "$(printf '%s' "$FOUND_DENYREAD" | csv_of)"
     json_emit
   elif [ -z "$OUT_FILE" ]; then
     printf '%s\n' "$MERGED"
@@ -221,16 +241,14 @@ RETIRED_JSON=$(printf '%s\n' "${RETIRED_ALLOW[@]}" | jq -R . | jq -s .)
 MERGED=$(jq -n \
   --slurpfile proj "$IN_FILE" \
   --slurpfile tpl "$TEMPLATE_FILE" \
-  --argjson retired "$RETIRED_JSON" \
-  --argjson retired_deny "$RETIRED_DENY_JSON" '
+  --argjson retired "$RETIRED_JSON" '
   ($proj[0]) as $p | ($tpl[0]) as $t |
   ($p.permissions // {}) as $pp | ($t.permissions // {}) as $tp |
   # allow: the template first (it is the intended baseline and its order is
   # deliberate), then whatever the project added and the refactor did not retire.
   (($tp.allow // []) + (($pp.allow // []) | map(select(. as $e | ($tp.allow // []) | index($e) | not))
                                           | map(select(. as $e | $retired | index($e) | not)))) as $allow |
-  (($tp.deny // []) + (($pp.deny // []) | map(select(. as $e | ($tp.deny // []) | index($e) | not))
-                                        | map(select(. as $e | $retired_deny | index($e) | not)))) as $deny |
+  (($tp.deny // []) + (($pp.deny // []) | map(select(. as $e | ($tp.deny // []) | index($e) | not)))) as $deny |
   $p
   + { sandbox: $t.sandbox }
   + { permissions: ($pp + {
@@ -255,9 +273,9 @@ count_added() {
 ADDED_ASK=$(count_added ask)
 ADDED_DENY=$(count_added deny)
 
-RETIRED_DENY_FOUND=$(jq -n --slurpfile proj "$IN_FILE" --argjson rd "$RETIRED_DENY_JSON" '
-  (($proj[0].permissions // {}).deny // []) as $p |
-  ($rd | map(select(. as $e | $p | index($e))))' | csv_of)
+# A pre-sandbox file has no `sandbox` block by construction, so it carries no
+# OS-level read block for this pass to drop.
+RETIRED_DENY_FOUND=""
 
 RETIRED_FOUND=$(jq -n --slurpfile proj "$IN_FILE" --argjson retired "$RETIRED_JSON" '
   (($proj[0].permissions // {}).allow // []) as $p |

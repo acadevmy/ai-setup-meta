@@ -65,6 +65,10 @@ so those interruptions read as design rather than as bugs.
   in a deny list a `sed`          cannot go around it either
   walked around
 
+  "never read .env"            →  a `Read(**/.env*)` permission rule:
+  in the same deny list           `cat` and the file tools refuse, and
+                                  `npm run dev` still loads the file
+
   "max 3 iterations"           →  `objections.length >= 2` in a
   in a prose orchestrator         workflow script the model never reads
 ```
