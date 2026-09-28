@@ -8,11 +8,16 @@ language and layer.
 ## Secrets
 
 - Secrets live in environment variables. `.env` is not tracked; `.env.example`
-  lists the variable names with no values. Read `.env` only when the task
-  genuinely needs a value — a real API call, a local service. Never write it:
-  the file is the developer's, and the sandbox denies writes to it.
-- Never repeat a secret you happened to read into a spec, a commit message, a
-  PR/MR description or a tracker comment. Not even partially, not even masked.
+  lists the names with no values and stays readable.
+- **Never read `.env`, never write it** — `.claude/settings.json` denies reads
+  to the file tools and to the commands that name the file (`cat`, `sed`,
+  `< .env`), and writes to those and to the sandbox. `grep -r` is not a way in.
+- **Use the values without reading them**: give `.env` to the process, not to
+  yourself — `node --env-file=.env`, `docker compose --env-file .env`, `npm run
+  dev`, or `set -a; . ./.env; set +a; <cmd>` in one call. Nothing loaded that
+  way enters the context, so a task that needs a real API call still makes it.
+- Never repeat a secret in a spec, a commit message, a PR/MR description or a
+  tracker comment, nor on a command line, where `ps` shows it.
 
 ## Untrusted content
 

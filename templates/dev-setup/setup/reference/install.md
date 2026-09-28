@@ -111,13 +111,24 @@ theirs.
 
 The file carries a `sandbox` block that turns on OS-level filesystem and network
 isolation for every Bash command Claude runs (Seatbelt on macOS, bubblewrap on
-Linux/WSL2). It denies writes of the `.env` family — reads stay open, so a task
-can use the values it needs — denies reads of `~/.ssh`, `~/.aws` and `~/.kube`,
-unsets the usual token variables inside sandboxed commands, and pre-allows a
-small set of network domains that 3.4 adapts to this project. **The file you
-have just written is the security boundary of the project: from here on,
-neither you nor the shell commands you run can write `.env`.** The setup itself
-still never touches the real file — `mcp-env.md` works on `.env.example`.
+Linux/WSL2). It denies writes of the `.env` family, denies reads of `~/.ssh`,
+`~/.aws` and `~/.kube`, unsets the usual token variables inside sandboxed
+commands, and pre-allows a small set of network domains that 3.4 adapts to this
+project. **The file you have just written is the security boundary of the
+project: from here on, neither you nor the shell commands you run can write
+`.env`.** The setup itself still never touches the real file — `mcp-env.md`
+works on `.env.example`.
+
+Reads of the `.env` family are denied too, but one layer up: in
+`permissions.deny`, as `Read(**/.env*)` rules, and deliberately **not** in
+`sandbox.filesystem.denyRead`. The difference is the whole design. A permission
+rule stops the file tools and the shell commands that name the file — `cat`,
+`head`, `tail`, `sed`, `< .env` — so the values never reach a transcript. It
+does not stop a process that opens the file itself, so `npm run dev`,
+`node --env-file=.env` and `docker compose --env-file` keep working and a task
+that needs a real API call still makes it. An OS-level `denyRead` would stop
+those too, which is why this template does not ship one: it would take the
+project's own dev server down, silently, on every project at once.
 
 `.claude/settings.user.json` is **not** installed here: it is a user-scope
 snippet, handled in 3.5.
@@ -174,9 +185,12 @@ project does not have is the exact defect this plugin exists to remove.
 
 So: a settings.json **without** a `sandbox` key is an old artefact, and it gets
 migrated wholesale. One **with** it is the team's, and conflict detection
-applies — with one exception: if it still carries the `.env` read denies this
-template retired, the script removes exactly those entries and touches nothing
-else (`REASON: env-read-unblocked`).
+applies — with one exception, which is where the `.env` read block ended up. The
+script adds the `Read(**/.env*)` rules if they are missing and drops the
+OS-level `.env` block from `sandbox.filesystem.denyRead` if it is still there,
+and touches nothing else (`REASON: env-read-scoped`). Either half alone
+migrates: a project set up before the rules existed needs the first, one set up
+while the block was on the OS layer needs both.
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-settings.sh \
@@ -198,16 +212,21 @@ and ask once:
 > sandbox block (filesystem, network and credential isolation), the `ask`
 > checkpoints on `gh pr create` / `glab mr create` and on ClickUp writes,
 > `<ADDED_DENY>` deny rules (force push, protected branches, `--no-verify`,
-> `.env` writes, lock files), and drops `<RETIRED_ALLOW>` from the allowlist.
+> `.env` reads and writes, lock files), and drops `<RETIRED_ALLOW>` from the
+> allowlist.
 > Your own entries are kept: `<KEPT_ALLOW>`. Apply it? (yes / skip)"
 
-With `REASON: env-read-unblocked` the file already has the sandbox and only the
-retired `.env` read denies were removed. Ask once:
+With `REASON: env-read-scoped` the file already has the sandbox and only the
+`.env` read block moved. Ask once, naming only the halves that apply —
+`ADDED_DENY` counts the rules added, `RETIRED_DENY` names the OS-level block
+removed, and either can be empty:
 
-> "`.claude/settings.json` still denies reading `.env`, which this plugin
-> version no longer does — reads are open so a task can use the values it
-> needs; writes stay denied. Migrating removes `<RETIRED_DENY>` and changes
-> nothing else. Apply it? (yes / skip)"
+> "`.claude/settings.json` blocks reading `.env` differently from this plugin
+> version. Migrating adds `<ADDED_DENY>` `Read(**/.env*)` rules — the file
+> stops reaching the transcript, while `npm run dev` and `node --env-file` keep
+> loading it — and removes the OS-level block on `<RETIRED_DENY>`, which
+> stopped the project's own commands too. Nothing else changes. Apply it?
+> (yes / skip)"
 
 - **yes** → replace `.claude/settings.json` with the migrated file. From here on
   the sandbox is real, and the rest of Step 3 treats the file as freshly

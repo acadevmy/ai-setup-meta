@@ -201,7 +201,7 @@ NOT modified (existing tooling respected):
 
 Next steps:
   1. Copy CLICKUP_SETUP_LIST_ID from .env.example into .env and fill it in
-     (setup cannot write .env: the sandbox denies it)
+     (setup cannot write .env, and cannot read it back either)
   2. Check MCP: claude mcp list
   3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to start a ClickUp task
 ```
@@ -215,7 +215,8 @@ framework convention checks, and the ones `rules-generation.md` and
 ```
   - settings.json migrated: sandbox on, <n> deny rules and the ask checkpoints added,
     <retired> dropped from the allowlist; your own entries kept
-  - settings.json read-unblocked: the retired .env read denies removed; writes stay denied
+  - settings.json env-read-scoped: .env reads denied to the file tools and to the
+    commands that name it; the processes that load it are untouched
   - settings.json already current — nothing to migrate
   - settings.json migration DECLINED: the project runs WITHOUT the Bash sandbox.
     .env writes are not denied to shell commands, gh/glab writes are not behind a
@@ -223,8 +224,8 @@ framework convention checks, and the ones `rules-generation.md` and
 ```
 
 The DECLINED line is not decoration. `dev-setup-core.md` tells every session
-that the sandbox denies writing `.env`; if the developer declined, the summary
-is the only place that says otherwise.
+that `.env` is denied to it for reads and writes; if the developer declined, the
+summary is the only place that says otherwise.
 
 ### Multi-project variant
 

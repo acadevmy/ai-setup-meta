@@ -668,9 +668,10 @@ assert_eq "a pre-sandbox settings is migrated" "true" \
 assert_eq "the merged settings carries the sandbox" "true" \
   "$(jq -r '.sandbox.enabled' "$MIG_DIR/merged.json")"
 
-# Reads of .env are open again (a task that makes a real call needs the
-# values); writes stay denied at both levels.
-assert_eq "the merged settings does not deny reading .env" "0" \
+# Reads of .env are denied to the agent's tools — a process that loads the file
+# itself is untouched, which is how a task still makes a real call — and writes
+# stay denied at both levels.
+assert_eq "the merged settings denies reading .env" "7" \
   "$(jq -r '[(.sandbox.filesystem.denyRead // [])[],
              (.permissions.deny[] | select(startswith("Read(")))]
             | map(select(test("\\.env"))) | length' "$MIG_DIR/merged.json")"
@@ -713,37 +714,76 @@ assert_eq "and reports why" "already-sandboxed" "$(jq -r .REASON "$MIG_DIR/again
 assert_eq "the input file is never modified" "true" \
   "$(jq -r 'has("sandbox") | not' "$MIG_DIR/old.json")"
 
-# A settings written by an earlier sandbox-era template still carries the .env
-# read denies the template later retired. UPDATE removes exactly those entries
-# and nothing else: write denies and the team's own additions stay.
-jq '.permissions.deny += ["Read(**/.env)", "Read(**/.env.local)"]
+# The template's own shape is the invariant the rest of this section rests on:
+# the `.env` read block lives on the permission layer, never on the OS one. A
+# `denyRead` here would stop the project's own dev server from reading its
+# configuration, and it would do it silently, on every project at once.
+assert_eq "the template blocks .env reads at the permission layer" "7" \
+  "$(jq -r '[.permissions.deny[] | select(startswith("Read(**/.env"))] | length' \
+     "$SETTINGS_TEMPLATE")"
+
+assert_eq "and never at the OS layer" "false" \
+  "$(jq -r '.sandbox.filesystem | has("denyRead")' "$SETTINGS_TEMPLATE")"
+
+assert_eq ".env.example is not caught by a read deny" "0" \
+  "$(jq -r '[.permissions.deny[] | select(test("Read\\(\\*\\*/\\.env\\.\\*\\)"))] | length' \
+     "$SETTINGS_TEMPLATE")"
+
+# A settings written by an earlier sandbox-era template put that block on the OS
+# layer and carries none of the permission rules that replaced it. UPDATE
+# converges on both halves at once: the rules are added, the OS-level block
+# goes, and everything the team added stays.
+jq '.permissions.deny |= map(select(startswith("Read(**/.env") | not))
     | .sandbox.filesystem.denyRead = [".env", "**/.env", "secrets/"]' \
   "$MIG_DIR/merged.json" > "$MIG_DIR/read-blocked.json"
 
 LIGHT_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
   --in "$MIG_DIR/read-blocked.json" --template "$SETTINGS_TEMPLATE" \
-  --out "$MIG_DIR/unblocked.json" --json 2>/dev/null)
+  --out "$MIG_DIR/scoped.json" --json 2>/dev/null)
 
-assert_eq "a sandboxed settings with the read block is migrated" "env-read-unblocked" \
+assert_eq "a settings with the OS-level read block is migrated" "env-read-scoped" \
   "$(printf '%s' "$LIGHT_REPORT" | jq -r .REASON)"
 
-assert_eq "the retired read denies are removed" "0" \
-  "$(jq -r '[.permissions.deny[] | select(startswith("Read("))] | length' \
-     "$MIG_DIR/unblocked.json")"
+assert_eq "the permission-layer read denies are added" "7" \
+  "$(jq -r '[.permissions.deny[] | select(startswith("Read(**/.env"))] | length' \
+     "$MIG_DIR/scoped.json")"
+
+assert_eq "the report counts what it added" "7" \
+  "$(printf '%s' "$LIGHT_REPORT" | jq -r .ADDED_DENY)"
 
 assert_eq "a denyRead the team added survives" '["secrets/"]' \
-  "$(jq -c '.sandbox.filesystem.denyRead' "$MIG_DIR/unblocked.json")"
+  "$(jq -c '.sandbox.filesystem.denyRead' "$MIG_DIR/scoped.json")"
 
-assert_eq "the write denies stay after the retire pass" "true" \
+assert_eq "the write denies stay after the converge pass" "true" \
   "$(jq -r '.sandbox.filesystem.denyWrite
-            | map(select(test("\\.env"))) | length > 0' "$MIG_DIR/unblocked.json")"
+            | map(select(test("\\.env"))) | length > 0' "$MIG_DIR/scoped.json")"
 
-assert_contains "the report names the retired denies" "$LIGHT_REPORT" "Read(**/.env)"
+assert_contains "the report names the OS-level block it dropped" "$LIGHT_REPORT" "**/.env"
 
-# And once unblocked the file is current: the next run refuses to touch it.
-bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unblocked.json" \
+# And once converged the file is current: the next run refuses to touch it.
+bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/scoped.json" \
   --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
-assert_eq "an unblocked settings is then left alone" "3" "$?"
+assert_eq "a converged settings is then left alone" "3" "$?"
+
+# The other half on its own, and the common case: a project set up while reads
+# were open wholesale has the sandbox and no read deny anywhere. The pass adds
+# the rules — and must not answer by putting the OS-level block back, which is
+# the regression that would break every dev server it reaches.
+jq '.permissions.deny |= map(select(startswith("Read(**/.env") | not))' \
+  "$MIG_DIR/merged.json" > "$MIG_DIR/open-read.json"
+
+OPEN_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/open-read.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/reblocked.json" --json 2>/dev/null)
+
+assert_eq "a settings with open .env reads is migrated too" "env-read-scoped" \
+  "$(printf '%s' "$OPEN_REPORT" | jq -r .REASON)"
+
+assert_eq "and it reports no OS-level block to drop" "" \
+  "$(printf '%s' "$OPEN_REPORT" | jq -r .RETIRED_DENY)"
+
+assert_eq "the converge pass never introduces a denyRead" "false" \
+  "$(jq -r '.sandbox.filesystem | has("denyRead")' "$MIG_DIR/reblocked.json")"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)

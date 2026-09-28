@@ -55,9 +55,9 @@ mutually exclusive mode branches: reading both is the cost this split removes.
 
 ## Two rules that hold everywhere
 
-- **Never write `.env` — and no setup step reads it.** Step 3.2 denies writes
-  at both levels; every step works on `.env.example`. A step that appears to
-  require the real file is wrong — report it.
+- **Never write or read `.env`.** Step 3.2 denies writes at both levels and
+  reads at the permission layer; every step works on `.env.example`. A step
+  that appears to require the real file is wrong — report it.
 - **Ask before overwriting.** Conflict detection runs before every write. The
   one exception is `.claude/rules/dev-setup-*.md` in UPDATE mode: those are
   generated artefacts, and `rules-generation.md` holds the prefix contract that
