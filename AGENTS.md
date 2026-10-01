@@ -471,14 +471,15 @@ of the bare system prompt.
 harness loads every `*.js` there and registers it as `<plugin>:<meta.name>`, so
 `auto-sdd.js` is callable as `Workflow({name: "dev-setup:auto-sdd"})` — the one
 piece of the plugin the model never reads. Its control flow stays out of the
-context window, and a bound written as `objections.length >= 2` cannot be re-read
+context window, and a bound written as `revisions >= MAX_REVISIONS` cannot be re-read
 charitably the way "max 3 iterations" in prose was (audit §1-C).
 
 The split that keeps it safe to run in the background:
 
 - **the workflow** writes the spec, has three adversarial verifiers attack it
-  (one lens each: simpler design, scope, testability — two objections stop the
-  run), develops with `isolation: 'worktree'` so the developer checkout never
+  (one lens each: simpler design, scope, testability — each objection carries
+  a suggestion the spec is rewritten on, at most twice; what still stands goes
+  to the merge request, and only a business decision stops the run), develops with `isolation: 'worktree'` so the developer checkout never
   moves, and runs the project own `LINT_CMD`/`TYPECHECK_CMD`/`TEST_CMD` from
   `detect-stack.sh`. It returns `needs-human | ready-for-mr | failed`.
 - **the launcher** — the `auto-sdd` skill — resolves the task and the plugin
@@ -504,10 +505,11 @@ resolving it again. Two invariants keep it honest, and both are pinned by
    review becomes the bottleneck; the script exits 3 on the sixth task. A number
    in prose gets re-read charitably, an exit status does not.
 2. **What the developer answers is read after the Challenge phase.** A
-   `needs-human` run resumes with `resolved` (the lenses they overruled) and
-   `guidance` (why). Because neither reaches the spec prompt or the lens prompts,
-   a resume replays them from the journal cache and restarts at Dev — the phases
-   that completed are not paid for twice. Put either one into an earlier prompt
+   `needs-human` run resumes with `resolved` (the lenses they answered) and
+   `guidance` (their decision). Because neither reaches the spec prompt, the lens
+   prompts or the revision prompts, a resume replays them from the journal cache,
+   writes the decision into the spec and restarts at Dev — the phases that
+   completed are not paid for twice. Put either one into an earlier prompt
    and the resume silently becomes a fresh run.
 
 Three rules for changing a workflow:
@@ -756,4 +758,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.21.0 — bump the version number on every substantial change*
+*Version: 2.22.0 — bump the version number on every substantial change*

@@ -333,7 +333,7 @@ directory and registers it as `dev-setup:<meta.name>`, which is the name the
 | Phase | What runs |
 |---|---|
 | Spec | one agent, read-only, drafts the spec from the task and the codebase |
-| Challenge | three verifiers in parallel — simpler design / scope / testability — each told to refute; two objections stop the run |
+| Challenge | three verifiers in parallel — simpler design / scope / testability — each told to refute with a suggestion; the spec is revised on the objections at most twice, and only a business decision stops the run |
 | Dev | one agent with `isolation: 'worktree'`: the developer checkout never moves |
 | Verify | `LINT_CMD`, `TYPECHECK_CMD` and `TEST_CMD` from `detect-stack.sh`, so the same workflow verifies Next, NestJS, Flutter or Terraform |
 
@@ -343,12 +343,17 @@ Two skills are launchers of that one workflow — `auto-sdd` for a task,
 `multi-sdd` for up to five — and both act on the outcome through the single
 `reference/run-outcomes.md` contract.
 
-When two lenses object, the run stops at `needs-human` and a person answers. The
-lenses they overrule go back in as `resolved`, with their reasoning as
-`guidance`, and both are read *after* the Challenge phase — so a resumed run
-replays the spec and the three verdicts from its journal cache and restarts at
-Dev. An overrule is recorded in the outcome and quoted in the merge request: the
-gate moves only for a human, and never silently.
+An objection is work, not a veto. A lens refutes only on evidence and names the
+change that would settle it; the spec author rewrites the spec on it and the
+lenses that objected look again, at most twice. What still stands goes into the
+merge request for the reviewer. The run stops at `needs-human` only when a lens
+finds a *decision* — two readings of the task with different behaviour, and
+nothing in the repository to pick one. The lenses the developer answers go back
+in as `resolved`, with their answer as `guidance`, and both are read *after* the
+Challenge phase — so a resumed run replays the spec, the verdicts and the
+revisions from its journal cache, writes the answer into the spec and restarts
+at Dev. The decision is recorded in the spec and quoted in the merge request:
+the gate moves only for a human, and never silently.
 
 ### Agents
 
