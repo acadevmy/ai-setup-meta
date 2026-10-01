@@ -156,9 +156,14 @@ for impact in ${IMPACTS+"${IMPACTS[@]}"}; do
   done <<< "$(printf '%s' "${impact#*=}" | tr ', ' '\n\n')"
 done
 
+# The `if` is not style. `names[$1] = ($1 in names) ? … : …` leaves the order of
+# evaluation to the implementation, and mawk (the default awk on Debian and
+# Ubuntu) creates the element on the left before it tests the right, so every
+# list came out with a leading comma.
 OVERLAPS=$(printf '%s' "$PAIRS" | awk -F'\t' '
   NF == 3 && !seen[$1 FS $2]++ {
-    names[$1] = ($1 in names) ? names[$1] "," $3 : $3
+    if ($1 in names) names[$1] = names[$1] "," $3
+    else names[$1] = $3
     count[$1]++
   }
   END { for (f in count) if (count[f] > 1) print f "\t" names[f] }

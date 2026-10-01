@@ -811,21 +811,30 @@ if [ -f "$AUTO_SDD" ]; then
   assert_eq "three adversarial lenses, no more and no fewer" \
     "3" "$(grep -c "^    key: '" "$AUTO_SDD")"
 
-  assert_contains "two objections stop the run" \
-    "$(cat "$AUTO_SDD")" "objections.length >= 2"
-
-  assert_contains "a dead verifier counts as an objection" \
-    "$(cat "$AUTO_SDD")" "counted as an objection"
+  # An objection is work, not a veto: the spec is revised on it a bounded
+  # number of times, and only a business decision stops the run.
+  assert_contains "the spec is revised at most twice" \
+    "$(cat "$AUTO_SDD")" "const MAX_REVISIONS = 2"
+  assert_contains "the revision loop is bounded in code" \
+    "$(cat "$AUTO_SDD")" "revisions >= MAX_REVISIONS"
+  assert_contains "only a business decision stops the run" \
+    "$(cat "$AUTO_SDD")" "if (blocking.length > 0) {"
+  assert_contains "a lens only refutes on evidence, never on doubt" \
+    "$(cat "$AUTO_SDD")" "A doubt you cannot ground is not an"
+  assert_contains "a dead verifier is asked once more" \
+    "$(cat "$AUTO_SDD")" "attempt <= 2"
+  assert_contains "a lens that never answered is reported, not hidden" \
+    "$(cat "$AUTO_SDD")" "unchecked,"
 
   assert_contains "the dev stage runs in an isolated worktree" \
     "$(cat "$AUTO_SDD")" "isolation: 'worktree'"
 
-  # Effort is differentiated per call: max only on the verifiers, high on spec
-  # and dev, low on the stage that only runs commands.
+  # Effort is differentiated per call: max only on the verifiers, high on the
+  # spec, its revisions and dev, low on the stage that only runs commands.
   assert_eq "only the verifiers get max effort" \
     "1" "$(grep -c "effort: 'max'" "$AUTO_SDD")"
-  assert_eq "spec and dev run at high effort" \
-    "2" "$(grep -c "effort: 'high'" "$AUTO_SDD")"
+  assert_eq "spec, revision and dev run at high effort" \
+    "3" "$(grep -c "effort: 'high'" "$AUTO_SDD")"
   assert_eq "the command runner stays at low effort" \
     "1" "$(grep -c "effort: 'low'" "$AUTO_SDD")"
 

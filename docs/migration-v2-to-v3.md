@@ -87,8 +87,10 @@ team docs pointing at a removed command, update them.
 
 What replaced them, in `auto-sdd`: **three adversarial verifiers**, one lens each
 — is there a simpler design, is the scope right, is this testable — each told to
-*refute* rather than to approve. Two objections stop the run at `needs-human`,
-and only a person can clear a lens.
+*refute* rather than to approve, with the change that would settle the
+objection. The spec is rewritten on the objections at most twice; what still
+stands goes to the merge request, and only a business decision stops the run at
+`needs-human`, where only a person can answer it.
 
 Remaining agents: `review` and `clickup`.
 

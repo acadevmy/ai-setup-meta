@@ -153,7 +153,8 @@ itself when you open a test file. Both cycles are written out in the plugin's
 
 `/dev-setup:auto-sdd DE-123` runs the same ground as a workflow script: it
 writes the spec, has three adversarial reviewers attack it — one looking for a
-simpler design, one for scope creep, one for testability — develops in an
+simpler design, one for scope creep, one for testability — rewrites the spec on
+their objections at most twice, develops in an
 isolated worktree so your checkout never moves, and runs the project's own lint,
 typecheck and test commands.
 
@@ -162,7 +163,7 @@ It comes back with one of three outcomes:
 | Outcome | What it means | What you do |
 |---|---|---|
 | `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request |
-| `needs-human` | Two of the three lenses refused the spec | Answer the objections (§9) |
+| `needs-human` | The task needs a business decision no agent can make | Answer the question (§9) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
 It asks you one thing before it starts — which branch the run forks from, the
@@ -503,21 +504,22 @@ tell you twice.
 
 ### A run came back `needs-human`
 
-Two of the three lenses refused the spec, so nothing was written: no branch, no
-worktree, no merge request. You will be shown each objection with its lens and
-its reason. There are two honest answers:
+Most objections never reach you: the spec is rewritten on them, at most twice,
+and what still stands is listed in the merge request. A run stops only when a
+lens found a **business decision** — the task reads two ways, the two lead to
+different behaviour, and nothing in the repository picks one. Nothing was
+written yet: no branch, no worktree, no merge request. You will be shown the
+question with its lens and its reason.
 
-- **The objection is wrong.** Say which lens missed something and why. That lens
-  is cleared, the run resumes **at development** — the spec and the three
-  verdicts come back from cache, so you are not paying for them twice — and your
-  overrule is recorded in the outcome and quoted in the merge request.
-- **The objection is right.** Then the spec was built on a decision the task
-  never made, and there is nothing to resume: put the answer in the task, move
-  it back to the sprint, and launch again.
+- **Answer it** — pick the reading, or say why there is no real choice. The run
+  resumes with your words: the spec and the verdicts come back from cache, one
+  agent writes your answer into the spec's technical decisions, and development
+  starts. Your decision is quoted at the top of the merge request.
+- **The task itself has to change.** Then there is nothing to resume: put the
+  answer in the task, move it back to the sprint, and launch again.
 
-Do not argue the objection back and forth, and do not relaunch hoping for a
-different verdict. Two out of three is the gate, it is in code, and the only
-thing that moves it is a person.
+Do not relaunch hoping for a different verdict: the gate is in code, and the
+only thing that moves it is a person.
 
 ### A workflow was interrupted
 
