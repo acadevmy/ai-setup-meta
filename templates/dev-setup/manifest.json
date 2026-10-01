@@ -53,7 +53,8 @@
     "task-clock.sh",
     "migrate-settings.sh",
     "render-template.sh",
-    "worktree-info.sh"
+    "worktree-info.sh",
+    "mr-meta.sh"
   ],
   "hooks": [
     "gate-commit.sh",
@@ -92,6 +93,7 @@
     "eslint.config.base.mjs",
     "PULL_REQUEST_TEMPLATE.it.md",
     "PULL_REQUEST_TEMPLATE.en.md",
+    "merge-request.json",
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
     ".gitlab-ci.yml",

@@ -48,7 +48,7 @@ why the fork point is passed explicitly anyway:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --task DE-123 --title "<name>" --base origin/next --create --json
+  --task DE-123 --title "<name, in English>" --base origin/next --create --json
 ```
 
 Take that ref from `check-prerequisites.sh` in the main checkout — `BASE_BRANCH`
@@ -104,7 +104,7 @@ worktree declares in its spec's `## Impact` section, with the branches that
 declared it:
 
 ```
-src/app.module.ts	feat/DE-123-add-auth,feat/DE-124-add-billing
+src/app.module.ts	feat(auth)/DE-123_add-auth,feat(billing)/DE-124_add-billing
 ```
 
 Report it to the developer once, at the start, and name the file and both

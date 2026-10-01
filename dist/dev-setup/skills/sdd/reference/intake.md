@@ -66,30 +66,35 @@ confirms the fork point, and the script creates the branch. First, report only
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --task <custom_id> --type <feat|fix|chore> --title "<name>" --json
+  --task <custom_id> --type <feat|fix|chore> [--context <area>] \
+  --title "<name, in English>" --json
 ```
 
 The type comes from the task: a feature → `feat`, a bug → `fix`, maintenance →
-`chore`. The script slugifies the title, keeps the id verbatim (the spec lookup
-and the merge request title read it back out of the branch name), and resolves
-`BASE_BRANCH` — the branch HEAD forked from most recently, never a hard-coded
-`main`.
+`chore`. The context is the one area the task touches (`auth`, `billing`) —
+leave it out when there is no single one. The title goes in **English** even
+when the task is written in another language: translate it. The script
+slugifies it, keeps the id verbatim (`feat(auth)/DE-123_add-user-auth` — the
+spec lookup and the merge request title read it back out of the branch name),
+and resolves `BASE_BRANCH` — the branch HEAD forked from most recently, never a
+hard-coded `main`.
 
 `BRANCH_EXISTS: true` means the task already had a branch: re-run the call with
 `--create` (it checks the branch out), skip the question below — the fork point
 was decided when the branch was born — and say the task is being resumed; step 4
-will show how far it got.
+will show how far it got. The stop point is still asked, on its own.
 
 Otherwise confirm the fork point, as
 `${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md` defines it: the resolved
-`BASE_BRANCH` is the default and the first option, never the decision, and the
-turn ends on the tool call. Ask it for `<BRANCH>`.
+`BASE_BRANCH` is the default and the first option, never the decision. Ask it
+for `<BRANCH>`, and in the **same** `AskUserQuestion` call the two stop-point
+questions from `stop-point.md` — one call, then the turn ends on it.
 
 Then create the branch from the answer:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --task <custom_id> --type <type> --title "<name>" \
+  --task <custom_id> --type <type> [--context <area>] --title "<name, in English>" \
   --base <the chosen ref> --create --json
 ```
 
@@ -140,7 +145,8 @@ decides where the flow actually starts:
 | `implemented` | step 9, closure — say so first, the work may already be done |
 
 `approved` with a non-empty `CHANGED_FILES` is a run that stopped between
-development and closure. Say so, show the changed files, and ask whether the
+development and closure — at a stop point, or not. Files under `.specs/`
+do not count: the spec alone is what the **Spec** stop point leaves. Say so, show the changed files, and ask whether the
 implementation is complete — complete → step 9; not yet → step 8, which picks
 the plan up where it left off. Never silently redo development over a diff
 that already exists.
@@ -151,7 +157,7 @@ from and why, then show the brief:
 ```
 Task:     DE-123 — Task title
 Priority: High
-Branch:   feat/DE-123-add-user-auth  (base: origin/next)
+Branch:   feat(auth)/DE-123_add-user-auth  (base: origin/next)
 Status:   IN PROGRESS  (clock started 2026-09-18 14:03)
 Spec:     .specs/DE-123-add-user-auth.md (approved) — or "none yet"
 

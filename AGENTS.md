@@ -236,14 +236,15 @@ status other than 0.
 | Script | Returns |
 |---|---|
 | `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `HOOK_MANAGER` |
-| `sdd-start.sh --task DE-123 \| --title <text> [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket |
+| `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket |
+| `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `task-clock.sh --task <id> --start \| --stop`, `task-clock.sh [--task <id>] --status` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON`, `OPEN_TASKS`, `OPEN_COUNT` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why. `--status` reads without writing and, with no task, answers for the whole repository: asking whether work is open must not consume the measurement |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
-| `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY` |
+| `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `ADDED_EXCLUDED` |
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
-| `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug |
+| `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug, branch-name parsing |
 
 ### The UPDATE path is part of the contract
 
@@ -471,14 +472,15 @@ of the bare system prompt.
 harness loads every `*.js` there and registers it as `<plugin>:<meta.name>`, so
 `auto-sdd.js` is callable as `Workflow({name: "dev-setup:auto-sdd"})` — the one
 piece of the plugin the model never reads. Its control flow stays out of the
-context window, and a bound written as `objections.length >= 2` cannot be re-read
+context window, and a bound written as `revisions >= MAX_REVISIONS` cannot be re-read
 charitably the way "max 3 iterations" in prose was (audit §1-C).
 
 The split that keeps it safe to run in the background:
 
 - **the workflow** writes the spec, has three adversarial verifiers attack it
-  (one lens each: simpler design, scope, testability — two objections stop the
-  run), develops with `isolation: 'worktree'` so the developer checkout never
+  (one lens each: simpler design, scope, testability — each objection carries
+  a suggestion the spec is rewritten on, at most twice; what still stands goes
+  to the merge request, and only a business decision stops the run), develops with `isolation: 'worktree'` so the developer checkout never
   moves, and runs the project own `LINT_CMD`/`TYPECHECK_CMD`/`TEST_CMD` from
   `detect-stack.sh`. It returns `needs-human | ready-for-mr | failed`.
 - **the launcher** — the `auto-sdd` skill — resolves the task and the plugin
@@ -504,10 +506,11 @@ resolving it again. Two invariants keep it honest, and both are pinned by
    review becomes the bottleneck; the script exits 3 on the sixth task. A number
    in prose gets re-read charitably, an exit status does not.
 2. **What the developer answers is read after the Challenge phase.** A
-   `needs-human` run resumes with `resolved` (the lenses they overruled) and
-   `guidance` (why). Because neither reaches the spec prompt or the lens prompts,
-   a resume replays them from the journal cache and restarts at Dev — the phases
-   that completed are not paid for twice. Put either one into an earlier prompt
+   `needs-human` run resumes with `resolved` (the lenses they answered) and
+   `guidance` (their decision). Because neither reaches the spec prompt, the lens
+   prompts or the revision prompts, a resume replays them from the journal cache,
+   writes the decision into the spec and restarts at Dev — the phases that
+   completed are not paid for twice. Put either one into an earlier prompt
    and the resume silently becomes a fresh run.
 
 Three rules for changing a workflow:
@@ -756,4 +759,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.21.0 — bump the version number on every substantial change*
+*Version: 2.23.1 — bump the version number on every substantial change*

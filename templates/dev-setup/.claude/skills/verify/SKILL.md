@@ -13,7 +13,7 @@ Answer one question: did we build what we said we would build? `review` checks
 conformance**, and the two are not substitutes.
 
 **Input**: optionally a spec path. Without one, the spec is resolved from the
-current branch (`feat/DE-123-slug` → `.specs/DE-123-*.md`).
+current branch (`feat(auth)/DE-123_slug` → `.specs/DE-123-*.md`).
 
 The comparison itself runs in the `spec-verifier` agent, the same shape `review`
 uses: the diff is unbounded and belongs in an isolated context, while this skill

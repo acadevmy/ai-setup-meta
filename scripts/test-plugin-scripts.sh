@@ -347,16 +347,30 @@ echo "── sdd-start.sh (branch naming) ──"
 sdd_start() { (cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/sdd-start.sh" "$@" 2>/dev/null); }
 
 assert_eq "type, task id and slug" \
-  "feat/DE-123-add-refresh-token-rotation" \
+  "feat/DE-123_add-refresh-token-rotation" \
   "$(sdd_start --task DE-123 --title "Add refresh token rotation" --json | jq -r '.BRANCH')"
 
 assert_eq "punctuation folded into single dashes" \
-  "fix/DE-1-login-500-on-empty-body" \
+  "fix/DE-1_login-500-on-empty-body" \
   "$(sdd_start --task DE-1 --type fix --title "Login: 500 on empty body!" --json | jq -r '.BRANCH')"
 
 assert_eq "no title, no slug" \
   "chore/DE-7" \
   "$(sdd_start --task DE-7 --type chore --json | jq -r '.BRANCH')"
+
+assert_eq "the context goes in parentheses after the type" \
+  "feat(auth)/DE-123_add-refresh-token-rotation" \
+  "$(sdd_start --task DE-123 --context Auth --title "Add refresh token rotation" --json | jq -r '.BRANCH')"
+
+assert_eq "a context without a task id" \
+  "fix(ui)/typo-in-the-login-copy" \
+  "$(sdd_start --type fix --context "UI" --title "Typo in the login copy" --json | jq -r '.BRANCH')"
+
+sdd_start --task DE-9 --context "!!!" --json >/dev/null 2>&1
+assert_eq "a context that slugifies to nothing is refused" "1" "$?"
+
+sdd_start --task 'DE-1; rm -rf /' --json >/dev/null 2>&1
+assert_eq "a task id carrying a shell command is refused" "1" "$?"
 
 assert_eq "spec dir sits at the repository root" \
   "$(cd "$SANDBOX" && pwd -P)/.specs" \
@@ -396,6 +410,74 @@ assert_eq "--create forks from the --base ref" \
   "$(cd "$SANDBOX" && git rev-parse main)" \
   "$(cd "$SANDBOX" && git rev-parse feat/DE-5 2>/dev/null)"
 (cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-5) >/dev/null 2>&1
+
+# The task id is read back out of the branch name in both conventions: the
+# current feat(auth)/DE-123_slug, and feat/DE-123-slug for a branch cut before it.
+(cd "$SANDBOX" && git checkout --quiet -b "feat(auth)/DE-999_my-work") >/dev/null 2>&1
+assert_eq "check-prerequisites reads the task id from a branch with a context" "DE-999" \
+  "$(cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --json 2>/dev/null | jq -r '.TASK_ID')"
+(cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D "feat(auth)/DE-999_my-work") >/dev/null 2>&1
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4b. mr-meta.sh: the merge request's language, title and labels
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── mr-meta.sh (merge request metadata) ──"
+
+MR_META_REPO="$WORK_DIR/mr-meta-repo"
+mkdir -p "$MR_META_REPO"
+(
+  cd "$MR_META_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  git commit --quiet --allow-empty -m "chore: base"
+  git checkout --quiet -b "feat(auth)/DE-321_add-refresh-token"
+) >/dev/null 2>&1
+
+mr_meta() { (cd "$MR_META_REPO" && bash "$PLUGIN_SCRIPTS/mr-meta.sh" --json "$@" 2>/dev/null); }
+
+MR_NO_META=$(mr_meta --summary "Add refresh token rotation")
+assert_eq "the title reads type and task id from the branch" \
+  "Feat: Add refresh token rotation [DE-321]" "$(printf '%s' "$MR_NO_META" | jq -r '.TITLE')"
+assert_eq "the context comes out of the parentheses" \
+  "auth" "$(printf '%s' "$MR_NO_META" | jq -r '.CONTEXT')"
+assert_eq "without a metadata file there is no language" \
+  "" "$(printf '%s' "$MR_NO_META" | jq -r '.LANGUAGE')"
+assert_eq "and no label is invented" \
+  "" "$(printf '%s' "$MR_NO_META" | jq -r '.LABELS')"
+
+mkdir -p "$MR_META_REPO/.claude" "$MR_META_REPO/.github"
+cp "$REPO_ROOT/templates/dev-setup/boilerplate/merge-request.json" "$MR_META_REPO/.claude/merge-request.json"
+: > "$MR_META_REPO/.github/PULL_REQUEST_TEMPLATE.md"
+
+MR_META=$(mr_meta --summary "Aggiunta rotazione del refresh token" --priority High --breaking)
+assert_eq "the shipped metadata is Italian" \
+  "it" "$(printf '%s' "$MR_META" | jq -r '.LANGUAGE')"
+assert_eq "the template is the one in the host's folder" \
+  ".github/PULL_REQUEST_TEMPLATE.md" "$(printf '%s' "$MR_META" | jq -r '.TEMPLATE')"
+assert_eq "labels in order: type, breaking, priority, on open" \
+  "Type: Feature,Breaking Change,Priority: High,State: Pending" \
+  "$(printf '%s' "$MR_META" | jq -r '.LABELS')"
+assert_eq "a branch with no task id gets no brackets" \
+  "Chore: Aggiornamento toolchain" \
+  "$(mr_meta --branch chore/update-toolchain --summary "Aggiornamento toolchain" | jq -r '.TITLE')"
+
+# The file is the developers' to edit: what they write is what the script reads.
+jq '.language = "en" | .labels.by_type.feat = "Enhancement" | .labels.on_open = []' \
+  "$REPO_ROOT/templates/dev-setup/boilerplate/merge-request.json" > "$MR_META_REPO/.claude/merge-request.json"
+MR_EDITED=$(mr_meta)
+assert_eq "an edited language is read back" "en" "$(printf '%s' "$MR_EDITED" | jq -r '.LANGUAGE')"
+assert_eq "a single label where a list belongs is a list of one" \
+  "Enhancement" "$(printf '%s' "$MR_EDITED" | jq -r '.LABELS')"
+
+echo 'not json' > "$MR_META_REPO/.claude/merge-request.json"
+mr_meta >/dev/null 2>&1
+assert_eq "a malformed metadata file is an error, not an empty answer" "1" "$?"
+
+mr_meta --priority whenever >/dev/null 2>&1
+assert_eq "an unknown priority is refused" "1" "$?"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. render-template.sh
@@ -745,6 +827,32 @@ bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unblocked.json" \
   --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
 assert_eq "an unblocked settings is then left alone" "3" "$?"
 
+# `gh` and `glab` run outside the sandbox: inside it, on macOS, they cannot
+# verify a TLS certificate and every call fails. A project sandboxed before the entry existed
+# gets it on UPDATE — added next to the team's own entries, nothing else touched.
+assert_eq "the merged settings excludes gh and glab from the sandbox" '["gh","glab"]' \
+  "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/merged.json")"
+
+jq '.sandbox.excludedCommands = ["docker"]' "$MIG_DIR/merged.json" > "$MIG_DIR/no-gh.json"
+
+EXCL_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/no-gh.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/with-gh.json" --json 2>/dev/null)
+
+assert_eq "a sandboxed settings without gh is migrated" "excluded-commands-added" \
+  "$(printf '%s' "$EXCL_REPORT" | jq -r .REASON)"
+assert_eq "the report names the added entries" "gh,glab" \
+  "$(printf '%s' "$EXCL_REPORT" | jq -r .ADDED_EXCLUDED)"
+assert_eq "they are added after the team's own entries" '["docker","gh","glab"]' \
+  "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/with-gh.json")"
+assert_eq "nothing else changes on the excluded-commands pass" "true" \
+  "$(jq -n --slurpfile a "$MIG_DIR/no-gh.json" --slurpfile b "$MIG_DIR/with-gh.json" '
+     ($a[0] | del(.sandbox.excludedCommands)) == ($b[0] | del(.sandbox.excludedCommands))')"
+
+bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/with-gh.json" \
+  --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
+assert_eq "a settings with gh excluded is then left alone" "3" "$?"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -811,21 +919,30 @@ if [ -f "$AUTO_SDD" ]; then
   assert_eq "three adversarial lenses, no more and no fewer" \
     "3" "$(grep -c "^    key: '" "$AUTO_SDD")"
 
-  assert_contains "two objections stop the run" \
-    "$(cat "$AUTO_SDD")" "objections.length >= 2"
-
-  assert_contains "a dead verifier counts as an objection" \
-    "$(cat "$AUTO_SDD")" "counted as an objection"
+  # An objection is work, not a veto: the spec is revised on it a bounded
+  # number of times, and only a business decision stops the run.
+  assert_contains "the spec is revised at most twice" \
+    "$(cat "$AUTO_SDD")" "const MAX_REVISIONS = 2"
+  assert_contains "the revision loop is bounded in code" \
+    "$(cat "$AUTO_SDD")" "revisions >= MAX_REVISIONS"
+  assert_contains "only a business decision stops the run" \
+    "$(cat "$AUTO_SDD")" "if (blocking.length > 0) {"
+  assert_contains "a lens only refutes on evidence, never on doubt" \
+    "$(cat "$AUTO_SDD")" "A doubt you cannot ground is not an"
+  assert_contains "a dead verifier is asked once more" \
+    "$(cat "$AUTO_SDD")" "attempt <= 2"
+  assert_contains "a lens that never answered is reported, not hidden" \
+    "$(cat "$AUTO_SDD")" "unchecked,"
 
   assert_contains "the dev stage runs in an isolated worktree" \
     "$(cat "$AUTO_SDD")" "isolation: 'worktree'"
 
-  # Effort is differentiated per call: max only on the verifiers, high on spec
-  # and dev, low on the stage that only runs commands.
+  # Effort is differentiated per call: max only on the verifiers, high on the
+  # spec, its revisions and dev, low on the stage that only runs commands.
   assert_eq "only the verifiers get max effort" \
     "1" "$(grep -c "effort: 'max'" "$AUTO_SDD")"
-  assert_eq "spec and dev run at high effort" \
-    "2" "$(grep -c "effort: 'high'" "$AUTO_SDD")"
+  assert_eq "spec, revision and dev run at high effort" \
+    "3" "$(grep -c "effort: 'high'" "$AUTO_SDD")"
   assert_eq "the command runner stays at low effort" \
     "1" "$(grep -c "effort: 'low'" "$AUTO_SDD")"
 

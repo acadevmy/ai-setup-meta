@@ -65,7 +65,7 @@ so those interruptions read as design rather than as bugs.
   in a deny list a `sed`          cannot go around it either
   walked around
 
-  "max 3 iterations"           →  `objections.length >= 2` in a
+  "max 3 iterations"           →  `revisions >= MAX_REVISIONS` in a
   in a prose orchestrator         workflow script the model never reads
 ```
 

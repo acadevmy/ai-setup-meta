@@ -80,8 +80,8 @@ Linter: <result>
 Do not commit, simplify or touch the spec's status: the flow's closure stages
 the work, runs `simplify` once, verifies, reviews and produces the single
 commit — doing any of it here once cost a task four commits. The summary is
-not a stop: inside the `sdd` flow, closure runs next, in this same turn,
-without waiting for a prompt.
+not a stop: the `sdd` flow decides what follows, in this same turn, without
+waiting for a prompt.
 
 ## Expected output
 

@@ -71,11 +71,11 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 
 # ── Task id ───────────────────────────────────────────────────────────────────
 #
-# From the branch name when not given: feat/DE-123-slug -> DE-123.
+# From the branch name when not given: feat(auth)/DE-123_slug -> DE-123
+# (and the older feat/DE-123-slug, which branch_task_id still reads).
 
 if [ -z "$TASK_ID" ] && [ -n "$BRANCH" ]; then
-  TASK_ID=$(printf '%s' "$BRANCH" \
-    | sed -n 's|^[a-z]*/\([A-Z][A-Z0-9]*-[0-9]\{1,\}\).*|\1|p')
+  TASK_ID=$(branch_task_id "$BRANCH")
 fi
 
 # ── Base branch and merge base ────────────────────────────────────────────────

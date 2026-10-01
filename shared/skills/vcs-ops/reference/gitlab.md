@@ -13,7 +13,7 @@ self-hosted GitLab with an ambiguous hostname, `glab auth status --hostname
 |---|---|
 | Open an MR | `glab mr create --source-branch "$(git branch --show-current)" --target-branch "$BASE" --title "…" --description-file body.md` |
 | Short body, no file | the same, with `--description "<body>"` instead |
-| Add a label | `glab mr create … --label <name>` — `glab label list` shows what exists |
+| Add the labels | `glab mr create … --label "$LABELS"` — `LABELS` from `mr-meta.sh`, comma-separated |
 | MR state | `glab mr view <n> --output json` |
 | Open MRs | `glab mr list --state opened` |
 | Pipeline | `glab ci status` |
@@ -26,7 +26,7 @@ GitLab reads MR templates only from `.gitlab/merge_request_templates/`, and
 insert it **unfilled** — the description would arrive as the empty form — so
 the template is read, filled and passed back as a file:
 
-1. `Default.md` exists → fill that one.
+1. `Default.md` exists → fill that one (`mr-meta.sh` returns it as `TEMPLATE`).
 2. No `Default.md` → match the branch prefix against the template names:
    `feat/` → the first matching `feature`; `fix/` or `hotfix/` → the first
    matching `bug` or `fix`; otherwise the first alphabetically.

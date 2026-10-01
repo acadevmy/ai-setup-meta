@@ -8,7 +8,13 @@ Closure starts the moment `sdd-dev` hands back its summary — same turn, no
 prompt in between. The flow is finished when the merge request is open (or
 explicitly declined) and the task has moved: a turn that ends on the
 development summary leaves the branch uncommitted, which is the failure this
-page exists to prevent.
+page exists to prevent — unless the stop point the developer chose at intake
+is **Development**.
+
+**The stop point decides where this page ends.** **Review** ends after step 5,
+**Commit** after step 6, **Push** after step 7, **Merge request** runs it all;
+`stop-point.md` holds the report each one ends on. A run resumed with the spec
+already `implemented` starts at step 7: the commit exists.
 
 The order matters and it is not the obvious one: **the gates run before the
 commit, and there is one commit.** Two reasons. The commit hook is the gate that
@@ -95,7 +101,7 @@ gate working: read the output it returns, fix what failed, commit again. Never
 ## 7. Push
 
 ```bash
-git push -u origin <branch-name>
+git push -u origin "<branch-name>"
 ```
 
 ## 8. Open the merge request
@@ -104,16 +110,17 @@ Invoke the `vcs-ops` skill. It reads `origin` itself and loads its GitHub or
 GitLab reference accordingly, so there is nothing to pick here. Target the
 **short name of the base branch** reported at intake (`origin/next` → `next`).
 
-- **Title** — `<Type>: <what was done> <TASK-ID>`, e.g.
-  `Feat: Add refresh token rotation DE-123`. The commit keeps its Conventional
-  Commits form; this names the merge request.
-- **Body** — the repository's own template, filled in — the setup wrote it to
-  `.github/PULL_REQUEST_TEMPLATE.md` or
-  `.gitlab/merge_request_templates/Default.md`, and `vcs-ops` fills whichever is
-  there. The spec is what the description summarises; the test section carries
-  the commands and the routes a reviewer follows to see the change work. Link
-  the task and the spec. A repository with no template gets the fallback body
-  from that skill's `merge-request.md`.
+- **Title, language, labels** — from `mr-meta.sh`, as `vcs-ops` describes:
+  pass the task's `priority` as `--priority`, and `--breaking` when the spec
+  breaks a contract. The title is `Feat: <what was done, in LANGUAGE> [DE-123]`;
+  the commit keeps its Conventional Commits form.
+- **Body** — the repository's own template (`TEMPLATE`), filled in and short —
+  the setup wrote it to `.github/PULL_REQUEST_TEMPLATE.md` or
+  `.gitlab/merge_request_templates/Default.md`. The spec is what the description
+  summarises, in a few sentences; link it rather than restating it. The test
+  section carries the commands and the routes a reviewer follows to see the
+  change work. A repository with no template gets the fallback body from that
+  skill's `merge-request.md`.
 
 The `ask` rule on `gh pr create` / `glab mr create` is the developer's last
 checkpoint, and it is a permission rule — do not ask for the same confirmation

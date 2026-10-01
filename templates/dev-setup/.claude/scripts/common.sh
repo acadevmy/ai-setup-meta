@@ -193,3 +193,27 @@ slugify() {
     | cut -c "1-$max" \
     | sed -e 's/^-//' -e 's/-$//'
 }
+
+# ── Branch name parsing ───────────────────────────────────────────────────────
+
+# The branch convention is <type>[(<context>)]/<TASK-ID>_<slug>, and the one
+# before it was <type>/<TASK-ID>-<slug>. Both are read here, in one place, so the
+# spec lookup, the worktree overlap and the merge request title agree on what a
+# branch says — and a branch cut before the change still resolves its task.
+
+# Prints the task id a branch carries (feat(auth)/DE-123_add-x -> DE-123), or
+# nothing.
+branch_task_id() {
+  printf '%s' "$1" \
+    | sed -nE 's#^[a-z]+(\([a-z0-9-]+\))?/([A-Z][A-Z0-9]*-[0-9]+)([_-].*)?$#\2#p'
+}
+
+# Prints the type a branch starts with (feat(auth)/… -> feat), or nothing.
+branch_type() {
+  printf '%s' "$1" | sed -nE 's#^([a-z]+)(\([a-z0-9-]+\))?/.*#\1#p'
+}
+
+# Prints the context in a branch's parentheses (feat(auth)/… -> auth), or nothing.
+branch_context() {
+  printf '%s' "$1" | sed -nE 's#^[a-z]+\(([a-z0-9-]+)\)/.*#\1#p'
+}

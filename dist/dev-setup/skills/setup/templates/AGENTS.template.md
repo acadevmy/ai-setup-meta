@@ -107,8 +107,9 @@ automatically when needed — no need to invoke them manually.
 > checkpoint — its steps (discovery, spec, approval, development, verify) are
 > skills the orchestrator invokes, not commands: there is nothing to type for
 > them. `/dev-setup:auto-sdd` runs unsupervised instead, as a workflow: the spec
-> is written, then attacked by three reviewers with one objection each, and two
-> objections stop the run and hand it back to you. Development happens in its
+> is written, then attacked by three reviewers with one objection each, and
+> rewritten on their objections at most twice; only a business decision stops
+> the run and hands it back to you. Development happens in its
 > own git worktree, so your checkout never moves, and the MR still waits for
 > your confirmation.
 

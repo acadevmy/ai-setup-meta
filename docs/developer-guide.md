@@ -73,8 +73,9 @@ repository, not in yours — see [workflow.md](./workflow.md).
 /dev-setup:sdd DE-123
        │
        ├─ reads the task, asks which branch to fork from — the default is
-       │  resolved from the repository, never hard-coded — then creates
-       │  feat/DE-123-…, moves the task to IN PROGRESS and starts the clock
+       │  resolved from the repository, never hard-coded — and where this run
+       │  should stop (the merge request, by default), then creates
+       │  feat(<context>)/DE-123_…, moves the task to IN PROGRESS and starts the clock
        │
        ├─ discovery — a structured interview, only the questions that matter
        │
@@ -94,7 +95,7 @@ repository, not in yours — see [workflow.md](./workflow.md).
           posted on it
 ```
 
-Seven things are worth knowing about that shape.
+Eight things are worth knowing about that shape.
 
 **A backlog task is your call.** A task read in `BACKLOG` was never planned
 into a sprint, so the flow stops and asks before anything else happens — no
@@ -110,6 +111,23 @@ carried out as written does stop, and says why.
 **One commit, not four.** The gates run *before* the commit, so the code, the
 spec and the REGISTRY entries land together. Committing more often while you
 work is fine; nothing requires it.
+
+**You choose where it stops.** Together with the fork point, the flow asks how
+far this run goes — the merge request is the default:
+
+| Stop point | Ends with |
+|---|---|
+| Spec only | discovery, the spec and its approval — the spec uncommitted, no code |
+| Development | the code implemented, tests and lint passing, nothing staged |
+| Review | simplify, verify, review + REGISTRY run, everything staged, nothing committed |
+| Commit | the one commit, through the commit gate, not pushed |
+| Push | the branch on the remote, no merge request |
+| Merge request | the whole flow: the merge request, the task in review, the time posted |
+
+Short of the merge request, the task stays `IN PROGRESS` with its clock
+running. Run `/dev-setup:sdd DE-123` again to carry on: it asks the stop point
+once more and starts from what is on disk — the spec, the uncommitted code, or
+the commit — without redoing what is done.
 
 **The clock runs from IN PROGRESS to the merge request.** The move that starts
 the work stamps `task-clock.sh --start`; the move that ends it reads the stamp
@@ -132,17 +150,32 @@ repository it names that task and asks for both calls. It reads the clock and
 never stops it — the measurement belongs to whoever posts it. With no task in
 progress here, it says nothing at all.
 
-**The description is the repository's template, filled in.** The setup writes
-one — `.github/PULL_REQUEST_TEMPLATE.md` on GitHub,
-`.gitlab/merge_request_templates/Default.md` on GitLab, in Italian or English,
-whichever you chose — and every flow fills that file instead of inventing a
-body: neither `gh` nor `glab` applies a template to a description passed on the
-command line. The title is `<Type>: <what was done> <TASK-ID>`, for instance
-`Feat: Add refresh token rotation DE-123`; the commits keep their Conventional
-Commits form. The section that matters is the test one: the commands to run and
-the route to open, written for a reviewer who has not read the branch. A
-template already in the repository is never overwritten — the flows fill the
-team's own.
+**Branches are `<type>(<context>)/<TASK-ID>_<description>`** —
+`feat(auth)/DE-123_add-refresh-token`. The context is the one area the work
+touches and is left out when there is none; the description is always English,
+whatever language the task is written in. A branch cut under the older
+`feat/DE-123-…` form still resolves its task.
+
+**The description is the repository's template, filled in — and short.** The
+setup writes one — `.github/PULL_REQUEST_TEMPLATE.md` on GitHub,
+`.gitlab/merge_request_templates/Default.md` on GitLab — and every flow fills
+that file instead of inventing a body: neither `gh` nor `glab` applies a
+template to a description passed on the command line. A few sentences and the
+test steps, not a tour of the diff. A template already in the repository is
+never overwritten — the flows fill the team's own.
+
+**Language, title and labels are project metadata.** The setup asks whether
+merge requests are written in Italian or English and stores the answer in
+`.claude/merge-request.json`, with the labels the team uses: the catalogue
+(created on the forge if missing) and which of them a merge request gets by
+branch type, by task priority, when it breaks something, and on every open.
+Edit the file to change any of it — the flows read it through
+`${CLAUDE_PLUGIN_ROOT}/scripts/mr-meta.sh` every time. The title is
+`<Type>: <what was done> [<TASK-ID>]` in the chosen language —
+`Feat: Aggiunta rotazione del refresh token [DE-123]`; the commits keep their
+Conventional Commits form, in English. The section that matters is the test
+one: the commands to run and the route to open, written for a reviewer who has
+not read the branch.
 
 **The methodology is not a question.** Backend logic is test-first, UI is
 scenario-first, and `.claude/rules/dev-setup-tests.md` says so — it loads by
@@ -153,7 +186,8 @@ itself when you open a test file. Both cycles are written out in the plugin's
 
 `/dev-setup:auto-sdd DE-123` runs the same ground as a workflow script: it
 writes the spec, has three adversarial reviewers attack it — one looking for a
-simpler design, one for scope creep, one for testability — develops in an
+simpler design, one for scope creep, one for testability — rewrites the spec on
+their objections at most twice, develops in an
 isolated worktree so your checkout never moves, and runs the project's own lint,
 typecheck and test commands.
 
@@ -162,7 +196,7 @@ It comes back with one of three outcomes:
 | Outcome | What it means | What you do |
 |---|---|---|
 | `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request |
-| `needs-human` | Two of the three lenses refused the spec | Answer the objections (§9) |
+| `needs-human` | The task needs a business decision no agent can make | Answer the question (§9) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
 It asks you one thing before it starts — which branch the run forks from, the
@@ -314,6 +348,17 @@ it — switch the remote to HTTPS (`gh auth setup-git`, or the `glab` credential
 helper, so no token goes in the URL), or keep SSH and let git's network commands
 run outside the sandbox through the normal permission prompt. The deny rules
 hold either way: they are permission rules, not sandbox boundaries.
+
+### `gh` and `glab` run outside the sandbox
+
+`sandbox.excludedCommands` lists `gh` and `glab`. On macOS a Go binary verifies
+TLS certificates through a system service the sandbox does not let it reach, so
+inside the sandbox every call fails with `x509: OSStatus -26276`. Excluding them
+removes only the OS-level confinement: the deny rules and the `ask` checkpoints
+on `gh pr create` / `glab mr create` and on writing `gh api` / `glab api` calls
+still apply, and they see `GH_TOKEN` / `GITLAB_TOKEN`, which is the point — they
+are the tools meant to read the token from the environment. A project set up before the entry existed gets it
+on the setup's UPDATE.
 
 ---
 
@@ -471,6 +516,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
+| `.claude/merge-request.json` — written when absent, after asking the language; missing catalogue labels are created on the forge | `.claude/merge-request.json` once you have one |
 
 The one unasked edit to a file the setup did not write is a single `.gitignore`
 line, `.claude/worktrees/`. It adds, never removes; without it every file of
@@ -503,21 +549,22 @@ tell you twice.
 
 ### A run came back `needs-human`
 
-Two of the three lenses refused the spec, so nothing was written: no branch, no
-worktree, no merge request. You will be shown each objection with its lens and
-its reason. There are two honest answers:
+Most objections never reach you: the spec is rewritten on them, at most twice,
+and what still stands is listed in the merge request. A run stops only when a
+lens found a **business decision** — the task reads two ways, the two lead to
+different behaviour, and nothing in the repository picks one. Nothing was
+written yet: no branch, no worktree, no merge request. You will be shown the
+question with its lens and its reason.
 
-- **The objection is wrong.** Say which lens missed something and why. That lens
-  is cleared, the run resumes **at development** — the spec and the three
-  verdicts come back from cache, so you are not paying for them twice — and your
-  overrule is recorded in the outcome and quoted in the merge request.
-- **The objection is right.** Then the spec was built on a decision the task
-  never made, and there is nothing to resume: put the answer in the task, move
-  it back to the sprint, and launch again.
+- **Answer it** — pick the reading, or say why there is no real choice. The run
+  resumes with your words: the spec and the verdicts come back from cache, one
+  agent writes your answer into the spec's technical decisions, and development
+  starts. Your decision is quoted at the top of the merge request.
+- **The task itself has to change.** Then there is nothing to resume: put the
+  answer in the task, move it back to the sprint, and launch again.
 
-Do not argue the objection back and forth, and do not relaunch hoping for a
-different verdict. Two out of three is the gate, it is in code, and the only
-thing that moves it is a person.
+Do not relaunch hoping for a different verdict: the gate is in code, and the
+only thing that moves it is a person.
 
 ### A workflow was interrupted
 
