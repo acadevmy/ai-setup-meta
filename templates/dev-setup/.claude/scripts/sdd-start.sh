@@ -5,7 +5,7 @@
 # in both the `sdd` and the `auto-sdd` skills.
 #
 # Usage:
-#   sdd-start.sh --task DE-123 [--type feat] [--title "add refresh token"] [--json]
+#   sdd-start.sh --task DE-123 [--type feat] [--context auth] [--title "add refresh token"] [--json]
 #   sdd-start.sh --task DE-123 --create            # also creates the branch
 #   sdd-start.sh --type fix --title "typo in the login copy" --create
 #
@@ -14,7 +14,9 @@
 #                   opened a ticket for, and a branch still needs a name.
 #   --type <type>   branch type: feat | fix | chore | docs | refactor | perf | test
 #                   (default: feat)
-#   --title <text>  task title; slugified into the branch name
+#   --context <ctx> the area the work touches (auth, billing, ui); optional,
+#                   slugified into the parentheses after the type
+#   --title <text>  task title, in English; slugified into the branch name
 #   --base <ref>    fork from this ref instead of the resolved base branch. The
 #                   caller knows better than the local HEAD in a fresh worktree,
 #                   which the harness branches from the remote default — `main`
@@ -24,7 +26,7 @@
 #   --json          emit a flat JSON object
 #
 # Keys:
-#   BRANCH        the branch name to use, e.g. feat/DE-123-add-refresh-token
+#   BRANCH        the branch name to use, e.g. feat(auth)/DE-123_add-refresh-token
 #   REPO_ROOT     absolute path of the repository root
 #   SPEC_DIR      absolute path of the spec directory (<repo>/.specs)
 #   VCS           git | none
@@ -47,6 +49,7 @@ source "$SCRIPT_DIR/common.sh"
 TASK_ID=""
 BRANCH_TYPE="feat"
 TASK_TITLE=""
+CONTEXT=""
 FORCED_BASE=""
 DO_CREATE=false
 AS_JSON=false
@@ -59,6 +62,9 @@ while [ $# -gt 0 ]; do
     --type)
       [ $# -ge 2 ] || die "--type requires a value"
       BRANCH_TYPE="$2"; shift 2 ;;
+    --context)
+      [ $# -ge 2 ] || die "--context requires a value"
+      CONTEXT="$2"; shift 2 ;;
     --title)
       [ $# -ge 2 ] || die "--title requires a value"
       TASK_TITLE="$2"; shift 2 ;;
@@ -68,7 +74,7 @@ while [ $# -gt 0 ]; do
     --create) DO_CREATE=true; shift ;;
     --json) AS_JSON=true; shift ;;
     -h|--help)
-      sed -n '2,37p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+      sed -n '2,39p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
       exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
@@ -90,23 +96,37 @@ REPO_ROOT=$(repo_root)
 
 # ── Branch name ───────────────────────────────────────────────────────────────
 #
-# <type>/<TASK_ID>-<slug>, with the task id kept verbatim so the tooling that
-# greps it back out of the branch name (spec lookup, MR title) keeps working.
-# Without a task id it is <type>/<slug>: check-prerequisites.sh then reports an
-# empty TASK_ID, which is the honest answer — there is no task.
+# <type>[(<context>)]/<TASK_ID>_<slug> — feat(auth)/DE-123_add-refresh-token.
+# The task id is kept verbatim, and the underscore is what separates it from the
+# slug, so the tooling that reads it back out of the branch name (spec lookup,
+# MR title) finds it with branch_task_id in common.sh. The context is optional:
+# a change with no single area gets none rather than an invented one. Without a
+# task id it is <type>[(<context>)]/<slug>: check-prerequisites.sh then reports
+# an empty TASK_ID, which is the honest answer — there is no task.
+
+if [ -n "$TASK_ID" ] && ! [[ "$TASK_ID" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
+  die "invalid --task '$TASK_ID': expected a plain identifier such as DE-123"
+fi
 
 SLUG=""
 [ -n "$TASK_TITLE" ] && SLUG=$(slugify "$TASK_TITLE")
 
-if [ -n "$TASK_ID" ] && [ -n "$SLUG" ]; then
-  BRANCH="$BRANCH_TYPE/$TASK_ID-$SLUG"
-elif [ -n "$TASK_ID" ]; then
-  BRANCH="$BRANCH_TYPE/$TASK_ID"
-else
-  BRANCH="$BRANCH_TYPE/$SLUG"
+PREFIX="$BRANCH_TYPE"
+if [ -n "$CONTEXT" ]; then
+  CONTEXT_SLUG=$(slugify "$CONTEXT" 20)
+  [ -n "$CONTEXT_SLUG" ] || die "--context '$CONTEXT' slugifies to nothing usable in a branch name"
+  PREFIX="$BRANCH_TYPE($CONTEXT_SLUG)"
 fi
 
-[ "$BRANCH" != "$BRANCH_TYPE/" ] || die "--title '$TASK_TITLE' slugifies to nothing usable as a branch name"
+if [ -n "$TASK_ID" ] && [ -n "$SLUG" ]; then
+  BRANCH="$PREFIX/${TASK_ID}_$SLUG"
+elif [ -n "$TASK_ID" ]; then
+  BRANCH="$PREFIX/$TASK_ID"
+else
+  BRANCH="$PREFIX/$SLUG"
+fi
+
+[ "$BRANCH" != "$PREFIX/" ] || die "--title '$TASK_TITLE' slugifies to nothing usable as a branch name"
 
 BRANCH_EXISTS=false
 git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null 2>&1 && BRANCH_EXISTS=true

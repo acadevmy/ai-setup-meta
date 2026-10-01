@@ -45,7 +45,7 @@ feature without a spec, and never abandon a nearly-done change.
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-     --type <fix|chore> --title "<what changes>" [--task <custom_id>] --create --json
+     --type <fix|chore> --title "<what changes, in English>" [--task <custom_id>] --create --json
    ```
 
    It resolves `BASE_BRANCH` itself — never a hard-coded `main`.
@@ -58,7 +58,7 @@ feature without a spec, and never abandon a nearly-done change.
    lint, type check and tests; a denial carries the real output. Fix and commit
    again — `--no-verify` is a deny rule.
 
-5. **Merge request.** `git push -u origin <branch>`, then invoke `vcs-ops`
+5. **Merge request.** `git push -u origin "<branch>"`, then invoke `vcs-ops`
    against the short name of `BASE_BRANCH`. The `ask` rule on
    `gh pr create` / `glab mr create` is the checkpoint — do not ask for the same
    confirmation in chat first.

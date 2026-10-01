@@ -1,7 +1,7 @@
 # GitHub — what `gh` does differently
 
-Only the `gh` invocations. Branch recipe, commit format, PR body and tagging are
-in `SKILL.md` and are the same on both hosts.
+Only the `gh` invocations. Branch recipe, commit format, PR title, body, labels
+and tagging are in `SKILL.md` and are the same on both hosts.
 
 `gh` must be authenticated (`gh auth login`). On GitHub Enterprise with an
 ambiguous hostname, `gh auth status --hostname <host>` succeeding is what
@@ -10,7 +10,7 @@ identifies this as the right reference.
 | Operation | Command |
 |---|---|
 | Open a PR | `gh pr create --base "$BASE" --head "$(git branch --show-current)" --title "…" --body-file body.md` |
-| Add a label | `gh pr create … --label <name>` — `gh label list` shows what exists |
+| Add the labels | `gh pr create … --label "$LABELS"` — `LABELS` from `mr-meta.sh`, comma-separated |
 | PR state | `gh pr view <n> --json state,statusCheckRollup,reviewDecision` |
 | Open PRs | `gh pr list --state open` |
 | CI runs | `gh pr checks <n>` |
@@ -25,4 +25,5 @@ Three things that bite:
   So read that file yourself, fill it as `merge-request.md` describes, and write
   the result to the file you pass with `--body-file`.
 - **A label that does not exist fails the whole call**, so the PR is never
-  created. Check `gh label list` before passing `--label`.
+  created. The setup creates the catalogue; if the call still fails on a label,
+  check `gh label list`, drop the missing one and retry.

@@ -350,6 +350,7 @@ it starts.
 | `AGENTS.md`, `CLAUDE.md` — after asking | Git hooks, ESLint, Prettier, CI config |
 | `REGISTRY.md`, `.env.example` — after asking; in UPDATE mode they are yours, not artefacts | Dependencies, lock files, source code, `.env` |
 | `.claude/settings.json` — only when it predates the sandbox, and only after you accept the diff | |
+| `.claude/merge-request.json` — written when absent, after asking the merge request language; the catalogue labels missing on the forge are created | `.claude/merge-request.json` once you have one |
 
 One edit happens without asking on a file the setup did not write: the
 `.claude/worktrees/` line appended to `.gitignore`. It adds and removes nothing.
@@ -375,6 +376,8 @@ re-opened from `.claude/settings.local.json`.
 - [ ] `.claude/hooks/protect-files.sh` is gone and `.claude/hooks/gate-commit.sh`
       is there.
 - [ ] `.worktreeinclude` exists, and `.gitignore` holds `.claude/worktrees/`.
+- [ ] `.claude/merge-request.json` exists with the language you chose, and its
+      labels are on the forge (`gh label list` / `glab label list`).
 - [ ] `CONSTITUTION.md` is deleted, or you know why you kept it.
 - [ ] `AGENTS.md` holds no `{{TODO}}` and no `/project:` command references.
 - [ ] The project's test and dev commands still run — the sandbox applies to

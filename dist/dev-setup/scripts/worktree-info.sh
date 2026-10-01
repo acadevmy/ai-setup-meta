@@ -126,8 +126,7 @@ while IFS=$'\t' read -r wt_path wt_branch; do
   [ -n "$wt_path" ] || continue
   [ -d "$wt_path/.specs" ] || continue
 
-  task_id=$(printf '%s' "$wt_branch" \
-    | sed -n 's|^[a-z]*/\([A-Z][A-Z0-9]*-[0-9]\{1,\}\).*|\1|p')
+  task_id=$(branch_task_id "$wt_branch")
   [ -n "$task_id" ] || continue
 
   spec=$(find "$wt_path/.specs" -maxdepth 1 -name "$task_id-*.md" \

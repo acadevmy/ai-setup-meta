@@ -66,14 +66,18 @@ confirms the fork point, and the script creates the branch. First, report only
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --task <custom_id> --type <feat|fix|chore> --title "<name>" --json
+  --task <custom_id> --type <feat|fix|chore> [--context <area>] \
+  --title "<name, in English>" --json
 ```
 
 The type comes from the task: a feature → `feat`, a bug → `fix`, maintenance →
-`chore`. The script slugifies the title, keeps the id verbatim (the spec lookup
-and the merge request title read it back out of the branch name), and resolves
-`BASE_BRANCH` — the branch HEAD forked from most recently, never a hard-coded
-`main`.
+`chore`. The context is the one area the task touches (`auth`, `billing`) —
+leave it out when there is no single one. The title goes in **English** even
+when the task is written in another language: translate it. The script
+slugifies it, keeps the id verbatim (`feat(auth)/DE-123_add-user-auth` — the
+spec lookup and the merge request title read it back out of the branch name),
+and resolves `BASE_BRANCH` — the branch HEAD forked from most recently, never a
+hard-coded `main`.
 
 `BRANCH_EXISTS: true` means the task already had a branch: re-run the call with
 `--create` (it checks the branch out), skip the question below — the fork point
@@ -89,7 +93,7 @@ Then create the branch from the answer:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --task <custom_id> --type <type> --title "<name>" \
+  --task <custom_id> --type <type> [--context <area>] --title "<name, in English>" \
   --base <the chosen ref> --create --json
 ```
 
@@ -151,7 +155,7 @@ from and why, then show the brief:
 ```
 Task:     DE-123 — Task title
 Priority: High
-Branch:   feat/DE-123-add-user-auth  (base: origin/next)
+Branch:   feat(auth)/DE-123_add-user-auth  (base: origin/next)
 Status:   IN PROGRESS  (clock started 2026-09-18 14:03)
 Spec:     .specs/DE-123-add-user-auth.md (approved) — or "none yet"
 

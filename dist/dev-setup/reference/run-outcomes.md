@@ -100,7 +100,7 @@ spec is committed on the branch. Two things are left, and they are the two the
 workflow deliberately does not do:
 
 ```bash
-git push -u origin <branch>
+git push -u origin "<branch>"
 ```
 
 Then invoke `vcs-ops`: it reads `origin` and loads its GitHub or GitLab
@@ -126,9 +126,10 @@ the merge request link, the branch, the spec path and the commit subjects.
 
 ## The merge request
 
-Title: Conventional Commits with the id — `feat(auth): add refresh token
-rotation [DE-123]`. Body as `vcs-ops` describes, plus what this flow owes a
-reviewer who was not watching:
+Title, language and labels from `mr-meta.sh`, as `vcs-ops` describes —
+`Feat: <what was done, in LANGUAGE> [DE-123]`, with the task's priority as
+`--priority`. Body as `vcs-ops` describes — the template, filled in and short —
+plus what this flow owes a reviewer who was not watching:
 
 - **the real test output**, in a fenced block: the `output` field, as it came
   back. A reviewer has to see the suite passing without re-running it.

@@ -17,6 +17,7 @@ reference has produced them.
 - [3.6 — Git over the sandbox: SSH remotes](#36--git-over-the-sandbox-ssh-remotes)
 - [3.7 — The worktree files](#37--the-worktree-files)
 - [3.8 — The pull/merge request template](#38--the-pullmerge-request-template)
+- [3.9 — The merge request metadata and the labels](#39--the-merge-request-metadata-and-the-labels)
 
 ---
 
@@ -509,20 +510,23 @@ team's own document, and `vcs-ops` fills the one that is there. The destination
 does not exist → write it, in every mode. That is how a project configured
 before this step existed gets the template on its next UPDATE run.
 
-**The language.** Ask once, with `AskUserQuestion`. The answer picks the file and
-nothing else asks about it again: `vcs-ops` writes each description in the
-language of the template it finds, so this single answer decides what the team
-reads on the forge.
+**The language.** Ask once, with `AskUserQuestion` — **in every mode, on every
+project with a forge**, unless `.claude/merge-request.json` already exists (its
+`language` is the answer, and 3.9 keeps the file). The answer picks the template
+file here and becomes the `language` 3.9 writes: `vcs-ops` reads it from there
+to write every title and description, so this single answer decides what the
+team reads on the forge.
 
 ```
-question: "Which language should pull request descriptions be written in?"
+question: "Which language should pull/merge request titles and descriptions be written in?"
 options: [ {label: "Italian"}, {label: "English"} ]
 ```
 
 Italian → `PULL_REQUEST_TEMPLATE.it.md`; English → `PULL_REQUEST_TEMPLATE.en.md`
-(default: Italian, the team's own template). Everything else the setup writes
-stays in English — this one answer is about the document a reviewer reads, not
-about the code.
+(default: Italian, the team's own template — and, when a template is already in
+place, the language it is written in). Everything else the setup writes stays in
+English — this one answer is about the document a reviewer reads, not about the
+code.
 
 **Resolve the placeholders.** The template carries three, and
 `render-template.sh` fails on any one left unresolved rather than committing a
@@ -575,3 +579,70 @@ correction to the developer: the setup does not invent a tracker URL.
   - pull request template already at <path> — kept as the team wrote it
   - pull request template skipped: no forge configured for this repository
 ```
+
+### 3.9 — The merge request metadata and the labels
+
+The language answered at 3.8 and the labels a merge request carries are project
+facts that the developers own, so they live in a tracked file they edit, not in
+the plugin: `.claude/merge-request.json`. `mr-meta.sh` reads it whenever a flow
+opens a merge request and returns the language, the title and the labels.
+
+**Skip if** `{VCS}` is `none` or `other`, like 3.8.
+
+**The file.** It exists → keep it as the team left it, and read its `language`
+instead of asking at 3.8. It does not exist → write it, in every mode — that is
+how a project set up before this step gets it on its next UPDATE:
+
+```bash
+mkdir -p .claude
+jq --arg lang "<it|en>" '.language = $lang' \
+  "${CLAUDE_SKILL_DIR}/templates/boilerplate/merge-request.json" \
+  > .claude/merge-request.json
+```
+
+What the developers change in it, and what each key does:
+
+| Key | Holds |
+|---|---|
+| `language` | `it` or `en` — the language of every title and description |
+| `labels.catalog` | every label the team uses, with its colour: what this step creates on the forge |
+| `labels.by_type` | branch type → labels (`feat` → `Type: Feature`) |
+| `labels.breaking` | added when the change breaks a contract |
+| `labels.by_priority` | the task's priority → labels (`high` → `Priority: High`) |
+| `labels.on_open` | added to every merge request when it opens (`State: Pending`) |
+
+The catalogue labels no mapping names — `Type: Bug`, `Work: *`, `State: Approved`,
+`State: Blocked` — are the reviewers' to set by hand on the forge.
+
+**Create the labels the forge is missing.** A merge request asking for a label
+that does not exist fails as a whole on GitHub, so the catalogue is created here,
+once, rather than discovered missing when a merge request opens. List what
+exists, and create only what is absent — never `--force`, which would recolour a
+label the team already has:
+
+```bash
+# GitHub
+gh label list --limit 200 --json name --jq '.[].name' > "$TMPDIR/labels.txt"
+jq -r '.labels.catalog[] | [.name, .color] | @tsv' .claude/merge-request.json \
+  | while IFS=$'\t' read -r name color; do
+      grep -Fxq "$name" "$TMPDIR/labels.txt" || gh label create "$name" --color "$color"
+    done
+
+# GitLab
+glab label list --per-page 100 --output json | jq -r '.[].name' > "$TMPDIR/labels.txt"
+# … the same loop, with: glab label create --name "$name" --color "#$color"
+```
+
+A `gh`/`glab` that is not authenticated, or a token without the right to create
+labels, is not a reason to stop the setup: report which labels are missing and
+leave them to the developer.
+
+**Report in the summary** (a single line) — one of:
+
+```
+  - merge request metadata written to .claude/merge-request.json (<it|en>, <n> labels) — <k> label(s) created on the forge, <m> already there
+  - merge request metadata kept as it was (<it|en>, <n> labels) — <k> label(s) created on the forge
+  - merge request metadata written; labels not created (<reason>) — missing on the forge: <names>
+  - merge request metadata skipped: no forge configured for this repository
+```
+
