@@ -44,7 +44,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 |---|---|---|
 | `/dev-setup:setup` | Configuring a project for the first time, or pulling in a new plugin version | `/dev-setup:setup` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
-| `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
+| `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree`<br>`/dev-setup:sdd DE-124 --no-commit` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
 | `/dev-setup:multi-sdd` | Several independent tasks, unsupervised, from one chat | `/dev-setup:multi-sdd DE-1 DE-2 DE-3`<br>`/dev-setup:multi-sdd --from-sprint 3` |
 | `/dev-setup:review` | A branch is ready and you want it read before the merge request | `/dev-setup:review` |
@@ -94,7 +94,7 @@ repository, not in yours — see [workflow.md](./workflow.md).
           posted on it
 ```
 
-Seven things are worth knowing about that shape.
+Eight things are worth knowing about that shape.
 
 **A backlog task is your call.** A task read in `BACKLOG` was never planned
 into a sprint, so the flow stops and asks before anything else happens — no
@@ -110,6 +110,13 @@ carried out as written does stop, and says why.
 **One commit, not four.** The gates run *before* the commit, so the code, the
 spec and the REGISTRY entries land together. Committing more often while you
 work is fine; nothing requires it.
+
+**`--no-commit` stops at the code.** Started with it, the flow ends right after
+development: the code is in your working tree, nothing staged or committed, the
+spec still `approved`, the task `IN PROGRESS` with its clock running. Simplify,
+verify, review, the commit and the merge request are left to you — or run
+`/dev-setup:sdd DE-123` again: it sees the uncommitted work, asks whether the
+implementation is complete, and picks the closure up from there.
 
 **The clock runs from IN PROGRESS to the merge request.** The move that starts
 the work stamps `task-clock.sh --start`; the move that ends it reads the stamp

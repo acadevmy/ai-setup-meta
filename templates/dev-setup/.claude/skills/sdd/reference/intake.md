@@ -144,7 +144,7 @@ decides where the flow actually starts:
 | `implemented` | step 9, closure — say so first, the work may already be done |
 
 `approved` with a non-empty `CHANGED_FILES` is a run that stopped between
-development and closure. Say so, show the changed files, and ask whether the
+development and closure — on purpose with `--no-commit`, or not. Say so, show the changed files, and ask whether the
 implementation is complete — complete → step 9; not yet → step 8, which picks
 the plan up where it left off. Never silently redo development over a diff
 that already exists.
