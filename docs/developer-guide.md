@@ -349,6 +349,17 @@ helper, so no token goes in the URL), or keep SSH and let git's network commands
 run outside the sandbox through the normal permission prompt. The deny rules
 hold either way: they are permission rules, not sandbox boundaries.
 
+### `gh` and `glab` run outside the sandbox
+
+`sandbox.excludedCommands` lists `gh` and `glab`. On macOS a Go binary verifies
+TLS certificates through a system service the sandbox does not let it reach, so
+inside the sandbox every call fails with `x509: OSStatus -26276`. Excluding them
+removes only the OS-level confinement: the deny rules and the `ask` checkpoints
+on `gh pr create` / `glab mr create` and on writing `gh api` / `glab api` calls
+still apply, and they see `GH_TOKEN` / `GITLAB_TOKEN`, which is the point — they
+are the tools meant to read the token from the environment. A project set up before the entry existed gets it
+on the setup's UPDATE.
+
 ---
 
 ## 5. The quality gate on the commit
