@@ -8,8 +8,13 @@ Closure starts the moment `sdd-dev` hands back its summary — same turn, no
 prompt in between. The flow is finished when the merge request is open (or
 explicitly declined) and the task has moved: a turn that ends on the
 development summary leaves the branch uncommitted, which is the failure this
-page exists to prevent — unless the developer asked for exactly that with
-`--no-commit` (section 0).
+page exists to prevent — unless the stop point the developer chose at intake
+is **Development**.
+
+**The stop point decides where this page ends.** **Review** ends after step 5,
+**Commit** after step 6, **Push** after step 7, **Merge request** runs it all;
+`stop-point.md` holds the report each one ends on. A run resumed with the spec
+already `implemented` starts at step 7: the commit exists.
 
 The order matters and it is not the obvious one: **the gates run before the
 commit, and there is one commit.** Two reasons. The commit hook is the gate that
@@ -21,7 +26,6 @@ commits this flow used to mandate (`refactor: simplify`, `docs(registry)`,
 
 ## Index
 
-- [0. `--no-commit`: stop before the closure](#0---no-commit-stop-before-the-closure)
 - [1. Stage](#1-stage)
 - [2. Simplify](#2-simplify)
 - [3. Verify](#3-verify)
@@ -31,35 +35,6 @@ commits this flow used to mandate (`refactor: simplify`, `docs(registry)`,
 - [7. Push](#7-push)
 - [8. Open the merge request](#8-open-the-merge-request)
 - [9. Stop the clock and move the task](#9-stop-the-clock-and-move-the-task)
-
-## 0. `--no-commit`: stop before the closure
-
-When the flow was started with `--no-commit`, none of this page runs: no
-staging, no `simplify`, `verify` or `review`, no commit, no push, no merge
-request, no board write, no `--stop` on the clock. The developer wants to read,
-change or commit the code themselves. The flag is the decision, so do not ask
-it again at this point.
-
-End the flow on `sdd-dev`'s summary, followed by the state it leaves:
-
-```
-Stopped before commit (--no-commit): DE-123 — Task title
-
-Branch:  feat(auth)/DE-123_add-user-auth  (base: origin/next)
-Spec:    .specs/DE-123-<slug>.md (approved)
-Changes: <git status --short — staged nothing, committed nothing>
-Gates:   not run — simplify, verify and review run on resume
-Task:    IN PROGRESS, clock still running
-
-Resume:  /dev-setup:sdd DE-123
-```
-
-The resume is not a special path. Intake reads the spec as `approved` with a
-non-empty `CHANGED_FILES`, asks whether the implementation is complete, and on
-yes starts this page from step 1 — commits the developer made by hand in
-between are part of the diff it reads. A merge request opened by hand instead
-is caught by the merge-request hook, which names the task whose clock is still
-open.
 
 ## 1. Stage
 

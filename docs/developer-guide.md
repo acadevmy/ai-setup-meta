@@ -44,7 +44,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 |---|---|---|
 | `/dev-setup:setup` | Configuring a project for the first time, or pulling in a new plugin version | `/dev-setup:setup` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
-| `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree`<br>`/dev-setup:sdd DE-124 --no-commit` |
+| `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
 | `/dev-setup:multi-sdd` | Several independent tasks, unsupervised, from one chat | `/dev-setup:multi-sdd DE-1 DE-2 DE-3`<br>`/dev-setup:multi-sdd --from-sprint 3` |
 | `/dev-setup:review` | A branch is ready and you want it read before the merge request | `/dev-setup:review` |
@@ -73,7 +73,8 @@ repository, not in yours — see [workflow.md](./workflow.md).
 /dev-setup:sdd DE-123
        │
        ├─ reads the task, asks which branch to fork from — the default is
-       │  resolved from the repository, never hard-coded — then creates
+       │  resolved from the repository, never hard-coded — and where this run
+       │  should stop (the merge request, by default), then creates
        │  feat(<context>)/DE-123_…, moves the task to IN PROGRESS and starts the clock
        │
        ├─ discovery — a structured interview, only the questions that matter
@@ -111,12 +112,22 @@ carried out as written does stop, and says why.
 spec and the REGISTRY entries land together. Committing more often while you
 work is fine; nothing requires it.
 
-**`--no-commit` stops at the code.** Started with it, the flow ends right after
-development: the code is in your working tree, nothing staged or committed, the
-spec still `approved`, the task `IN PROGRESS` with its clock running. Simplify,
-verify, review, the commit and the merge request are left to you — or run
-`/dev-setup:sdd DE-123` again: it sees the uncommitted work, asks whether the
-implementation is complete, and picks the closure up from there.
+**You choose where it stops.** Together with the fork point, the flow asks how
+far this run goes — the merge request is the default:
+
+| Stop point | Ends with |
+|---|---|
+| Spec only | discovery, the spec and its approval — the spec uncommitted, no code |
+| Development | the code implemented, tests and lint passing, nothing staged |
+| Review | simplify, verify, review + REGISTRY run, everything staged, nothing committed |
+| Commit | the one commit, through the commit gate, not pushed |
+| Push | the branch on the remote, no merge request |
+| Merge request | the whole flow: the merge request, the task in review, the time posted |
+
+Short of the merge request, the task stays `IN PROGRESS` with its clock
+running. Run `/dev-setup:sdd DE-123` again to carry on: it asks the stop point
+once more and starts from what is on disk — the spec, the uncommitted code, or
+the commit — without redoing what is done.
 
 **The clock runs from IN PROGRESS to the merge request.** The move that starts
 the work stamps `task-clock.sh --start`; the move that ends it reads the stamp
