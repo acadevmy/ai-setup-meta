@@ -73,7 +73,8 @@ repository, not in yours — see [workflow.md](./workflow.md).
 /dev-setup:sdd DE-123
        │
        ├─ reads the task, asks which branch to fork from — the default is
-       │  resolved from the repository, never hard-coded — then creates
+       │  resolved from the repository, never hard-coded — and where this run
+       │  should stop (the merge request, by default), then creates
        │  feat(<context>)/DE-123_…, moves the task to IN PROGRESS and starts the clock
        │
        ├─ discovery — a structured interview, only the questions that matter
@@ -94,7 +95,7 @@ repository, not in yours — see [workflow.md](./workflow.md).
           posted on it
 ```
 
-Seven things are worth knowing about that shape.
+Eight things are worth knowing about that shape.
 
 **A backlog task is your call.** A task read in `BACKLOG` was never planned
 into a sprint, so the flow stops and asks before anything else happens — no
@@ -110,6 +111,23 @@ carried out as written does stop, and says why.
 **One commit, not four.** The gates run *before* the commit, so the code, the
 spec and the REGISTRY entries land together. Committing more often while you
 work is fine; nothing requires it.
+
+**You choose where it stops.** Together with the fork point, the flow asks how
+far this run goes — the merge request is the default:
+
+| Stop point | Ends with |
+|---|---|
+| Spec only | discovery, the spec and its approval — the spec uncommitted, no code |
+| Development | the code implemented, tests and lint passing, nothing staged |
+| Review | simplify, verify, review + REGISTRY run, everything staged, nothing committed |
+| Commit | the one commit, through the commit gate, not pushed |
+| Push | the branch on the remote, no merge request |
+| Merge request | the whole flow: the merge request, the task in review, the time posted |
+
+Short of the merge request, the task stays `IN PROGRESS` with its clock
+running. Run `/dev-setup:sdd DE-123` again to carry on: it asks the stop point
+once more and starts from what is on disk — the spec, the uncommitted code, or
+the commit — without redoing what is done.
 
 **The clock runs from IN PROGRESS to the merge request.** The move that starts
 the work stamps `task-clock.sh --start`; the move that ends it reads the stamp

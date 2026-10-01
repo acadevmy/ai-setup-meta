@@ -8,7 +8,13 @@ Closure starts the moment `sdd-dev` hands back its summary — same turn, no
 prompt in between. The flow is finished when the merge request is open (or
 explicitly declined) and the task has moved: a turn that ends on the
 development summary leaves the branch uncommitted, which is the failure this
-page exists to prevent.
+page exists to prevent — unless the stop point the developer chose at intake
+is **Development**.
+
+**The stop point decides where this page ends.** **Review** ends after step 5,
+**Commit** after step 6, **Push** after step 7, **Merge request** runs it all;
+`stop-point.md` holds the report each one ends on. A run resumed with the spec
+already `implemented` starts at step 7: the commit exists.
 
 The order matters and it is not the obvious one: **the gates run before the
 commit, and there is one commit.** Two reasons. The commit hook is the gate that
