@@ -39,6 +39,7 @@ this plugin has configured before. Then it writes:
 | Project context for any agent | `AGENTS.md`, `CLAUDE.md` |
 | What already exists in the project | `REGISTRY.md` |
 | The pull request template, in the language you pick | `.github/PULL_REQUEST_TEMPLATE.md` or `.gitlab/merge_request_templates/Default.md` |
+| The merge request language and labels — yours to edit | `.claude/merge-request.json` |
 
 It asks before overwriting anything, and it never reads or writes `.env`.
 Coming from an older version of the plugin? Read

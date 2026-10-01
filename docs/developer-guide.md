@@ -73,8 +73,9 @@ repository, not in yours — see [workflow.md](./workflow.md).
 /dev-setup:sdd DE-123
        │
        ├─ reads the task, asks which branch to fork from — the default is
-       │  resolved from the repository, never hard-coded — then creates
-       │  feat/DE-123-…, moves the task to IN PROGRESS and starts the clock
+       │  resolved from the repository, never hard-coded — and where this run
+       │  should stop (the merge request, by default), then creates
+       │  feat(<context>)/DE-123_…, moves the task to IN PROGRESS and starts the clock
        │
        ├─ discovery — a structured interview, only the questions that matter
        │
@@ -94,7 +95,7 @@ repository, not in yours — see [workflow.md](./workflow.md).
           posted on it
 ```
 
-Seven things are worth knowing about that shape.
+Eight things are worth knowing about that shape.
 
 **A backlog task is your call.** A task read in `BACKLOG` was never planned
 into a sprint, so the flow stops and asks before anything else happens — no
@@ -110,6 +111,23 @@ carried out as written does stop, and says why.
 **One commit, not four.** The gates run *before* the commit, so the code, the
 spec and the REGISTRY entries land together. Committing more often while you
 work is fine; nothing requires it.
+
+**You choose where it stops.** Together with the fork point, the flow asks how
+far this run goes — the merge request is the default:
+
+| Stop point | Ends with |
+|---|---|
+| Spec only | discovery, the spec and its approval — the spec uncommitted, no code |
+| Development | the code implemented, tests and lint passing, nothing staged |
+| Review | simplify, verify, review + REGISTRY run, everything staged, nothing committed |
+| Commit | the one commit, through the commit gate, not pushed |
+| Push | the branch on the remote, no merge request |
+| Merge request | the whole flow: the merge request, the task in review, the time posted |
+
+Short of the merge request, the task stays `IN PROGRESS` with its clock
+running. Run `/dev-setup:sdd DE-123` again to carry on: it asks the stop point
+once more and starts from what is on disk — the spec, the uncommitted code, or
+the commit — without redoing what is done.
 
 **The clock runs from IN PROGRESS to the merge request.** The move that starts
 the work stamps `task-clock.sh --start`; the move that ends it reads the stamp
@@ -132,17 +150,32 @@ repository it names that task and asks for both calls. It reads the clock and
 never stops it — the measurement belongs to whoever posts it. With no task in
 progress here, it says nothing at all.
 
-**The description is the repository's template, filled in.** The setup writes
-one — `.github/PULL_REQUEST_TEMPLATE.md` on GitHub,
-`.gitlab/merge_request_templates/Default.md` on GitLab, in Italian or English,
-whichever you chose — and every flow fills that file instead of inventing a
-body: neither `gh` nor `glab` applies a template to a description passed on the
-command line. The title is `<Type>: <what was done> <TASK-ID>`, for instance
-`Feat: Add refresh token rotation DE-123`; the commits keep their Conventional
-Commits form. The section that matters is the test one: the commands to run and
-the route to open, written for a reviewer who has not read the branch. A
-template already in the repository is never overwritten — the flows fill the
-team's own.
+**Branches are `<type>(<context>)/<TASK-ID>_<description>`** —
+`feat(auth)/DE-123_add-refresh-token`. The context is the one area the work
+touches and is left out when there is none; the description is always English,
+whatever language the task is written in. A branch cut under the older
+`feat/DE-123-…` form still resolves its task.
+
+**The description is the repository's template, filled in — and short.** The
+setup writes one — `.github/PULL_REQUEST_TEMPLATE.md` on GitHub,
+`.gitlab/merge_request_templates/Default.md` on GitLab — and every flow fills
+that file instead of inventing a body: neither `gh` nor `glab` applies a
+template to a description passed on the command line. A few sentences and the
+test steps, not a tour of the diff. A template already in the repository is
+never overwritten — the flows fill the team's own.
+
+**Language, title and labels are project metadata.** The setup asks whether
+merge requests are written in Italian or English and stores the answer in
+`.claude/merge-request.json`, with the labels the team uses: the catalogue
+(created on the forge if missing) and which of them a merge request gets by
+branch type, by task priority, when it breaks something, and on every open.
+Edit the file to change any of it — the flows read it through
+`${CLAUDE_PLUGIN_ROOT}/scripts/mr-meta.sh` every time. The title is
+`<Type>: <what was done> [<TASK-ID>]` in the chosen language —
+`Feat: Aggiunta rotazione del refresh token [DE-123]`; the commits keep their
+Conventional Commits form, in English. The section that matters is the test
+one: the commands to run and the route to open, written for a reviewer who has
+not read the branch.
 
 **The methodology is not a question.** Backend logic is test-first, UI is
 scenario-first, and `.claude/rules/dev-setup-tests.md` says so — it loads by
@@ -472,6 +505,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
+| `.claude/merge-request.json` — written when absent, after asking the language; missing catalogue labels are created on the forge | `.claude/merge-request.json` once you have one |
 
 The one unasked edit to a file the setup did not write is a single `.gitignore`
 line, `.claude/worktrees/`. It adds, never removes; without it every file of

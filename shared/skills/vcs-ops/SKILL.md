@@ -30,21 +30,20 @@ quirks. Everything below is the same on both hosts.
 ## Branch
 
 ```
-<type>/<TASK-ID>-<short-description>
+<type>(<context>)/<TASK-ID>_<short-description>
 ```
 
-`<type>` is `feat`, `fix`, `chore` or `hotfix`; `<TASK-ID>` is the tracker's
-custom id (`DE-123`), dropped when there is none; the description is short,
-kebab-case, English.
+`feat(auth)/DE-123_add-refresh-token`. `<type>` is `feat`, `fix`, `chore`,
+`docs`, `refactor`, `perf` or `test`; `(<context>)` names the area touched and is
+dropped when there is no single one; `<TASK-ID>` is the tracker's custom id,
+dropped when there is none; the description is short, kebab-case, **English**.
 
-The base is **not always `main`**, and `origin/HEAD` says it is: a project whose
-work targets `next` or `develop` keeps `main` for production. So it is resolved,
-never guessed — the script names the branch and returns `BASE_BRANCH`, the ref
-HEAD forked from most recently:
+The base is resolved, never guessed — `main` is not always it. The script names
+the branch and returns `BASE_BRANCH`:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --type feat --task DE-123 --title "add user auth" --create --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" --type feat --context auth \
+  --task DE-123 --title "add refresh token" --create --json
 ```
 
 ## Commits
@@ -60,18 +59,22 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`,
 
 ## Pull / merge requests
 
-Title: `<Type>: <what was done> <TASK-ID>` — `Feat: Add refresh token rotation
-DE-123`. The commits keep Conventional Commits; this names the merge request.
+The project decides the shape; `.claude/merge-request.json` (written by the
+setup, edited by the team) holds it. Ask the script, never re-derive it:
 
-The body is the repository's own template, **filled in**:
-`.github/PULL_REQUEST_TEMPLATE.md` on GitHub,
-`.gitlab/merge_request_templates/Default.md` on GitLab. Every section answered,
-in the template's language, and its test section carrying the steps to check the
-change by hand — commands to run, routes to open.
-[reference/merge-request.md](reference/merge-request.md) has the rest.
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/mr-meta.sh" --summary "<what was done, in LANGUAGE>" \
+  [--breaking] [--priority <task priority>] --json
+```
 
-Never `--fill` from the commit log, and never pass a template unfilled. Labels
-are the repository's own — list them and pick, never invent.
+- **Title** — `TITLE`: `Feat: Aggiunta rotazione del refresh token [DE-123]`.
+  The summary is written in `LANGUAGE`; the commits keep Conventional Commits.
+- **Body** — `TEMPLATE`, the repository's own template, **filled in and short**,
+  in `LANGUAGE`. Never `--fill`, never the template unfilled.
+- **Labels** — `LABELS`, passed as they are. Never invent one.
+
+[reference/merge-request.md](reference/merge-request.md) has the rest: the
+brevity rule, the test section, no metadata file, no template.
 
 The repository's `AGENTS.md` wins over every default here.
 

@@ -35,6 +35,23 @@ them fails, the fix is the code, not a disable comment.
 - Names are descriptive and in English, and abbreviations are only the universal
   ones — `id`, `url`, `db`. Not `usr`, `btn`, `mgr`.
 
+## Comments
+
+A comment says what the code cannot: the *why* behind a non-obvious choice, a
+constraint imposed from outside, a workaround and the issue it works around.
+Everything else is noise a reader has to skip and a maintainer has to keep true.
+
+- No comment that restates the code (`// increment the counter`), the name of
+  the function, or its signature. Rename the symbol instead of explaining it.
+- Say it once. No comment repeating what the one above, the docblock or the
+  commit message already says; no section banners over three lines of code.
+- A docblock goes on public API whose contract the types do not carry — not on
+  every function, and never one that only lists the parameters by name.
+- No history in comments — "changed for DE-123", "old version below",
+  commented-out code. That is what git and the merge request are for.
+- When in doubt, leave it out: a missing comment costs a reader a minute, a
+  stale one costs them a wrong assumption.
+
 ## Editing someone else's file
 
 - Every changed line traces back to what was asked. Adjacent code, comments and
