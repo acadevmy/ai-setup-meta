@@ -82,6 +82,9 @@
   "sandbox": {
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
+    "excludedCommands": [
+      "gh"
+    ],
     "filesystem": {
       "denyWrite": [
         ".env",

@@ -175,9 +175,11 @@ project does not have is the exact defect this plugin exists to remove.
 
 So: a settings.json **without** a `sandbox` key is an old artefact, and it gets
 migrated wholesale. One **with** it is the team's, and conflict detection
-applies — with one exception: if it still carries the `.env` read denies this
-template retired, the script removes exactly those entries and touches nothing
-else (`REASON: env-read-unblocked`).
+applies — with two exceptions, and the script touches nothing else: if it still
+carries the `.env` read denies this template retired, it removes exactly those
+entries (`REASON: env-read-unblocked`); if it lacks an entry of the template's
+`sandbox.excludedCommands` (`gh`), it adds it next to the team's own
+(`REASON: excluded-commands-added`).
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-settings.sh \
@@ -188,8 +190,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-settings.sh \
 ```
 
 The script never writes in place. It reports `MIGRATED`, `REASON`,
-`ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW` and
-`RETIRED_DENY`, and exits `3` with `REASON: already-sandboxed` when there is
+`ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`,
+`RETIRED_DENY` and `ADDED_EXCLUDED`, and exits `3` with `REASON: already-sandboxed` when there is
 nothing to do — in which case delete the `.migrated` file and move on.
 
 When it did migrate with `REASON: migrated`, show the developer what it changed
@@ -202,13 +204,17 @@ and ask once:
 > `.env` writes, lock files), and drops `<RETIRED_ALLOW>` from the allowlist.
 > Your own entries are kept: `<KEPT_ALLOW>`. Apply it? (yes / skip)"
 
-With `REASON: env-read-unblocked` the file already has the sandbox and only the
-retired `.env` read denies were removed. Ask once:
+With `REASON: env-read-unblocked` or `excluded-commands-added` the file already
+has the sandbox and only those two passes ran. Ask once, keeping the sentence
+whose report key is not empty:
 
-> "`.claude/settings.json` still denies reading `.env`, which this plugin
-> version no longer does — reads are open so a task can use the values it
-> needs; writes stay denied. Migrating removes `<RETIRED_DENY>` and changes
-> nothing else. Apply it? (yes / skip)"
+> "`.claude/settings.json` needs two small fixes from this plugin version.
+> It still denies reading `.env` — reads are open now so a task can use the
+> values it needs; writes stay denied: migrating removes `<RETIRED_DENY>`.
+> It runs `gh` inside the sandbox, where on macOS `gh` cannot verify a TLS
+> certificate and every call fails: migrating adds `<ADDED_EXCLUDED>` to
+> `sandbox.excludedCommands`. The deny and ask rules still apply to it.
+> Nothing else changes. Apply it? (yes / skip)"
 
 - **yes** → replace `.claude/settings.json` with the migrated file. From here on
   the sandbox is real, and the rest of Step 3 treats the file as freshly

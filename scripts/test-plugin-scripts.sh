@@ -827,6 +827,32 @@ bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unblocked.json" \
   --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
 assert_eq "an unblocked settings is then left alone" "3" "$?"
 
+# `gh` runs outside the sandbox: inside it, on macOS, it cannot verify a TLS
+# certificate and every call fails. A project sandboxed before the entry existed
+# gets it on UPDATE — added next to the team's own entries, nothing else touched.
+assert_eq "the merged settings excludes gh from the sandbox" "true" \
+  "$(jq -r '.sandbox.excludedCommands | index("gh") != null' "$MIG_DIR/merged.json")"
+
+jq '.sandbox.excludedCommands = ["docker"]' "$MIG_DIR/merged.json" > "$MIG_DIR/no-gh.json"
+
+EXCL_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/no-gh.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/with-gh.json" --json 2>/dev/null)
+
+assert_eq "a sandboxed settings without gh is migrated" "excluded-commands-added" \
+  "$(printf '%s' "$EXCL_REPORT" | jq -r .REASON)"
+assert_eq "the report names the added entry" "gh" \
+  "$(printf '%s' "$EXCL_REPORT" | jq -r .ADDED_EXCLUDED)"
+assert_eq "gh is added after the team's own entries" '["docker","gh"]' \
+  "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/with-gh.json")"
+assert_eq "nothing else changes on the excluded-commands pass" "true" \
+  "$(jq -n --slurpfile a "$MIG_DIR/no-gh.json" --slurpfile b "$MIG_DIR/with-gh.json" '
+     ($a[0] | del(.sandbox.excludedCommands)) == ($b[0] | del(.sandbox.excludedCommands))')"
+
+bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/with-gh.json" \
+  --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
+assert_eq "a settings with gh excluded is then left alone" "3" "$?"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)
 # ═══════════════════════════════════════════════════════════════════════════════
