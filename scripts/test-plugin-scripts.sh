@@ -827,11 +827,11 @@ bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unblocked.json" \
   --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
 assert_eq "an unblocked settings is then left alone" "3" "$?"
 
-# `gh` runs outside the sandbox: inside it, on macOS, it cannot verify a TLS
-# certificate and every call fails. A project sandboxed before the entry existed
+# `gh` and `glab` run outside the sandbox: inside it, on macOS, they cannot
+# verify a TLS certificate and every call fails. A project sandboxed before the entry existed
 # gets it on UPDATE — added next to the team's own entries, nothing else touched.
-assert_eq "the merged settings excludes gh from the sandbox" "true" \
-  "$(jq -r '.sandbox.excludedCommands | index("gh") != null' "$MIG_DIR/merged.json")"
+assert_eq "the merged settings excludes gh and glab from the sandbox" '["gh","glab"]' \
+  "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/merged.json")"
 
 jq '.sandbox.excludedCommands = ["docker"]' "$MIG_DIR/merged.json" > "$MIG_DIR/no-gh.json"
 
@@ -841,9 +841,9 @@ EXCL_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
 
 assert_eq "a sandboxed settings without gh is migrated" "excluded-commands-added" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .REASON)"
-assert_eq "the report names the added entry" "gh" \
+assert_eq "the report names the added entries" "gh,glab" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .ADDED_EXCLUDED)"
-assert_eq "gh is added after the team's own entries" '["docker","gh"]' \
+assert_eq "they are added after the team's own entries" '["docker","gh","glab"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/with-gh.json")"
 assert_eq "nothing else changes on the excluded-commands pass" "true" \
   "$(jq -n --slurpfile a "$MIG_DIR/no-gh.json" --slurpfile b "$MIG_DIR/with-gh.json" '

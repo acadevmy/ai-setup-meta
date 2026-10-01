@@ -38,8 +38,9 @@
 #     `sandbox.filesystem.denyRead`), those entries are removed. Write denies
 #     are kept either way;
 #   - if it lacks a `sandbox.excludedCommands` entry the template carries, the
-#     entry is added. `gh` is there because inside the macOS sandbox it cannot
-#     verify a TLS certificate, so every call fails; the team's own entries stay.
+#     entry is added. `gh` and `glab` are there because inside the macOS
+#     sandbox they cannot verify a TLS certificate, so every call fails; the
+#     team's own entries stay.
 #
 # Report keys (--json):
 #   MIGRATED        true | false

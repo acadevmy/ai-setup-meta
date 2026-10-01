@@ -178,7 +178,7 @@ migrated wholesale. One **with** it is the team's, and conflict detection
 applies — with two exceptions, and the script touches nothing else: if it still
 carries the `.env` read denies this template retired, it removes exactly those
 entries (`REASON: env-read-unblocked`); if it lacks an entry of the template's
-`sandbox.excludedCommands` (`gh`), it adds it next to the team's own
+`sandbox.excludedCommands` (`gh`, `glab`), it adds it next to the team's own
 (`REASON: excluded-commands-added`).
 
 ```bash
@@ -211,8 +211,8 @@ whose report key is not empty:
 > "`.claude/settings.json` needs two small fixes from this plugin version.
 > It still denies reading `.env` — reads are open now so a task can use the
 > values it needs; writes stay denied: migrating removes `<RETIRED_DENY>`.
-> It runs `gh` inside the sandbox, where on macOS `gh` cannot verify a TLS
-> certificate and every call fails: migrating adds `<ADDED_EXCLUDED>` to
+> It runs `gh` / `glab` inside the sandbox, where on macOS they cannot verify
+> a TLS certificate and every call fails: migrating adds `<ADDED_EXCLUDED>` to
 > `sandbox.excludedCommands`. The deny and ask rules still apply to it.
 > Nothing else changes. Apply it? (yes / skip)"
 
