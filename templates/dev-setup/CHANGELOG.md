@@ -6,6 +6,25 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [3.3.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.2.0...dev-setup-v3.3.0) (2026-10-01)
+
+
+### Features
+
+* **auto-sdd:** Revise the spec on the lenses' objections instead of stopping ([bf995bb](https://github.com/acadevmy/ai-setup-meta/commit/bf995bb4106adf04c1f61f7b4f6e1640635785a6))
+* **code-style:** Default booleans to false ([bf995bb](https://github.com/acadevmy/ai-setup-meta/commit/bf995bb4106adf04c1f61f7b4f6e1640635785a6))
+* **rules:** Keep code comments to what the code cannot say ([bf995bb](https://github.com/acadevmy/ai-setup-meta/commit/bf995bb4106adf04c1f61f7b4f6e1640635785a6))
+* **sdd:** Add --no-commit to stop the flow after development ([bf995bb](https://github.com/acadevmy/ai-setup-meta/commit/bf995bb4106adf04c1f61f7b4f6e1640635785a6))
+* **sdd:** Ask the stop point at intake instead of a --no-commit flag ([bf995bb](https://github.com/acadevmy/ai-setup-meta/commit/bf995bb4106adf04c1f61f7b4f6e1640635785a6))
+* **vcs-ops:** Project-owned merge request language, title and labels ([bf995bb](https://github.com/acadevmy/ai-setup-meta/commit/bf995bb4106adf04c1f61f7b4f6e1640635785a6))
+
+
+### Bug Fixes
+
+* **settings:** Run gh outside the Bash sandbox ([bf995bb](https://github.com/acadevmy/ai-setup-meta/commit/bf995bb4106adf04c1f61f7b4f6e1640635785a6))
+* **settings:** Run glab outside the Bash sandbox too ([bf995bb](https://github.com/acadevmy/ai-setup-meta/commit/bf995bb4106adf04c1f61f7b4f6e1640635785a6))
+* **worktree:** Name overlap owners without a leading comma under mawk ([bf995bb](https://github.com/acadevmy/ai-setup-meta/commit/bf995bb4106adf04c1f61f7b4f6e1640635785a6))
+
 ## [3.2.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.1.0...dev-setup-v3.2.0) (2026-09-22)
 
 
