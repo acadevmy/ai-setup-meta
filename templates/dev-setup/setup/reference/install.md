@@ -178,8 +178,9 @@ migrated wholesale. One **with** it is the team's, and conflict detection
 applies — with two exceptions, and the script touches nothing else: if it still
 carries the `.env` read denies this template retired, it removes exactly those
 entries (`REASON: env-read-unblocked`); if it lacks an entry of the template's
-`sandbox.excludedCommands` (`gh`, `glab`), it adds it next to the team's own
-(`REASON: excluded-commands-added`).
+`sandbox.excludedCommands` (`gh *`, `glab *`), it adds it next to the team's own
+and replaces a bare `gh` / `glab` it supersedes (`REASON: excluded-commands-added`,
+`RETIRED_EXCLUDED`).
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-settings.sh \
@@ -213,7 +214,8 @@ whose report key is not empty:
 > values it needs; writes stay denied: migrating removes `<RETIRED_DENY>`.
 > It runs `gh` / `glab` inside the sandbox, where on macOS they cannot verify
 > a TLS certificate and every call fails: migrating adds `<ADDED_EXCLUDED>` to
-> `sandbox.excludedCommands`. The deny and ask rules still apply to it.
+> `sandbox.excludedCommands` (replacing `<RETIRED_EXCLUDED>`, which matched only
+> the bare command). The deny and ask rules still apply to it.
 > Nothing else changes. Apply it? (yes / skip)"
 
 - **yes** → replace `.claude/settings.json` with the migrated file. From here on

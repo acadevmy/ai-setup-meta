@@ -83,8 +83,8 @@
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
     "excludedCommands": [
-      "gh",
-      "glab"
+      "gh *",
+      "glab *"
     ],
     "filesystem": {
       "denyWrite": [

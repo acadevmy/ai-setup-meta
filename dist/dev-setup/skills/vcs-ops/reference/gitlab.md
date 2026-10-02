@@ -39,3 +39,9 @@ glab mr create … --description-file body.md   # "-" reads it from stdin
 A build without `--description-file` (`glab mr create --help` says) takes
 `--description "$(cat body.md)"` instead. `--template` stays useful for one
 thing only: seeing what the form looks like before filling it.
+
+**`glab` alone on the command line.** It runs outside the Bash sandbox only
+when the whole call matches `glab *`: a pipe, a `cd … &&`, a redirect to a file
+or a `$(…)` — the `$(cat body.md)` above included — keeps it sandboxed, where on
+macOS it fails TLS verification. Where only the `$(…)` form works, expect the
+unsandboxed retry and its permission prompt.

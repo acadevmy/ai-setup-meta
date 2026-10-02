@@ -16,7 +16,7 @@ identifies this as the right reference.
 | CI runs | `gh pr checks <n>` |
 | Release | `gh release create v1.2.0 --title "v1.2.0" --notes-file notes.md` |
 
-Three things that bite:
+Four things that bite:
 
 - **`--body-file`, not `--body`.** An inline body loses its newlines as soon as
   it contains a backtick or a `$`, and the PR arrives as one paragraph.
@@ -27,3 +27,8 @@ Three things that bite:
 - **A label that does not exist fails the whole call**, so the PR is never
   created. The setup creates the catalogue; if the call still fails on a label,
   check `gh label list`, drop the missing one and retry.
+- **`gh` alone on the command line.** It runs outside the Bash sandbox only when
+  the whole call matches `gh *`: a pipe (`| head`, `| jq`), a `cd … &&` or a
+  redirect to a file keeps it sandboxed, where on macOS it fails with
+  `x509: OSStatus -26276`. Filter with `--jq` / `--template`, and pass
+  `--body-file` a file written beforehand.
