@@ -472,15 +472,16 @@ of the bare system prompt.
 harness loads every `*.js` there and registers it as `<plugin>:<meta.name>`, so
 `auto-sdd.js` is callable as `Workflow({name: "dev-setup:auto-sdd"})` — the one
 piece of the plugin the model never reads. Its control flow stays out of the
-context window, and a bound written as `revisions >= MAX_REVISIONS` cannot be re-read
-charitably the way "max 3 iterations" in prose was (audit §1-C).
+context window, and a bound written in code — one revision is one `agent()` call,
+with no loop around it — cannot be re-read charitably the way "max 3 iterations"
+in prose was (audit §1-C).
 
 The split that keeps it safe to run in the background:
 
 - **the workflow** writes the spec, has three reviewers improve it (one focus
   each: simpler design, scope, testability — each proposal names the ADR, rule
   or file it rests on, and the spec author integrates it or declines it on the
-  project's grounds, at most twice, under one precedence: the project's
+  project's grounds, in one revision, under one precedence: the project's
   architectural choices, then what the task promises its users, then how the
   task says to build it), develops with `isolation: 'worktree'` so the
   developer checkout never moves, and runs the project own
@@ -767,4 +768,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.24.0 — bump the version number on every substantial change*
+*Version: 2.25.0 — bump the version number on every substantial change*

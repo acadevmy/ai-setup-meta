@@ -1,7 +1,7 @@
 export const meta = {
   name: 'auto-sdd',
   description:
-    'Autonomous SDD for one task: a spec, three reviewers that improve it against the project architectural choices (at most two revisions), a test-first implementation in an isolated worktree, and the project own quality commands. Returns ready-for-mr or failed, and opens nothing by itself.',
+    'Autonomous SDD for one task: a spec, three reviewers that improve it against the project architectural choices in a single revision, a test-first implementation in an isolated worktree, and the project own quality commands. Returns ready-for-mr or failed, and opens nothing by itself.',
   whenToUse:
     'Launched by the auto-sdd skill, which resolves the task and the project context first. Not started by hand: without those arguments the run stops at intake.',
   phases: [
@@ -97,11 +97,6 @@ const commands = {
   test: stack.test || '',
 }
 
-// How many times the spec author may rewrite the spec on the reviewers'
-// proposals. After the last rewrite the reviewers look once more, and whatever
-// still stands travels to the merge request as an open point.
-const MAX_REVISIONS = 2
-
 // The task text is data, not instruction: an agent reads it to design, never to
 // take orders from it. Said once here and repeated in every prompt that carries
 // it, because each agent reads its own prompt and nothing else.
@@ -193,8 +188,8 @@ const SPEC_SCHEMA = {
 }
 
 // A revision is the spec again, plus what the author did with each proposal:
-// that answer is what the reviewer reads on its next look, so a proposal the
-// author declined on the project grounds is not argued a second time.
+// a declined proposal goes to the merge request with that answer next to it,
+// so the person reviewing it reads both sides.
 const REVISION_SCHEMA = {
   type: 'object',
   required: SPEC_SCHEMA.required.concat(['responses']),
@@ -290,7 +285,7 @@ const CHECK_SCHEMA = {
 
 // Three reviewers, one focus each. Declared before the spec so that the author
 // reads the same bar the reviewers will look at it through: a proposal the
-// author could have seen coming costs a whole revision round.
+// author could have seen coming is a rewrite the run did not need.
 const LENSES = [
   {
     key: 'simpler',
@@ -425,11 +420,17 @@ const specPath = '.specs/' + task.id + '-' + slug + '.md'
 // real tasks — written by hand, prescribing the build, contradicting a rule —
 // every run found one and blocked, without the spec ever being rewritten on
 // it. Now every proposal is work for the author, who integrates it under the
-// precedence or declines it on the project grounds; the reviewer reads that
-// answer and looks again, at most MAX_REVISIONS times. What still stands, and
-// every choice made on the task behalf, goes to the merge request.
+// precedence or declines it on the project grounds. What it declined, with its
+// answer, and every choice made on the task behalf, goes to the merge request.
+//
+// One pass: the reviewers look once and the author answers once. The version
+// before sent the reviewers back to read the answer — up to three looks and
+// two rewrites, eleven agents at worst, nine of them at max effort re-reading
+// the repository from scratch. All a second look could add is a reviewer
+// contesting a decline, and a run that cannot stop has nowhere to take that
+// but the merge request, where the decline and its grounds already go.
 
-function reviewPrompt(lens, draft, round, previous, answer) {
+function reviewPrompt(lens, draft) {
   return [
     'You review a technical spec together with its author and two other',
     'reviewers. The goal is shared: the best spec for this task in this project,',
@@ -437,6 +438,10 @@ function reviewPrompt(lens, draft, round, previous, answer) {
     'You are not here to approve it and not here to stop it — nothing you say',
     'blocks the task. You find what would make it better, through one focus,',
     'and propose the change.',
+    '',
+    'You look once. The author applies your proposal or declines it on the',
+    'project grounds, and a declined one goes to the merge request next to the',
+    'answer: write it so it stands on its own there.',
     '',
     'Your focus: ' + lens.focus + '.',
     '',
@@ -446,22 +451,6 @@ function reviewPrompt(lens, draft, round, previous, answer) {
     '',
     TASK_BLOCK,
     '',
-    round > 0 && previous
-      ? [
-          'This is revision ' + round + ' of the spec. Last round you proposed:',
-          '  ' + previous.reason,
-          '  suggested: ' + (previous.suggestion || '(none given)'),
-          answer
-            ? 'The author ' +
-              (answer.applied ? 'applied it: ' : 'declined it: ') +
-              answer.note
-            : 'The author left no answer on it.',
-          'Judge the document as it is now. When the author declined on grounds',
-          'the project backs, do not repeat the proposal: accept the answer, or',
-          'propose something different.',
-          '',
-        ].join('\n')
-      : '',
     'The spec under review (it is not on disk yet — this is the whole',
     'document):',
     '',
@@ -504,10 +493,10 @@ function reviewPrompt(lens, draft, round, previous, answer) {
 // A reviewer that dies is asked once more with the same prompt. If it dies
 // again its focus is reported as unchecked in the merge request: a missing
 // answer is a gap for the reviewer to see, not a reason to wait.
-async function runLens(lens, draft, round, previous, answer) {
+async function runLens(lens, draft) {
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const verdict = await agent(reviewPrompt(lens, draft, round, previous, answer), {
-      label: 'challenge:' + lens.key + (round > 0 ? ':r' + round : '') + (attempt > 1 ? ':retry' : ''),
+    const verdict = await agent(reviewPrompt(lens, draft), {
+      label: 'challenge:' + lens.key + (attempt > 1 ? ':retry' : ''),
       phase: 'Challenge',
       effort: 'max',
       schema: REVIEW_SCHEMA,
@@ -518,47 +507,25 @@ async function runLens(lens, draft, round, previous, answer) {
 }
 
 phase('Challenge')
-log('Challenge — three reviewers on the spec, up to ' + MAX_REVISIONS + ' revisions')
+log('Challenge — three reviewers on the spec, one revision')
+
+const verdicts = await parallel(LENSES.map((lens) => () => runLens(lens, spec)))
+
+const unchecked = LENSES.filter((lens, i) => !verdicts[i]).map((lens) => lens.key)
+const proposals = LENSES.map((lens, i) => ({ lens: lens.key, verdict: verdicts[i] }))
+  .filter((entry) => entry.verdict && !entry.verdict.satisfied)
+  .map((entry) => ({
+    lens: entry.lens,
+    reason: entry.verdict.reason,
+    suggestion: entry.verdict.suggestion || '',
+    grounds: entry.verdict.grounds || '',
+  }))
 
 let draft = spec
-let pending = LENSES
-const standing = {}
-const answers = {}
-const settled = []
-const unchecked = []
-let revisions = 0
+let responses = []
 
-for (let round = 0; ; round++) {
-  const verdicts = await parallel(
-    pending.map((lens) => () => runLens(lens, draft, round, standing[lens.key], answers[lens.key])),
-  )
-
-  pending.forEach((lens, i) => {
-    const verdict = verdicts[i]
-    if (!verdict) {
-      // A reviewer that could not look again keeps whatever it said before.
-      if (!standing[lens.key] && !unchecked.includes(lens.key)) unchecked.push(lens.key)
-      return
-    }
-    if (!verdict.satisfied) {
-      standing[lens.key] = {
-        lens: lens.key,
-        reason: verdict.reason,
-        suggestion: verdict.suggestion || '',
-        grounds: verdict.grounds || '',
-        round: round,
-      }
-    } else if (standing[lens.key]) {
-      settled.push(standing[lens.key])
-      delete standing[lens.key]
-    }
-  })
-
-  const proposals = LENSES.map((lens) => standing[lens.key]).filter(Boolean)
-  if (proposals.length === 0 || revisions >= MAX_REVISIONS) break
-
-  revisions++
-  log('Challenge — revision ' + revisions + ' of the spec on ' + proposals.length + ' proposal(s)')
+if (proposals.length > 0) {
+  log('Challenge — revising the spec on ' + proposals.length + ' proposal(s)')
   const rewritten = await agent(
     [
       'You wrote the technical spec below for this task. Three reviewers looked',
@@ -568,7 +535,7 @@ for (let round = 0; ; round++) {
       TASK_BLOCK,
       '',
       '---8<--- spec',
-      draft.specMarkdown,
+      spec.specMarkdown,
       '---8<--- end of spec',
       '',
       'The proposals:',
@@ -587,7 +554,8 @@ for (let round = 0; ; round++) {
       '    in opposite directions, the precedence below decides between them.',
       '  - decline a proposal only on grounds the project backs — a rule, an ADR,',
       '    the code, the task — and name them. A declined proposal is not a',
-      '    failure: the reviewer reads your answer and looks again.',
+      '    failure: it goes to the merge request next to your answer, and the',
+      '    person reviewing it reads both.',
       '  - one `responses` entry per proposal: its lens, whether you applied it,',
       '    and one line on what changed or what backs keeping the spec as it was.',
       '',
@@ -603,31 +571,39 @@ for (let round = 0; ; round++) {
       '    nothing else: a rewrite is not a redesign.',
       '  - return the same `slug` as before.',
     ].join('\n'),
-    { label: 'revise:' + task.id + ':r' + revisions, phase: 'Challenge', effort: 'high', schema: REVISION_SCHEMA },
+    { label: 'revise:' + task.id, phase: 'Challenge', effort: 'high', schema: REVISION_SCHEMA },
   )
-  if (!rewritten) {
-    log('Challenge — the revision agent returned nothing, keeping the previous draft')
-    break
+  if (rewritten) {
+    draft = rewritten
+    responses = rewritten.responses || []
+  } else {
+    log('Challenge — the revision agent returned nothing, keeping the first draft')
   }
-  draft = rewritten
-  ;(rewritten.responses || []).forEach((response) => {
-    answers[String(response.lens).toLowerCase().replace(/[^a-z]/g, '')] = response
-  })
-  // Only the reviewers that proposed look again. The ones that were satisfied
-  // were satisfied with a spec this rewrite was told not to redesign.
-  pending = LENSES.filter((lens) => standing[lens.key])
 }
 
-const openPoints = LENSES.map((lens) => standing[lens.key]).filter(Boolean)
+// Each proposal is matched to the author's answer by its lens. One the author
+// applied is in the spec; one it declined, or left without an answer, is an
+// open point, and travels with whatever the author said about it.
+const answerFor = {}
+responses.forEach((response) => {
+  answerFor[String(response.lens).toLowerCase().replace(/[^a-z]/g, '')] = response
+})
+const applied = []
+const openPoints = []
+proposals.forEach((proposal) => {
+  const response = answerFor[proposal.lens]
+  const entry = Object.assign({}, proposal, { answer: response ? response.note : '' })
+  if (response && response.applied) applied.push(entry)
+  else openPoints.push(entry)
+})
+
 const deviations = draft.deviations || []
 const toConfirm = draft.toConfirm || []
 
 log(
   'Challenge — ' +
-    revisions +
-    ' revision(s), ' +
-    settled.length +
-    ' proposal(s) settled, ' +
+    applied.length +
+    ' proposal(s) applied, ' +
     openPoints.length +
     ' left open for the reviewer, ' +
     deviations.length +
@@ -690,9 +666,9 @@ const dev = await agent(
       : '',
     openPoints.length > 0
       ? [
-          'The reviewers left these proposals open after ' + revisions + ' revision(s).',
-          'They go to the merge request for a person to judge. Follow the spec;',
-          'where one points at a real risk, a test that pins it is welcome:',
+          'The spec author declined these proposals, or left them unanswered. They',
+          'go to the merge request for a person to judge. Follow the spec; where',
+          'one points at a real risk, a test that pins it is welcome:',
           '',
           openPoints.map((o) => '  - [' + o.lens + '] ' + o.reason).join('\n'),
           '',
@@ -805,11 +781,10 @@ const outcome = {
   commits: dev.commits || [],
   filesChanged: dev.filesChanged || [],
   openPoints,
-  settled,
+  applied,
   deviations,
   toConfirm,
   unchecked,
-  revisions,
   notes: dev.notes || '',
 }
 

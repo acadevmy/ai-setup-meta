@@ -921,12 +921,8 @@ if [ -f "$AUTO_SDD" ]; then
   assert_eq "three adversarial lenses, no more and no fewer" \
     "3" "$(grep -c "^    key: '" "$AUTO_SDD")"
 
-  # A proposal is work, not a veto: the spec is revised on it a bounded
-  # number of times, and the behaviour is pinned by the simulation below.
-  assert_contains "the spec is revised at most twice" \
-    "$(cat "$AUTO_SDD")" "const MAX_REVISIONS = 2"
-  assert_contains "the revision loop is bounded in code" \
-    "$(cat "$AUTO_SDD")" "revisions >= MAX_REVISIONS"
+  # A proposal is work, not a veto: the spec is revised on it once, and the
+  # behaviour is pinned by the simulation below.
   assert_contains "a reviewer proposes on grounds, never on doubt" \
     "$(cat "$AUTO_SDD")" "A doubt you cannot ground is not a proposal"
   assert_contains "a dead verifier is asked once more" \
@@ -1294,13 +1290,16 @@ echo "── the Challenge improves the spec, it never stops the run ──"
 
 # The gate used to let a reviewer label its own objection a business decision
 # and halt on it, before the spec was ever rewritten on it: on DE-16864 every
-# lens did, on objections the repository itself settled. The loop is now run
+# lens did, on objections the repository itself settled. The phase is now run
 # for real — the workflow body under stubbed agents, the way the harness runs
-# it — so what is pinned is the behaviour, not a line of its source.
+# it — so what is pinned is the behaviour, not a line of its source: how many
+# agents it launches included, since one pass is the whole point of its shape.
 if [ -f "$AUTO_SDD" ] && command -v node >/dev/null 2>&1; then
   cat > "$WORK_DIR/workflow-sim.cjs" <<'NODEJS'
 // Runs auto-sdd.js with stubbed agents. argv[3] maps a reviewer focus to what
-// it answers round after round: "ok" (satisfied), "propose", or "dead".
+// it answers: "ok" (satisfied), "propose", or "dead"; "revise": "dead" makes
+// the reviser return nothing. The reviser declines simpler on an ADR, applies
+// scope, and leaves testable without an answer.
 const fs = require('fs');
 const vm = require('vm');
 
@@ -1308,6 +1307,7 @@ const src = fs.readFileSync(process.argv[2], 'utf8');
 const meta = src.match(/^export const meta = \{[\s\S]*?\n\}\n/);
 const scenario = JSON.parse(process.argv[3]);
 const prompts = {};
+const calls = [];
 const spec = {
   slug: 'sim', specMarkdown: '# spec', planSteps: ['one'],
   reqs: [{ id: 'REQ-1', statement: 'a requirement', test: 'a test' }],
@@ -1318,17 +1318,20 @@ const spec = {
 async function agent(prompt, opts) {
   const label = opts.label;
   prompts[label] = prompt;
+  calls.push(label);
   if (label.startsWith('spec:')) return spec;
   if (label.startsWith('revise:')) {
+    if (scenario.revise === 'dead') return null;
     return Object.assign({}, spec, {
-      responses: [{ lens: 'simpler', applied: false, note: 'the vendoring ADR backs it' }],
+      responses: [
+        { lens: 'simpler', applied: false, note: 'the vendoring ADR backs it' },
+        { lens: 'Scope', applied: true, note: 'REQ-2 dropped' },
+      ],
     });
   }
   if (label.startsWith('challenge:')) {
     const key = label.split(':')[1];
-    const round = Number((label.match(/:r(\d+)/) || [0, 0])[1]);
-    const answers = scenario[key] || ['ok'];
-    const answer = answers[Math.min(round, answers.length - 1)];
+    const answer = scenario[key] || 'ok';
     if (answer === 'dead') return null;
     if (answer === 'ok') return { satisfied: true, reason: 'checked' };
     return { satisfied: false, reason: key + ' proposal', suggestion: 'change', grounds: 'an ADR' };
@@ -1348,12 +1351,14 @@ const context = {
 vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', context).then((out) => {
   console.log(JSON.stringify({
     status: out.status,
-    revisions: out.revisions,
+    reviews: calls.filter((l) => l.startsWith('challenge:')).length,
+    revisions: calls.filter((l) => l.startsWith('revise:')).length,
     open: (out.openPoints || []).map((o) => o.lens).join(','),
-    settled: (out.settled || []).length,
+    applied: (out.applied || []).map((o) => o.lens).join(','),
+    answers: (out.openPoints || []).map((o) => o.answer).join('|'),
     unchecked: (out.unchecked || []).join(','),
     deviations: (out.deviations || []).length,
-    answered: (prompts['challenge:simpler:r1'] || '').includes('declined it: the vendoring ADR backs it'),
+    grounds: (prompts['revise:DE-1'] || '').includes('grounds: an ADR'),
     devSees: (prompts['dev:DE-1'] || '').includes('the styling ADR forbids it'),
     precedence: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
       .every((l) => prompts[l].includes('settle it in this')),
@@ -1364,27 +1369,36 @@ NODEJS
   sim() { node "$WORK_DIR/workflow-sim.cjs" "$AUTO_SDD" "$1" 2>&1; }
   field() { printf '%s' "$1" | jq -r ".$2" 2>/dev/null; }
 
-  SIM=$(sim '{"simpler":["propose"],"scope":["propose"],"testable":["propose"]}')
-  assert_eq "three reviewers that never agree still reach the merge request" \
+  SIM=$(sim '{"simpler":"propose","scope":"propose","testable":"propose"}')
+  assert_eq "three reviewers that all propose still reach the merge request" \
     "ready-for-mr" "$(field "$SIM" status)"
-  assert_eq "the spec is revised at most twice" "2" "$(field "$SIM" revisions)"
-  assert_eq "what still stands travels as open points" \
-    "simpler,scope,testable" "$(field "$SIM" open)"
-  assert_eq "the reviewer reads what the author did with its proposal" \
-    "true" "$(field "$SIM" answered)"
+  assert_eq "the reviewers look once and the spec is revised once" \
+    "3 1" "$(field "$SIM" reviews) $(field "$SIM" revisions)"
+  assert_eq "the reviser reads what each proposal rests on" \
+    "true" "$(field "$SIM" grounds)"
+  assert_eq "an applied proposal is in the spec, not an open point" \
+    "scope" "$(field "$SIM" applied)"
+  assert_eq "a declined or unanswered proposal travels as an open point" \
+    "simpler,testable" "$(field "$SIM" open)"
+  assert_eq "with the author's answer next to it, empty when there was none" \
+    "the vendoring ADR backs it|" "$(field "$SIM" answers)"
   assert_eq "the author, the reviewers and the reviser read the same precedence" \
     "true" "$(field "$SIM" precedence)"
   assert_eq "a departure from the task reaches the developer agent" \
     "true" "$(field "$SIM" devSees)"
   assert_eq "and travels in the outcome" "1" "$(field "$SIM" deviations)"
 
-  SIM=$(sim '{"simpler":["propose","ok"],"scope":["propose","ok"],"testable":["propose","ok"]}')
-  assert_eq "proposals integrated in one revision are settled" \
-    "1 3 " "$(field "$SIM" revisions) $(field "$SIM" settled) $(field "$SIM" open)"
+  SIM=$(sim '{}')
+  assert_eq "three satisfied reviewers cost three agents and no revision" \
+    "3 0 " "$(field "$SIM" reviews) $(field "$SIM" revisions) $(field "$SIM" open)"
 
-  SIM=$(sim '{"scope":["dead"]}')
+  SIM=$(sim '{"simpler":"propose","revise":"dead"}')
+  assert_eq "a reviser that returns nothing leaves every proposal open" \
+    "ready-for-mr simpler" "$(field "$SIM" status) $(field "$SIM" open)"
+
+  SIM=$(sim '{"scope":"dead"}')
   assert_eq "a reviewer that dies twice is reported, and the run goes on" \
-    "ready-for-mr scope" "$(field "$SIM" status) $(field "$SIM" unchecked)"
+    "ready-for-mr scope 4" "$(field "$SIM" status) $(field "$SIM" unchecked) $(field "$SIM" reviews)"
 else
   printf '%s  skip%s  node not found: the Challenge simulation needs it\n' "$DIM" "$NC"
 fi

@@ -561,8 +561,8 @@ task's behalf is at the top of its merge request:
 - **departures from the task** — where the task said how to build it and the
   project's ADRs, rules or libraries said otherwise, the task sentence and what
   overruled it;
-- **open points** — the reviewers' proposals still standing after two
-  revisions.
+- **open points** — the reviewers' proposals the spec author declined or left
+  unanswered, each with the author's answer next to it.
 
 All three are in the spec's technical decisions too. If you disagree with one,
 that is review feedback on the merge request like any other: ask for the change
@@ -573,7 +573,7 @@ fresh run argues the same task from the same sources.
 
 Resume it rather than launching again: a resume replays every finished agent
 from the run's journal and only redoes what did not finish, while a fresh launch
-redoes the spec and all three challenges at full price. Ask Claude to resume the
+redoes the spec and all three reviews at full price. Ask Claude to resume the
 run — it has the run id. Resume is same-session only; once the session is gone,
 so is the journal.
 
