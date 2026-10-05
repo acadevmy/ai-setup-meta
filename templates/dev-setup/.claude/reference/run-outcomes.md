@@ -1,4 +1,4 @@
-# The three outcomes of an auto-sdd run
+# The two outcomes of an auto-sdd run
 
 The `auto-sdd` workflow returns one object. Its `status` decides everything that
 happens next; the rest of the object is what you report. Two skills launch that
@@ -8,68 +8,31 @@ ClickUp calls follow `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`.
 
 ## Index
 
-- [needs-human — a decision only the business can make](#needs-human--a-decision-only-the-business-can-make)
-- [Answering the question](#answering-the-question)
+- [Nothing waits for a person](#nothing-waits-for-a-person)
 - [failed — the spec, the dev step or the commands](#failed--the-spec-the-dev-step-or-the-commands)
 - [ready-for-mr — push and open it](#ready-for-mr--push-and-open-it)
 - [The merge request](#the-merge-request)
 - [What a run leaves behind](#what-a-run-leaves-behind)
 - [When the run does not start](#when-the-run-does-not-start)
 
-## needs-human — a decision only the business can make
+## Nothing waits for a person
 
-`{ status: 'needs-human', taskId, objections[], residual[], addressed[], unchecked[], revisions, overruled[], spec, openQuestions[] }`
+There is no outcome that asks a question. The Challenge phase improves the spec
+and cannot stop the run: three reviewers propose changes grounded in the
+project's architectural choices, the spec author integrates them or declines
+them on the project's grounds, at most twice, and a contradiction between the
+task and the project is settled by one precedence — the project's ADRs, rules
+and libraries, then what the task promises its users, then how the task says to
+build it.
 
-The lenses' objections do not stop a run: each one comes with a suggestion, the
-spec is rewritten on it at most twice, and whatever still stands goes to the
-merge request. The one thing that stops it is an objection of kind `decision` —
-the task admits readings that lead to different behaviour and nothing in the
-repository picks one. `objections` holds those; `residual` holds the fixable
-ones still standing, which travel on once the run resumes. There is no branch,
-no worktree and no merge request yet.
+Whatever that left behind travels to the merge request, where the reviewer is
+the checkpoint: the proposals still open (`openPoints`), the places the spec
+departed from the task text (`deviations`) and the readings it chose where the
+task admitted two (`toConfirm`). Do not turn any of them into a question in
+chat, and do not re-run the workflow hoping for a cleaner spec.
 
-1. Show each `decision` objection with its lens and its reason, then the
-   `openQuestions` the spec author flagged. That is the question to answer.
-2. Ask the developer, and read the next section for what their answer means.
-3. Only if they do not want to deal with it now, move the task to `BLOCKED` with
-   the bail-out call of the contract — one `update` carrying the status and the
-   note. The note holds the objections verbatim, and the clock's `COMMENT`
-   (`--stop`) goes after it: the spec phase was work too.
-
-Do not answer the question yourself and do not re-run the workflow hoping for a
-different verdict. A business decision is the gate, it is in code, and the only
-thing that moves it is a person.
-
-## Answering the question
-
-Whatever the developer answers — "read it this way", or "the lens is wrong,
-there is no real choice here" — name the lenses they answered and resume the
-run with their words:
-
-```json
-Workflow({
-  "name": "dev-setup:auto-sdd",
-  "args": { "…": "the same arguments as the launch",
-            "resolved": ["scope"], "guidance": "<their answer, in their words>" },
-  "resumeFromRunId": "<the runId the launch returned>"
-})
-```
-
-`resolved` names lenses, and only a named lens comes off the count: `guidance`
-alone leaves the question open and the run stops again. Both are read after the
-Challenge phase and nowhere before it, so the spec, the verdicts and the
-revisions come back from the journal cache. One agent then writes the answer
-into the spec's `## Technical decisions`, and the run goes on to Dev. The
-decision travels into the dev prompt and into the merge request — it is
-recorded, never silent.
-
-When the answer changes the task itself rather than choosing between readings
-of it, there is nothing to resume: put it in the task description,
-`BLOCKED → SPRINT`, and launch again.
-
-Never fill `resolved` from your own reading of the objection. It exists to carry
-a person's decision, and a run that clears its own gate is the auto-approval
-this workflow was written to remove.
+When the reviewer disagrees with a reading the spec took, that is review
+feedback on the merge request, handled like any other.
 
 ## failed — the spec, the dev step or the commands
 
@@ -93,7 +56,7 @@ once the cause is fixed, and only the commands run again.
 
 ## ready-for-mr — push and open it
 
-`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, objections[], addressed[], unchecked[], revisions, overruled[], guidance }`
+`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], settled[], deviations[], toConfirm[], unchecked[], revisions }`
 
 The tests, the linter and the type checker ran green in the worktree, and the
 spec is committed on the branch. Two things are left, and they are the two the
@@ -133,17 +96,16 @@ plus what this flow owes a reviewer who was not watching:
 
 - **the real test output**, in a fenced block: the `output` field, as it came
   back. A reviewer has to see the suite passing without re-running it.
-- **the decision**, when `overruled` holds one: the question each answered
-  lens raised, and the `guidance` the developer gave, quoted. It is in the spec
-  too, but a reviewer who disagrees with it is the last checkpoint it has, so it
-  goes at the top.
-- **the objections still standing**, when `objections` holds any: the lens,
-  the reason and the suggestion the spec was not rewritten on after
-  `revisions` rounds. They did not stop the run — they are exactly what the
-  reviewer should look at first.
+- **to confirm**, at the top, when `toConfirm` or `deviations` holds anything:
+  each reading the spec took where the task admitted two, and each place it
+  departed from the task text with what overruled it. Nobody was asked about
+  them, so the reviewer is the first person to see them — they go first.
+- **the open points**, when `openPoints` holds any: the reviewer's focus, the
+  reason and the suggestion still standing after `revisions` rounds. They did
+  not stop the run — they are what the reviewer should look at next.
 - **what the challenge settled**: one line with `revisions` and the number of
-  `addressed` objections, so the reviewer knows the spec was argued over.
-- **the lens that never answered**, when `unchecked` names one: its verifier
+  `settled` proposals, so the reviewer knows the spec was argued over.
+- **the focus that never answered**, when `unchecked` names one: its reviewer
   died twice, so the spec was not checked through it. Say so plainly.
 
 Link the task and the spec (`spec.path`, committed on the branch).
@@ -160,8 +122,8 @@ git worktree list
 git worktree remove <path>
 ```
 
-An interrupted run resumes from its journal the same way an answered one does —
-`resumeFromRunId` with the arguments of the launch — so the agents that finished
+An interrupted run resumes from its journal — `resumeFromRunId` with the
+arguments of the launch — so the agents that finished
 come back from cache and only the unfinished ones run again. Resume rather than
 launching again: a fresh run redoes the spec and the three challenges from
 scratch, at the same cost as the first time. Resume is same-session only; once

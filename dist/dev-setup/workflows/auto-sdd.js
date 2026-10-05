@@ -1,12 +1,12 @@
 export const meta = {
   name: 'auto-sdd',
   description:
-    'Autonomous SDD for one task: a spec, three adversarial lenses it is revised against (at most twice), a test-first implementation in an isolated worktree, and the project own quality commands. Returns needs-human, ready-for-mr or failed, and opens nothing by itself.',
+    'Autonomous SDD for one task: a spec, three reviewers that improve it against the project architectural choices (at most two revisions), a test-first implementation in an isolated worktree, and the project own quality commands. Returns ready-for-mr or failed, and opens nothing by itself.',
   whenToUse:
     'Launched by the auto-sdd skill, which resolves the task and the project context first. Not started by hand: without those arguments the run stops at intake.',
   phases: [
     { title: 'Spec', detail: 'one agent drafts the spec from the task and the codebase' },
-    { title: 'Challenge', detail: 'three adversarial lenses, the spec revised on their objections' },
+    { title: 'Challenge', detail: 'three reviewers propose, the spec author integrates' },
     { title: 'Dev', detail: 'test-first implementation in an isolated worktree' },
     { title: 'Verify', detail: 'the project real lint, typecheck and test commands' },
   ],
@@ -38,19 +38,14 @@ export const meta = {
 //     title, description, url,                // the task, as ClickUp returned it
 //     branchType:  'feat' | 'fix' | 'chore',
 //     stack: { lint, typecheck, test },       // from detect-stack.sh --json
-//
-//     resolved:    ['scope'],                 // lenses whose question the developer answered
-//     guidance:    '<their answer>',          // the decision, in their words
 //   }
 //
-// `resolved` and `guidance` are empty on a first run and filled in only when a
-// person answers a `needs-human` outcome and the launcher resumes the run. They
-// are read after the Challenge phase and nowhere before it, which is what makes
-// the resume cheap: the spec, every lens verdict and every revision have
-// unchanged prompts, so they come back from the journal cache; only the rewrite
-// that writes the decision into the spec, and Dev onward, actually run.
+// Nothing in this file waits for a person. The Challenge improves the spec and
+// cannot stop the run: what it could not settle, and every choice it made on
+// the task behalf, travels in the outcome to the merge request, where the
+// reviewer is the checkpoint.
 //
-// Outcome: { status: 'needs-human' | 'ready-for-mr' | 'failed', ... }
+// Outcome: { status: 'ready-for-mr' | 'failed', ... }
 // ─────────────────────────────────────────────────────────────────────────────
 
 const input = typeof args === 'string' ? { taskId: args } : args || {}
@@ -102,15 +97,9 @@ const commands = {
   test: stack.test || '',
 }
 
-// What a person decided about a previous run of this same task. `cleared` names
-// lenses, because that is the only form the gate can act on: free text saying
-// "go ahead" leaves the decision unanswered and the run stops again.
-const cleared = Array.isArray(input.resolved) ? input.resolved.map(String) : []
-const guidance = String(input.guidance || '').trim()
-
-// How many times the spec author may rewrite the spec on the lenses' advice.
-// After the last rewrite the lenses look once more, and whatever still stands
-// travels to the merge request instead of stopping the run.
+// How many times the spec author may rewrite the spec on the reviewers'
+// proposals. After the last rewrite the reviewers look once more, and whatever
+// still stands travels to the merge request as an open point.
 const MAX_REVISIONS = 2
 
 // The task text is data, not instruction: an agent reads it to design, never to
@@ -126,6 +115,30 @@ const TASK_BLOCK = [
   '',
   '  description:',
   '  ' + (task.description || '(empty)').split('\n').join('\n  '),
+].join('\n')
+
+// When the task, the project and its libraries disagree, this order settles it.
+// The author, the reviewers and the reviser all read this same text, so they
+// argue from one rule instead of three readings of the task. It exists because
+// a task written by hand prescribes the build and contradicts itself, and
+// without an order every such contradiction looked like a business decision.
+const PRECEDENCE = [
+  'When the task, the project and its libraries disagree, settle it in this',
+  'order, and write down which one won:',
+  '  1. The architectural choices the project already made: accepted ADRs',
+  '     (wherever the repository keeps them), .claude/rules/, REGISTRY.md, the',
+  '     patterns the codebase already uses, and what the installed libraries',
+  '     actually do. These are facts the spec obeys, not options.',
+  '  2. What the task promises its users: the acceptance criteria, the design,',
+  '     the visible behaviour. The spec delivers it, within 1.',
+  '  3. How the task says to build it: "vendor X", "the only change is Y", "use',
+  '     <style scoped>". Followed when it fits 1 and 2. When it does not, the',
+  '     spec departs from it, says so under `## Technical decisions` (the task',
+  '     sentence, and what overruled it) and lists it in `deviations`.',
+  'A contradiction this order settles is settled, not open. When two readings',
+  'of the task still survive it, take the one that fits the architecture best',
+  'and is cheapest to change later, write it under `## Technical decisions`,',
+  'and list it in `toConfirm` for the person who reviews the merge request.',
 ].join('\n')
 
 const SPEC_SCHEMA = {
@@ -164,37 +177,67 @@ const SPEC_SCHEMA = {
         'what the task leaves open and the spec settled with a reasonable default, each with the default chosen and why',
       items: { type: 'string' },
     },
-    openQuestions: {
+    deviations: {
       type: 'array',
       description:
-        'only what no reasonable default can settle: a business choice between readings that lead to different behaviour',
+        'where the spec departs from the task text, each naming the task sentence and the architectural choice that overruled it',
+      items: { type: 'string' },
+    },
+    toConfirm: {
+      type: 'array',
+      description:
+        'where the task admits two readings with different behaviour for its users: the reading the spec took, and why. The merge request reviewer confirms them; nothing waits on them',
       items: { type: 'string' },
     },
   },
 }
 
-const VERDICT_SCHEMA = {
+// A revision is the spec again, plus what the author did with each proposal:
+// that answer is what the reviewer reads on its next look, so a proposal the
+// author declined on the project grounds is not argued a second time.
+const REVISION_SCHEMA = {
   type: 'object',
-  required: ['refuted', 'reason'],
+  required: SPEC_SCHEMA.required.concat(['responses']),
+  properties: Object.assign({}, SPEC_SCHEMA.properties, {
+    responses: {
+      type: 'array',
+      description: 'one entry per proposal received',
+      items: {
+        type: 'object',
+        required: ['lens', 'applied', 'note'],
+        properties: {
+          lens: { type: 'string', description: 'the reviewer focus the proposal came from' },
+          applied: { type: 'boolean' },
+          note: {
+            type: 'string',
+            description: 'what changed in the spec — or, when declined, the rule, ADR, file or task sentence that backs keeping it',
+          },
+        },
+      },
+    },
+  }),
+}
+
+const REVIEW_SCHEMA = {
+  type: 'object',
+  required: ['satisfied', 'reason'],
   properties: {
-    refuted: {
+    satisfied: {
       type: 'boolean',
-      description: 'true only when the objection stands on concrete evidence',
+      description: 'true when, through your focus, nothing is left worth changing in the spec',
     },
     reason: {
       type: 'string',
       description:
-        'the objection in one or two sentences, naming the REQ, section or file it is about — or, when false, what you checked',
-    },
-    kind: {
-      type: 'string',
-      enum: ['fixable', 'decision'],
-      description:
-        'fixable: the spec author can correct it alone. decision: only the business can choose between readings of the task',
+        'what is wrong or missing, in one or two sentences, naming the REQ, section or file — or, when satisfied, what you checked',
     },
     suggestion: {
       type: 'string',
-      description: 'the concrete change to the spec that would settle the objection',
+      description: 'the concrete change to the spec, written so the author can apply it as it is',
+    },
+    grounds: {
+      type: 'string',
+      description: 'what the proposal rests on: the ADR, the rule, the file, the library behaviour or the task sentence',
     },
   },
 }
@@ -245,52 +288,58 @@ const CHECK_SCHEMA = {
   },
 }
 
-// Three lenses, one claim each. Declared before the spec so that the author
-// reads the same bar the verifiers will hold it to: an objection the author
-// could have seen coming costs a whole challenge round.
+// Three reviewers, one focus each. Declared before the spec so that the author
+// reads the same bar the reviewers will look at it through: a proposal the
+// author could have seen coming costs a whole revision round.
 const LENSES = [
   {
     key: 'simpler',
-    claim: 'a materially simpler design satisfies this task just as well',
+    focus: 'the simplest design that fits the architecture the project already chose',
     ask: [
       'Look for the simpler design: fewer files, fewer layers, fewer new',
       'concepts, something the codebase already does that this spec rebuilds.',
-      'Refute the spec if you find one, and say what it is. "Could be slightly',
-      'tidier" is not an objection — a genuinely simpler design is.',
+      'Propose it when it is genuinely simpler and fits the project choices —',
+      '"could be slightly tidier" is not a proposal. When the task itself',
+      'prescribes the heavier design, your proposal goes through the precedence',
+      'below like any other: it wins where the project choices back it.',
     ].join('\n'),
   },
   {
     key: 'scope',
-    claim: 'the spec does more, or less, than the task asks',
+    focus: 'exactly what the task asks, read through the project choices',
     ask: [
       'Compare the spec against the task text, requirement by requirement.',
-      'Refute it if the plan builds anything the task does not ask for, or if a',
-      'requirement the task states plainly is missing. Name the REQ or the plan',
-      'step that goes beyond, or the sentence of the task nothing covers. Tests,',
-      'and the wiring the requirements cannot work without, are not scope creep.',
+      'Propose a change when the plan builds anything the task does not ask for,',
+      'when a requirement the task states plainly is missing, or when a',
+      'contradiction inside the task is settled against the precedence below.',
+      'Name the REQ, the plan step or the task sentence. Tests, and the wiring',
+      'the requirements cannot work without, are not scope creep.',
     ].join('\n'),
   },
   {
     key: 'testable',
-    claim: 'at least one REQ is untestable or ambiguous',
+    focus: 'every REQ settled by a test that can fail',
     ask: [
-      'Take each REQ and ask what failing test would prove it missing. Refute',
-      'the spec if any REQ cannot be settled that way — a subjective adjective,',
-      'two readings that lead to different code, a "handle errors gracefully".',
-      'Name the REQ and the reading that breaks it.',
+      'Take each REQ and ask what failing test would prove it missing. Propose a',
+      'rewrite for any REQ that cannot be settled that way — a subjective',
+      'adjective, two readings that lead to different code, a "handle errors',
+      'gracefully" — and give the rewritten REQ with the test that settles it.',
     ].join('\n'),
   },
 ]
 
-const LENS_CHECKLIST = LENSES.map((lens) => '  - ' + lens.key + ': ' + lens.claim).join('\n')
+const LENS_CHECKLIST = LENSES.map((lens) => '  - ' + lens.key + ': ' + lens.focus).join('\n')
+
+const bullets = (items) => (items || []).map((item) => '  - ' + item).join('\n')
 
 // ── 1. Spec ──────────────────────────────────────────────────────────────────
 //
 // No discovery interview: the agent that used to answer the questions was the
 // same model that asked them, over the same sources (audit §1-C). What the task
-// leaves open is settled with a default and listed in `assumptions`; only what
-// no default can settle is an `openQuestion`, and the Challenge lenses decide
-// whether that is a real business decision.
+// leaves open is settled with a default and listed in `assumptions`; where the
+// task contradicts the project, the precedence decides and `deviations` says
+// so; where two readings survive it, the spec takes one and `toConfirm` hands
+// it to the merge request reviewer. No question is left for anyone to answer.
 //
 // The agent writes no file. The spec travels as data so that the dev agent can
 // write it inside its own worktree, and so a resumed run does not need it back.
@@ -308,12 +357,14 @@ const spec = await agent(
     '  - ' + plugin + '/skills/sdd-spec/reference/spec-template.md — the exact',
     '    sections of the document and the rules for filling them in. Follow it.',
     '  - .claude/rules/ — the constraints this project applies to the code.',
+    '  - the accepted ADRs, wherever the repository keeps them — the',
+    '    architectural choices already made.',
     '  - REGISTRY.md, when the repository has one — existing components and',
     '    decisions to reuse instead of re-inventing.',
     '  - the files the requirements touch. Name real paths, not plausible ones.',
     '',
     'Write the document with `> Status: approved` in its header: in this flow the',
-    'approval is the adversarial gate that runs next, not a signature.',
+    'approval is the review that runs next, not a signature.',
     'Date fields come from `date +%F`.',
     '',
     'Rules for this run:',
@@ -326,14 +377,15 @@ const spec = await agent(
     '    for; if it is worth doing, one line under `## Notes` says so.',
     '  - what the task leaves open, settle it with the default the codebase, the',
     '    rules or the conventions of the domain point to, write it in the spec,',
-    '    and list it in `assumptions`. Do not hide a decision, and do not leave',
-    '    one open that a reasonable default settles.',
-    '  - `openQuestions` is only for what no default can settle: two readings of',
-    '    the task that lead to different behaviour, where choosing is a business',
-    '    call. Most tasks have none.',
+    '    and list it in `assumptions`. Do not hide a decision.',
+    '  - nobody answers questions in this flow: a choice the task leaves to the',
+    '    reader is made here, by the precedence below, and recorded.',
     '',
-    'Three reviewers will attack the spec next, one claim each. Check your draft',
-    'against them before you return it:',
+    PRECEDENCE,
+    '',
+    'Three reviewers will look at the spec next, one focus each, and propose',
+    'what would make it better. Check your draft against them before you return',
+    'it:',
     LENS_CHECKLIST,
   ].join('\n'),
   { label: 'spec:' + task.id, phase: 'Spec', effort: 'high', schema: SPEC_SCHEMA },
@@ -362,36 +414,53 @@ const specPath = '.specs/' + task.id + '-' + slug + '.md'
 
 // ── 2. Challenge ─────────────────────────────────────────────────────────────
 //
-// Three verifiers, three distinct lenses, each told to refute. The approver
-// agent this replaces checked that the spec carried the sections the template
-// obliges it to produce, so it approved every time; a lens that can only say
-// "this is wrong, here is why" cannot rubber-stamp.
+// Three reviewers, three distinct focuses, and one goal shared with the author:
+// the spec that fits this project best. The approver agent this replaces only
+// checked that the template sections were there, so it approved every time; a
+// reviewer has to name what would be better and the rule, ADR or file that
+// says so, which a rubber stamp cannot do.
 //
-// An objection is not a veto, it is work. Each one carries the change that
-// would settle it and a kind:
-//   - fixable  → the spec author applies the suggestion and the lenses that
-//                objected look again, at most MAX_REVISIONS times. What still
-//                stands after that is a note for the reviewer, in the merge
-//                request — never a reason to stop.
-//   - decision → the task admits readings only the business can choose
-//                between. That, and only that, stops the run at `needs-human`.
+// It improves the spec and it cannot stop the run. An earlier version let a
+// reviewer label its own objection a "business decision" and halted on it: on
+// real tasks — written by hand, prescribing the build, contradicting a rule —
+// every run found one and blocked, without the spec ever being rewritten on
+// it. Now every proposal is work for the author, who integrates it under the
+// precedence or declines it on the project grounds; the reviewer reads that
+// answer and looks again, at most MAX_REVISIONS times. What still stands, and
+// every choice made on the task behalf, goes to the merge request.
 
-function lensPrompt(lens, draft, round) {
-  const questions = (draft.openQuestions || []).map((q) => '  - ' + q).join('\n')
-  const assumed = (draft.assumptions || []).map((a) => '  - ' + a).join('\n')
+function reviewPrompt(lens, draft, round, previous, answer) {
   return [
-    'You are the adversarial reviewer of a technical spec. Your job is to',
-    'refute it through one lens, not to improve it and not to approve it.',
+    'You review a technical spec together with its author and two other',
+    'reviewers. The goal is shared: the best spec for this task in this project,',
+    'the design that fits the architectural choices the project already made.',
+    'You are not here to approve it and not here to stop it — nothing you say',
+    'blocks the task. You find what would make it better, through one focus,',
+    'and propose the change.',
     '',
-    'Your lens: ' + lens.claim + '.',
+    'Your focus: ' + lens.focus + '.',
     '',
     lens.ask,
     '',
+    PRECEDENCE,
+    '',
     TASK_BLOCK,
     '',
-    round > 0
-      ? 'This is revision ' + round + ' of the spec: the author already rewrote it once\n' +
-        'on objections like yours. Judge the document as it is now.\n'
+    round > 0 && previous
+      ? [
+          'This is revision ' + round + ' of the spec. Last round you proposed:',
+          '  ' + previous.reason,
+          '  suggested: ' + (previous.suggestion || '(none given)'),
+          answer
+            ? 'The author ' +
+              (answer.applied ? 'applied it: ' : 'declined it: ') +
+              answer.note
+            : 'The author left no answer on it.',
+          'Judge the document as it is now. When the author declined on grounds',
+          'the project backs, do not repeat the proposal: accept the answer, or',
+          'propose something different.',
+          '',
+        ].join('\n')
       : '',
     'The spec under review (it is not on disk yet — this is the whole',
     'document):',
@@ -400,59 +469,101 @@ function lensPrompt(lens, draft, round) {
     draft.specMarkdown,
     '---8<--- end of spec',
     '',
-    assumed
-      ? 'The author settled these with a default. A reasonable default is not an\n' +
-        'objection; a default that contradicts the task, the code or the rules is:\n' +
-        assumed
+    draft.assumptions && draft.assumptions.length
+      ? 'The author settled these with a default. A reasonable default is not\n' +
+        'worth a proposal; a default that contradicts the task, the code or the\n' +
+        'rules is:\n' +
+        bullets(draft.assumptions)
       : 'The author recorded no assumption.',
     '',
-    questions
-      ? 'The author could not settle these:\n' + questions
-      : 'The author flagged nothing as open.',
+    draft.deviations && draft.deviations.length
+      ? 'The author departed from the task text here, under the precedence:\n' + bullets(draft.deviations)
+      : 'The author recorded no departure from the task text.',
+    '',
+    draft.toConfirm && draft.toConfirm.length
+      ? 'The author chose between two readings of the task here:\n' + bullets(draft.toConfirm)
+      : 'The author chose between no readings of the task.',
     '',
     'You may read the repository to check a claim — the rules in',
-    '.claude/rules/, REGISTRY.md, the files the spec names. Change nothing.',
+    '.claude/rules/, the ADRs, REGISTRY.md, the files the spec names. Change',
+    'nothing.',
     '',
-    'Answer with `refuted` and `reason`. Set `refuted: true` only when the',
-    'objection stands on something you can point to — a REQ, a plan step, a',
-    'file, a sentence of the task. A doubt you cannot ground is not an',
-    'objection: set `refuted: false` and say in `reason` what you checked.',
-    '',
-    'When you refute, also give:',
-    '  - `suggestion` — the concrete change to the spec that settles it.',
-    '  - `kind` — `fixable` when the spec author can make that change from the',
-    '    task, the code and the rules alone, which is nearly always. `decision`',
-    '    only when the task text admits two readings that lead to different',
-    '    behaviour for its users, nothing in the repository picks one, and',
-    '    choosing is a business call. "The task does not say, and the obvious',
-    '    default is X" is fixable, with X as the suggestion.',
+    'Answer `satisfied: true` when, through your focus, nothing is left worth',
+    'changing, and say in `reason` what you checked. Otherwise',
+    '`satisfied: false`, with:',
+    '  - `reason` — what is wrong or missing, naming the REQ, section or file;',
+    '  - `suggestion` — the concrete change, written so the author can apply it',
+    '    as it is;',
+    '  - `grounds` — what it rests on: the ADR, the rule, the file, the library',
+    '    behaviour, the task sentence.',
+    'A doubt you cannot ground is not a proposal: be satisfied, and say in',
+    '`reason` what you checked.',
   ].join('\n')
 }
 
-// A verifier that dies is asked once more with the same prompt. If it dies
-// again its lens is reported as unchecked in the merge request: a missing
-// answer is a gap for the reviewer to see, not a business decision to wait for.
-async function runLens(lens, draft, round) {
+// A reviewer that dies is asked once more with the same prompt. If it dies
+// again its focus is reported as unchecked in the merge request: a missing
+// answer is a gap for the reviewer to see, not a reason to wait.
+async function runLens(lens, draft, round, previous, answer) {
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const verdict = await agent(lensPrompt(lens, draft, round), {
+    const verdict = await agent(reviewPrompt(lens, draft, round, previous, answer), {
       label: 'challenge:' + lens.key + (round > 0 ? ':r' + round : '') + (attempt > 1 ? ':retry' : ''),
       phase: 'Challenge',
       effort: 'max',
-      schema: VERDICT_SCHEMA,
+      schema: REVIEW_SCHEMA,
     })
     if (verdict) return verdict
   }
   return null
 }
 
-// One rewrite of the spec, either on the lenses' suggestions or on the answer a
-// person gave. The same agent and the same schema for both, because both are
-// the same act: the spec changes, the scope and the file do not.
-function revise(draft, instructions, label) {
-  return agent(
+phase('Challenge')
+log('Challenge — three reviewers on the spec, up to ' + MAX_REVISIONS + ' revisions')
+
+let draft = spec
+let pending = LENSES
+const standing = {}
+const answers = {}
+const settled = []
+const unchecked = []
+let revisions = 0
+
+for (let round = 0; ; round++) {
+  const verdicts = await parallel(
+    pending.map((lens) => () => runLens(lens, draft, round, standing[lens.key], answers[lens.key])),
+  )
+
+  pending.forEach((lens, i) => {
+    const verdict = verdicts[i]
+    if (!verdict) {
+      // A reviewer that could not look again keeps whatever it said before.
+      if (!standing[lens.key] && !unchecked.includes(lens.key)) unchecked.push(lens.key)
+      return
+    }
+    if (!verdict.satisfied) {
+      standing[lens.key] = {
+        lens: lens.key,
+        reason: verdict.reason,
+        suggestion: verdict.suggestion || '',
+        grounds: verdict.grounds || '',
+        round: round,
+      }
+    } else if (standing[lens.key]) {
+      settled.push(standing[lens.key])
+      delete standing[lens.key]
+    }
+  })
+
+  const proposals = LENSES.map((lens) => standing[lens.key]).filter(Boolean)
+  if (proposals.length === 0 || revisions >= MAX_REVISIONS) break
+
+  revisions++
+  log('Challenge — revision ' + revisions + ' of the spec on ' + proposals.length + ' proposal(s)')
+  const rewritten = await agent(
     [
-      'You wrote the technical spec below for this task. Rewrite it to settle',
-      'what follows, and return the whole document again.',
+      'You wrote the technical spec below for this task. Three reviewers looked',
+      'at it, one focus each, and proposed changes. Integrate them and return the',
+      'whole document again.',
       '',
       TASK_BLOCK,
       '',
@@ -460,147 +571,70 @@ function revise(draft, instructions, label) {
       draft.specMarkdown,
       '---8<--- end of spec',
       '',
-      instructions,
+      'The proposals:',
+      proposals
+        .map(
+          (o) =>
+            '  - [' + o.lens + '] ' + o.reason +
+            '\n    suggested: ' + (o.suggestion || '(none given)') +
+            '\n    grounds: ' + (o.grounds || '(none given)'),
+        )
+        .join('\n'),
+      '',
+      'How to integrate them:',
+      '  - you weigh them, against the architectural choices the project already',
+      '    made. Apply a proposal that makes the spec a better fit; when two pull',
+      '    in opposite directions, the precedence below decides between them.',
+      '  - decline a proposal only on grounds the project backs — a rule, an ADR,',
+      '    the code, the task — and name them. A declined proposal is not a',
+      '    failure: the reviewer reads your answer and looks again.',
+      '  - one `responses` entry per proposal: its lens, whether you applied it,',
+      '    and one line on what changed or what backs keeping the spec as it was.',
+      '',
+      PRECEDENCE,
       '',
       'Rules for the rewrite:',
       '  - same rules as the first draft: read-only, one REQ per verifiable',
-      '    requirement, an ordered atomic plan, the scope is the task, defaults',
-      '    in `assumptions`, only business choices in `openQuestions`.',
+      '    requirement, an ordered atomic plan, the scope is the task, defaults in',
+      '    `assumptions`, departures from the task in `deviations`, readings',
+      '    chosen in `toConfirm`.',
       '  - keep the spec template sections and `> Status: approved`.',
-      '  - change what the instructions ask for and what follows from it, and',
+      '  - change what the proposals ask for and what follows from it, and',
       '    nothing else: a rewrite is not a redesign.',
       '  - return the same `slug` as before.',
     ].join('\n'),
-    { label: label, phase: 'Challenge', effort: 'high', schema: SPEC_SCHEMA },
-  )
-}
-
-phase('Challenge')
-log('Challenge — three lenses against the spec, up to ' + MAX_REVISIONS + ' revisions')
-
-let draft = spec
-let pending = LENSES
-const standing = {}
-const addressed = []
-const unchecked = []
-let revisions = 0
-
-for (let round = 0; ; round++) {
-  const verdicts = await parallel(pending.map((lens) => () => runLens(lens, draft, round)))
-
-  pending.forEach((lens, i) => {
-    const verdict = verdicts[i]
-    if (!verdict) {
-      // A lens that could not look again keeps whatever it said before.
-      if (!standing[lens.key] && !unchecked.includes(lens.key)) unchecked.push(lens.key)
-      return
-    }
-    if (verdict.refuted) {
-      standing[lens.key] = {
-        lens: lens.key,
-        kind: verdict.kind === 'decision' ? 'decision' : 'fixable',
-        reason: verdict.reason,
-        suggestion: verdict.suggestion || '',
-        round: round,
-      }
-    } else if (standing[lens.key]) {
-      addressed.push(standing[lens.key])
-      delete standing[lens.key]
-    }
-  })
-
-  const fixable = LENSES.map((lens) => standing[lens.key]).filter(
-    (o) => o && o.kind === 'fixable',
-  )
-  if (fixable.length === 0 || revisions >= MAX_REVISIONS) break
-
-  revisions++
-  log('Challenge — revision ' + revisions + ' of the spec on ' + fixable.length + ' objection(s)')
-  const rewritten = await revise(
-    draft,
-    [
-      'The reviewers objected. Settle each objection, normally by applying its',
-      'suggestion; if you are sure it is wrong, keep the spec and say why under',
-      '`## Notes` — the reviewer will look again either way:',
-      '',
-      fixable
-        .map((o) => '  - [' + o.lens + '] ' + o.reason + '\n    suggested: ' + (o.suggestion || '(none given)'))
-        .join('\n'),
-    ].join('\n'),
-    'revise:' + task.id + ':r' + revisions,
+    { label: 'revise:' + task.id + ':r' + revisions, phase: 'Challenge', effort: 'high', schema: REVISION_SCHEMA },
   )
   if (!rewritten) {
     log('Challenge — the revision agent returned nothing, keeping the previous draft')
     break
   }
   draft = rewritten
-  // Only the lenses that objected look again. The ones that passed passed a
-  // spec this rewrite was told not to redesign.
-  pending = LENSES.filter((lens) => fixable.some((o) => o.lens === lens.key))
+  ;(rewritten.responses || []).forEach((response) => {
+    answers[String(response.lens).toLowerCase().replace(/[^a-z]/g, '')] = response
+  })
+  // Only the reviewers that proposed look again. The ones that were satisfied
+  // were satisfied with a spec this rewrite was told not to redesign.
+  pending = LENSES.filter((lens) => standing[lens.key])
 }
 
-const raised = LENSES.map((lens) => standing[lens.key]).filter(Boolean)
-
-// A lens a person answered is off the count. Nothing here can tell an answer
-// from a rubber stamp, and it does not try to: the launcher fills `resolved`
-// from what the developer said in the session, and every answered lens travels
-// into the spec, the outcome and the merge request, so it leaves a trace where
-// a reviewer reads it.
-const overruled = raised.filter((o) => cleared.includes(o.lens))
-const open = raised.filter((o) => !cleared.includes(o.lens))
-const blocking = open.filter((o) => o.kind === 'decision')
-const objections = open.filter((o) => o.kind === 'fixable')
+const openPoints = LENSES.map((lens) => standing[lens.key]).filter(Boolean)
+const deviations = draft.deviations || []
+const toConfirm = draft.toConfirm || []
 
 log(
   'Challenge — ' +
     revisions +
     ' revision(s), ' +
-    addressed.length +
-    ' objection(s) settled, ' +
-    objections.length +
-    ' left for the reviewer, ' +
-    blocking.length +
-    ' needing a decision' +
-    (overruled.length > 0 ? ', ' + overruled.length + ' answered by the developer' : ''),
+    settled.length +
+    ' proposal(s) settled, ' +
+    openPoints.length +
+    ' left open for the reviewer, ' +
+    deviations.length +
+    ' departure(s) from the task, ' +
+    toConfirm.length +
+    ' reading(s) to confirm',
 )
-
-if (blocking.length > 0) {
-  return {
-    status: 'needs-human',
-    taskId: task.id,
-    objections: blocking,
-    residual: objections,
-    addressed,
-    unchecked,
-    revisions,
-    overruled,
-    spec: { path: specPath, slug: slug, reqs: draft.reqs, markdown: draft.specMarkdown },
-    openQuestions: draft.openQuestions || [],
-  }
-}
-
-// The developer answered a business decision: the spec takes that answer in
-// before any code is written, so the dev agent implements what was decided and
-// not what the first draft guessed. Read here and nowhere earlier, which keeps
-// every call above unchanged on a resume — they come back from the journal.
-const answered = overruled.filter((o) => o.kind === 'decision')
-if (answered.length > 0 && guidance) {
-  const decided = await revise(
-    draft,
-    [
-      'A person made the business decision the reviewers could not make. It is',
-      'final: write it into `## Technical decisions` as theirs, adjust the REQs',
-      'and the plan to it, and remove the question from `openQuestions`.',
-      '',
-      'The questions:',
-      answered.map((o) => '  - [' + o.lens + '] ' + o.reason).join('\n'),
-      '',
-      'Their answer: ' + guidance,
-    ].join('\n'),
-    'decide:' + task.id,
-  )
-  if (decided) draft = decided
-}
 
 const reqLines = draft.reqs.map((req) => '  - ' + req.id + ': ' + req.statement).join('\n')
 
@@ -643,30 +677,24 @@ const dev = await agent(
     draft.specMarkdown,
     '---8<--- end of spec',
     '',
-    overruled.length > 0 || guidance
+    deviations.length > 0 || toConfirm.length > 0
       ? [
-          'This task came back to a person once already. What they decided is',
-          'part of the contract now — it is not a suggestion, and it is not',
-          'yours to re-litigate:',
+          'The spec departs from the task text where the project choices',
+          'overruled it, and takes one reading where the task admitted two. Both',
+          'are decided and recorded in the spec: implement them, do not re-open',
+          'them.',
           '',
-          overruled
-            .map((o) =>
-              o.kind === 'decision'
-                ? '  - the ' + o.lens + ' question ("' + o.reason + '") is answered, and the spec above carries the answer'
-                : '  - the ' + o.lens + ' objection ("' + o.reason + '") is overruled',
-            )
-            .join('\n'),
-          guidance ? '\n  Their words: ' + guidance : '',
+          bullets(deviations.concat(toConfirm)),
           '',
         ].join('\n')
       : '',
-    objections.length > 0
+    openPoints.length > 0
       ? [
-          'The reviewers left these objections standing after ' + revisions + ' revision(s).',
+          'The reviewers left these proposals open after ' + revisions + ' revision(s).',
           'They go to the merge request for a person to judge. Follow the spec;',
-          'where an objection points at a real risk, a test that pins it is welcome:',
+          'where one points at a real risk, a test that pins it is welcome:',
           '',
-          objections.map((o) => '  - [' + o.lens + '] ' + o.reason).join('\n'),
+          openPoints.map((o) => '  - [' + o.lens + '] ' + o.reason).join('\n'),
           '',
         ].join('\n')
       : '',
@@ -722,7 +750,9 @@ if (!dev || !dev.branch || !dev.worktreePath) {
       ? 'the dev agent came back without a branch or a worktree: ' + (dev.notes || 'no reason given')
       : 'the dev agent returned nothing',
     spec: { path: specPath, reqs: draft.reqs },
-    objections,
+    openPoints,
+    deviations,
+    toConfirm,
   }
 }
 
@@ -774,12 +804,12 @@ const outcome = {
   spec: { path: dev.specPath || specPath, slug: slug, reqs: draft.reqs },
   commits: dev.commits || [],
   filesChanged: dev.filesChanged || [],
-  objections,
-  addressed,
+  openPoints,
+  settled,
+  deviations,
+  toConfirm,
   unchecked,
   revisions,
-  overruled,
-  guidance,
   notes: dev.notes || '',
 }
 

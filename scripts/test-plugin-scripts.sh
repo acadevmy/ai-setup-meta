@@ -21,8 +21,10 @@
 # commit.
 # Plus, for DE-16487: the multi-sdd cap refuses six tasks with a non-zero exit,
 # the overlap warning answers from pre-flight estimates before any worktree
-# exists, the command reimplements none of the workflow, and an answered
-# needs-human resumes at Dev instead of redoing the spec.
+# exists, and the command reimplements none of the workflow.
+# Plus: the Challenge improves the spec and cannot stop the run — the workflow
+# body runs under stubbed agents and comes back ready-for-mr whatever the
+# reviewers say.
 #
 # Usage:
 #   bash scripts/test-plugin-scripts.sh            # run the suite
@@ -919,16 +921,14 @@ if [ -f "$AUTO_SDD" ]; then
   assert_eq "three adversarial lenses, no more and no fewer" \
     "3" "$(grep -c "^    key: '" "$AUTO_SDD")"
 
-  # An objection is work, not a veto: the spec is revised on it a bounded
-  # number of times, and only a business decision stops the run.
+  # A proposal is work, not a veto: the spec is revised on it a bounded
+  # number of times, and the behaviour is pinned by the simulation below.
   assert_contains "the spec is revised at most twice" \
     "$(cat "$AUTO_SDD")" "const MAX_REVISIONS = 2"
   assert_contains "the revision loop is bounded in code" \
     "$(cat "$AUTO_SDD")" "revisions >= MAX_REVISIONS"
-  assert_contains "only a business decision stops the run" \
-    "$(cat "$AUTO_SDD")" "if (blocking.length > 0) {"
-  assert_contains "a lens only refutes on evidence, never on doubt" \
-    "$(cat "$AUTO_SDD")" "A doubt you cannot ground is not an"
+  assert_contains "a reviewer proposes on grounds, never on doubt" \
+    "$(cat "$AUTO_SDD")" "A doubt you cannot ground is not a proposal"
   assert_contains "a dead verifier is asked once more" \
     "$(cat "$AUTO_SDD")" "attempt <= 2"
   assert_contains "a lens that never answered is reported, not hidden" \
@@ -1290,28 +1290,108 @@ assert_eq "nothing still points at the old per-skill path" "" \
        "$REPO_ROOT/README.md" "$REPO_ROOT/docs" 2>/dev/null || true)"
 
 echo ""
-echo "── the answered needs-human resumes at Dev ──"
+echo "── the Challenge improves the spec, it never stops the run ──"
 
-# Criterion 3: after the developer answers, the run continues without redoing
-# the phases that completed. That is only true if what they said reaches the
-# workflow *after* the Challenge — the resume replays every agent call whose
-# prompt is unchanged, so a guidance string inside the spec prompt would throw
-# away the spec, the three verdicts and the whole point of resuming.
+# The gate used to let a reviewer label its own objection a business decision
+# and halt on it, before the spec was ever rewritten on it: on DE-16864 every
+# lens did, on objections the repository itself settled. The loop is now run
+# for real — the workflow body under stubbed agents, the way the harness runs
+# it — so what is pinned is the behaviour, not a line of its source.
+if [ -f "$AUTO_SDD" ] && command -v node >/dev/null 2>&1; then
+  cat > "$WORK_DIR/workflow-sim.cjs" <<'NODEJS'
+// Runs auto-sdd.js with stubbed agents. argv[3] maps a reviewer focus to what
+// it answers round after round: "ok" (satisfied), "propose", or "dead".
+const fs = require('fs');
+const vm = require('vm');
+
+const src = fs.readFileSync(process.argv[2], 'utf8');
+const meta = src.match(/^export const meta = \{[\s\S]*?\n\}\n/);
+const scenario = JSON.parse(process.argv[3]);
+const prompts = {};
+const spec = {
+  slug: 'sim', specMarkdown: '# spec', planSteps: ['one'],
+  reqs: [{ id: 'REQ-1', statement: 'a requirement', test: 'a test' }],
+  deviations: ['the task asks for <style scoped>; the styling ADR forbids it'],
+  toConfirm: [],
+};
+
+async function agent(prompt, opts) {
+  const label = opts.label;
+  prompts[label] = prompt;
+  if (label.startsWith('spec:')) return spec;
+  if (label.startsWith('revise:')) {
+    return Object.assign({}, spec, {
+      responses: [{ lens: 'simpler', applied: false, note: 'the vendoring ADR backs it' }],
+    });
+  }
+  if (label.startsWith('challenge:')) {
+    const key = label.split(':')[1];
+    const round = Number((label.match(/:r(\d+)/) || [0, 0])[1]);
+    const answers = scenario[key] || ['ok'];
+    const answer = answers[Math.min(round, answers.length - 1)];
+    if (answer === 'dead') return null;
+    if (answer === 'ok') return { satisfied: true, reason: 'checked' };
+    return { satisfied: false, reason: key + ' proposal', suggestion: 'change', grounds: 'an ADR' };
+  }
+  if (label.startsWith('dev:')) return { worktreePath: '/wt', branch: 'b', specPath: 'p', commits: [] };
+  if (label.startsWith('verify:')) return { passed: true, output: 'green' };
+  return null;
+}
+
+const context = {
+  args: { taskId: 'DE-1', pluginRoot: '/plugin', baseBranch: 'origin/next' },
+  agent,
+  parallel: (thunks) => Promise.all(thunks.map((thunk) => thunk())),
+  phase() {},
+  log() {},
+};
+vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', context).then((out) => {
+  console.log(JSON.stringify({
+    status: out.status,
+    revisions: out.revisions,
+    open: (out.openPoints || []).map((o) => o.lens).join(','),
+    settled: (out.settled || []).length,
+    unchecked: (out.unchecked || []).join(','),
+    deviations: (out.deviations || []).length,
+    answered: (prompts['challenge:simpler:r1'] || '').includes('declined it: the vendoring ADR backs it'),
+    devSees: (prompts['dev:DE-1'] || '').includes('the styling ADR forbids it'),
+    precedence: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
+      .every((l) => prompts[l].includes('settle it in this')),
+  }));
+});
+NODEJS
+
+  sim() { node "$WORK_DIR/workflow-sim.cjs" "$AUTO_SDD" "$1" 2>&1; }
+  field() { printf '%s' "$1" | jq -r ".$2" 2>/dev/null; }
+
+  SIM=$(sim '{"simpler":["propose"],"scope":["propose"],"testable":["propose"]}')
+  assert_eq "three reviewers that never agree still reach the merge request" \
+    "ready-for-mr" "$(field "$SIM" status)"
+  assert_eq "the spec is revised at most twice" "2" "$(field "$SIM" revisions)"
+  assert_eq "what still stands travels as open points" \
+    "simpler,scope,testable" "$(field "$SIM" open)"
+  assert_eq "the reviewer reads what the author did with its proposal" \
+    "true" "$(field "$SIM" answered)"
+  assert_eq "the author, the reviewers and the reviser read the same precedence" \
+    "true" "$(field "$SIM" precedence)"
+  assert_eq "a departure from the task reaches the developer agent" \
+    "true" "$(field "$SIM" devSees)"
+  assert_eq "and travels in the outcome" "1" "$(field "$SIM" deviations)"
+
+  SIM=$(sim '{"simpler":["propose","ok"],"scope":["propose","ok"],"testable":["propose","ok"]}')
+  assert_eq "proposals integrated in one revision are settled" \
+    "1 3 " "$(field "$SIM" revisions) $(field "$SIM" settled) $(field "$SIM" open)"
+
+  SIM=$(sim '{"scope":["dead"]}')
+  assert_eq "a reviewer that dies twice is reported, and the run goes on" \
+    "ready-for-mr scope" "$(field "$SIM" status) $(field "$SIM" unchecked)"
+else
+  printf '%s  skip%s  node not found: the Challenge simulation needs it\n' "$DIM" "$NC"
+fi
+
 if [ -f "$AUTO_SDD" ]; then
-  assert_contains "the workflow takes the lenses the developer cleared" \
-    "$(cat "$AUTO_SDD")" "input.resolved"
-  assert_contains "and only a named lens comes off the count" \
-    "$(cat "$AUTO_SDD")" "cleared.includes(o.lens)"
-
-  CACHED_REGION=$(awk "/^phase\('Spec'\)/,/^const raised =/" "$AUTO_SDD")
-  assert_eq "nothing the developer said reaches the cached prompts" "" \
-    "$(printf '%s' "$CACHED_REGION" | grep -nE 'guidance|cleared|overruled' || true)"
-
-  # An overrule that leaves no trace is an auto-approval with extra steps.
-  assert_contains "the overrule reaches the developer agent" \
-    "$(cat "$AUTO_SDD")" "is overruled"
-  assert_contains "and travels in the outcome" \
-    "$(cat "$AUTO_SDD")" "overruled,"
+  assert_eq "no path of the workflow returns needs-human" "" \
+    "$(grep -n "status: 'needs-human'" "$AUTO_SDD" || true)"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════

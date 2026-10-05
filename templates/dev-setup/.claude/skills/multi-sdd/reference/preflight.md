@@ -67,8 +67,8 @@ one produces a merge request built on a guess nobody made.
 
 Do not ask about anything the codebase, the rules or the spec can settle — which
 pattern, how to structure it, what to name it, which library is already there.
-The spec agent decides those and the three adversarial lenses attack them; asking
-here just spends the developer's attention twice.
+The spec agent decides those and the three reviewers improve them; asking here
+just spends the developer's attention twice.
 
 One question at a time, and end the turn on it. A task with nothing genuinely
 open is the normal case: say so in one line and move to the next task.
@@ -87,8 +87,8 @@ is:
 ```
 
 The spec agent reads that block as part of the task, so the decision lands in the
-spec instead of in `openQuestions`, and the `scope` lens can check the spec
-against it. Never edit the task on the board to record this.
+spec instead of in `toConfirm`, and the `scope` reviewer checks the spec against
+it. Never edit the task on the board to record this.
 
 ## The overlap warning
 
