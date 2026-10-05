@@ -18,18 +18,19 @@ ClickUp calls follow `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`.
 ## Nothing waits for a person
 
 There is no outcome that asks a question. The Challenge phase improves the spec
-and cannot stop the run: three reviewers propose changes grounded in the
-project's architectural choices, the spec author integrates them or declines
-them on the project's grounds, at most twice, and a contradiction between the
-task and the project is settled by one precedence — the project's ADRs, rules
-and libraries, then what the task promises its users, then how the task says to
-build it.
+and cannot stop the run: three reviewers look at it once and propose changes
+grounded in the project's architectural choices, the spec author applies them
+or declines them on the project's grounds in a single revision, and a
+contradiction between the task and the project is settled by one precedence —
+the project's ADRs, rules and libraries, then what the task promises its users,
+then how the task says to build it.
 
 Whatever that left behind travels to the merge request, where the reviewer is
-the checkpoint: the proposals still open (`openPoints`), the places the spec
-departed from the task text (`deviations`) and the readings it chose where the
-task admitted two (`toConfirm`). Do not turn any of them into a question in
-chat, and do not re-run the workflow hoping for a cleaner spec.
+the checkpoint: the proposals the author declined or left unanswered, each with
+its answer (`openPoints`), the places the spec departed from the task text
+(`deviations`) and the readings it chose where the task admitted two
+(`toConfirm`). Do not turn any of them into a question in chat, and do not
+re-run the workflow hoping for a cleaner spec.
 
 When the reviewer disagrees with a reading the spec took, that is review
 feedback on the merge request, handled like any other.
@@ -51,12 +52,12 @@ typecheck or test command came back red).
    deleting them is the one thing that makes the failure unreadable.
 
 A `verify` failure is the one worth resuming rather than relaunching: the spec,
-the challenges and the whole implementation come back from the journal cache
+the Challenge and the whole implementation come back from the journal cache
 once the cause is fixed, and only the commands run again.
 
 ## ready-for-mr — push and open it
 
-`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], settled[], deviations[], toConfirm[], unchecked[], revisions }`
+`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[] }`
 
 The tests, the linter and the type checker ran green in the worktree, and the
 spec is committed on the branch. Two things are left, and they are the two the
@@ -101,10 +102,13 @@ plus what this flow owes a reviewer who was not watching:
   departed from the task text with what overruled it. Nobody was asked about
   them, so the reviewer is the first person to see them — they go first.
 - **the open points**, when `openPoints` holds any: the reviewer's focus, the
-  reason and the suggestion still standing after `revisions` rounds. They did
-  not stop the run — they are what the reviewer should look at next.
-- **what the challenge settled**: one line with `revisions` and the number of
-  `settled` proposals, so the reviewer knows the spec was argued over.
+  reason, the suggestion and the grounds, then the author's `answer` — what
+  backs keeping the spec as it was, or *no answer* when it is empty. Nobody
+  argued them a second time: the person reviewing the merge request is the one
+  who reads both sides. They did not stop the run — they are what the reviewer
+  should look at next.
+- **what the challenge applied**: one line with the number of `applied`
+  proposals, so the reviewer knows the spec was argued over.
 - **the focus that never answered**, when `unchecked` names one: its reviewer
   died twice, so the spec was not checked through it. Say so plainly.
 
@@ -125,7 +129,7 @@ git worktree remove <path>
 An interrupted run resumes from its journal — `resumeFromRunId` with the
 arguments of the launch — so the agents that finished
 come back from cache and only the unfinished ones run again. Resume rather than
-launching again: a fresh run redoes the spec and the three challenges from
+launching again: a fresh run redoes the spec and the three reviews from
 scratch, at the same cost as the first time. Resume is same-session only; once
 the session is gone, so is the journal.
 

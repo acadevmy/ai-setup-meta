@@ -333,7 +333,7 @@ directory and registers it as `dev-setup:<meta.name>`, which is the name the
 | Phase | What runs |
 |---|---|
 | Spec | one agent, read-only, drafts the spec from the task and the codebase |
-| Challenge | three reviewers in parallel — simpler design / scope / testability — each proposing a change grounded in the project architecture; the spec author integrates them at most twice, and nothing here stops the run |
+| Challenge | three reviewers in parallel — simpler design / scope / testability — each looking once and proposing a change grounded in the project architecture; the spec author integrates them in a single revision, and nothing here stops the run |
 | Dev | one agent with `isolation: 'worktree'`: the developer checkout never moves |
 | Verify | `LINT_CMD`, `TYPECHECK_CMD` and `TEST_CMD` from `detect-stack.sh`, so the same workflow verifies Next, NestJS, Flutter or Terraform |
 
@@ -346,13 +346,15 @@ Two skills are launchers of that one workflow — `auto-sdd` for a task,
 The Challenge improves the spec; it cannot stop the run. Each reviewer proposes
 a change and names what it rests on — an ADR, a rule, a file, a library's
 behaviour, a sentence of the task — and the spec author integrates it, or
-declines it on the project's grounds and says why; the reviewer reads that
-answer and looks again, at most twice. When the task contradicts the project,
-one precedence decides: the project's architectural choices, then what the task
-promises its users, then how the task says to build it. What still stands, the
+declines it on the project's grounds and says why, in one revision. When the
+task contradicts the project, one precedence decides: the project's
+architectural choices, then what the task promises its users, then how the task
+says to build it. The proposals it declined, each with its answer, the
 departures from the task text and the readings the spec chose where the task
 admitted two all go to the top of the merge request: nothing waits for a
-person, and nothing is decided silently.
+person, and nothing is decided silently. The reviewers do not look a second
+time — a run that cannot stop has nowhere to take a contested decline but the
+merge request, so the person reviewing it reads both sides instead.
 
 ### Agents
 

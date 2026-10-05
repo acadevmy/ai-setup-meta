@@ -88,10 +88,10 @@ team docs pointing at a removed command, update them.
 What replaced them, in `auto-sdd`: **three reviewers**, one focus each — is
 there a simpler design, is the scope right, is this testable — each proposing a
 change and naming the ADR, rule or file it rests on, rather than approving. The
-spec author integrates the proposals at most twice, under one precedence (the
+spec author integrates the proposals in one revision, under one precedence (the
 project's architectural choices, then what the task promises its users, then
-how the task says to build it); what still stands goes to the top of the merge
-request.
+how the task says to build it); what it declines goes to the top of the merge
+request with its answer.
 
 The first v3 releases also let a reviewer label its objection a business
 decision and stop the run at `needs-human`, resumed with `resolved` and
