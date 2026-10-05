@@ -387,7 +387,7 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
 | `fork-point.md` | The one fork-point question: how each flow resolves the default, the shape of the ask, what the answer binds, and where it is deliberately not asked. Cited by `sdd`, `auto-sdd` and `multi-sdd` |
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
-| `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request, the bail-out, and how an answered `needs-human` resumes. Cited by both launchers, `auto-sdd` and `multi-sdd` |
+| `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
 **The public surface is six commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
 `multi-sdd`, `review`. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
@@ -477,12 +477,15 @@ charitably the way "max 3 iterations" in prose was (audit §1-C).
 
 The split that keeps it safe to run in the background:
 
-- **the workflow** writes the spec, has three adversarial verifiers attack it
-  (one lens each: simpler design, scope, testability — each objection carries
-  a suggestion the spec is rewritten on, at most twice; what still stands goes
-  to the merge request, and only a business decision stops the run), develops with `isolation: 'worktree'` so the developer checkout never
-  moves, and runs the project own `LINT_CMD`/`TYPECHECK_CMD`/`TEST_CMD` from
-  `detect-stack.sh`. It returns `needs-human | ready-for-mr | failed`.
+- **the workflow** writes the spec, has three reviewers improve it (one focus
+  each: simpler design, scope, testability — each proposal names the ADR, rule
+  or file it rests on, and the spec author integrates it or declines it on the
+  project's grounds, at most twice, under one precedence: the project's
+  architectural choices, then what the task promises its users, then how the
+  task says to build it), develops with `isolation: 'worktree'` so the
+  developer checkout never moves, and runs the project own
+  `LINT_CMD`/`TYPECHECK_CMD`/`TEST_CMD` from `detect-stack.sh`. It returns
+  `ready-for-mr | failed`.
 - **the launcher** — the `auto-sdd` skill — resolves the task and the plugin
   root, has the developer confirm the fork point (`fork-point.md`, the same
   question `sdd` asks, and before the board write so a declined launch leaves
@@ -505,13 +508,18 @@ resolving it again. Two invariants keep it honest, and both are pinned by
 1. **The cap is `multi-preflight.sh`, not a sentence.** Five is where human
    review becomes the bottleneck; the script exits 3 on the sixth task. A number
    in prose gets re-read charitably, an exit status does not.
-2. **What the developer answers is read after the Challenge phase.** A
-   `needs-human` run resumes with `resolved` (the lenses they answered) and
-   `guidance` (their decision). Because neither reaches the spec prompt, the lens
-   prompts or the revision prompts, a resume replays them from the journal cache,
-   writes the decision into the spec and restarts at Dev — the phases that
-   completed are not paid for twice. Put either one into an earlier prompt
-   and the resume silently becomes a fresh run.
+2. **The Challenge improves the spec; it cannot stop the run.** It used to:
+   a reviewer could label its own objection a business decision, and the run
+   halted at `needs-human` without the spec ever being rewritten on it. On
+   DE-16864 (a Radio component, run unattended) all three did — and every one
+   of the five objections was something the repository already settled: two
+   accepted ADRs, the library's keyboard behaviour, a REQ the author had
+   written itself. Tasks written by hand prescribe the build and contradict
+   themselves, so every run found a "decision" and every run blocked. What a
+   run decides on the task's behalf now goes to the top of the merge request
+   (`toConfirm`, `deviations`, `openPoints`), where the reviewer is the
+   checkpoint. The business questions a person *can* answer are asked before
+   the run — phase A of `multi-sdd` — and never in the middle of one.
 
 Three rules for changing a workflow:
 
@@ -759,4 +767,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.23.1 — bump the version number on every substantial change*
+*Version: 2.24.0 — bump the version number on every substantial change*

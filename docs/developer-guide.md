@@ -185,18 +185,22 @@ itself when you open a test file. Both cycles are written out in the plugin's
 ### The autonomous variant
 
 `/dev-setup:auto-sdd DE-123` runs the same ground as a workflow script: it
-writes the spec, has three adversarial reviewers attack it — one looking for a
-simpler design, one for scope creep, one for testability — rewrites the spec on
-their objections at most twice, develops in an
-isolated worktree so your checkout never moves, and runs the project's own lint,
-typecheck and test commands.
+writes the spec, has three reviewers improve it — one looking for a simpler
+design, one for the scope, one for testability, each grounding its proposal in
+the project's ADRs, rules and existing code — integrates their proposals at most
+twice, develops in an isolated worktree so your checkout never moves, and runs
+the project's own lint, typecheck and test commands.
 
-It comes back with one of three outcomes:
+When the task contradicts the project, one precedence settles it: the project's
+architectural choices (ADRs, `.claude/rules/`, `REGISTRY.md`, what the libraries
+actually do) first, then what the task promises its users, then how the task
+says to build it. The review improves the spec; it never stops the run.
+
+It comes back with one of two outcomes:
 
 | Outcome | What it means | What you do |
 |---|---|---|
-| `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request |
-| `needs-human` | The task needs a business decision no agent can make | Answer the question (§9) |
+| `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section (§9) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
 It asks you one thing before it starts — which branch the run forks from, the
@@ -547,24 +551,23 @@ If the hook warns on stderr and lets a commit through, `jq` is missing or stack
 detection failed. Install `jq`; the gate is fail-open by design and will not
 tell you twice.
 
-### A run came back `needs-human`
+### The merge request lists points to confirm
 
-Most objections never reach you: the spec is rewritten on them, at most twice,
-and what still stands is listed in the merge request. A run stops only when a
-lens found a **business decision** — the task reads two ways, the two lead to
-different behaviour, and nothing in the repository picks one. Nothing was
-written yet: no branch, no worktree, no merge request. You will be shown the
-question with its lens and its reason.
+An autonomous run asks nobody anything, so whatever it had to decide on the
+task's behalf is at the top of its merge request:
 
-- **Answer it** — pick the reading, or say why there is no real choice. The run
-  resumes with your words: the spec and the verdicts come back from cache, one
-  agent writes your answer into the spec's technical decisions, and development
-  starts. Your decision is quoted at the top of the merge request.
-- **The task itself has to change.** Then there is nothing to resume: put the
-  answer in the task, move it back to the sprint, and launch again.
+- **readings to confirm** — where the task admitted two behaviours, the one the
+  spec took and why;
+- **departures from the task** — where the task said how to build it and the
+  project's ADRs, rules or libraries said otherwise, the task sentence and what
+  overruled it;
+- **open points** — the reviewers' proposals still standing after two
+  revisions.
 
-Do not relaunch hoping for a different verdict: the gate is in code, and the
-only thing that moves it is a person.
+All three are in the spec's technical decisions too. If you disagree with one,
+that is review feedback on the merge request like any other: ask for the change
+there, or fix it on the branch. Do not relaunch hoping for a different spec — a
+fresh run argues the same task from the same sources.
 
 ### A workflow was interrupted
 

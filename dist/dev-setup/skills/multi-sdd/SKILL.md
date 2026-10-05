@@ -66,5 +66,5 @@ going, a question in the middle of one blocks the other four.
 
 - one refusal and nothing else, when the gate says no;
 - otherwise a worktree, a branch and an outcome per task, all in this chat;
-- a `needs-human` holds up none of the other runs;
+- a `failed` run holds up none of the others;
 - no edit in the developer checkout.
