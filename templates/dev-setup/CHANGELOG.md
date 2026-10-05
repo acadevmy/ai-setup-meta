@@ -6,6 +6,18 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [3.4.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.3.0...dev-setup-v3.4.1) (2026-10-05)
+
+
+### Features
+
+* **auto-sdd:** Improve the spec with the reviewers instead of stopping on them ([#110](https://github.com/acadevmy/ai-setup-meta/issues/110)) ([e821813](https://github.com/acadevmy/ai-setup-meta/commit/e821813ef63d4ecffafb750c23a6b81e5b96d345))
+
+
+### Miscellaneous Chores
+
+* **release:** Release dev-setup 3.4.1 ([154714c](https://github.com/acadevmy/ai-setup-meta/commit/154714c5f71b132c200301d0594ece55d77f0b31))
+
 ## [3.3.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.2.0...dev-setup-v3.3.0) (2026-10-01)
 
 
