@@ -177,7 +177,7 @@ question and was not for the first.
 | Choose TDD or BDD when asked | Never asked — the layer decides, the rule states it |
 | Approve the spec, then approve again per step, then approve the PR in chat | One approval: the spec. The merge request asks at the command |
 | Four commits per task, three of them bookkeeping | One |
-| A vague "the agent reviewed it" | An adversarial verifier that has to *refute*, and a real test output pasted into the merge request |
+| A vague "the agent reviewed it" | Three reviewers whose every proposal names the ADR, rule or file it rests on, and a real test output pasted into the merge request |
 | Two parallel tasks meant two clones and a port collision | `claude --worktree DE-123`, and up to five unsupervised runs from one chat |
 
 The routing decision is the one thing that stays entirely yours: at most three
@@ -210,11 +210,13 @@ wrapper. The deny rules cover force push, pushes straight to the reference
 branches, and `--no-verify` — three things nobody should be doing on a shared
 branch anyway.
 
-**"What if the autonomous run gets it wrong?"** It stops itself: two of three
-adversarial lenses refusing the spec halts the run before any code is written.
-When you overrule a lens, the overrule is recorded in the outcome and quoted in
-the merge request, so the reviewer sees it. That is one more checkpoint than v2
-had, not one fewer.
+**"What if the autonomous run gets it wrong?"** It argues with itself before any
+code is written: three reviewers improve the spec against the project's ADRs,
+rules and code, and the author has to answer each proposal. Whatever it decided
+on the task's behalf — a reading it chose, a sentence of the task it overruled
+because an ADR said otherwise — is at the top of the merge request, so the
+reviewer sees it first. That is one more checkpoint than v2 had, not one
+fewer.
 
 ---
 

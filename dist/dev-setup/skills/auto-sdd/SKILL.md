@@ -1,6 +1,6 @@
 ---
 name: auto-sdd
-description: Launches the autonomous SDD workflow for one task — spec, three adversarial challenges, test-first development in an isolated worktree, the project own quality commands — and opens the merge request behind a confirmation. Use when a tracked task should go from the board to a review-ready merge request with no supervision.
+description: Launches the autonomous SDD workflow for one task — spec, three reviewers improving it, test-first development in an isolated worktree, the project own quality commands — and opens the merge request behind a confirmation. Use when a tracked task should go from the board to a review-ready merge request with no supervision.
 effort: medium
 user-invocable: true
 disable-model-invocation: true
@@ -18,7 +18,7 @@ composes it.
 
 ## Before you start
 
-- **`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`** — the three outcomes,
+- **`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`** — the two outcomes,
   the merge request, the bail-out, the resume.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the
   transitions, the backlog gate, the list id.
@@ -85,15 +85,15 @@ notification, never poll.
 
 ## 4. The outcome
 
-Exactly one of `needs-human`, `ready-for-mr` or `failed`, each handled in
+Exactly one of `ready-for-mr` or `failed`, each handled in
 `${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`. Anything else means the run
 broke: show the raw result and stop.
 
 ## Expected output
 
 - the task moved `SPRINT` → `IN PROGRESS` → `CODE REVIEW` or `BLOCKED`;
-- on `ready-for-mr`, a pushed branch and a merge request carrying the spec and
-  the real test output;
-- otherwise the objections or the failing output, with the branch and the
-  worktree left in place;
+- on `ready-for-mr`, a pushed branch and a merge request carrying the spec,
+  the real test output and what to confirm;
+- otherwise the failing output, with the branch and the worktree left in
+  place;
 - either way, no edit in the developer checkout.

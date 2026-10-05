@@ -246,7 +246,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
 | `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
 | `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify → review → one commit → PR |
-| `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd.js`) writes the spec, has three adversarial reviewers attack it, develops in an isolated worktree and runs the project real quality commands. It returns `needs-human`, `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
+| `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd.js`) writes the spec, has three reviewers improve it against the project architecture, develops in an isolated worktree and runs the project real quality commands. It returns `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
 | `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |
 | `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
 
@@ -318,7 +318,7 @@ behind its own `ask` rule), never braided through the middle.
 The cap is **five**, and it is enforced by `multi-preflight.sh` rather than
 stated in prose: the sixth task exits 3 with the reason. Five is where review
 becomes the bottleneck — the cost of a fan-out is `n` times a single run (five
-tasks is five spec agents, fifteen adversarial verifiers, five developers and
+tasks is five spec agents, fifteen reviewers, five developers and
 five merge requests for one person to read), and compute is not what runs out
 first.
 
@@ -333,7 +333,7 @@ directory and registers it as `dev-setup:<meta.name>`, which is the name the
 | Phase | What runs |
 |---|---|
 | Spec | one agent, read-only, drafts the spec from the task and the codebase |
-| Challenge | three verifiers in parallel — simpler design / scope / testability — each told to refute with a suggestion; the spec is revised on the objections at most twice, and only a business decision stops the run |
+| Challenge | three reviewers in parallel — simpler design / scope / testability — each proposing a change grounded in the project architecture; the spec author integrates them at most twice, and nothing here stops the run |
 | Dev | one agent with `isolation: 'worktree'`: the developer checkout never moves |
 | Verify | `LINT_CMD`, `TYPECHECK_CMD` and `TEST_CMD` from `detect-stack.sh`, so the same workflow verifies Next, NestJS, Flutter or Terraform |
 
@@ -343,17 +343,16 @@ Two skills are launchers of that one workflow — `auto-sdd` for a task,
 `multi-sdd` for up to five — and both act on the outcome through the single
 `reference/run-outcomes.md` contract.
 
-An objection is work, not a veto. A lens refutes only on evidence and names the
-change that would settle it; the spec author rewrites the spec on it and the
-lenses that objected look again, at most twice. What still stands goes into the
-merge request for the reviewer. The run stops at `needs-human` only when a lens
-finds a *decision* — two readings of the task with different behaviour, and
-nothing in the repository to pick one. The lenses the developer answers go back
-in as `resolved`, with their answer as `guidance`, and both are read *after* the
-Challenge phase — so a resumed run replays the spec, the verdicts and the
-revisions from its journal cache, writes the answer into the spec and restarts
-at Dev. The decision is recorded in the spec and quoted in the merge request:
-the gate moves only for a human, and never silently.
+The Challenge improves the spec; it cannot stop the run. Each reviewer proposes
+a change and names what it rests on — an ADR, a rule, a file, a library's
+behaviour, a sentence of the task — and the spec author integrates it, or
+declines it on the project's grounds and says why; the reviewer reads that
+answer and looks again, at most twice. When the task contradicts the project,
+one precedence decides: the project's architectural choices, then what the task
+promises its users, then how the task says to build it. What still stands, the
+departures from the task text and the readings the spec chose where the task
+admitted two all go to the top of the merge request: nothing waits for a
+person, and nothing is decided silently.
 
 ### Agents
 

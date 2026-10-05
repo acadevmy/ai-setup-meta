@@ -86,7 +86,8 @@ Print the table once at launch and keep it as the run of record:
 
 Record what each launch returned: the `runId`, and the transcript directory when
 the result names one. Both are what makes a resume and a status answer possible
-later; a lost `runId` means a `needs-human` can only be relaunched from scratch.
+later; a lost `runId` means an interrupted run can only be relaunched from
+scratch.
 
 ## Outcomes as events
 
@@ -94,16 +95,13 @@ A notification arrives per run, in whatever order the runs finish. Handle each
 one **as it lands**, on its own, through
 `${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md` — `ready-for-mr` pushes and
 opens the merge request behind the `ask` rule, `failed` reports the real output
-and blocks the task, `needs-human` shows the objections and asks.
+and blocks the task. No outcome asks anything: what the review of a spec left
+open goes into that task's merge request.
 
-Two rules make the parallelism worth anything:
-
-- **Never wait for the set.** A run that finished is reported now. Holding four
-  outcomes until the fifth lands turns a fan-out back into a queue.
-- **A question is not a barrier.** A `needs-human` waiting on an answer stops
-  that task and nothing else. When the answer comes, resume that one run with
-  `resolved` and `guidance` as `run-outcomes.md` describes; the others carry on
-  regardless, and their notifications may well arrive mid-question.
+One rule makes the parallelism worth anything: **never wait for the set.** A
+run that finished is reported now. Holding four outcomes until the fifth lands
+turns a fan-out back into a queue, and a `failed` run blocks its own task and
+nothing else.
 
 Update the ledger row every time one of these happens. It is the only place the
 five runs are visible together.
