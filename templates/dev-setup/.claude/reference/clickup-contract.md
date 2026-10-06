@@ -34,10 +34,26 @@ summarised) and the transition validation live in one place.
 | Intent | Required | Optional | Returns |
 |---|---|---|---|
 | `read` | `task_id` | — | one task, every field |
-| `filter` | `list_id` | `status`, `assignee` | every matching task |
+| `filter` | `list_id` | `status`, `assignee`, `tag` | every matching task |
 | `next-task` | `list_id` | — | the highest-priority task in `SPRINT` |
 | `update` | `task_id`, `status` | `comment` | the updated task |
-| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date` | the created task |
+| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` | the created task, plus `TAGS_MISSING` |
+| `relate` | `task_id`, `relation` (`blocked_by` \| `related`), `target_id` | — | the task |
+
+A `create` is not one call. ClickUp applies the task type's template after
+the task exists, asynchronously, and that template can overwrite the
+description or append its own empty skeleton to it. The agent therefore
+creates the task bare, waits for the template, then writes the description —
+so a caller passes the final text once and gets it back intact. `task_type` is
+a name (`Epic`, `User Story`), `parent` makes the task a subtask, and `tags`
+are names that must already exist: the agent never creates one, and reports
+each one ClickUp did not apply in `TAGS_MISSING`. On an error after the task
+was created, the result still carries its `task_id` and `url` — never create
+it a second time.
+
+`relate` writes one relation, from the side of the task that is blocked or
+that declares it: `blocked_by` becomes a ClickUp dependency (`task_id` waits on
+`target_id`), `related` a task link.
 
 `priority` is numeric and ascending in urgency: `1` urgent, `2` high, `3`
 normal, `4` low. When a flow has to pick one task out of a list, sort by that
@@ -48,7 +64,8 @@ field and take the first.
 The agent answers with a `---CLICKUP-RESULT---` block ending in `---END---`. It
 carries `STATUS: success | error`, the intent, and one `DATA:` block per task
 with `task_id`, `custom_id` (`DE-123`), `name`, `description`, `status`,
-`priority`, `assignees`, `url` and `custom_fields`.
+`task_type`, `parent`, `tags`, `priority`, `assignees`, `url` and
+`custom_fields`.
 
 On `STATUS: error` the block carries an `ERROR:` line. Report it to the
 developer and stop — or, in an autonomous flow, bail out. Never retry the same
