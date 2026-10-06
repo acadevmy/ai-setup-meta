@@ -32,6 +32,10 @@
 #   WARNINGS     newline-separated "<file>: <message>"
 #   OPEN_POINTS  newline-separated ids whose body has an **Open points** section
 #
+# When any draft of the run links a Figma file, every story needs a **Design**
+# section with a frame link (a figma.com URL with node-id) or a "No design:"
+# line: a story without its frame is a story the developer builds blind.
+#
 # Exit: 0 valid · 3 invalid (ERRORS says why) · 1 usage error
 # ---8<--- end of the --help message
 
@@ -207,6 +211,10 @@ check_file() {
       }
       if (bsection == "DoR Check" && line ~ /^[-*][ \t]+/) dor++
 
+      if (line ~ /figma\.com/) figma = 1
+      if (bsection == "Design" && line ~ /figma\.com\/.*node-id=/) frame = 1
+      if (bsection == "Design" && line ~ /^[-*]?[ \t]*No design/) nodesign = 1
+
       if (line ~ /^\*\*Scenario:\*\*/) {
         close_scenario()
         in_scen = 1; scenarios++
@@ -278,6 +286,10 @@ check_file() {
         if (("DoR Check" in heading) && dor < 6) warn("the DoR Check has " dor + 0 " lines (six: narrative, vertical, gravity, functional, walking skeleton vs MVP, elevator pitch)")
       }
 
+      if (figma) print "F\t" id
+      if (type == "US" && !frame && !nodesign) print "D\t" id
+      if (type == "US" && ("Design" in heading) && figma && !frame) err("the **Design** section links Figma without a frame: add node-id to the URL")
+
       print "I\t" id "\t" type "\t" title
       if (open_points) print "O\t" id
     }
@@ -292,6 +304,8 @@ IDS=""
 RELS=""
 MAP_DRAFT=""
 MAPS=0
+FIGMA_RUN=""
+NO_FRAME=""
 
 add_line() { if [ -n "$1" ]; then printf '%s\n%s' "$1" "$2"; else printf '%s' "$2"; fi; }
 
@@ -303,6 +317,8 @@ for f in "${FILES[@]}"; do
       I) ITEMS=$(add_line "$ITEMS" "$a $b $c"); IDS=$(add_line "$IDS" "$a")
          if [ "$b" = "MAP" ]; then MAPS=$((MAPS + 1)); MAP_DRAFT="$f"; fi ;;
       R) RELS=$(add_line "$RELS" "$a"$'\t'"$b") ;;
+      F) FIGMA_RUN=1 ;;
+      D) NO_FRAME=$(add_line "$NO_FRAME" "$f"$'\t'"$a") ;;
       O) OPEN_POINTS=$(add_line "$OPEN_POINTS" "$a") ;;
     esac
   done <<EOF
@@ -330,6 +346,17 @@ while IFS=$'\t' read -r from target; do
 done <<EOF
 $RELS
 EOF
+
+# ── Figma: a run that has frames gives every story its own ───────────────────
+
+if [ -n "$FIGMA_RUN" ]; then
+  while IFS=$'\t' read -r nf nid; do
+    [ -n "${nid:-}" ] || continue
+    ERRORS=$(add_line "$ERRORS" "$nf: the run links Figma but $nid has no frame in **Design** (a node-id link, or \"No design: <why>\")")
+  done <<FIGEOF
+$NO_FRAME
+FIGEOF
+fi
 
 # ── The story map, against the drafts it lays out ────────────────────────────
 

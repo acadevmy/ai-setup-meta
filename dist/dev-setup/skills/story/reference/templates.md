@@ -204,7 +204,7 @@ required ones:
 |---|---|---|
 | **Scope** | Epic | `In:` and `Out:` lists — the boundaries that stop scope creep |
 | **Story map** | Epic | never in a draft: publication adds it, with the link to the map page, when the run has `--map` |
-| **Design** | Story, Epic | the Figma links, one per line: `- [<frame name>](<url>) — <what it shows>`. Only links the developer gave or the Figma file returned |
+| **Design** | Story, Epic | the Figma links, one per line: `- [<frame name>](<url>) — <what it shows>`. Each link points at a frame (`node-id` in the URL), never at the bare file. **When the run has Figma links, every story has this section** with the frames it covers — or `No design: <why>` for a story with no screen. Only links the developer gave or the Figma file returned |
 | **Open points** | all | one `To confirm: …` per unanswered question. **Its presence is what adds the `da dettagliare` tag** |
 | **Additional Notes** | all | refinement details, business logic, constraints the developer stated; `[AI-suggested]` for your own |
 | **Assumptions** | all | what is assumed and needs validating |
