@@ -65,6 +65,13 @@ a list, act on an item). Then decide, as `model.md` says:
 - several activities → one Epic per activity, ordered with
   `story-mapping.md`.
 
+With `--map`, the shape includes the map: draft it **before** the stories —
+the backbone gives you the epics, the user tasks the candidate stories — and
+finish its release lanes once the stories exist. A map of a single story is
+not a map: say so and ask whether to drop `--map`. Its page goes in the
+`Story maps` doc of `product.md`'s backlog conventions; when there is none,
+ask at the approval (`publish.md`).
+
 State it in two lines — what you will write and why — before drafting. The
 developer can override it in the approval.
 

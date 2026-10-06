@@ -7,6 +7,7 @@ The approval, the ClickUp writes, the cleanup. Every write goes through the
 
 - [7. The approval](#7-the-approval)
 - [8. Publication](#8-publication)
+- [The story map page](#the-story-map-page)
 - [The cleanup and the resume](#the-cleanup-and-the-resume)
 - [The report](#the-report)
 
@@ -22,6 +23,9 @@ EPIC [EPIC-01] Trash bin — tags: shop
 └─ US [US-03] Delete an archived path for good — 3 scenarios — da dettagliare
      To confirm: can a manager delete what an editor archived?
 ```
+
+With `--map`, show the map above the tree: the backbone in one line, then one
+line per release lane listing its stories by title.
 
 Then one sentence for every judgement call the developer should know about —
 a story kept whole past five scenarios, a split you chose over another, a
@@ -45,6 +49,8 @@ section. **The description** is the draft's body: everything after the closing
 
 Create in this order, one `INTENT: create` per draft:
 
+0. **The story map page**, when the run has a `MAP` draft — first, so every
+   Epic can link to it (below).
 1. **Each Epic** — `task_type: Epic`, no parent.
 2. **Its spikes and tasks** — no `task_type` (the default type), `parent` the
    Epic's `task_id`.
@@ -60,6 +66,31 @@ The name follows `templates.md` (Titles). After each create:
 - **Missing tags.** `TAGS_MISSING` is reported, never fixed: the agent does not
   create tags, and neither do you.
 
+## The story map page
+
+**Where.** The ClickUp Doc named by `Story maps` in `product.md`'s backlog
+conventions: its document id is the first id after `/docs/` or `/v/dc/` in
+the link. When there is none, ask at the approval, header `Map doc`: **Paste a
+doc link**, or **Create a doc** — `INTENT: create-doc` in the product's ClickUp
+list (`parent_type: list`), named `<product> story maps`, `visibility` as the
+developer chooses — and suggest adding its link to `product.md`.
+
+**The three writes.**
+
+1. `INTENT: create-page`, `name` the map's title, `content` the draft's body as
+   it is, provisional ids included. Write the returned `"<doc_id>/<page_id>"`
+   into the draft's frontmatter as `page`, and keep the page `url`.
+2. Each Epic is created with a final section appended to its description:
+   `**Story map**` and, on the next line, the page `url`.
+3. When every item is created, `INTENT: update-page` with the map draft's
+   body as it now is. Each reference was turned into a link as its item was
+   created (the cleanup below); one still carrying a provisional id is an
+   item that was not created, and the report says so.
+
+The map draft is deleted last, after the update. A run resumed with a `page`
+in its frontmatter does not create a second page: it goes straight to the
+update.
+
 ## The cleanup and the resume
 
 A draft is deleted **only after its create and its relations succeeded**.
@@ -72,6 +103,15 @@ that now exists:
 grep -rl -- '"US-01"' .stories/<slug>/ | xargs sed -i.bak 's/"US-01"/"DE-17201"/g'
 rm -f .stories/<slug>/*.bak .stories/<slug>/US-01.md
 ```
+
+With a map draft, the same moment turns its reference into a link — the map
+is the only draft that cites items in its body:
+
+```bash
+sed -i.bak 's#\[US-01\]#[DE-17201](https://app.clickup.com/t/86abc123)#g' .stories/<slug>/MAP-01.md
+```
+
+The url is the `url` the agent returned for the task.
 
 When the folder is empty, remove it. `.stories/` is in `.gitignore`: drafts
 never reach a commit.
@@ -87,6 +127,7 @@ publish those before starting anything new.
 
 ```
 Created on ClickUp:
+- MAP Trash bin story map — <page url>      (only with --map)
 - EPIC Trash bin — <url>
 - US [Trash bin] Archive a path — <url>
 - US [Trash bin] Delete an archived path for good — <url> — da dettagliare

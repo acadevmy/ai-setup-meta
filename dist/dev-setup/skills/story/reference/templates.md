@@ -20,6 +20,7 @@ grep -q '^\.stories/' .gitignore 2>/dev/null || printf '\n# Story drafts (dev-se
 - [Epic](#epic)
 - [Task](#task)
 - [Spike](#spike)
+- [Story map](#story-map)
 - [The optional sections](#the-optional-sections)
 - [Titles](#titles)
 
@@ -49,9 +50,10 @@ relations:
 |---|---|---|
 | `id` | yes | provisional (`US-01`) or the ClickUp custom id (`model.md`) |
 | `title` | yes | short and descriptive, no id in front; the Epic prefix is added at publication |
-| `type` | yes | `US`, `EPIC`, `TASK` or `SPIKE` |
+| `type` | yes | `US`, `EPIC`, `TASK`, `SPIKE` or `MAP` |
 | `products` | when `product.md` has a product index | the product tags, `[shop]`; an Epic spanning products lists them all |
-| `relations` | no | as above: the key is the referenced id, quoted, at two spaces; its four fields at four spaces |
+| `relations` | no | as above: the key is the referenced id, quoted, at two spaces; its four fields at four spaces. Never on a `MAP` |
+| `page` | `MAP` only, written at publication | `"<doc_id>/<page_id>"` of the page created, so a resumed run updates it instead of creating a second one |
 
 No other key. Omit an optional key rather than leave it empty, and never leave
 a `{{…}}` placeholder. `frontmatter.schema.json` is the formal schema.
@@ -149,6 +151,50 @@ A task is SMART (`invest.md`).
 - The items it blocks can be estimated or revised
 ```
 
+## Story map
+
+Only with `--map`, one per run: `MAP-01.md`. The body is the Doc page.
+Reference every item as `TYPE [id] title`, with its provisional id: publication
+turns each reference into a link to the real task.
+
+```markdown
+**Introduction**
+As a <persona>, I want <overall goal>, so that <value>.
+
+**Outcome**
+<the elevator pitch: the base product in two or three sentences>
+
+**Backbone**
+| Activity | 1. EPIC [EPIC-01] <title> | 2. EPIC [EPIC-02] <title> |
+|---|---|---|
+| User tasks | <step><br><step> | <step><br><step> |
+
+**Walking Skeleton**
+- SPIKE [SPIKE-01] <title>: <the technical risk it tests>
+- TASK [TASK-01] <title>: <…>
+
+**Release lanes**
+*Release 1 — MVP.* Objective: <…>. Metrics: <…>.
+- EPIC [EPIC-01] <title>: US [US-01] <title>; US [US-02] <title>
+- EPIC [EPIC-02] <title>: US [US-03] <title>
+
+*Release 2 — <name>.* Objective: <…>.
+- EPIC [EPIC-01] <title>: US [US-04] <title>
+
+**DoR Check**
+- Narrative — <one line: the backbone reads as a fluent story>
+- Vertical — <every lane crosses every epic>
+- Gravity — <each epic's stories are in priority order, no ties>
+- Functional — <the map describes the experience, not the system>
+- Walking skeleton vs MVP — <how they differ here>
+- Elevator pitch — <the base product explained in under sixty seconds>
+```
+
+Every Epic of the run is a column of the backbone; every story sits in a
+lane, under its Epic, in priority order; the walking skeleton lists tasks and
+spikes, never stories. The number of lanes is whatever the plan needs. The
+lanes live here only: no tag or field on the tasks repeats them.
+
 ## The optional sections
 
 Include a section only when it has content, in this order, after the type's
@@ -157,6 +203,7 @@ required ones:
 | Section | On | Holds |
 |---|---|---|
 | **Scope** | Epic | `In:` and `Out:` lists — the boundaries that stop scope creep |
+| **Story map** | Epic | never in a draft: publication adds it, with the link to the map page, when the run has `--map` |
 | **Design** | Story, Epic | the Figma links, one per line: `- [<frame name>](<url>) — <what it shows>`. Only links the developer gave or the Figma file returned |
 | **Open points** | all | one `To confirm: …` per unanswered question. **Its presence is what adds the `da dettagliare` tag** |
 | **Additional Notes** | all | refinement details, business logic, constraints the developer stated; `[AI-suggested]` for your own |

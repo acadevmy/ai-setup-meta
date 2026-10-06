@@ -1,7 +1,8 @@
 # The model: what a run produces
 
-Four kinds of backlog item, three relations, one level of nesting. Use the
-model to explain to the developer what you are producing and why.
+Four kinds of backlog item, an optional story map, three relations, one level
+of nesting. Use the model to explain to the developer what you are producing
+and why.
 
 ## The four item types
 
@@ -12,13 +13,19 @@ model to explain to the developer what you are producing and why.
 | **Task** (`TASK`) | The recipe: technical work a story needs that has a deliverable of its own. No Connextra, no INVEST. | Something a user would notice. |
 | **Spike** (`SPIKE`) | Timeboxed research that closes a question and unblocks an estimate. It produces knowledge, not production code. | A technical story in disguise. |
 
-Not produced here:
+And one that is not a backlog item: the **story map** (`MAP`), only with
+`--map`. It is the table the epics are laid on — the backbone of user
+activities (one Epic each), the walking skeleton, the release lanes — and it is
+published as a **ClickUp Doc page**, never as a task: it is planning, not work.
+It has no acceptance criteria, is not estimated, is not released, and it is not
+a container of tasks: a workspace one level deep has no place above the
+epics.
 
-- **Bugs** — a defect is not a feature request; it goes through `quick`.
-- **Story maps** — the map is a thinking tool, not a deliverable. Use it to
-  decide how many epics there are and in which order their stories are
-  released (`story-mapping.md`), then throw it away: a workspace one level
-  deep has nowhere to put it.
+Without `--map`, the map is still how you think about a request with several
+activities (`story-mapping.md`) — it is just not written down.
+
+Not produced here: **bugs** — a defect is not a feature request; it goes
+through `quick`.
 
 ## The hierarchy — one level, never two
 
@@ -29,6 +36,8 @@ The workspace nests one level: an Epic and its subtasks.
   the run produces a single story.
 - A story never has subtasks. A spike or a task a story needs is a sibling
   under the same Epic, and the story declares it with `BLOCKED_BY`.
+- A `MAP` has no relations: it lists the epics and stories in its body, and
+  each Epic links back to it at publication (`publish.md`).
 
 **When to write an Epic.** One story that passes INVEST → a standalone story,
 no Epic. Two or more stories → an Epic as their parent. Two or more distinct
@@ -54,8 +63,8 @@ an item only if it exists on ClickUp or is drafted in the same run.
 ## Ids
 
 A draft's id is provisional and progressive per type — `EPIC-01`, `US-01`,
-`US-02`, `TASK-01`, `SPIKE-01` — unless the item already exists on ClickUp, in
-which case its custom id (`DE-123`) is used. Publishing replaces each
+`US-02`, `TASK-01`, `SPIKE-01`, `MAP-01` — unless the item already exists on
+ClickUp, in which case its custom id (`DE-123`) is used. Publishing replaces each
 provisional id with the real one (`publish.md`).
 
 **Never make the reader keep a table in their head.** Wherever a person reads
