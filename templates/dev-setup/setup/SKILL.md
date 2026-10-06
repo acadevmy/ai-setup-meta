@@ -4,6 +4,7 @@ description: Grafts the AI-native workflow onto a project — path-scoped rules,
 user-invocable: true
 disable-model-invocation: true
 disallowed-tools: Agent, WebFetch, WebSearch
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__clickup__clickup_list_document_pages, mcp__clickup__clickup_get_document_pages, mcp__claude_ai_Google_Drive__search_files, mcp__claude_ai_Google_Drive__read_file_content
 ---
 
 # Dev Setup
@@ -49,6 +50,7 @@ Run the steps **in this order**, reading only the reference each one names.
 | 7b | Branch protection on the reference branch | github, gitlab | `mcp-env.md` |
 | 7c | `worktree.baseRef`, from the reference branch | all | `mcp-env.md` |
 | 7d | `.claude/auto-dev.json` for unattended runs | all | `mcp-env.md` |
+| 7e | `product.md`, the product context | all | `product-context.md` |
 | 8 | Scaffold the project | GREENFIELD | `greenfield.md` |
 | 9 | Summary — the steps' one-line reports | all | the mode's |
 
