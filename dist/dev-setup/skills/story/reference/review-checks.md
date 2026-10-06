@@ -41,6 +41,12 @@ Per **epic**: the four requirement sections are filled or say why not; its
 stories, together, cover the product requirement and nothing outside its
 scope.
 
+Per **story map**, when there is one: the backbone reads as a story in time,
+with no architecture column; every lane crosses every Epic (no Epic finished
+before another starts); each Epic's stories are in priority order with no tie;
+the walking skeleton holds tasks and spikes only and is not the MVP; every
+line of the DoR Check carries real reasoning, not a tick.
+
 Across the run: no two stories overlap; every `BLOCKED_BY` is a real
 dependency; no story is missing from the flow (walk it as the user would).
 

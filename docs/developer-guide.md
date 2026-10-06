@@ -66,7 +66,11 @@ story — or an epic with its stories — with Gherkin scenarios, checked agains
 INVEST and against the project's `product.md`, and creates it on ClickUp only
 after you approve the drafts. The drafts live in `.stories/` (gitignored) until
 then; choose **Keep the drafts** at the approval to try it without touching the
-board. A story that still has open points is tagged `da dettagliare`.
+board. A story that still has open points is tagged `da dettagliare`. With
+`--map` it also writes the story map — the backbone of epics, the walking
+skeleton, the release lanes — as a page of the ClickUp Doc named under
+`Story maps` in `product.md`; every epic links to it, and the release plan
+lives there only.
 
 **Which one does `review` belong to?** It runs inside `sdd` already, before the
 commit. Invoked on its own it reviews the current branch, updates `REGISTRY.md`

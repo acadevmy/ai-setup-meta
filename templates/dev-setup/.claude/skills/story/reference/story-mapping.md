@@ -1,9 +1,10 @@
 # Story mapping — as a thinking tool
 
-When the request covers more than one user activity. A run never publishes a
-map (`model.md`): you build it in your head to decide which epics exist, which
-stories each one needs, what is missing, and in which order the stories
-should be released. Sources: Jeff Patton, *The New Backlog* and *User Story
+When the request covers more than one user activity, and always with `--map`.
+The map decides which epics exist, which stories each one needs, what is
+missing, and in which order the stories are released. Without `--map` you
+build it in your head; with `--map` you draft it as `MAP-01.md`
+(`templates.md`) and it is published as a ClickUp Doc page. Sources: Jeff Patton, *The New Backlog* and *User Story
 Mapping*; Kenneth Rubin, *Essential Scrum*.
 
 ## Index
@@ -75,6 +76,9 @@ Two axes.
   lane, left to right along the backbone — never Epic by Epic. Express what
   really must come first as `BLOCKED_BY`, and say the release order in the
   approval tree (`publish.md`).
+- **The lanes live in the map only.** No tag, no field on the tasks carries
+  the release: the map page is where the plan is read, and the tasks stay
+  free to be re-planned without touching them.
 
 When one Epic is itself too big, zoom: map that Epic alone and its activities
 become separate epics. The workspace is one level deep, so they sit side by
@@ -93,3 +97,7 @@ side, never nested.
 - **Walk the map** — follow it step by step as the user: the missing steps
   show up ("you skipped a couple of things here"). Each one is a story you
   forgot, or a question for step 4.
+
+With `--map`, these six are the map's **DoR Check** section, each with one
+line of real reasoning — never a bare tick. A line that does not hold means
+the map is fixed before the drafts are shown.
