@@ -240,7 +240,7 @@ status other than 0.
 | `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>] [--stop <point>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED`, `STOP_POINT` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket; `--stop` with `--create` saves the stop point beside the task clock, and every later call returns it, so a resumed `sdd` does not ask again |
 | `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS`, `UNCHECKED_AT_COMMIT` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this. `UNCHECKED_AT_COMMIT` is what the commit gate let through on the branch when it ran out of time, and the merge request opens with it |
 | `save-failed-run.sh --task <id> --stage <spec\|dev\|verify\|broken> --reason-file <path> [--dir <worktree>] [--spec-file <path> --spec-path <path> --base <ref> --title <text>]` | `SAVED`, `COMMIT`, `BRANCH`, `WORKTREE`, `CREATED`, `FILES`, `PUSHED`, `REMOTE`, `PUSH_ERROR`, `REASON` — the one way past the gates: a failed `auto-sdd` run in a cloud session commits what the task's worktree holds (an empty commit when nothing; on a branch with no worktree, without a checkout; with no branch, a new one holding the spec) with the failure report as the body, and pushes it as it is, past the commit and push hooks, never forced. Exit 3 refuses outside `CLAUDE_CODE_REMOTE=true` or with nothing that carries the task id; exit 4 saved but not pushed |
-| `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
+| `multi-preflight.sh [--task <id>]… \| --from-sprint <n> \| --from-epic <id>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `review-package.sh --base <ref>` | `PACKAGE`, `MERGE_BASE`, `EMPTY`, `COMMITS`, `FILES`, `CHANGED_LINES`, `SIZE` — the diff `verify` and `review` read, built once: commits, stat and `git diff -U10` of the working tree against `--base`, in one file under the common git directory, named after the branch. `EMPTY` is decided by the diff, never by the commits; `SIZE` is `large` above 300 changed lines or 10 files. It never stages — the caller does |
 | `task-clock.sh --task <id> --start \| --stop`, `task-clock.sh [--task <id>] --status` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON`, `OPEN_TASKS`, `OPEN_COUNT`, `RECENT_TASKS` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why. `--status` reads without writing and, with no task, answers for the whole repository: asking whether work is open must not consume the measurement. `RECENT_TASKS` names the clocks stopped less than 300 s ago, so a failed run's `BLOCKED` prompt is still its task |
@@ -256,6 +256,8 @@ status other than 0.
 | `auto-dev-report.sh --outcome <file> --launch <file> [--session <id>]`, `--finalize --result <file> --claude-result <file>` | `STATUS`, `STAGE`, `RESULT_FILE`, `BODY_FILE`, `SPEC_FILE`, `PATCH_FILE`, `TITLE`, `LABELS`, `OUTPUT_SOURCE` — `result.json` and `pr-body.md` with no model: title and labels from `mr-meta.sh`, the repository's template with its description and test sections filled. Git decides the outcome: a `ready-for-mr` whose branch holds no commit over the base becomes `failed` at `dev`, the commit subjects are git's, and a failed run's uncommitted work goes to `changes.patch`. Usage per step from the transcripts is a lower bound for output; `--finalize` spreads `claude -p`'s exact per-model totals over the steps |
 | `devcontainer-facts.sh` | `CONFIG`, `NESTED_CONFIGS`, `VERSIONS`, `PHP_EXTENSIONS`, `PHP_COVERAGE`, `TEST_ENV`, `CI_IMAGES`, `DOCKERFILES`, `COMPOSE_FILES`, `ENV_EXAMPLES`, `ENV_SERVICES`, `PRIVATE_DEPS`, `TESTCONTAINERS`, `REPOSITORY` — what the `devcontainer` command proposes from: every version pin with the file that pins it, the CI's job and service images, the Docker files already there, the services `.env.example` points at, the dependencies that need credentials (URLs masked), and the Testcontainers libraries of every manifest — whose tests need the Docker socket, so the repository is excluded from GCP and `REPOSITORY` names it for the exclusion. Read-only, three levels down, never `.env` |
 | `devcontainer-check.sh [--keep] [--ssh-agent]` | `STATUS`, `REASON`, `CONFIG`, `COMPOSE`, `ISSUES`, `DOCKER`, `CLI`, `UP`, `UP_SECONDS`, `CONTAINER`, `REMOTE_USER`, `REMOTE_UID`, `EXPECTED_UID`, `PREFLIGHT`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS`, `OUTPUT`, `LOG_DIR`, `KEPT`, `SSH_AGENT` — can the job runner use the root devcontainer: the static clauses of its contract (one root config, non-root user, no `/var/autodev` mount and no other host bind, no Docker socket, `privileged`, host network or Docker Feature, no workspace path of its own, no `${localEnv:}` credential — compose files included), then `devcontainer up` fresh under an id label and a compose project of its own, the UID, `bash`/`git`/`curl` and the workspace root probed inside, and the declared preflight and commands run with `devcontainer exec`. `--ssh-agent` forwards the developer's agent for a private dependency on an SSH URL, which the runner fetches with its own credentials. Exit 0 ready, 4 not ready (a red command alone is not), 3 unverified: no Docker, no CLI, nothing declared |
+| `validate-story.sh <draft \| folder>…` | `VALID`, `CHECKED`, `ITEMS`, `ERRORS`, `WARNINGS`, `OPEN_POINTS` — the structural checks on the story drafts in `.stories/`: frontmatter and relations, the Connextra sentence, no conjunction in its "I want" clause, one `When` per scenario, the epic's four requirement sections. Exit 3 refuses. `OPEN_POINTS` is what the `da dettagliare` tag is applied from |
+| `parse-story.sh [--file <path>]` | `FORMAT`, `CONNEXTRA`, `SCENARIO_COUNT`, `SCENARIOS`, `OPEN_POINTS`, `SECTIONS` — reads a task description: `story` (each scenario becomes a REQ), `epic` (not something to implement), `other` (the flow runs as before) |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug, branch-name parsing |
 
 ### The UPDATE path is part of the contract
@@ -554,11 +556,11 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
-**The public surface is six commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
-`multi-sdd`, `review` — plus two headless ones, `auto-dev-select` and
+**The public surface is seven commands** — `setup`, `story`, `quick`, `sdd`,
+`auto-sdd`, `multi-sdd`, `review` — plus two headless ones, `auto-dev-select` and
 `auto-dev`, which a job runner starts inside `claude -p` and no developer types.
 They are user-invocable because `claude -p` starts them by name, and they stay
-out of the generated `AGENTS.md`, whose command table the suite pins to the six:
+out of the generated `AGENTS.md`, whose command table the suite pins to the seven:
 every session of every project would otherwise pay to describe them. One
 optional command stays out of it for the same reason: `devcontainer`, which
 writes and verifies the root `.devcontainer/` the job runner builds before
@@ -576,6 +578,23 @@ three files and no new component, dependency or public interface goes branch →
 change → commit → merge request, with no discovery and no spec. The bar is in
 both descriptions, `sdd`'s and `quick`'s, and the routing decision stays with the
 developer — the command they type *is* the decision.
+
+`story` is the seventh (DE-17141) because the flows were only as good as the
+task they were handed: hand-written tasks prescribe the build and contradict
+themselves, which is what kept stopping the `auto-sdd` Challenge on DE-16864.
+`story` writes the input instead — a story or an epic with its stories, INVEST
+and Gherkin, from a short description, Figma links and the project's
+`product.md` (written by the setup's Step 7e) — drafts it in `.stories/`
+(gitignored), checks the structure with `validate-story.sh` and the judgement
+with the `story-reviewer` agent, and creates it on ClickUp only after the
+developer approves the drafts. The workspace nests one level (an Epic and its
+subtasks), so a spike or a task a story needs is its sibling, declared with
+`BLOCKED_BY`, and a story map is a way of thinking, never an output. A story
+with open points carries the `da dettagliare` tag, and the flows that meet it
+go through the open-points gate of `clickup-contract.md` — once, before any
+branch, never in the middle of a run. A description in any other shape keeps
+working exactly as before: the format is used when it is there, never
+required.
 
 The standalone `tdd` and `bdd` skills are gone (DE-16479): they restated
 `sdd-dev/reference/methodologies.md`, nothing in the flow ever invoked them, and
@@ -659,18 +678,12 @@ $19.34 run) from the three that did not. Cause is not proven — the same
 declarations sat on the same skills in v2.3.1, which never re-keyed, so the
 change from `model: opus` to `effort:` is the other variable in play — but a
 declaration that restricts nothing is not worth keeping while it is a suspect.
-
-`allowed-tools` never restricts anything: it pre-approves the tools it lists,
-and every other tool stays callable. `setup/SKILL.md` used to keep its own list
-on the claim that it denied the agent launcher and the network; it did not
-(DE-17061). The setup now declares `disallowed-tools: Agent, WebFetch,
-WebSearch`, the field that does remove tools, and no `model:` — an override
-that either lasts one turn of a multi-turn setup or moves the rest of the
-session to another model. The removal lasts only until the developer's next
-message, and the setup ends its turn at every question, so it guards the first
-turn and nothing more: it is a guard against a stray call, not a boundary. The
-boundary is still the `deny` rules plus the sandbox. `AskUserQuestion` stays
-off that list: the setup's questions are real calls.
+`setup/SKILL.md` keeps its own `allowed-tools`: there the list is real, it
+denies the agent launcher and the network, and setup is one skill at the start
+of a session rather than a transition inside a flow. Its one MCP exception is
+read-only and named tool by tool — the ClickUp Doc pages and the Google Drive
+file reads Step 7e needs to build `product.md` from a document. Nothing that
+writes, and nothing beyond those four.
 
 Whoever measures the next run: the number to watch is `cache_creation` on the
 request that loads a skill, and the tell is `cache_read` collapsing to the size
@@ -923,7 +936,7 @@ of these five should have grown a section instead.
 | Page | Answers |
 |---|---|
 | `docs/onboarding.md` | "I have never used this." Install → configure → first task, capped at one page by a test |
-| `docs/developer-guide.md` | "How do I work with it?" The six commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
+| `docs/developer-guide.md` | "How do I work with it?" The seven commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
 | `docs/migration-v2-to-v3.md` | "What broke?" Every breaking change of the chain, and the UPDATE procedure |
 | `docs/training.md` | "Why is it like this?" Facilitator material: the mental model and three live demos |
 | `docs/workflow.md` | "How do I change the plugin?" Branching, CI, releases |

@@ -229,7 +229,7 @@ fewer.
 | 0:10 | Demo 1 — the gate on the commit |
 | 0:18 | Demo 2 — the ask on the merge request, plus the force-push deny |
 | 0:26 | Demo 3 — the rules that load themselves, plus writing a team rule live |
-| 0:34 | What changes in your day: the six commands, the routing bar |
+| 0:34 | What changes in your day: the seven commands, the routing bar |
 | 0:40 | Objections, questions |
 | 0:45 | Where to read: onboarding, the guide, the migration page |
 
