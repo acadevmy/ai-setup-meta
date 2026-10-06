@@ -101,6 +101,7 @@ existing ClickUp tag that marks the product's stories. -->
 
 - **ClickUp list:** {{CLICKUP_LIST_ID}}
 - **Story language:** {{STORY_LANGUAGE}}
+- **Story maps:** <the ClickUp Doc where `/dev-setup:story --map` creates map pages — or TBD>
 - **Estimation:** <story points, t-shirt sizes, none>
 - **Definition of Ready / Done:** <the team's own, if any>
 

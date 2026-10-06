@@ -41,6 +41,9 @@ summarised) and the transition validation live in one place.
 | `update` | `task_id`, `status` | `comment` | the updated task |
 | `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` | the created task, plus `TAGS_MISSING` |
 | `relate` | `task_id`, `relation` (`blocked_by` \| `related`), `target_id` | — | the task |
+| `create-doc` | `parent_id`, `parent_type` (`space` \| `folder` \| `list`), `name`, `visibility` | — | `doc_id`, `url` |
+| `create-page` | `doc_id`, `name`, `content` | — | `page_id`, `url` |
+| `update-page` | `doc_id`, `page_id`, `content` | — | `page_id`, `url` |
 
 A `create` is not one call. ClickUp applies the task type's template after
 the task exists, asynchronously, and that template can overwrite the
@@ -56,6 +59,9 @@ it a second time.
 `relate` writes one relation, from the side of the task that is blocked or
 that declares it: `blocked_by` becomes a ClickUp dependency (`task_id` waits on
 `target_id`), `related` a task link.
+
+The three doc intents write ClickUp Docs, which hold what is not a task — the
+story map. `update-page` replaces the whole page with the content it receives.
 
 `priority` is numeric and ascending in urgency: `1` urgent, `2` high, `3`
 normal, `4` low. When a flow has to pick one task out of a list, sort by that

@@ -2,12 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://devmy.local/dev-setup/story/frontmatter.schema.json",
   "title": "Story draft — frontmatter schema",
-  "description": "The YAML frontmatter of a draft in .stories/<slug>/. One of four shapes, chosen by `type`. additionalProperties is false everywhere: no key outside this schema. Optional keys are omitted, never left empty. Rules JSON Schema cannot express: a relation is declared only on the side that is blocked or that is the child; an item has at most one PARENT; a PARENT is always an EPIC; the entries of relations are ordered by relationType (PARENT, BLOCKED_BY, RELATED), then type (EPIC, US, SPIKE, TASK), then id. validate-story.sh checks the first three.",
+  "description": "The YAML frontmatter of a draft in .stories/<slug>/. One of five shapes, chosen by `type`. additionalProperties is false everywhere: no key outside this schema. Optional keys are omitted, never left empty. Rules JSON Schema cannot express: a relation is declared only on the side that is blocked or that is the child; an item has at most one PARENT; a PARENT is always an EPIC; the entries of relations are ordered by relationType (PARENT, BLOCKED_BY, RELATED), then type (EPIC, US, SPIKE, TASK), then id. validate-story.sh checks the first three.",
   "oneOf": [
-    { "$ref": "#/$defs/userStory" },
-    { "$ref": "#/$defs/epic" },
-    { "$ref": "#/$defs/task" },
-    { "$ref": "#/$defs/spike" }
+    {
+      "$ref": "#/$defs/userStory"
+    },
+    {
+      "$ref": "#/$defs/epic"
+    },
+    {
+      "$ref": "#/$defs/task"
+    },
+    {
+      "$ref": "#/$defs/spike"
+    },
+    {
+      "$ref": "#/$defs/map"
+    }
   ],
   "$defs": {
     "id": {
@@ -23,78 +34,193 @@
     "products": {
       "type": "array",
       "minItems": 1,
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "The product tags from product.md's product index. Required when the index exists; an Epic spanning products lists them all."
     },
     "pbiType": {
       "type": "string",
-      "enum": ["US", "EPIC", "TASK", "SPIKE"]
+      "enum": [
+        "US",
+        "EPIC",
+        "TASK",
+        "SPIKE"
+      ]
     },
     "relation": {
       "type": "object",
       "properties": {
-        "title": { "type": "string", "minLength": 1 },
-        "type": { "$ref": "#/$defs/pbiType" },
-        "relationType": { "type": "string", "enum": ["PARENT", "BLOCKED_BY", "RELATED"] },
-        "reason": { "type": "string", "minLength": 1 }
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "$ref": "#/$defs/pbiType"
+        },
+        "relationType": {
+          "type": "string",
+          "enum": [
+            "PARENT",
+            "BLOCKED_BY",
+            "RELATED"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
       },
-      "required": ["title", "type", "relationType", "reason"],
+      "required": [
+        "title",
+        "type",
+        "relationType",
+        "reason"
+      ],
       "additionalProperties": false
     },
     "relations": {
       "type": "object",
       "minProperties": 1,
-      "additionalProperties": { "$ref": "#/$defs/relation" },
+      "additionalProperties": {
+        "$ref": "#/$defs/relation"
+      },
       "description": "Referenced id -> relation. The id is quoted in YAML."
     },
     "userStory": {
       "type": "object",
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "title": { "$ref": "#/$defs/title" },
-        "type": { "const": "US" },
-        "products": { "$ref": "#/$defs/products" },
-        "relations": { "$ref": "#/$defs/relations" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "type": {
+          "const": "US"
+        },
+        "products": {
+          "$ref": "#/$defs/products"
+        },
+        "relations": {
+          "$ref": "#/$defs/relations"
+        }
       },
-      "required": ["id", "title", "type"],
+      "required": [
+        "id",
+        "title",
+        "type"
+      ],
       "additionalProperties": false
     },
     "epic": {
       "type": "object",
       "description": "An Epic has no parent: the workspace nests one level.",
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "title": { "$ref": "#/$defs/title" },
-        "type": { "const": "EPIC" },
-        "products": { "$ref": "#/$defs/products" },
-        "relations": { "$ref": "#/$defs/relations" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "type": {
+          "const": "EPIC"
+        },
+        "products": {
+          "$ref": "#/$defs/products"
+        },
+        "relations": {
+          "$ref": "#/$defs/relations"
+        }
       },
-      "required": ["id", "title", "type"],
+      "required": [
+        "id",
+        "title",
+        "type"
+      ],
       "additionalProperties": false
     },
     "task": {
       "type": "object",
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "title": { "$ref": "#/$defs/title" },
-        "type": { "const": "TASK" },
-        "products": { "$ref": "#/$defs/products" },
-        "relations": { "$ref": "#/$defs/relations" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "type": {
+          "const": "TASK"
+        },
+        "products": {
+          "$ref": "#/$defs/products"
+        },
+        "relations": {
+          "$ref": "#/$defs/relations"
+        }
       },
-      "required": ["id", "title", "type"],
+      "required": [
+        "id",
+        "title",
+        "type"
+      ],
       "additionalProperties": false
     },
     "spike": {
       "type": "object",
       "description": "The item a spike unblocks declares it with BLOCKED_BY.",
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "title": { "$ref": "#/$defs/title" },
-        "type": { "const": "SPIKE" },
-        "products": { "$ref": "#/$defs/products" },
-        "relations": { "$ref": "#/$defs/relations" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "type": {
+          "const": "SPIKE"
+        },
+        "products": {
+          "$ref": "#/$defs/products"
+        },
+        "relations": {
+          "$ref": "#/$defs/relations"
+        }
       },
-      "required": ["id", "title", "type"],
+      "required": [
+        "id",
+        "title",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "map": {
+      "type": "object",
+      "description": "A story map (--map only), published as a ClickUp Doc page. It lists the epics and stories in its body and declares no relation.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "type": {
+          "const": "MAP"
+        },
+        "products": {
+          "$ref": "#/$defs/products"
+        },
+        "page": {
+          "type": "string",
+          "pattern": "^[^/]+/[^/]+$",
+          "description": "<doc_id>/<page_id> of the page created, written at publication so a resumed run updates it instead of creating a second one."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "type"
+      ],
       "additionalProperties": false
     }
   }
