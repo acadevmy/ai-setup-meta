@@ -50,7 +50,8 @@ Do NOT use abbreviated names like `clickup_get_task` — they will fail.
 ## Operational instructions
 
 ### Intent: `read`
-1. Call `mcp__clickup__clickup_get_task` with the provided `task_id`
+1. Call `mcp__clickup__clickup_get_task` with the provided `task_id` and
+   `include: ["description", "subtasks", "dependencies"]`
 2. If the task does not exist, return STATUS: error
 3. Return ALL task fields in the output, without omissions
 
@@ -163,6 +164,8 @@ DATA:
   task_type: <type name, empty for the default type>
   parent: <parent task_id, empty when none>
   tags: <comma-separated list>
+  subtasks: <one "custom_id | name | status" per line, empty when none>
+  blocked_by: <comma-separated ids of the tasks this one waits on, empty when none>
   priority: <1-4>
   assignees: <comma-separated list>
   url: <task url>
