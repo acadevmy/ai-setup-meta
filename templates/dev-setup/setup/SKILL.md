@@ -4,7 +4,7 @@ description: Grafts the AI-native workflow onto a project — path-scoped rules,
 model: opus
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__clickup__clickup_list_document_pages, mcp__clickup__clickup_get_document_pages, mcp__claude_ai_Google_Drive__search_files, mcp__claude_ai_Google_Drive__read_file_content
 ---
 
 # Dev Setup
@@ -13,10 +13,8 @@ Everything is bundled in the plugin — nothing is downloaded. Two roots matter:
 
 - `${CLAUDE_SKILL_DIR}/templates/` — the files installed into the project; each
   reference names the ones it uses.
-- `${CLAUDE_PLUGIN_ROOT}/scripts/` — the deterministic work, done by scripts
-  instead of re-derived from prose. One contract: `--json` prints a flat object
-  with `UPPER_SNAKE` keys, a missing value is the empty string, diagnostics go
-  to stderr.
+- `${CLAUDE_PLUGIN_ROOT}/scripts/` — the deterministic work. `--json` prints
+  a flat object with `UPPER_SNAKE` keys; a missing value is the empty string.
 
 Skills and agents are **not** installed: the plugin provides them.
 
@@ -47,6 +45,7 @@ Run the steps **in this order**, reading only the reference each one names.
 | 7b | Branch protection on the reference branch | github, gitlab | `mcp-env.md` |
 | 7c | `worktree.baseRef`, from the reference branch | all | `mcp-env.md` |
 | 7d | `.claude/auto-dev.json` for unattended runs | all | `mcp-env.md` |
+| 7e | `product.md`, the product context | all | `product-context.md` |
 | 8 | Scaffold the project | GREENFIELD | `greenfield.md` |
 | 9 | Summary — collects the one-line reports of the steps above | all | the mode's |
 

@@ -9,7 +9,8 @@
     "install.md",
     "rules-generation.md",
     "agents-generation.md",
-    "mcp-env.md"
+    "mcp-env.md",
+    "product-context.md"
   ],
   "shared_agents": [
     "clickup.md"
@@ -111,6 +112,8 @@
     ".claude/settings.json",
     ".claude/settings.user.json",
     ".gitignore",
-    ".worktreeinclude"
+    ".worktreeinclude",
+    "product.template.md",
+    "product.product-template.md"
   ]
 }
