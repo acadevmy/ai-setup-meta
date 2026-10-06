@@ -64,7 +64,8 @@
     "worktree-info.sh",
     "mr-meta.sh",
     "save-failed-run.sh",
-    "validate-story.sh"
+    "validate-story.sh",
+    "parse-story.sh"
   ],
   "hooks": [
     "gate-commit.sh",

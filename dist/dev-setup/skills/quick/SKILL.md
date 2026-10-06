@@ -35,8 +35,8 @@ feature without a spec, and never abandon a nearly-done change.
    (`INTENT: read`, per
    `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`), move it to
    `IN PROGRESS` and start that contract's work clock (`task-clock.sh
-   --start`). A `BACKLOG` task first
-   passes its backlog gate (declined → stop, task untouched). Without one,
+   --start`). A `BACKLOG` or
+   `da dettagliare` task passes the contract's gate (declined → stop). Without one,
    `$ARGUMENTS` is the whole input — do not ask for a ticket. On
    `COMMANDS_SOURCE: none` from `detect-stack.sh --json`, say in one line that
    nothing will lint or test it.
