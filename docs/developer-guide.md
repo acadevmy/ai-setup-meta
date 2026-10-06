@@ -13,7 +13,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ## Index
 
-- [1. The six commands](#1-the-six-commands)
+- [1. The seven commands](#1-the-seven-commands)
 - [2. A task, end to end](#2-a-task-end-to-end)
 - [3. The rules, and when each one loads](#3-the-rules-and-when-each-one-loads)
 - [4. The sandbox and the ask rules](#4-the-sandbox-and-the-ask-rules)
@@ -25,10 +25,12 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ---
 
-## 1. The six commands
+## 1. The seven commands
 
 ```
 /dev-setup:setup      ← one-off, per project
+       │
+/dev-setup:story      ← writes the story (or the epic) on ClickUp
        │
        ├── /dev-setup:quick     ← a fix or chore: branch, change, commit, MR
        │
@@ -43,6 +45,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 | Command | Use it when | Example |
 |---|---|---|
 | `/dev-setup:setup` | Configuring a project for the first time, or pulling in a new plugin version | `/dev-setup:setup` |
+| `/dev-setup:story` | The work exists only as an idea, a sentence or a Figma file, and needs to become a story someone can build | `/dev-setup:story "visitors can sign up for updates on a sold-out product" https://figma.com/design/…` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
 | `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
@@ -57,6 +60,13 @@ entry point.
 **Picking between `quick` and `sdd`.** The bar is three files and no new
 component, dependency or public interface. Claude may say a task looks
 misrouted; the routing is yours, and the command you type is the decision.
+
+**Where `story` sits.** Before the others: it turns a request into a user
+story — or an epic with its stories — with Gherkin scenarios, checked against
+INVEST and against the project's `product.md`, and creates it on ClickUp only
+after you approve the drafts. The drafts live in `.stories/` (gitignored) until
+then; choose **Keep the drafts** at the approval to try it without touching the
+board. A story that still has open points is tagged `da dettagliare`.
 
 **Which one does `review` belong to?** It runs inside `sdd` already, before the
 commit. Invoked on its own it reviews the current branch, updates `REGISTRY.md`
