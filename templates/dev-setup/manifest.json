@@ -41,6 +41,7 @@
     "sdd-spec",
     "sdd-plan",
     "sdd-dev",
+    "story",
     "verify"
   ],
   "workflows": [
@@ -61,7 +62,8 @@
     "instruction-files.sh",
     "worktree-info.sh",
     "mr-meta.sh",
-    "save-failed-run.sh"
+    "save-failed-run.sh",
+    "validate-story.sh"
   ],
   "hooks": [
     "gate-commit.sh",
