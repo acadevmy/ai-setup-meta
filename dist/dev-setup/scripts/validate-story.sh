@@ -12,7 +12,10 @@
 # `# title` in the body. Per type: a story's Connextra sentence, no conjunction
 # in its "I want" clause, its scenarios (at least one, each with exactly one
 # When, a Given and a Then); an epic's four requirement sections; a task's and
-# a spike's sections. English and Italian keywords are both accepted.
+# a spike's sections; a story map's sections, and across the run that every
+# epic is on its backbone, every story in a release lane, and its walking
+# skeleton holds tasks and spikes only. English and Italian keywords are both
+# accepted.
 #
 # Usage:
 #   validate-story.sh [--json] <draft.md | folder>…
@@ -134,7 +137,9 @@ check_file() {
         key = $0; sub(/:.*/, "", key)
         val = $0; sub(/^[A-Za-z_]+:[ \t]*/, "", val); val = unquote(val)
         section = key
-        if (key !~ /^(id|title|type|products|relations)$/) err("unknown frontmatter key \"" key "\"")
+        if (key !~ /^(id|title|type|products|relations|page)$/) err("unknown frontmatter key \"" key "\"")
+        if (key == "relations") has_relations = 1
+        if (key == "page") has_page = 1
         if (key == "id") id = val
         else if (key == "title") title = val
         else if (key == "type") type = val
@@ -179,6 +184,7 @@ check_file() {
         close_scenario()
         h = line; gsub(/\*/, "", h); h = trim(h)
         heading[h] = 1
+        bsection = h
         if (h == "User Story" || h == "Introduction") connextra_next = 1
         if (h == "Open points") open_points = 1
         next
@@ -188,6 +194,18 @@ check_file() {
         connextra_next = 0
         connextra = line
       }
+
+      # A story map cites the items it lays out as TYPE [id]: collected per
+      # section, checked across the run once every draft is known.
+      rest = line
+      while (match(rest, /(EPIC|US|TASK|SPIKE) \[[A-Za-z0-9._-]+\]/)) {
+        ref = substr(rest, RSTART, RLENGTH)
+        rtype = ref; sub(/ .*/, "", rtype)
+        rid = ref; sub(/^[A-Z]+ \[/, "", rid); sub(/\]$/, "", rid)
+        print "M\t" bsection "\t" rtype "\t" rid
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      if (bsection == "DoR Check" && line ~ /^[-*][ \t]+/) dor++
 
       if (line ~ /^\*\*Scenario:\*\*/) {
         close_scenario()
@@ -214,7 +232,9 @@ check_file() {
       if (id != "" && id !~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/) err("id \"" id "\" is not a plain identifier")
       base = file; sub(/^.*\//, "", base)
       if (id != "" && base != id ".md") err("the file must be named " id ".md")
-      if (type != "" && type !~ /^(US|EPIC|TASK|SPIKE)$/) err("type " type " is not US, EPIC, TASK or SPIKE")
+      if (type != "" && type !~ /^(US|EPIC|TASK|SPIKE|MAP)$/) err("type " type " is not US, EPIC, TASK, SPIKE or MAP")
+      if (type == "MAP" && has_relations) err("a MAP has no relations: it lists its items in the body")
+      if (type != "MAP" && has_page) err("page is written on a MAP only")
       if (parents > 1) err(parents " PARENT relations (at most one)")
       if (type == "EPIC" && parents > 0) err("an EPIC has no parent: the workspace nests one level")
 
@@ -252,6 +272,12 @@ check_file() {
         for (i = 1; i <= n; i++) if (!(req[i] in heading)) err("no **" req[i] "** section")
       }
 
+      if (type == "MAP") {
+        n = split("Introduction|Outcome|Backbone|Walking Skeleton|Release lanes|DoR Check", req, "|")
+        for (i = 1; i <= n; i++) if (!(req[i] in heading)) err("no **" req[i] "** section")
+        if (("DoR Check" in heading) && dor < 6) warn("the DoR Check has " dor + 0 " lines (six: narrative, vertical, gravity, functional, walking skeleton vs MVP, elevator pitch)")
+      }
+
       print "I\t" id "\t" type "\t" title
       if (open_points) print "O\t" id
     }
@@ -264,6 +290,8 @@ ITEMS=""
 OPEN_POINTS=""
 IDS=""
 RELS=""
+MAP_DRAFT=""
+MAPS=0
 
 add_line() { if [ -n "$1" ]; then printf '%s\n%s' "$1" "$2"; else printf '%s' "$2"; fi; }
 
@@ -272,7 +300,8 @@ for f in "${FILES[@]}"; do
     case "$tag" in
       E) ERRORS=$(add_line "$ERRORS" "$a") ;;
       W) WARNINGS=$(add_line "$WARNINGS" "$a") ;;
-      I) ITEMS=$(add_line "$ITEMS" "$a $b $c"); IDS=$(add_line "$IDS" "$a") ;;
+      I) ITEMS=$(add_line "$ITEMS" "$a $b $c"); IDS=$(add_line "$IDS" "$a")
+         if [ "$b" = "MAP" ]; then MAPS=$((MAPS + 1)); MAP_DRAFT="$f"; fi ;;
       R) RELS=$(add_line "$RELS" "$a"$'\t'"$b") ;;
       O) OPEN_POINTS=$(add_line "$OPEN_POINTS" "$a") ;;
     esac
@@ -301,6 +330,40 @@ while IFS=$'\t' read -r from target; do
 done <<EOF
 $RELS
 EOF
+
+# ── The story map, against the drafts it lays out ────────────────────────────
+
+[ "$MAPS" -gt 1 ] && ERRORS=$(add_line "$ERRORS" "$MAPS story maps in one run: at most one")
+
+if [ "$MAPS" -eq 1 ]; then
+  # Only the map cites items in its body; the other drafts declare relations.
+  MAPREFS=$(check_file "$MAP_DRAFT" | awk -F '\t' '$1 == "M" { print $2 "\t" $3 "\t" $4 }')
+  while IFS=$'\t' read -r section rtype rid; do
+    [ -n "${rid:-}" ] || continue
+    if printf '%s' "$rid" | grep -qE '^(US|EPIC|TASK|SPIKE)-[0-9]+$' \
+       && ! printf '%s\n' "$IDS" | grep -qxF "$rid"; then
+      ERRORS=$(add_line "$ERRORS" "$MAP_DRAFT: the map cites $rtype [$rid], which is not drafted in this run")
+    fi
+    if [ "$section" = "Walking Skeleton" ] && [ "$rtype" != "TASK" ] && [ "$rtype" != "SPIKE" ]; then
+      ERRORS=$(add_line "$ERRORS" "$MAP_DRAFT: the walking skeleton lists $rtype [$rid]: tasks and spikes only")
+    fi
+  done <<MAPEOF
+$MAPREFS
+MAPEOF
+  while IFS=' ' read -r iid itype _; do
+    [ -n "${iid:-}" ] || continue
+    case "$itype" in
+      EPIC) where="Backbone" ;;
+      US) where="Release lanes" ;;
+      *) continue ;;
+    esac
+    if ! printf '%s\n' "$MAPREFS" | awk -F '\t' -v s="$where" -v i="$iid" '$1 == s && $3 == i { found = 1 } END { exit !found }'; then
+      ERRORS=$(add_line "$ERRORS" "$MAP_DRAFT: $itype [$iid] is drafted but missing from the map's $where")
+    fi
+  done <<MAPEOF
+$ITEMS
+MAPEOF
+fi
 
 VALID=true
 [ -n "$ERRORS" ] && VALID=false

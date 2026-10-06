@@ -415,7 +415,10 @@ and Gherkin, from a short description, Figma links and the project's
 with the `story-reviewer` agent, and creates it on ClickUp only after the
 developer approves the drafts. The workspace nests one level (an Epic and its
 subtasks), so a spike or a task a story needs is its sibling, declared with
-`BLOCKED_BY`, and a story map is a way of thinking, never an output. A story
+`BLOCKED_BY`. A story map is written only on `--map`, and never as a task:
+it is a ClickUp Doc page — the backbone of epics, the walking skeleton, the
+release lanes — that every epic links to, and the release plan lives there
+alone, with no tag or field repeating it on the tasks. A story
 with open points carries the `da dettagliare` tag, and the flows that meet it
 go through the open-points gate of `clickup-contract.md` — once, before any
 branch, never in the middle of a run. A description in any other shape keeps

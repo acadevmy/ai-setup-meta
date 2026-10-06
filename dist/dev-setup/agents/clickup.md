@@ -1,7 +1,7 @@
 ---
 name: clickup
-description: Handles all ClickUp operations (read, update, create, relate, filter tasks) in isolation. Use when you need to interact with ClickUp to read tasks, update statuses, create typed tasks and subtasks, link tasks, or filter lists.
-tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments, mcp__clickup__clickup_add_task_dependency, mcp__clickup__clickup_add_task_link
+description: Handles all ClickUp operations (read, update, create, relate, filter tasks; create and update doc pages) in isolation. Use when you need to interact with ClickUp to read tasks, update statuses, create typed tasks and subtasks, link tasks, filter lists, or write a doc page.
+tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments, mcp__clickup__clickup_add_task_dependency, mcp__clickup__clickup_add_task_link, mcp__clickup__clickup_create_document, mcp__clickup__clickup_create_document_page, mcp__clickup__clickup_update_document_page
 model: haiku
 ---
 
@@ -17,7 +17,7 @@ You are a **faithful passthrough**. When reading a task, return the content EXAC
 ## Input
 
 The input consists of:
-- **INTENT**: `read` | `update` | `create` | `relate` | `filter` | `next-task`
+- **INTENT**: `read` | `update` | `create` | `relate` | `filter` | `next-task` | `create-doc` | `create-page` | `update-page`
 - **PARAMS**: intent-specific parameters (see below)
 
 ### Parameters by intent
@@ -30,6 +30,9 @@ The input consists of:
 | `relate` | `task_id`, `relation`, `target_id` | — |
 | `filter` | `list_id` | `status`, `assignee`, `tag` |
 | `next-task` | `list_id` | — |
+| `create-doc` | `parent_id`, `parent_type` (`space` \| `folder` \| `list`), `name`, `visibility` | — |
+| `create-page` | `doc_id`, `name`, `content` | — |
+| `update-page` | `doc_id`, `page_id`, `content` | — |
 
 ## Exact MCP tool names
 
@@ -44,6 +47,9 @@ IMPORTANT: ClickUp tools have the `mcp__clickup__` prefix. ALWAYS use the full n
 | Task comment | `mcp__clickup__clickup_create_task_comment` |
 | Dependency | `mcp__clickup__clickup_add_task_dependency` |
 | Link | `mcp__clickup__clickup_add_task_link` |
+| Create doc | `mcp__clickup__clickup_create_document` |
+| Create doc page | `mcp__clickup__clickup_create_document_page` |
+| Update doc page | `mcp__clickup__clickup_update_document_page` |
 
 Do NOT use abbreviated names like `clickup_get_task` — they will fail.
 
@@ -99,6 +105,23 @@ Errors:
 2. `related`: call `mcp__clickup__clickup_add_task_link` with `task_id` and
    `links_to: <target_id>`.
 3. Return the task `task_id` with `STATUS: success`.
+
+### Intent: `create-doc`
+1. Call `mcp__clickup__clickup_create_document` with `name`, `visibility`,
+   `create_page: false` and `parent: {id: <parent_id>, type: <4 for space, 5
+   for folder, 6 for list>}`
+2. Return the document's `doc_id` and `url`
+
+### Intent: `create-page`
+1. Call `mcp__clickup__clickup_create_document_page` with `document_id: <doc_id>`,
+   `name`, `content` — the whole text, as received — and `content_format: text/md`
+2. Return the page's `page_id` and `url`
+
+### Intent: `update-page`
+1. Call `mcp__clickup__clickup_update_document_page` with `document_id`,
+   `page_id`, `content`, `content_format: text/md` and
+   `content_edit_mode: replace` — the content received is the whole page
+2. Return the page's `page_id` and `url`
 
 ### Intent: `filter`
 1. Call `mcp__clickup__clickup_filter_tasks` with `list_ids: [<list_id>]` and the provided filters (`tag` goes in `tags`)
@@ -175,6 +198,15 @@ TAGS_MISSING: <requested tags the task does not carry, only on create>
 WARNING: <non-blocking problem, only when there is one>
 ERROR: <error message, only if STATUS=error>
 ---END---
+```
+
+For the doc intents, `DATA` carries the document instead of a task:
+
+```
+DATA:
+  doc_id: <document id>
+  page_id: <page id, empty for create-doc>
+  url: <the url ClickUp returned>
 ```
 
 For `filter` and `next-task` intents with multiple results, repeat the DATA block for each task:

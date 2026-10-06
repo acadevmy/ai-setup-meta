@@ -1207,7 +1207,7 @@ STORY_BAD=$(story "$STORY_FIX/invalid" | jq -r '.ERRORS')
 assert_eq "a valid epic, its stories and a spike pass" "true" \
   "$(story "$STORY_FIX/valid" | jq -r '.VALID')"
 assert_eq "and the caller sees a zero exit" "0" "$(story_exit "$STORY_FIX/valid")"
-assert_eq "every draft in the folder is read" "4" \
+assert_eq "every draft in the folder is read" "5" \
   "$(story "$STORY_FIX/valid" | jq -r '.CHECKED')"
 # The open points are what the da dettagliare tag is applied from.
 assert_eq "the draft with an Open points section is reported" "US-02" \
@@ -1239,6 +1239,21 @@ assert_contains "a relation to a provisional id nobody drafted is refused" "$STO
 assert_contains "one scenario is a warning, not an error" \
   "$(story "$STORY_FIX/invalid" | jq -r '.WARNINGS')" "US-10.md: one scenario"
 assert_eq "no argument is a usage error" "1" "$(story_exit)"
+
+# The story map (--map) is checked against the drafts it lays out: a map that
+# forgets an epic or a story is a plan that does not match the backlog.
+STORY_BAD_MAP=$(story "$STORY_FIX/invalid-map" | jq -r '.ERRORS')
+assert_contains "a map with relations is refused" "$STORY_BAD_MAP" "a MAP has no relations"
+assert_contains "a story in the walking skeleton is refused" "$STORY_BAD_MAP" \
+  "the walking skeleton lists US [US-01]: tasks and spikes only"
+assert_contains "a map citing an item nobody drafted is refused" "$STORY_BAD_MAP" \
+  "the map cites US [US-09], which is not drafted in this run"
+assert_contains "an epic missing from the backbone is refused" "$STORY_BAD_MAP" \
+  "EPIC [EPIC-01] is drafted but missing from the map's Backbone"
+assert_contains "a story missing from the release lanes is refused" "$STORY_BAD_MAP" \
+  "US [US-01] is drafted but missing from the map's Release lanes"
+assert_contains "a short DoR Check is a warning" \
+  "$(story "$STORY_FIX/invalid-map" | jq -r '.WARNINGS')" "the DoR Check has 1 lines"
 
 assert_eq "the script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/validate-story.sh" ] && echo true || echo false)"
