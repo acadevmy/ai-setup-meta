@@ -76,7 +76,8 @@
     "auto-dev-select.sh",
     "devcontainer-facts.sh",
     "devcontainer-check.sh",
-    "validate-story.sh"
+    "validate-story.sh",
+    "parse-story.sh"
   ],
   "hooks": [
     "gate-commit.sh",

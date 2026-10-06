@@ -29,6 +29,10 @@ For each `REQ-N` in `## Requirements`:
 For each entry in `## Test strategy`: find a test case matching it by
 description or intent, and classify it **found** or **not-found**.
 
+When the REQs name the story's scenarios (`REQ-N (scenario "…")`), a REQ is
+**covered** only if a test exercises that scenario's Given, When and Then — a
+test that only reaches the code path is **partial**.
+
 ## Correctness
 
 *Did it touch what the spec said it would touch?*
