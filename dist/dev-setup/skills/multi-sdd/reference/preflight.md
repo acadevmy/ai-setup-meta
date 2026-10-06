@@ -29,9 +29,28 @@ and moves to `IN PROGRESS` at launch like the others. Declined, it drops out
 of the set with the board untouched — rerun `multi-preflight.sh` with the ids
 that remain, and zero remaining is a refusal like any other.
 
+**Epics and open points.** Read each description's format with
+`parse-story.sh` ("The story format" in the contract). An `epic` among the ids
+is not a task: it drops out of the set, and the message names
+`--from-epic <id>`. A story with open points — or the `da dettagliare` tag —
+goes through the contract's open-points gate here, before anything starts:
+**answer them now** and the answers travel to its run, appended to the
+description it receives under a final `**Answers to open points**` section;
+**go ahead** and the run records each one in `openPoints`; **leave it** drops
+it from the set, board untouched. Never let a run discover an open point the
+developer could have answered in this phase.
+
+**`--from-epic <id>`.** Read the epic (`INTENT: read`): its `subtasks` are the
+candidates. Keep the stories not yet `DONE` whose `blocked_by` names no other
+story still open in the epic — a blocked story cannot run beside the one it
+waits on — and say which ones wait, and on what. Take at most the cap, in the
+epic's order, then run the gate again with their ids, one quoted `--task`
+each, and read each one in full as above.
+
 **`--from-sprint <n>`.** Resolve the list id as the contract describes, then
-`INTENT: filter`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`.
-Sort by `priority` ascending — `1` is urgent — and take the first `n`. Then run
+`INTENT: filter`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`
+(plus `tag: <product tag>` when `product.md`'s index maps the current folder
+to a product). Sort by `priority` ascending — `1` is urgent — and take the first `n`. Then run
 the gate again with the ids you got, one quoted `--task` each:
 
 ```bash

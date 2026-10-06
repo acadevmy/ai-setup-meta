@@ -121,6 +121,10 @@ GitLab reference accordingly, so there is nothing to pick here. Target the
   section carries the commands and the routes a reviewer follows to see the
   change work. A repository with no template gets the fallback body from that
   skill's `merge-request.md`.
+- **Open points** — when the developer chose **Go ahead as it is** at the
+  open-points gate, the story's open points open the body, before anything
+  else, each with the reading the implementation took: the reviewer is the
+  one who settles them now.
 
 The `ask` rule on `gh pr create` / `glab mr create` is the developer's last
 checkpoint, and it is a permission rule — do not ask for the same confirmation

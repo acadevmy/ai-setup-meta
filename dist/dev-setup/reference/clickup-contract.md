@@ -14,6 +14,8 @@ written once — cite it, do not restate it.
 - [Status transitions](#status-transitions)
 - [The work clock](#the-work-clock)
 - [The backlog gate](#the-backlog-gate)
+- [The story format](#the-story-format)
+- [The open-points gate](#the-open-points-gate)
 - [The bail-out call](#the-bail-out-call)
 
 ## How to call the agent
@@ -64,8 +66,8 @@ field and take the first.
 The agent answers with a `---CLICKUP-RESULT---` block ending in `---END---`. It
 carries `STATUS: success | error`, the intent, and one `DATA:` block per task
 with `task_id`, `custom_id` (`DE-123`), `name`, `description`, `status`,
-`task_type`, `parent`, `tags`, `priority`, `assignees`, `url` and
-`custom_fields`.
+`task_type`, `parent`, `tags`, `subtasks`, `blocked_by`, `priority`,
+`assignees`, `url` and `custom_fields`.
 
 On `STATUS: error` the block carries an `ERROR:` line. Report it to the
 developer and stop — or, in an autonomous flow, bail out. Never retry the same
@@ -160,6 +162,56 @@ exactly as if the task had been in `SPRINT`. **Leave it** ends the flow with
 the task exactly as it was found. The move never happens automatically: a path
 with nobody to ask (`next-task`, a scheduled run) treats a backlog task as out
 of scope and says so instead of moving it.
+
+## The story format
+
+A task written by `/dev-setup:story` has a fixed shape, and a flow that reads
+one uses it instead of rediscovering it. Recognising it is a script, run on the
+description the agent returned:
+
+```bash
+printf '%s\n' "<description>" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/parse-story.sh" --json
+```
+
+| `FORMAT` | What it is | What the flow does |
+|---|---|---|
+| `story` | a user story: a Connextra sentence and Gherkin scenarios | the scenarios are the requirements — one REQ per scenario, its test the scenario; the discovery skips what they already answer |
+| `epic` | a container of stories, not something to implement | stop before any branch or board write: name its stories (the task's `subtasks`) and point to `sdd` on one of them, or to `multi-sdd --from-epic` |
+| `other` | anything else — a task written by hand | the flow runs exactly as it always did |
+
+The new format is used when it is there and never required. The story's
+**Open points**, **Assumptions** and **Risks** sections travel with it: what
+they say is not settled is not settled by the flow either.
+
+## The open-points gate
+
+A story with open points carries the `da dettagliare` tag: somebody still owes
+an answer. When a `read` returns that tag — or `OPEN_POINTS` is not empty —
+show the open points and ask, before any branch or board write:
+
+```json
+AskUserQuestion({
+  "questions": [{
+    "question": "<custom_id> still has open points (da dettagliare): <the points>. Go ahead?",
+    "header": "Open points",
+    "options": [
+      { "label": "Answer them now", "description": "Your answers become constraints for the spec" },
+      { "label": "Go ahead as it is", "description": "The open points go to the top of the merge request" },
+      { "label": "Leave it", "description": "Stop here — the task is not touched" }
+    ],
+    "multiSelect": false
+  }]
+})
+```
+
+End the turn on the call (`turn-discipline.md`). The gate never edits the task
+or removes the tag: closing the open points on the board is the team's job.
+
+A path with nobody to ask does not guess: the launcher of an unattended run
+(`auto-sdd`, `multi-sdd`) asks before the run starts. Answers given there
+reach the run appended to the description it receives, under a final
+`**Answers to open points**` section; with **Go ahead as it is**, the run
+records each point in `openPoints` for the reviewer.
 
 ## The bail-out call
 

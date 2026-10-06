@@ -58,7 +58,8 @@
     "render-template.sh",
     "worktree-info.sh",
     "mr-meta.sh",
-    "validate-story.sh"
+    "validate-story.sh",
+    "parse-story.sh"
   ],
   "hooks": [
     "gate-commit.sh",

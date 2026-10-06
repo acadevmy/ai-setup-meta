@@ -40,6 +40,8 @@ developer for a task id.
 
 ### 2. Read the project context
 
+- `product.md` — and, in a monorepo, the context file of the product the
+  task's tag names: personas, roles, glossary;
 - the rules in `.claude/rules/` — the technical constraints that apply here;
 - `REGISTRY.md` — existing components, adopted patterns, past decisions;
 - the files the task's requirements point at.

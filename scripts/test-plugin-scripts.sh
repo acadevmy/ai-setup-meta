@@ -1244,6 +1244,47 @@ assert_eq "the script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/validate-story.sh" ] && echo true || echo false)"
 
 echo ""
+echo "── parse-story.sh (the flows read the story format) ──"
+
+# The body of a draft is exactly what ClickUp receives, so the fixtures double
+# as task descriptions once their frontmatter is stripped.
+story_body() { awk 'f >= 2 { print } /^---$/ { f++ }' "$1"; }
+parse() { bash "$PLUGIN_SCRIPTS/parse-story.sh" --json 2>/dev/null; }
+
+assert_eq "a story description is recognised" "story" \
+  "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.FORMAT')"
+assert_eq "its scenarios are counted" "4" \
+  "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.SCENARIO_COUNT')"
+assert_eq "and named, in order" "archiving a path" \
+  "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.SCENARIOS' | head -1)"
+assert_eq "an Italian story is recognised too" "story" \
+  "$(story_body "$STORY_FIX/valid/US-02.md" | parse | jq -r '.FORMAT')"
+assert_contains "its open points are returned" \
+  "$(story_body "$STORY_FIX/valid/US-02.md" | parse | jq -r '.OPEN_POINTS')" "Da confermare"
+# An epic is not something to implement: the flows stop on it.
+assert_eq "an epic is recognised" "epic" \
+  "$(story_body "$STORY_FIX/valid/EPIC-01.md" | parse | jq -r '.FORMAT')"
+# The new format is used when it is there, never required.
+assert_eq "a hand-written description is other" "other" \
+  "$(printf 'Add a CSV export to the orders page.\n' | parse | jq -r '.FORMAT')"
+# ClickUp hands markdown back with its own list spacing.
+assert_eq "ClickUp's list spacing does not hide the open points" "To confirm: the format" \
+  "$(printf '**User Story**\nAs a buyer, I want an export, so that I file expenses.\n\n**Acceptance Criteria**\n**Scenario:** x\n\n**Open points**\n*   To confirm: the format\n' | parse | jq -r '.OPEN_POINTS')"
+assert_eq "the script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/parse-story.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── multi-preflight.sh --from-epic ──"
+assert_eq "--from-epic passes the epic through" "DE-100" \
+  "$(preflight --from-epic DE-100 | jq -r '.FROM_EPIC')"
+assert_eq "and asks for no task yet" "0" "$(preflight --from-epic DE-100 | jq -r '.COUNT')"
+assert_eq "--from-epic with ids is refused" "3" "$(preflight_exit --from-epic DE-100 DE-1)"
+assert_eq "--from-epic with --from-sprint is refused" "3" \
+  "$(preflight_exit --from-epic DE-100 --from-sprint 2)"
+assert_eq "an epic id that is not a plain identifier is refused" "3" \
+  "$(preflight_exit --from-epic 'DE-1; rm -rf /')"
+
+echo ""
 echo "── worktree-info.sh --impact (the overlap before the fan-out) ──"
 
 # At pre-flight there is no spec and no worktree yet, only an estimate per task.
