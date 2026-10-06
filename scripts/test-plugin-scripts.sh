@@ -196,6 +196,8 @@ echo "── detect-stack.sh (fixture snapshots) ──"
 for FIXTURE_DIR in "$FIXTURES"/*/; do
   [ -d "$FIXTURE_DIR" ] || continue
   NAME=$(basename "$FIXTURE_DIR")
+  # stories/ holds story drafts for validate-story.sh, not a project to detect.
+  [ "$NAME" = "stories" ] && continue
   SNAPSHOT="$FIXTURES/$NAME.expected.json"
 
   # Run on a copy outside the repository: inside it, git would report the
@@ -1188,6 +1190,58 @@ assert_eq "ids and --from-sprint together are refused" "3" \
 
 assert_eq "the script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/multi-preflight.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── validate-story.sh (the structural checks on the story drafts) ──"
+
+# What a machine can check about a draft is checked here, so the reviewer agent
+# is left with judgement only. Every rule below is one the prose used to carry.
+STORY_FIX="$REPO_ROOT/scripts/fixtures/stories"
+story() { bash "$PLUGIN_SCRIPTS/validate-story.sh" --json "$@" 2>/dev/null; }
+story_exit() {
+  bash "$PLUGIN_SCRIPTS/validate-story.sh" --json "$@" >/dev/null 2>&1
+  printf '%s' "$?"
+}
+STORY_BAD=$(story "$STORY_FIX/invalid" | jq -r '.ERRORS')
+
+assert_eq "a valid epic, its stories and a spike pass" "true" \
+  "$(story "$STORY_FIX/valid" | jq -r '.VALID')"
+assert_eq "and the caller sees a zero exit" "0" "$(story_exit "$STORY_FIX/valid")"
+assert_eq "every draft in the folder is read" "4" \
+  "$(story "$STORY_FIX/valid" | jq -r '.CHECKED')"
+# The open points are what the da dettagliare tag is applied from.
+assert_eq "the draft with an Open points section is reported" "US-02" \
+  "$(story "$STORY_FIX/valid" | jq -r '.OPEN_POINTS')"
+assert_eq "an Italian story (Come … voglio … così da, Dato/Quando/Allora) passes" "true" \
+  "$(story "$STORY_FIX/valid/US-02.md" "$STORY_FIX/valid/EPIC-01.md" "$STORY_FIX/valid/SPIKE-01.md" | jq -r '.VALID')"
+
+assert_eq "an invalid folder is refused with exit 3" "3" "$(story_exit "$STORY_FIX/invalid")"
+assert_contains "a story with no value clause is refused" "$STORY_BAD" \
+  "US-10.md: the Connextra sentence must read"
+assert_contains "a conjunction in the I want clause is refused" "$STORY_BAD" \
+  "US-11.md: the \"I want\" clause has a conjunction"
+assert_contains "a scenario with two When steps is refused" "$STORY_BAD" \
+  "scenario \"two actions\" has 2 When steps"
+assert_contains "a key outside the schema is refused" "$STORY_BAD" \
+  "unknown frontmatter key \"estimate\""
+assert_contains "a leftover placeholder is refused" "$STORY_BAD" "keeps a {{…}} placeholder"
+assert_contains "a # title in the body is refused" "$STORY_BAD" "the body starts with a # title"
+assert_contains "a story with no scenario is refused" "$STORY_BAD" "US-13.md: no **Scenario:**"
+# The workspace nests one level: an epic under an epic has nowhere to go.
+assert_contains "an epic with a parent is refused" "$STORY_BAD" "an EPIC has no parent"
+assert_contains "an epic missing a requirement section is refused" "$STORY_BAD" \
+  "no **Design requirement** section"
+# Publication deletes <id>.md, so the name is part of the contract.
+assert_contains "a draft not named after its id is refused" "$STORY_BAD" \
+  "the file must be named US-14.md"
+assert_contains "a relation to a provisional id nobody drafted is refused" "$STORY_BAD" \
+  "relation to US-99, which is not drafted in this run"
+assert_contains "one scenario is a warning, not an error" \
+  "$(story "$STORY_FIX/invalid" | jq -r '.WARNINGS')" "US-10.md: one scenario"
+assert_eq "no argument is a usage error" "1" "$(story_exit)"
+
+assert_eq "the script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/validate-story.sh" ] && echo true || echo false)"
 
 echo ""
 echo "── worktree-info.sh --impact (the overlap before the fan-out) ──"

@@ -27,6 +27,7 @@
   ],
   "template_agents": [
     "review.md",
+    "story-review.md",
     "verify.md"
   ],
   "template_skills": [
@@ -39,6 +40,7 @@
     "sdd-spec",
     "sdd-plan",
     "sdd-dev",
+    "story",
     "verify"
   ],
   "workflows": [
@@ -54,7 +56,8 @@
     "migrate-settings.sh",
     "render-template.sh",
     "worktree-info.sh",
-    "mr-meta.sh"
+    "mr-meta.sh",
+    "validate-story.sh"
   ],
   "hooks": [
     "gate-commit.sh",
