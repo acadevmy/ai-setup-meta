@@ -191,6 +191,7 @@ Installed files:
   - .claude/settings.json — project permissions + Bash sandbox
 
 Available commands (provided by the plugin):
+  - /dev-setup:story       — writes a user story or an epic on ClickUp, from product.md
   - /dev-setup:sdd         — interactive SDD (spec → approval → development, with checkpoints)
   - /dev-setup:auto-sdd    — autonomous SDD in a workflow (spec challenged, worktree, PR behind a confirmation)
   - /dev-setup:review      — code review against the project rules
@@ -216,8 +217,9 @@ Next steps:
 Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, 3b, the
 framework convention checks, the instruction-file lines of Step 5b in
 `agents-generation.md` — shims removed, files moved or kept, `CLAUDE.local.md`
-and files above, the client version — and the ones `rules-generation.md` and
-`mcp-env.md` ask for), plus whatever the step-7b branch protection reported.
+and files above, the client version — and the ones `rules-generation.md`,
+`mcp-env.md` and `product-context.md` ask for), plus whatever the step-7b branch
+protection reported.
 
 **In UPDATE mode**, say what happened to `.claude/settings.json` — one of:
 
