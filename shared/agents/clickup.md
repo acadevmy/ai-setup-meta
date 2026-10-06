@@ -1,7 +1,7 @@
 ---
 name: clickup
-description: Handles all ClickUp operations (read, update, create, filter tasks) in isolation. Use when you need to interact with ClickUp to read tasks, update statuses, create tasks, or filter lists.
-tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments
+description: Handles all ClickUp operations (read, update, create, relate, filter tasks) in isolation. Use when you need to interact with ClickUp to read tasks, update statuses, create typed tasks and subtasks, link tasks, or filter lists.
+tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments, mcp__clickup__clickup_add_task_dependency, mcp__clickup__clickup_add_task_link
 model: haiku
 ---
 
@@ -17,7 +17,7 @@ You are a **faithful passthrough**. When reading a task, return the content EXAC
 ## Input
 
 The input consists of:
-- **INTENT**: `read` | `update` | `create` | `filter` | `next-task`
+- **INTENT**: `read` | `update` | `create` | `relate` | `filter` | `next-task`
 - **PARAMS**: intent-specific parameters (see below)
 
 ### Parameters by intent
@@ -26,8 +26,9 @@ The input consists of:
 |--------|----------------------|---------------------|
 | `read` | `task_id` | — |
 | `update` | `task_id`, `status` | `comment` |
-| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date` |
-| `filter` | `list_id` | `status`, `assignee` |
+| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` |
+| `relate` | `task_id`, `relation`, `target_id` | — |
+| `filter` | `list_id` | `status`, `assignee`, `tag` |
 | `next-task` | `list_id` | — |
 
 ## Exact MCP tool names
@@ -41,6 +42,8 @@ IMPORTANT: ClickUp tools have the `mcp__clickup__` prefix. ALWAYS use the full n
 | Create task | `mcp__clickup__clickup_create_task` |
 | Filter tasks | `mcp__clickup__clickup_filter_tasks` |
 | Task comment | `mcp__clickup__clickup_create_task_comment` |
+| Dependency | `mcp__clickup__clickup_add_task_dependency` |
+| Link | `mcp__clickup__clickup_add_task_link` |
 
 Do NOT use abbreviated names like `clickup_get_task` — they will fail.
 
@@ -59,15 +62,47 @@ Do NOT use abbreviated names like `clickup_get_task` — they will fail.
 5. Return the updated task
 
 ### Intent: `create`
-1. Call `mcp__clickup__clickup_create_task` with the provided fields
-2. Required fields: `list_id`, `name`, `description`
-3. Optional fields: `priority` (1=urgent, 2=high, 3=normal, 4=low), `assignees`, `due_date`
-4. Return the created task with all fields
+ClickUp applies the list's task-type template **after** creation, asynchronously:
+a description sent with the create call can be overwritten, or get the template's
+empty skeleton appended, and the template can reset the priority. So a create is
+four calls, never one:
+
+1. Call `mcp__clickup__clickup_create_task` with `list_id`, `name` and, when
+   given, `task_type` (by name — `Epic`, `User Story`), `parent` (creates a
+   subtask), `tags`, `assignees`, `due_date`. **No description, no priority.**
+2. Read the task back with `mcp__clickup__clickup_get_task`, up to 10 times,
+   until the template has landed: the description is no longer empty, or the
+   custom fields are populated. If it never lands, go on and record
+   `WARNING: template not detected`.
+3. Call `mcp__clickup__clickup_update_task` with `markdown_description` set to
+   the `description` you received — the whole text, replacing whatever the
+   template wrote — and `priority` when given, mapped by name: 1 `urgent`,
+   2 `high`, 3 `normal`, 4 `low`.
+4. Read the task once more and return it. Compare its tags with the `tags`
+   requested: every requested tag missing from the task goes in
+   `TAGS_MISSING`. Never create a tag.
+
+Errors:
+- `task_type` refused by ClickUp: `STATUS: error` with the reason. Never fall
+  back to the default type in silence.
+- Step 3 fails after step 1 succeeded: the task exists with the wrong
+  description. Retry step 3 once; if it fails again return `STATUS: error`
+  **with the task's `task_id` and `url`** — the caller must not create it a
+  second time.
+
+### Intent: `relate`
+`relation` is `blocked_by` or `related`; `target_id` is the other task.
+1. `blocked_by`: call `mcp__clickup__clickup_add_task_dependency` with
+   `task_id`, `depends_on: <target_id>`, `type: waiting_on` — `task_id` cannot
+   start before `target_id` is done.
+2. `related`: call `mcp__clickup__clickup_add_task_link` with `task_id` and
+   `links_to: <target_id>`.
+3. Return the task `task_id` with `STATUS: success`.
 
 ### Intent: `filter`
-1. Call `mcp__clickup__clickup_filter_tasks` with `list_id` and the provided filters
-2. Return ALL found tasks, each with all fields
-3. Do not truncate the list — return all results
+1. Call `mcp__clickup__clickup_filter_tasks` with `list_ids: [<list_id>]` and the provided filters (`tag` goes in `tags`)
+2. While the response says `has_more`, call again with `page: <next_page>`
+3. Return ALL found tasks, each with all fields — do not truncate the list
 
 ### Intent: `next-task`
 1. Call `mcp__clickup__clickup_filter_tasks` with `list_id` and status `SPRINT`
@@ -125,11 +160,16 @@ DATA:
   description: |
     <FULL description content, without summaries or reworking>
   status: <current status>
+  task_type: <type name, empty for the default type>
+  parent: <parent task_id, empty when none>
+  tags: <comma-separated list>
   priority: <1-4>
   assignees: <comma-separated list>
   url: <task url>
   custom_fields: |
     <all custom fields, reported faithfully>
+TAGS_MISSING: <requested tags the task does not carry, only on create>
+WARNING: <non-blocking problem, only when there is one>
 ERROR: <error message, only if STATUS=error>
 ---END---
 ```
