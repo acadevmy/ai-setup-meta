@@ -42,7 +42,7 @@ Read these only when the situation calls for them:
 | # | Step | Where |
 |---|---|---|
 | 1 | Product context — `product.md`, the product | `reference/intake.md` |
-| 2 | The material — description, Figma frames, vocabulary | `reference/intake.md` |
+| 2 | The material — description, Figma frames, similar stories | `reference/intake.md` |
 | 3 | The shape — one story, or an epic with its stories | `reference/intake.md` |
 | 4 | The questions — only what the context does not answer | `reference/intake.md` |
 | 5 | Drafts in `.stories/<slug>/` | `reference/templates.md` |
@@ -51,14 +51,13 @@ Read these only when the situation calls for them:
 | 8 | Publication on ClickUp, then the drafts are deleted | `reference/publish.md` |
 
 **Step 6.** `bash "${CLAUDE_PLUGIN_ROOT}/scripts/validate-story.sh" --json
-.stories/<slug>` checks what a machine can check; fix every error first. Then
-the `story-reviewer` agent gets `DRAFTS_DIR`, `PRODUCT_FILES` and
-`CHECKS_PATH: ${CLAUDE_PLUGIN_ROOT}/skills/story/reference/review-checks.md`,
-and returns proposals: integrate or decline each, once, then re-run the
-script.
+.stories/<slug>`; fix every error. Then the `story-reviewer` agent gets
+`DRAFTS_DIR`, `PRODUCT_FILES` and
+`CHECKS_PATH: ${CLAUDE_PLUGIN_ROOT}/skills/story/reference/review-checks.md`:
+integrate or decline each proposal, once, and re-run the script.
 
-**Stops:** the questions of step 4 and the approval of step 7. Nothing reaches
-ClickUp before the approval.
+**Step 1 comes first**: nothing — no Figma call, search or question — before
+`product.md` is checked. Nothing reaches ClickUp before the approval.
 
 ## Expected output
 

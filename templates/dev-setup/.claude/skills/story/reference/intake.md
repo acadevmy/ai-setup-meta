@@ -12,6 +12,15 @@ question ends the turn (`turn-discipline.md`).
 
 ## 1. The product context
 
+**This is the first thing the run does** — before reading a Figma link,
+searching the board, opening a file or asking anything. Everything after it
+depends on what it says: the persona names, the story language, the list, the
+product, the questions that no longer need asking.
+
+```bash
+ls product.md 2>/dev/null
+```
+
 `product.md` at the repository root holds what every story needs and nobody
 should be asked twice: the personas, the roles and permissions, the platforms,
 the glossary, the NFR defaults, the UX conventions, the backlog conventions.
@@ -21,6 +30,8 @@ the glossary, the NFR defaults, the UX conventions, the backlog conventions.
 - **Continue without** — the run goes on and asks more questions in step 4;
 - **Stop** — the developer runs `/dev-setup:setup`, whose UPDATE mode offers
   to create it.
+
+End the turn on that call. Nothing else happens in the same turn.
 
 **When it has a `## Products` index** (a monorepo), resolve the product the
 request is for before anything else, from the request, the Figma file (each
@@ -50,6 +61,31 @@ step 4.
   empty, no permission): each one is a question for step 4. Without the Figma
   MCP, keep the link for the **Design** section and ask the developer to
   describe what it shows.
+
+  **Keep a frame list**: for every frame, its name, what it shows, and its
+  own link — the file URL with that frame's `node-id`
+  (`https://www.figma.com/design/<file>/<name>?node-id=12-345`), never the bare
+  file link. Each story later gets the links of exactly the frames it covers
+  (`templates.md`, **Design**); a frame no story covers is a story you missed
+  or a question for step 4.
+- **Similar stories** — before writing anything, look for what the board
+  already has, so the run does not duplicate a story or contradict one:
+  - `INTENT: search` through the `clickup` agent, with the product's
+    `list_id` and three or four keywords from the request — the domain terms,
+    not filler words; one search per distinct concept. It returns names,
+    statuses and links only, never descriptions;
+  - the drafts still in `.stories/`, from a run not yet published.
+
+  For each likely match, read it in full (`INTENT: read`) and judge whether it
+  covers the same behaviour. When at least one does, list them and ask,
+  header `Existing`:
+  - **Write the new ones, linked** — the drafts declare each match as
+    `RELATED`, and nothing the match already covers is written again;
+  - **Write them anyway** — no link;
+  - **Stop** — the existing item is the one to refine, on the board.
+
+  No likely match → say so in one line and go on. Every match goes in the
+  approval's judgement calls (`publish.md`).
 - **The vocabulary** — `REGISTRY.md` and, briefly, the code the request names:
   to learn what already exists and what it is called. Never to prescribe the
   solution — a story is negotiable — and never to write a story for something
