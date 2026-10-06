@@ -1,7 +1,7 @@
 ---
 name: clickup
 description: Handles all ClickUp operations (read, update, create, relate, filter tasks; create and update doc pages) in isolation. Use when you need to interact with ClickUp to read tasks, update statuses, create typed tasks and subtasks, link tasks, filter lists, or write a doc page.
-tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments, mcp__clickup__clickup_add_task_dependency, mcp__clickup__clickup_add_task_link, mcp__clickup__clickup_create_document, mcp__clickup__clickup_create_document_page, mcp__clickup__clickup_update_document_page
+tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments, mcp__clickup__clickup_add_task_dependency, mcp__clickup__clickup_add_task_link, mcp__clickup__clickup_create_document, mcp__clickup__clickup_create_document_page, mcp__clickup__clickup_update_document_page, mcp__clickup__clickup_search
 model: haiku
 ---
 
@@ -17,7 +17,7 @@ You are a **faithful passthrough**. When reading a task, return the content EXAC
 ## Input
 
 The input consists of:
-- **INTENT**: `read` | `update` | `create` | `relate` | `filter` | `next-task` | `create-doc` | `create-page` | `update-page`
+- **INTENT**: `read` | `update` | `create` | `relate` | `search` | `filter` | `next-task` | `create-doc` | `create-page` | `update-page`
 - **PARAMS**: intent-specific parameters (see below)
 
 ### Parameters by intent
@@ -28,6 +28,7 @@ The input consists of:
 | `update` | `task_id`, `status` | `comment` |
 | `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` |
 | `relate` | `task_id`, `relation`, `target_id` | — |
+| `search` | `list_id`, `keywords` | — |
 | `filter` | `list_id` | `status`, `assignee`, `tag` |
 | `next-task` | `list_id` | — |
 | `create-doc` | `parent_id`, `parent_type` (`space` \| `folder` \| `list`), `name`, `visibility` | — |
@@ -47,6 +48,7 @@ IMPORTANT: ClickUp tools have the `mcp__clickup__` prefix. ALWAYS use the full n
 | Task comment | `mcp__clickup__clickup_create_task_comment` |
 | Dependency | `mcp__clickup__clickup_add_task_dependency` |
 | Link | `mcp__clickup__clickup_add_task_link` |
+| Search | `mcp__clickup__clickup_search` |
 | Create doc | `mcp__clickup__clickup_create_document` |
 | Create doc page | `mcp__clickup__clickup_create_document_page` |
 | Update doc page | `mcp__clickup__clickup_update_document_page` |
@@ -85,9 +87,14 @@ four calls, never one:
    the `description` you received — the whole text, replacing whatever the
    template wrote — and `priority` when given, mapped by name: 1 `urgent`,
    2 `high`, 3 `normal`, 4 `low`.
-4. Read the task once more and return it. Compare its tags with the `tags`
-   requested: every requested tag missing from the task goes in
-   `TAGS_MISSING`. Never create a tag.
+4. Read the task once more and compare its description with the one you
+   sent. The template can land late and append its empty skeleton after your
+   update: if the description is not exactly yours, wait a moment and repeat
+   step 3, then read again — at most twice. Still different → return
+   `WARNING: description still carries the template` with the url.
+5. Return the task. Compare its tags with the `tags` requested: every
+   requested tag missing from the task goes in `TAGS_MISSING`. Never create a
+   tag.
 
 Errors:
 - `task_type` refused by ClickUp: `STATUS: error` with the reason. Never fall
@@ -96,6 +103,14 @@ Errors:
   description. Retry step 3 once; if it fails again return `STATUS: error`
   **with the task's `task_id` and `url`** — the caller must not create it a
   second time.
+
+### Intent: `search`
+1. Call `mcp__clickup__clickup_search` with `keywords`,
+   `filters: {asset_types: ["task"], location: {subcategories: [<list_id>]}}`
+2. Request the following pages until the response says there are no more
+3. Return one compact block per task — `task_id`, `custom_id`, `name`,
+   `status`, `task_type`, `url` — and **no description**: the caller reads in
+   full only the ones worth reading
 
 ### Intent: `relate`
 `relation` is `blocked_by` or `related`; `target_id` is the other task.

@@ -1252,6 +1252,14 @@ assert_contains "an epic missing from the backbone is refused" "$STORY_BAD_MAP" 
   "EPIC [EPIC-01] is drafted but missing from the map's Backbone"
 assert_contains "a story missing from the release lanes is refused" "$STORY_BAD_MAP" \
   "US [US-01] is drafted but missing from the map's Release lanes"
+# A run that has Figma frames gives each story its own, never the bare file.
+STORY_BAD_FIGMA=$(story "$STORY_FIX/invalid-figma" | jq -r '.ERRORS')
+assert_contains "a story without its frame is refused when the run has Figma" "$STORY_BAD_FIGMA" \
+  "US-02 has no frame in **Design**"
+assert_contains "a bare file link is not a frame" "$STORY_BAD_FIGMA" \
+  "US-03.md: the **Design** section links Figma without a frame"
+assert_eq "a frame link, or No design, passes" "" \
+  "$(printf '%s\n' "$STORY_BAD_FIGMA" | grep -E 'US-0[14]' || true)"
 assert_contains "a short DoR Check is a warning" \
   "$(story "$STORY_FIX/invalid-map" | jq -r '.WARNINGS')" "the DoR Check has 1 lines"
 

@@ -41,6 +41,7 @@ summarised) and the transition validation live in one place.
 | `update` | `task_id`, `status` | `comment` | the updated task |
 | `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` | the created task, plus `TAGS_MISSING` |
 | `relate` | `task_id`, `relation` (`blocked_by` \| `related`), `target_id` | — | the task |
+| `search` | `list_id`, `keywords` | — | the matching tasks, compact: id, name, status, type, url — no description |
 | `create-doc` | `parent_id`, `parent_type` (`space` \| `folder` \| `list`), `name`, `visibility` | — | `doc_id`, `url` |
 | `create-page` | `doc_id`, `name`, `content` | — | `page_id`, `url` |
 | `update-page` | `doc_id`, `page_id`, `content` | — | `page_id`, `url` |
