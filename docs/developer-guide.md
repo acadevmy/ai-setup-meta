@@ -341,9 +341,14 @@ These are not blocked — they wait for you:
   the flow used to spend as a summary in chat: you see the real command instead.
 - `gh api` / `glab api` with `POST`, `PUT`, `PATCH`, `DELETE` — anything that
   writes to the forge.
-- Every ClickUp write: create, update, delete, move, merge, add, remove.
+- The destructive ClickUp writes: delete, move, merge, remove.
 
 The pattern is the same throughout: **reads are free, outward-facing writes ask.**
+One exception, on purpose: ClickUp creates, updates and links do not ask.
+`/dev-setup:story` makes a dozen of them after you approved the drafts, and a
+flow moves a task's status at fixed points; asking again for each call turned
+one real checkpoint into ten reflexive ones. UPDATE removes those three `ask`
+entries from a project that still has them (`REASON: ask-retired`).
 
 ### If a deny is in your way
 

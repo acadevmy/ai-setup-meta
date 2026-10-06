@@ -32,7 +32,7 @@
 #                      does not manage
 #
 # A settings that already carries a `sandbox` block is the team's file and is
-# normally left alone — with two exceptions, and nothing else is touched:
+# normally left alone — with three exceptions, and nothing else is touched:
 #   - if it still holds the `.env` read denies the template retired
 #     (`Read(**/.env*)` permission rules, the `.env` family in
 #     `sandbox.filesystem.denyRead`), those entries are removed. Write denies
@@ -40,19 +40,23 @@
 #   - if it lacks a `sandbox.excludedCommands` entry the template carries, the
 #     entry is added. `gh` and `glab` are there because inside the macOS
 #     sandbox they cannot verify a TLS certificate, so every call fails; the
-#     team's own entries stay.
+#     team's own entries stay;
+#   - if it still holds an `ask` entry the template retired (see RETIRED_ASK
+#     below), that entry is removed.
 #
 # Report keys (--json):
 #   MIGRATED        true | false
-#   REASON          migrated | env-read-unblocked | excluded-commands-added |
-#                   already-sandboxed | no-template-sandbox
-#                   (env-read-unblocked wins when both exceptions apply)
+#   REASON          migrated | env-read-unblocked | ask-retired |
+#                   excluded-commands-added | already-sandboxed |
+#                   no-template-sandbox (when several exceptions apply, the
+#                   first in that order wins)
 #   ADDED_SANDBOX   true | false
 #   ADDED_ASK       number of `ask` entries the project did not have
 #   ADDED_DENY      number of `deny` entries the project did not have
 #   RETIRED_ALLOW   comma-separated allow entries dropped, or ""
 #   KEPT_ALLOW      comma-separated allow entries kept that the template lacks
 #   RETIRED_DENY    comma-separated `.env` read denies removed, or ""
+#   RETIRED_ASK     comma-separated `ask` entries removed, or ""
 #   ADDED_EXCLUDED  comma-separated `sandbox.excludedCommands` entries added, or ""
 #
 # Exit code: 0 = merged · 3 = nothing to migrate · other = error.
@@ -90,6 +94,16 @@ RETIRED_DENY=(
   'Read(**/.env.production)'
   'Read(**/.env.staging)'
   'Read(**/.env.test)'
+)
+
+# Ask entries the current template no longer ships: the ClickUp writes. A
+# story run creates, updates and links a dozen tasks after the developer has
+# already approved the drafts, and asking again for each call turned one
+# checkpoint into ten. Deleting, moving, merging and removing still ask.
+RETIRED_ASK=(
+  'mcp__clickup__clickup_create_*'
+  'mcp__clickup__clickup_update_*'
+  'mcp__clickup__clickup_add_*'
 )
 
 RETIRED_DENYREAD=(
@@ -155,6 +169,7 @@ report_and_exit() {
     json_set RETIRED_ALLOW ""
     json_set KEPT_ALLOW ""
     json_set RETIRED_DENY ""
+    json_set RETIRED_ASK ""
     json_set ADDED_EXCLUDED ""
     json_emit
   else
@@ -165,6 +180,7 @@ report_and_exit() {
 
 RETIRED_DENY_JSON=$(printf '%s\n' "${RETIRED_DENY[@]}" | jq -R . | jq -s .)
 RETIRED_DENYREAD_JSON=$(printf '%s\n' "${RETIRED_DENYREAD[@]}" | jq -R . | jq -s .)
+RETIRED_ASK_JSON=$(printf '%s\n' "${RETIRED_ASK[@]}" | jq -R . | jq -s .)
 
 csv_of() { jq -r 'if length == 0 then "" else join(",") end'; }
 
@@ -183,14 +199,22 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
     [ (((.sandbox // {}).filesystem // {}).denyRead // [])[] | select(. as $e | $rr | index($e)) ]
     ' "$IN_FILE")
 
+  FOUND_ASK=$(jq --argjson ra "$RETIRED_ASK_JSON" '
+    [ ((.permissions // {}).ask // [])[] | select(. as $e | $ra | index($e)) ]
+    ' "$IN_FILE")
+
   if [ "$(printf '%s' "$FOUND_RETIRED" | jq 'length')" -eq 0 ] \
+     && [ "$(printf '%s' "$FOUND_ASK" | jq 'length')" -eq 0 ] \
      && [ "$(printf '%s' "$MISSING_EXCLUDED" | jq 'length')" -eq 0 ]; then
     report_and_exit already-sandboxed 3
   fi
 
   MERGED=$(jq --argjson rd "$RETIRED_DENY_JSON" --argjson rr "$RETIRED_DENYREAD_JSON" \
-              --argjson ex "$MISSING_EXCLUDED" '
-    (if ((.permissions // {}) | has("deny")) then
+              --argjson ex "$MISSING_EXCLUDED" --argjson ra "$RETIRED_ASK_JSON" '
+    (if ((.permissions // {}) | has("ask")) then
+       .permissions.ask |= map(select(. as $e | $ra | index($e) | not))
+     else . end)
+    | (if ((.permissions // {}) | has("deny")) then
        .permissions.deny |= map(select(. as $e | $rd | index($e) | not))
      else . end)
     | (if (((.sandbox // {}).filesystem // {}) | has("denyRead")) then
@@ -205,9 +229,12 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
   [ -n "$MERGED" ] || die "the sandbox pass produced nothing — is $IN_FILE a settings.json?"
 
   RETIRED_DENY_FOUND=$(printf '%s' "$FOUND_RETIRED" | csv_of)
+  RETIRED_ASK_FOUND=$(printf '%s' "$FOUND_ASK" | csv_of)
   ADDED_EXCLUDED=$(printf '%s' "$MISSING_EXCLUDED" | csv_of)
   if [ -n "$RETIRED_DENY_FOUND" ]; then
     PATCH_REASON=env-read-unblocked
+  elif [ -n "$RETIRED_ASK_FOUND" ]; then
+    PATCH_REASON=ask-retired
   else
     PATCH_REASON=excluded-commands-added
   fi
@@ -226,6 +253,7 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
     json_set RETIRED_ALLOW ""
     json_set KEPT_ALLOW ""
     json_set RETIRED_DENY "$RETIRED_DENY_FOUND"
+    json_set RETIRED_ASK "$RETIRED_ASK_FOUND"
     json_set ADDED_EXCLUDED "$ADDED_EXCLUDED"
     json_emit
   elif [ -z "$OUT_FILE" ]; then
@@ -311,6 +339,8 @@ if [ "$AS_JSON" = true ]; then
   json_set RETIRED_ALLOW "$RETIRED_FOUND"
   json_set KEPT_ALLOW "$KEPT_ALLOW"
   json_set RETIRED_DENY "$RETIRED_DENY_FOUND"
+  json_set RETIRED_ASK "$(jq -n --slurpfile proj "$IN_FILE" --argjson ra "$RETIRED_ASK_JSON" '
+    (($proj[0].permissions // {}).ask // []) as $p | ($ra | map(select(. as $e | $p | index($e))))' | csv_of)"
   json_set ADDED_EXCLUDED "$(printf '%s' "$MISSING_EXCLUDED" | csv_of)"
   json_emit
 elif [ -z "$OUT_FILE" ]; then

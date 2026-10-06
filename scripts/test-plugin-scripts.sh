@@ -857,6 +857,26 @@ bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/with-gh.json" \
   --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
 assert_eq "a settings with gh excluded is then left alone" "3" "$?"
 
+# The ClickUp writes left the ask rules: a story run makes a dozen of them after
+# the drafts were approved. A sandboxed project still carrying them loses exactly
+# those three entries on UPDATE; deleting, moving and merging keep asking.
+jq '.permissions.ask += ["mcp__clickup__clickup_create_*", "mcp__clickup__clickup_update_*", "mcp__clickup__clickup_add_*"]' \
+  "$MIG_DIR/with-gh.json" > "$MIG_DIR/old-ask.json"
+ASK_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/old-ask.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/new-ask.json" --json 2>/dev/null)
+assert_eq "a sandboxed settings asking on ClickUp writes is migrated" "ask-retired" \
+  "$(printf '%s' "$ASK_REPORT" | jq -r .REASON)"
+assert_eq "the report names the retired ask entries" \
+  "mcp__clickup__clickup_create_*,mcp__clickup__clickup_update_*,mcp__clickup__clickup_add_*" \
+  "$(printf '%s' "$ASK_REPORT" | jq -r .RETIRED_ASK)"
+assert_eq "only those entries leave the ask list" "true" \
+  "$(jq -n --slurpfile a "$MIG_DIR/with-gh.json" --slurpfile b "$MIG_DIR/new-ask.json" '$a[0] == $b[0]')"
+assert_eq "deleting a ClickUp task still asks" "true" \
+  "$(jq '.permissions.ask | index("mcp__clickup__clickup_delete_*") != null' "$MIG_DIR/new-ask.json")"
+assert_eq "the template no longer asks on ClickUp creates" "false" \
+  "$(jq '.permissions.ask | index("mcp__clickup__clickup_create_*") != null' "$SETTINGS_TEMPLATE")"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)
 # ═══════════════════════════════════════════════════════════════════════════════

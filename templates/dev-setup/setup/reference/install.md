@@ -175,9 +175,11 @@ project does not have is the exact defect this plugin exists to remove.
 
 So: a settings.json **without** a `sandbox` key is an old artefact, and it gets
 migrated wholesale. One **with** it is the team's, and conflict detection
-applies — with two exceptions, and the script touches nothing else: if it still
-carries the `.env` read denies this template retired, it removes exactly those
-entries (`REASON: env-read-unblocked`); if it lacks an entry of the template's
+applies — with three exceptions, and the script touches nothing else: if it
+still carries the `.env` read denies this template retired, it removes exactly
+those entries (`REASON: env-read-unblocked`); if it still asks before ClickUp
+creates, updates and links, it removes exactly those three `ask` entries
+(`REASON: ask-retired`); if it lacks an entry of the template's
 `sandbox.excludedCommands` (`gh`, `glab`), it adds it next to the team's own
 (`REASON: excluded-commands-added`).
 
@@ -191,7 +193,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-settings.sh \
 
 The script never writes in place. It reports `MIGRATED`, `REASON`,
 `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`,
-`RETIRED_DENY` and `ADDED_EXCLUDED`, and exits `3` with `REASON: already-sandboxed` when there is
+`RETIRED_DENY`, `RETIRED_ASK` and `ADDED_EXCLUDED`, and exits `3` with `REASON: already-sandboxed` when there is
 nothing to do — in which case delete the `.migrated` file and move on.
 
 When it did migrate with `REASON: migrated`, show the developer what it changed
@@ -199,18 +201,22 @@ and ask once:
 
 > "`.claude/settings.json` predates the Bash sandbox. Migrating it adds the
 > sandbox block (filesystem, network and credential isolation), the `ask`
-> checkpoints on `gh pr create` / `glab mr create` and on ClickUp writes,
+> checkpoints on `gh pr create` / `glab mr create` and on deleting, moving or
+> merging ClickUp tasks,
 > `<ADDED_DENY>` deny rules (force push, protected branches, `--no-verify`,
 > `.env` writes, lock files), and drops `<RETIRED_ALLOW>` from the allowlist.
 > Your own entries are kept: `<KEPT_ALLOW>`. Apply it? (yes / skip)"
 
-With `REASON: env-read-unblocked` or `excluded-commands-added` the file already
-has the sandbox and only those two passes ran. Ask once, keeping the sentence
-whose report key is not empty:
+With `REASON: env-read-unblocked`, `ask-retired` or `excluded-commands-added`
+the file already has the sandbox and only those passes ran. Ask once, keeping
+the sentences whose report key is not empty:
 
-> "`.claude/settings.json` needs two small fixes from this plugin version.
+> "`.claude/settings.json` needs small fixes from this plugin version.
 > It still denies reading `.env` — reads are open now so a task can use the
 > values it needs; writes stay denied: migrating removes `<RETIRED_DENY>`.
+> It asks before every ClickUp create, update and link — a story run makes a
+> dozen of them after you approved the drafts: migrating removes
+> `<RETIRED_ASK>` (deleting, moving and merging still ask).
 > It runs `gh` / `glab` inside the sandbox, where on macOS they cannot verify
 > a TLS certificate and every call fails: migrating adds `<ADDED_EXCLUDED>` to
 > `sandbox.excludedCommands`. The deny and ask rules still apply to it.
@@ -267,7 +273,7 @@ leaves it is exactly the case that deserves a prompt.
 `Bash(npm publish*)`, `Bash(pnpm publish*)`, `Bash(yarn publish*)` all stay — an
 accidental `publish` through the "wrong" PM is still an event worth blocking —
 and the `ask` entries are the human checkpoints on `gh pr create` /
-`glab mr create` and on ClickUp writes.
+`glab mr create` and on deleting, moving or merging ClickUp tasks.
 
 **Implementation** (jq, idempotent, preserves the rest of the file):
 
