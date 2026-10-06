@@ -41,6 +41,7 @@
     "sdd-spec",
     "sdd-plan",
     "sdd-dev",
+    "story",
     "verify",
     "auto-dev",
     "auto-dev-select",
@@ -73,7 +74,8 @@
     "auto-dev-report.sh",
     "auto-dev-select.sh",
     "devcontainer-facts.sh",
-    "devcontainer-check.sh"
+    "devcontainer-check.sh",
+    "validate-story.sh"
   ],
   "hooks": [
     "gate-commit.sh",
