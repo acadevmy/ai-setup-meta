@@ -12,8 +12,8 @@ One session, several tasks. This command **composes** the `auto-sdd` workflow: i
 holds no development logic, and every line of spec → challenge → dev → verify
 lives in `workflows/auto-sdd.js`.
 
-**Usage**: `/dev-setup:multi-sdd DE-1 DE-2 …`, or `--from-sprint <n>` to take
-the first `n` `SPRINT` tasks off the board rather than naming them.
+**Usage**: `/dev-setup:multi-sdd DE-1 DE-2 …`, `--from-sprint <n>` (the first
+`n` `SPRINT` tasks) or `--from-epic <id>` (an epic's stories).
 
 The chat is a control tower: the human parts happen **before** the fan-out or
 **after**, never braided through the middle. Parallel *interactive* work stays
@@ -33,9 +33,9 @@ carrying a `;` would run as shell *before* the check meant to reject it.
 
 Exit 3 means refused — print `REASON` and **stop**: no run starts, no task is
 touched, nothing is negotiated. It refuses six tasks, none at all, a duplicate
-id, and an id that is not a plain identifier. `--from-sprint <n>` validates `n`
-only; call it again with the ids the board returned, and an empty `SPRINT` is
-refused there.
+id, and an id that is not a plain identifier. `--from-sprint` and
+`--from-epic` validate the count or the id only; call it again with the ids
+the board returned; none at all is refused.
 
 Five is the ceiling because review is the bottleneck, not compute, and **the
 cost is `n` times a single run** — five tasks means fifteen verifiers.

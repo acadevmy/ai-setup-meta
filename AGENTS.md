@@ -238,12 +238,14 @@ status other than 0.
 | `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `HOOK_MANAGER` |
 | `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket |
 | `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this |
-| `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
+| `multi-preflight.sh [--task <id>]… \| --from-sprint <n> \| --from-epic <id>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `task-clock.sh --task <id> --start \| --stop`, `task-clock.sh [--task <id>] --status` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON`, `OPEN_TASKS`, `OPEN_COUNT` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why. `--status` reads without writing and, with no task, answers for the whole repository: asking whether work is open must not consume the measurement |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
-| `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `ADDED_EXCLUDED` |
+| `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `RETIRED_ASK`, `ADDED_EXCLUDED` |
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
+| `validate-story.sh <draft \| folder>…` | `VALID`, `CHECKED`, `ITEMS`, `ERRORS`, `WARNINGS`, `OPEN_POINTS` — the structural checks on the story drafts in `.stories/`: frontmatter and relations, the Connextra sentence, no conjunction in its "I want" clause, one `When` per scenario, the epic's four requirement sections. Exit 3 refuses. `OPEN_POINTS` is what the `da dettagliare` tag is applied from |
+| `parse-story.sh [--file <path>]` | `FORMAT`, `CONNEXTRA`, `SCENARIO_COUNT`, `SCENARIOS`, `OPEN_POINTS`, `SECTIONS` — reads a task description: `story` (each scenario becomes a REQ), `epic` (not something to implement), `other` (the flow runs as before) |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug, branch-name parsing |
 
 ### The UPDATE path is part of the contract
@@ -389,8 +391,8 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
-**The public surface is six commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
-`multi-sdd`, `review`. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
+**The public surface is seven commands** — `setup`, `story`, `quick`, `sdd`,
+`auto-sdd`, `multi-sdd`, `review`. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
 `sdd-plan`, `sdd-dev`, `verify`, `clickup`, `vcs-ops`) carries
 `user-invocable: false`: the orchestrator invokes it by name, and `/help` stays
 readable. A skill that opens a PR or writes into a project also carries
@@ -402,6 +404,27 @@ three files and no new component, dependency or public interface goes branch →
 change → commit → merge request, with no discovery and no spec. The bar is in
 both descriptions, `sdd`'s and `quick`'s, and the routing decision stays with the
 developer — the command they type *is* the decision.
+
+`story` is the seventh (DE-17141) because the flows were only as good as the
+task they were handed: hand-written tasks prescribe the build and contradict
+themselves, which is what kept stopping the `auto-sdd` Challenge on DE-16864.
+`story` writes the input instead — a story or an epic with its stories, INVEST
+and Gherkin, from a short description, Figma links and the project's
+`product.md` (written by the setup's Step 7e) — drafts it in `.stories/`
+(gitignored), checks the structure with `validate-story.sh` and the judgement
+with the `story-reviewer` agent, and creates it on ClickUp only after the
+developer approves the drafts. The workspace nests one level (an Epic and its
+subtasks), so a spike or a task a story needs is its sibling, declared with
+`BLOCKED_BY`. A story map is written only on `--map`, and never as a task:
+it is a ClickUp Doc page — the backbone of epics, the walking skeleton, the
+release lanes — that every epic links to, and the release plan lives there
+alone, with no tag or field repeating it on the tasks. A story
+with open points carries the `da dettagliare` tag, and the flows that meet it
+go through the open-points gate of `clickup-contract.md` — once, before any
+branch, never in the middle of a run. A description in any other shape keeps
+working exactly as before: the format is used when it is there, never
+required. The command ships in **beta**: its drafts and its ClickUp output
+may still change between releases.
 
 The standalone `tdd` and `bdd` skills are gone (DE-16479): they restated
 `sdd-dev/reference/methodologies.md`, nothing in the flow ever invoked them, and
@@ -460,7 +483,10 @@ change from `model: opus` to `effort:` is the other variable in play — but a
 declaration that restricts nothing is not worth keeping while it is a suspect.
 `setup/SKILL.md` keeps its own `allowed-tools`: there the list is real, it
 denies the agent launcher and the network, and setup is one skill at the start
-of a session rather than a transition inside a flow.
+of a session rather than a transition inside a flow. Its one MCP exception is
+read-only and named tool by tool — the ClickUp Doc pages and the Google Drive
+file reads Step 7e needs to build `product.md` from a document. Nothing that
+writes, and nothing beyond those four.
 
 Whoever measures the next run: the number to watch is `cache_creation` on the
 request that loads a skill, and the tell is `cache_read` collapsing to the size
@@ -694,7 +720,7 @@ of these five should have grown a section instead.
 | Page | Answers |
 |---|---|
 | `docs/onboarding.md` | "I have never used this." Install → configure → first task, capped at one page by a test |
-| `docs/developer-guide.md` | "How do I work with it?" The six commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
+| `docs/developer-guide.md` | "How do I work with it?" The seven commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
 | `docs/migration-v2-to-v3.md` | "What broke?" Every breaking change of the chain, and the UPDATE procedure |
 | `docs/training.md` | "Why is it like this?" Facilitator material: the mental model and three live demos |
 | `docs/workflow.md` | "How do I change the plugin?" Branching, CI, releases |
@@ -768,4 +794,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.25.0 — bump the version number on every substantial change*
+*Version: 2.27.0 — bump the version number on every substantial change*

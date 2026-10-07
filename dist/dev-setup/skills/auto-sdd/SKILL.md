@@ -27,7 +27,7 @@ composes it.
 ## 1. The task
 
 **With a task id in `$ARGUMENTS`**: `INTENT: read`, `PARAMS: task_id: <id>`.
-`BACKLOG` → the contract's backlog gate.
+`BACKLOG`, an epic or open points → the contract's gates.
 
 **Without one**: resolve the list id as the contract describes, then
 `INTENT: next-task`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>` — the
@@ -79,8 +79,7 @@ Workflow({
 it rather than inventing one.
 
 The harness asks the developer to approve the workflow script before it runs.
-That and the fork point are this flow's two stops — plus step 1's backlog gate
-when it applies. The run then works in the background: wait for its
+That and the fork point are this flow's two stops, plus step 1's gates. The run then works in the background: wait for its
 notification, never poll.
 
 ## 4. The outcome

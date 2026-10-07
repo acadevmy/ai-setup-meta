@@ -9,7 +9,8 @@
     "install.md",
     "rules-generation.md",
     "agents-generation.md",
-    "mcp-env.md"
+    "mcp-env.md",
+    "product-context.md"
   ],
   "shared_agents": [
     "clickup.md"
@@ -27,6 +28,7 @@
   ],
   "template_agents": [
     "review.md",
+    "story-review.md",
     "verify.md"
   ],
   "template_skills": [
@@ -39,6 +41,7 @@
     "sdd-spec",
     "sdd-plan",
     "sdd-dev",
+    "story",
     "verify"
   ],
   "workflows": [
@@ -54,7 +57,9 @@
     "migrate-settings.sh",
     "render-template.sh",
     "worktree-info.sh",
-    "mr-meta.sh"
+    "mr-meta.sh",
+    "validate-story.sh",
+    "parse-story.sh"
   ],
   "hooks": [
     "gate-commit.sh",
@@ -108,6 +113,8 @@
     ".claude/settings.json",
     ".claude/settings.user.json",
     ".gitignore",
-    ".worktreeinclude"
+    ".worktreeinclude",
+    "product.template.md",
+    "product.product-template.md"
   ]
 }

@@ -14,6 +14,8 @@ written once — cite it, do not restate it.
 - [Status transitions](#status-transitions)
 - [The work clock](#the-work-clock)
 - [The backlog gate](#the-backlog-gate)
+- [The story format](#the-story-format)
+- [The open-points gate](#the-open-points-gate)
 - [The bail-out call](#the-bail-out-call)
 
 ## How to call the agent
@@ -34,10 +36,33 @@ summarised) and the transition validation live in one place.
 | Intent | Required | Optional | Returns |
 |---|---|---|---|
 | `read` | `task_id` | — | one task, every field |
-| `filter` | `list_id` | `status`, `assignee` | every matching task |
+| `filter` | `list_id` | `status`, `assignee`, `tag` | every matching task |
 | `next-task` | `list_id` | — | the highest-priority task in `SPRINT` |
 | `update` | `task_id`, `status` | `comment` | the updated task |
-| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date` | the created task |
+| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` | the created task, plus `TAGS_MISSING` |
+| `relate` | `task_id`, `relation` (`blocked_by` \| `related`), `target_id` | — | the task |
+| `search` | `list_id`, `keywords` | — | the matching tasks, compact: id, name, status, type, url — no description |
+| `create-doc` | `parent_id`, `parent_type` (`space` \| `folder` \| `list`), `name`, `visibility` | — | `doc_id`, `url` |
+| `create-page` | `doc_id`, `name`, `content` | — | `page_id`, `url` |
+| `update-page` | `doc_id`, `page_id`, `content` | — | `page_id`, `url` |
+
+A `create` is not one call. ClickUp applies the task type's template after
+the task exists, asynchronously, and that template can overwrite the
+description or append its own empty skeleton to it. The agent therefore
+creates the task bare, waits for the template, then writes the description —
+so a caller passes the final text once and gets it back intact. `task_type` is
+a name (`Epic`, `User Story`), `parent` makes the task a subtask, and `tags`
+are names that must already exist: the agent never creates one, and reports
+each one ClickUp did not apply in `TAGS_MISSING`. On an error after the task
+was created, the result still carries its `task_id` and `url` — never create
+it a second time.
+
+`relate` writes one relation, from the side of the task that is blocked or
+that declares it: `blocked_by` becomes a ClickUp dependency (`task_id` waits on
+`target_id`), `related` a task link.
+
+The three doc intents write ClickUp Docs, which hold what is not a task — the
+story map. `update-page` replaces the whole page with the content it receives.
 
 `priority` is numeric and ascending in urgency: `1` urgent, `2` high, `3`
 normal, `4` low. When a flow has to pick one task out of a list, sort by that
@@ -48,7 +73,8 @@ field and take the first.
 The agent answers with a `---CLICKUP-RESULT---` block ending in `---END---`. It
 carries `STATUS: success | error`, the intent, and one `DATA:` block per task
 with `task_id`, `custom_id` (`DE-123`), `name`, `description`, `status`,
-`priority`, `assignees`, `url` and `custom_fields`.
+`task_type`, `parent`, `tags`, `subtasks`, `blocked_by`, `priority`,
+`assignees`, `url` and `custom_fields`.
 
 On `STATUS: error` the block carries an `ERROR:` line. Report it to the
 developer and stop — or, in an autonomous flow, bail out. Never retry the same
@@ -143,6 +169,56 @@ exactly as if the task had been in `SPRINT`. **Leave it** ends the flow with
 the task exactly as it was found. The move never happens automatically: a path
 with nobody to ask (`next-task`, a scheduled run) treats a backlog task as out
 of scope and says so instead of moving it.
+
+## The story format
+
+A task written by `/dev-setup:story` has a fixed shape, and a flow that reads
+one uses it instead of rediscovering it. Recognising it is a script, run on the
+description the agent returned:
+
+```bash
+printf '%s\n' "<description>" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/parse-story.sh" --json
+```
+
+| `FORMAT` | What it is | What the flow does |
+|---|---|---|
+| `story` | a user story: a Connextra sentence and Gherkin scenarios | the scenarios are the requirements — one REQ per scenario, its test the scenario; the discovery skips what they already answer |
+| `epic` | a container of stories, not something to implement | stop before any branch or board write: name its stories (the task's `subtasks`) and point to `sdd` on one of them, or to `multi-sdd --from-epic` |
+| `other` | anything else — a task written by hand | the flow runs exactly as it always did |
+
+The new format is used when it is there and never required. The story's
+**Open points**, **Assumptions** and **Risks** sections travel with it: what
+they say is not settled is not settled by the flow either.
+
+## The open-points gate
+
+A story with open points carries the `da dettagliare` tag: somebody still owes
+an answer. When a `read` returns that tag — or `OPEN_POINTS` is not empty —
+show the open points and ask, before any branch or board write:
+
+```json
+AskUserQuestion({
+  "questions": [{
+    "question": "<custom_id> still has open points (da dettagliare): <the points>. Go ahead?",
+    "header": "Open points",
+    "options": [
+      { "label": "Answer them now", "description": "Your answers become constraints for the spec" },
+      { "label": "Go ahead as it is", "description": "The open points go to the top of the merge request" },
+      { "label": "Leave it", "description": "Stop here — the task is not touched" }
+    ],
+    "multiSelect": false
+  }]
+})
+```
+
+End the turn on the call (`turn-discipline.md`). The gate never edits the task
+or removes the tag: closing the open points on the board is the team's job.
+
+A path with nobody to ask does not guess: the launcher of an unattended run
+(`auto-sdd`, `multi-sdd`) asks before the run starts. Answers given there
+reach the run appended to the description it receives, under a final
+`**Answers to open points**` section; with **Go ahead as it is**, the run
+records each point in `openPoints` for the reviewer.
 
 ## The bail-out call
 

@@ -32,7 +32,10 @@ unchanged.
 **Without one**: resolve the task list id as the ClickUp contract describes,
 then list what is available:
 
-- `INTENT: filter`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`;
+- `INTENT: filter`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`,
+  plus `tag: <product tag>` in a monorepo whose `product.md` index maps the
+  folder you are in to a product — the developer's backlog, not every
+  product's;
 - on `STATUS: error`, tell the developer and stop;
 - take the first 5 results sorted by priority (1 = urgent … 4 = low);
 - present them with `AskUserQuestion`:
@@ -55,8 +58,21 @@ then list what is available:
 - read the chosen task in full (`INTENT: read`).
 
 From the result, keep `custom_id`, `name`, `description` (in full, as the agent
-returned it), `priority`, `task_id` and `url`. Everything downstream refers to
-these.
+returned it), `priority`, `task_id`, `url` and `tags`. Everything downstream
+refers to these.
+
+**Read the description's format** with `parse-story.sh`, as "The story format"
+in the ClickUp contract says, and keep `FORMAT`, `SCENARIOS` and
+`OPEN_POINTS`:
+
+- `epic` → stop here, before the branch: list its stories and point to one of
+  them, or to `/dev-setup:multi-sdd --from-epic <custom_id>`;
+- `story` with open points, or the `da dettagliare` tag → the open-points gate
+  of the same contract, ending the turn on it. Answers given there are carried
+  into the discovery as constraints; **Leave it** stops with the task
+  untouched;
+- `story` otherwise, or `other` → carry on. Step 5 receives `FORMAT` and
+  `SCENARIOS` with the task context.
 
 ## 2. The working branch
 

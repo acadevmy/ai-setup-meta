@@ -35,12 +35,9 @@
       "Bash(glab api -X PATCH*)",
       "Bash(glab api -X DELETE*)",
       "Bash(glab api --method*)",
-      "mcp__clickup__clickup_create_*",
-      "mcp__clickup__clickup_update_*",
       "mcp__clickup__clickup_delete_*",
       "mcp__clickup__clickup_move_*",
       "mcp__clickup__clickup_merge_*",
-      "mcp__clickup__clickup_add_*",
       "mcp__clickup__clickup_remove_*"
     ],
     "deny": [

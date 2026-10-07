@@ -9,6 +9,7 @@ after asking — are in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 - [Closed-first: always use AskUserQuestion](#closed-first-always-use-askuserquestion)
 - [Worked examples](#worked-examples)
 - [The four phases](#the-four-phases)
+- [When the task is a story](#when-the-task-is-a-story)
 - [How hard to push](#how-hard-to-push)
 - [The Discovery Summary](#the-discovery-summary)
 
@@ -99,6 +100,22 @@ security, UX)?
 
 > Phase 4 gathers constraints and preferences, **not** solutions. Detailed
 > architectural decisions belong to the spec (`sdd-spec`).
+
+## When the task is a story
+
+When intake reports `FORMAT: story`, the task was written by
+`/dev-setup:story` and phases 1 to 3 are already on the page: the Connextra
+sentence is the core value, the scenarios are the happy path and the edge
+cases. **Do not ask them again.** Read them, ask only where a scenario is
+ambiguous for an implementer, and spend the interview on phase 4 — the
+constraints, the components to reuse, the technical gray areas — which a story
+deliberately leaves open. The story's open points, and the answers given at
+the open-points gate, go straight into the summary: an answer as a constraint,
+an unanswered point as a gray area.
+
+In the summary, the Happy Path and the Edge Cases cite the scenarios by title
+rather than restating them, so the spec can map each scenario to one REQ.
+Expect four to six questions, not ten.
 
 ## How hard to push
 
