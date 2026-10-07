@@ -1974,6 +1974,20 @@ assert_contains "AGENTS.md describes the setup's disallowed-tools" "$AGENTS_MD" 
 assert_eq "the AGENTS.md version footer moved past 2.25.0" "false" \
   "$(printf '%s' "$AGENTS_MD" | grep -q '^\*Version: 2\.25\.0 ' && echo true || echo false)"
 
+# REQ-8. A skill launches an agent by its frontmatter `name:`, not by its file
+# name: review.md is `code-reviewer`, verify.md is `spec-verifier`. A name that
+# resolves to no agent sends the launcher looking for one that does not exist.
+AGENT_NAMES="$(for A in "$REPO_ROOT"/templates/dev-setup/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
+    sed -n '2,/^---$/p' "$A" | sed -n 's/^name:[[:space:]]*//p'
+  done | LC_ALL=C sort -u)"
+UNKNOWN_AGENTS="$(grep -rhoE 'Launch the `[^`]+` agent' \
+    "$REPO_ROOT/templates/dev-setup/.claude/skills" "$REPO_ROOT/shared/skills" \
+  | sed -E 's/^Launch the `//; s/` agent$//' | LC_ALL=C sort -u \
+  | while IFS= read -r NAME; do
+      printf '%s\n' "$AGENT_NAMES" | grep -qxF "$NAME" || printf '%s\n' "$NAME"
+    done)"
+assert_eq "every \"Launch the \`<name>\` agent\" names an agent's frontmatter name" "" "$UNKNOWN_AGENTS"
+
 echo ""
 echo "── frontmatter parseability ──"
 
