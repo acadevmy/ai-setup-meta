@@ -612,10 +612,13 @@ agents, constitution) by processing dedicated ClickUp tasks and opening review-r
 > **A note on the sandbox and SSH remotes.** Sandboxed commands reach the network only
 > through the HTTP(S) proxy: no raw TCP, no DNS for anything else. With `origin` on
 > `git@github.com:...`, a `git push` inside the sandbox cannot even resolve the hostname.
-> In the cloud Routine the repo is cloned over HTTPS, so this never comes up; locally you
-> either move the remote to HTTPS (`gh auth setup-git` + `git remote set-url`) or the push
-> runs outside the sandbox, through the normal permission flow. The `deny` rules hold
-> either way: they are permission rules, not sandbox boundaries.
+> In the cloud Routine the repo is cloned over HTTPS, so this never comes up; locally
+> `git push origin *` and `git push -u origin *` are in `sandbox.excludedCommands`, so
+> the push runs outside the sandbox — towards `origin` only, whose URL sits in the
+> sandbox-protected `.git/config`. The `deny` rules hold either way, `-u` included:
+> they are permission rules, not sandbox boundaries. A template change that excludes
+> a command from the sandbox ships the denies that guard it, and `migrate-settings.sh`
+> carries them to existing projects with the exclusion.
 
 ### Flow (per run)
 1. Pick the highest-priority SPRINT task from the `CLICKUP_MAINTENANCE_LIST_ID` list
@@ -780,4 +783,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.26.0 — bump the version number on every substantial change*
+*Version: 2.26.1 — bump the version number on every substantial change*

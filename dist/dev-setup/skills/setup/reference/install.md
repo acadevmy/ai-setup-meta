@@ -178,9 +178,13 @@ migrated wholesale. One **with** it is the team's, and conflict detection
 applies — with two exceptions, and the script touches nothing else: if it still
 carries the `.env` read denies this template retired, it removes exactly those
 entries (`REASON: env-read-unblocked`); if it lacks an entry of the template's
-`sandbox.excludedCommands` (`gh *`, `glab *`), it adds it next to the team's own
-and replaces a bare `gh` / `glab` it supersedes (`REASON: excluded-commands-added`,
-`RETIRED_EXCLUDED`).
+`sandbox.excludedCommands` (`gh *`, `glab *`, `git push origin *`,
+`git push -u origin *`), it adds it next to the team's own and replaces a bare
+`gh` / `glab` it supersedes (`REASON: excluded-commands-added`,
+`RETIRED_EXCLUDED`) — together with the template's `deny` entries that guard an
+excluded command, so a push never leaves the sandbox without the protected-branch
+denies (`ADDED_DENY`; `REASON: excluded-commands-guarded` when only those were
+missing).
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-settings.sh \
@@ -424,7 +428,7 @@ developer pick with `AskUserQuestion`:
 question: "origin is an SSH remote. Inside the Bash sandbox, git cannot reach it. How do you want to handle it?"
 options:
   - label: "Switch to HTTPS"   (recommended — the forge CLI holds the credentials)
-  - label: "Keep SSH"          (git network commands run outside the sandbox)
+  - label: "Keep SSH"          (the push to origin runs outside the sandbox; fetch asks)
 ```
 
 - **Switch to HTTPS** → print these for the developer to run; the credential
@@ -444,18 +448,20 @@ options:
   Make sure the HTTPS host is in the `sandbox.network.allowedDomains` written at
   3.4.
 
-- **Keep SSH** → nothing to change. `git fetch`/`git push` will hit a sandbox
-  violation and Claude Code will retry them outside the sandbox, which sends
-  them through the normal permission flow: in Manual mode the developer confirms
-  each one. The `deny` rules on force push and on the protected branches still
-  apply — they are permission rules, and they are evaluated whether or not the
-  command runs sandboxed.
+- **Keep SSH** → nothing to change. `git push origin …` and `git push -u origin …`
+  are in `sandbox.excludedCommands`, so the push runs outside the sandbox
+  directly — towards `origin` only, whose URL lives in `.git/config`, which the
+  sandbox protects. `git fetch` and any other network command still hit a
+  sandbox violation and are retried outside it through the normal permission
+  flow. The `deny` rules on force push and on the protected branches (`-u`
+  included) still apply — they are permission rules, evaluated whether or not
+  the command runs sandboxed.
 
 **Report in the summary** (a single line):
 
 - HTTPS remote: `origin already on HTTPS — git works inside the sandbox`
 - switched: `switch origin to HTTPS: <command printed>`
-- kept SSH: `origin left on SSH — git network commands will run unsandboxed, with a confirmation each time`
+- kept SSH: `origin left on SSH — the push to origin runs unsandboxed; fetch asks each time`
 
 ### 3.7 — The worktree files
 

@@ -356,9 +356,13 @@ A sandboxed command reaches the network only through the sandbox's HTTP(S)
 proxy: no raw TCP, no DNS. So with `origin` on `git@host:…`, a `git push` inside
 the sandbox cannot even resolve the hostname. The setup asks which way you want
 it — switch the remote to HTTPS (`gh auth setup-git`, or the `glab` credential
-helper, so no token goes in the URL), or keep SSH and let git's network commands
-run outside the sandbox through the normal permission prompt. The deny rules
-hold either way: they are permission rules, not sandbox boundaries.
+helper, so no token goes in the URL), or keep SSH. Either way
+`sandbox.excludedCommands` carries `git push origin *` and `git push -u origin *`:
+the push runs outside the sandbox, towards `origin` only — its URL lives in
+`.git/config`, which the sandbox protects, and a push to any other URL stays
+sandboxed. `git fetch` on SSH still asks. The deny rules hold either way: they
+are permission rules, not sandbox boundaries, and they cover `git push -u origin
+main` too.
 
 ### `gh` and `glab` run outside the sandbox
 
@@ -608,8 +612,10 @@ first time; answering "yes, and don't ask again" records it in
 
 ### `git push` fails inside the sandbox
 
-Your `origin` is an SSH remote — see §4. Switch it to HTTPS, or let git's
-network commands run outside the sandbox.
+Your `origin` is an SSH remote and the push was not the plain form the
+exclusion matches — see §4. `git push origin <branch>` or
+`git push -u origin <branch>`, alone on the line, runs outside the sandbox; a
+`cd … &&`, a pipe or a push to a URL keeps it in.
 
 ### ClickUp does not respond
 

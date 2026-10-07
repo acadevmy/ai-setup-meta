@@ -868,7 +868,8 @@ assert_eq "an unblocked settings is then left alone" "3" "$?"
 # `gh` and `glab` run outside the sandbox: inside it, on macOS, they cannot
 # verify a TLS certificate and every call fails. A project sandboxed before the entry existed
 # gets it on UPDATE — added next to the team's own entries, nothing else touched.
-assert_eq "the merged settings excludes gh and glab from the sandbox" '["gh *","glab *"]' \
+assert_eq "the merged settings excludes gh, glab and the push to origin from the sandbox" \
+  '["gh *","glab *","git push origin *","git push -u origin *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/merged.json")"
 
 jq '.sandbox.excludedCommands = ["docker"]' "$MIG_DIR/merged.json" > "$MIG_DIR/no-gh.json"
@@ -879,9 +880,10 @@ EXCL_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
 
 assert_eq "a sandboxed settings without gh is migrated" "excluded-commands-added" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .REASON)"
-assert_eq "the report names the added entries" "gh *,glab *" \
+assert_eq "the report names the added entries" "gh *,glab *,git push origin *,git push -u origin *" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .ADDED_EXCLUDED)"
-assert_eq "they are added after the team's own entries" '["docker","gh *","glab *"]' \
+assert_eq "they are added after the team's own entries" \
+  '["docker","gh *","glab *","git push origin *","git push -u origin *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/with-gh.json")"
 assert_eq "nothing else changes on the excluded-commands pass" "true" \
   "$(jq -n --slurpfile a "$MIG_DIR/no-gh.json" --slurpfile b "$MIG_DIR/with-gh.json" '
@@ -899,10 +901,46 @@ jq '.sandbox.excludedCommands = ["docker", "gh", "glab"]' "$MIG_DIR/merged.json"
 BARE_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
   --in "$MIG_DIR/bare-gh.json" --template "$SETTINGS_TEMPLATE" \
   --out "$MIG_DIR/fixed-gh.json" --json 2>/dev/null)
-assert_eq "a bare gh entry is replaced by gh *" '["docker","gh *","glab *"]' \
+assert_eq "a bare gh entry is replaced by gh *" \
+  '["docker","gh *","glab *","git push origin *","git push -u origin *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/fixed-gh.json")"
 assert_eq "and the report names what it replaced" "gh,glab" \
   "$(printf '%s' "$BARE_REPORT" | jq -r .RETIRED_EXCLUDED)"
+
+# Pushing leaves the sandbox — an SSH origin cannot be reached from inside it —
+# but only towards origin. `allow` carries `Bash(git *)` and there is no `ask`
+# on a push, so a bare `git push *` would send an unsandboxed push to any URL
+# with no allowlist and no prompt. origin itself lives in .git/config, which
+# the sandbox protects.
+assert_eq "no exclusion lets a push leave the sandbox towards an arbitrary URL" "" \
+  "$(jq -r '.sandbox.excludedCommands[] | select(startswith("git push") and (contains(" origin ") | not))' "$SETTINGS_TEMPLATE")"
+assert_contains "the template denies a push to a protected branch with -u" \
+  "$(jq -r '.permissions.deny[]' "$SETTINGS_TEMPLATE")" "Bash(git push * origin next*)"
+
+# Outside the sandbox the deny rules are the only boundary, so on UPDATE an
+# exclusion never arrives without the template's denies that guard it — and a
+# project that already has the exclusion gets the guards it lacks.
+jq '.sandbox.excludedCommands = ["gh *", "glab *"]
+    | .permissions.deny |= map(select(startswith("Bash(git push * origin ") | not))' \
+  "$MIG_DIR/merged.json" > "$MIG_DIR/no-push.json"
+GUARD_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/no-push.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/with-push.json" --json 2>/dev/null)
+assert_eq "the push exclusion is added" "git push origin *,git push -u origin *" \
+  "$(printf '%s' "$GUARD_REPORT" | jq -r .ADDED_EXCLUDED)"
+assert_eq "with the push denies that guard it" "4" \
+  "$(printf '%s' "$GUARD_REPORT" | jq -r .ADDED_DENY)"
+assert_contains "the -u push to next is denied after UPDATE" \
+  "$(jq -r '.permissions.deny[]' "$MIG_DIR/with-push.json")" "Bash(git push * origin next*)"
+assert_eq "no deny unrelated to an excluded command is added" "" \
+  "$(jq -n --slurpfile a "$MIG_DIR/no-push.json" --slurpfile b "$MIG_DIR/with-push.json" -r '
+     ($b[0].permissions.deny - $a[0].permissions.deny)[] | select(startswith("Bash(git push") | not)')"
+
+jq '.permissions.deny |= map(select(startswith("Bash(git push * origin ") | not))' \
+  "$MIG_DIR/with-push.json" > "$MIG_DIR/unguarded.json"
+assert_eq "an exclusion already there still gets its guards" "excluded-commands-guarded" \
+  "$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unguarded.json" \
+       --template "$SETTINGS_TEMPLATE" --json 2>/dev/null | jq -r .REASON)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)
