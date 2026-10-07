@@ -1887,6 +1887,31 @@ assert_contains "the setup skill may call AskUserQuestion" \
   "AskUserQuestion"
 
 echo ""
+echo "══ DE-17061 — what the claude.dev analysis found ══"
+
+# REQ-3. `gh *` / `glab *` in excludedCommands only helps a call that has no
+# `$(…)`, no subshell, no `cd` and no redirect: any of them keeps the whole call
+# sandboxed, where on macOS it fails TLS verification. So every merge-request
+# form in the references passes literal values, single-quoted — never a
+# substitution and never a double-quoted string a filled title could turn into
+# one. Pinned on the source and on the shipped copy.
+for VCS_DIR in "$REPO_ROOT/shared/skills/vcs-ops/reference" \
+               "$REPO_ROOT/dist/dev-setup/skills/vcs-ops/reference"; do
+  WHERE="${VCS_DIR#"$REPO_ROOT"/}"
+  assert_eq "$WHERE: no merge-request row carries a \$ or a double-quoted value" "" \
+    "$(grep -hE '^\|' "$VCS_DIR/github.md" "$VCS_DIR/gitlab.md" \
+         | grep -E 'gh pr create|glab mr create|--description' | grep -E '[$"]')"
+  assert_eq "$WHERE: gitlab.md suggests no \$(cat body.md) and no double-quoted description" "" \
+    "$(grep -nF -e '$(cat body.md)' -e '--description "' "$VCS_DIR/gitlab.md")"
+  for NEEDLE in "--base '<BASE_BRANCH>'" "--head '<BRANCH>'" "--title '<TITLE>'" "'\\''"; do
+    assert_contains "$WHERE: github.md passes $NEEDLE" "$(cat "$VCS_DIR/github.md")" "$NEEDLE"
+  done
+  for NEEDLE in "--source-branch '<BRANCH>'" "--target-branch '<BASE_BRANCH>'" "--title '<TITLE>'" "'\\''"; do
+    assert_contains "$WHERE: gitlab.md passes $NEEDLE" "$(cat "$VCS_DIR/gitlab.md")" "$NEEDLE"
+  done
+done
+
+echo ""
 echo "── frontmatter parseability ──"
 
 # A `: ` inside an unquoted YAML scalar does not parse, and the failure is
