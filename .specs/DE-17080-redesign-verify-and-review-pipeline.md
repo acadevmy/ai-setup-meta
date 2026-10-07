@@ -1,6 +1,6 @@
 # Spec: [dev-setup] Redesign the verify and review pipeline [DE-17080]
 
-> Status: approved
+> Status: implemented
 > Task: https://app.clickup.com/t/869fb17gk
 > Branch: pending (created by the launcher: `feat(review)/DE-17080_<slug>`)
 > Created: 2026-10-07
