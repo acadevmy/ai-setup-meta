@@ -1880,11 +1880,25 @@ assert_eq "no setup reference registers an MCP server with --type url" "false" \
   "$(grep -rq -- '--type url' "$REPO_ROOT/templates/dev-setup/setup" \
        "$REPO_ROOT/dist/dev-setup/skills/setup" && echo true || echo false)"
 
-# The asks in the setup are real tool calls: the skill has to be allowed to make
-# them. `install.md` alone instructs three of them.
-assert_contains "the setup skill may call AskUserQuestion" \
-  "$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")" \
-  "AskUserQuestion"
+# The asks in the setup are real AskUserQuestion calls — `install.md` alone
+# instructs three of them — so nothing may take that tool away. The documented
+# rule: `allowed-tools` only pre-approves the tools it lists and restricts none;
+# `disallowed-tools` is the one field that removes a tool, until the developer's
+# next message. So the setup declares the tools it does not need there, and
+# AskUserQuestion is callable because that line does not name it. No `model:`
+# either: an override either lasts one turn of a multi-turn setup, paying two
+# cache re-keys, or silently moves the rest of the session to another model.
+SETUP_FM="$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")"
+SETUP_DISALLOWED="$(printf '%s\n' "$SETUP_FM" | grep '^disallowed-tools:')"
+assert_eq "the setup declares no allowed-tools, which would restrict nothing" "" \
+  "$(printf '%s\n' "$SETUP_FM" | grep '^allowed-tools:')"
+assert_eq "the setup does not switch the session model" "" \
+  "$(printf '%s\n' "$SETUP_FM" | grep '^model:')"
+for TOOL in Agent WebFetch WebSearch; do
+  assert_contains "the setup removes $TOOL through disallowed-tools" "$SETUP_DISALLOWED" "$TOOL"
+done
+assert_eq "and leaves AskUserQuestion callable" "false" \
+  "$(printf '%s' "$SETUP_DISALLOWED" | grep -q 'AskUserQuestion' && echo true || echo false)"
 
 echo ""
 echo "══ DE-17061 — what the claude.dev analysis found ══"
@@ -1950,6 +1964,15 @@ printf 'List: ${user_config.CLICKUP_SETUP_LIST_ID}, team: ${user_config.NOT_DECL
   > "$UC_PROBE/SKILL.md"
 assert_eq "and the check catches an undeclared key" "NOT_DECLARED" \
   "$(undeclared_user_config "$UC_PROBE")"
+
+# REQ-6. AGENTS.md is the ground truth for an agent, so it may not credit the
+# setup with a boundary its frontmatter does not draw.
+AGENTS_MD="$(cat "$REPO_ROOT/AGENTS.md")"
+assert_eq "AGENTS.md no longer says allowed-tools denies the agent launcher" "false" \
+  "$(printf '%s' "$AGENTS_MD" | grep -q 'denies the agent launcher and the network' && echo true || echo false)"
+assert_contains "AGENTS.md describes the setup's disallowed-tools" "$AGENTS_MD" "disallowed-tools"
+assert_eq "the AGENTS.md version footer moved past 2.25.0" "false" \
+  "$(printf '%s' "$AGENTS_MD" | grep -q '^\*Version: 2\.25\.0 ' && echo true || echo false)"
 
 echo ""
 echo "── frontmatter parseability ──"
