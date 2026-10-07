@@ -89,6 +89,20 @@ repo_root() {
   pwd
 }
 
+# Prints the absolute path of this plugin's per-task state of one kind —
+# `<git-common-dir>/dev-setup/<kind>` — or fails outside a repository. The
+# common git directory is shared by a worktree and its checkout, `git add -A`
+# never sees it, and nothing a session does (`/clear` included) touches it.
+state_dir() {
+  local common
+  common="$(git rev-parse --git-common-dir 2>/dev/null)" || return 1
+  case "$common" in
+    /*) ;;
+    *) common="$(pwd)/$common" ;;
+  esac
+  printf '%s/dev-setup/%s\n' "$common" "$1"
+}
+
 # Prints the detected VCS: git | none. Only git is supported today; the key
 # exists so the consumers do not have to guess.
 detect_vcs() {

@@ -236,7 +236,7 @@ status other than 0.
 | Script | Returns |
 |---|---|
 | `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `HOOK_MANAGER` |
-| `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket |
+| `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>] [--stop <point>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED`, `STOP_POINT` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket; `--stop` with `--create` saves the stop point beside the task clock, and every later call returns it, so a resumed `sdd` does not ask again |
 | `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
@@ -416,9 +416,12 @@ Four things left `sdd`, and each one was paid for on every task:
   states it, so asking produced an answer the rules already had;
 - **the final OK in chat** — the `ask` rule on `gh pr create` / `glab mr create`
   puts the developer in front of the real command instead of a summary of it.
-  The flow's stops are now two: the fork-point confirmation at intake (the
-  resolved base branch is the default, the developer confirms it) and the spec
-  approval in `sdd-plan` — plus one conditional gate: a task read in `BACKLOG`
+  The flow's stops are now three (DE-17076): the launch call — the fork-point
+  confirmation (the resolved base branch is the default, the developer
+  confirms it) and the stop point, saved so a resume skips it — discovery, one
+  `AskUserQuestion` call of up to four questions on what the task leaves open
+  (at most one follow-up, five questions in all), and the spec approval in
+  `sdd-plan` — plus one conditional gate: a task read in `BACKLOG`
   is implemented only after the developer explicitly confirms it, and is never
   moved onto the board's flow automatically (the backlog gate in
   `clickup-contract.md`);
@@ -777,4 +780,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.25.1 — bump the version number on every substantial change*
+*Version: 2.26.0 — bump the version number on every substantial change*

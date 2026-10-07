@@ -10,6 +10,7 @@ every stop point leaves work on a branch that belongs to a task in progress.
 
 - [The six stop points](#the-six-stop-points)
 - [The question](#the-question)
+- [Saving the answer](#saving-the-answer)
 - [Where the flow checks it](#where-the-flow-checks-it)
 - [Ending at a stop point](#ending-at-a-stop-point)
 - [Resuming](#resuming)
@@ -18,14 +19,14 @@ every stop point leaves work on a branch that belongs to a task in progress.
 
 Each one does everything the one above it does, plus its own row.
 
-| Stop point | What runs | What it leaves |
-|---|---|---|
-| **Spec** | Steps 5–7: discovery, the technical spec, its approval | the spec in `.specs/`, `approved`, not committed |
-| **Development** | Step 8: `sdd-dev` implements the plan, with its tests and lint | the code and the spec in the working tree, nothing staged |
-| **Review** | Closure 1–5: stage, `simplify`, `verify`, `review` + REGISTRY, the summary | everything staged, nothing committed, the spec still `approved` |
-| **Commit** | Closure 6: the spec to `implemented`, the one commit, with the commit hook as the gate | one local commit, nothing pushed |
-| **Push** | Closure 7: `git push -u origin <branch>` | the branch on the remote, no merge request |
-| **Merge request** *(default)* | Closure 8–9: the merge request, the clock stopped, the task to `CODE REVIEW` | the whole flow |
+| Stop point | `--stop` | What runs | What it leaves |
+|---|---|---|---|
+| **Spec** | `spec` | Steps 5–7: discovery, the technical spec, its approval | the spec in `.specs/`, `approved`, not committed |
+| **Development** | `development` | Step 8: `sdd-dev` implements the plan, with its tests and lint | the code and the spec in the working tree, nothing staged |
+| **Review** | `review` | Closure 1–5: stage, `simplify`, `verify`, `review` + REGISTRY, the summary | everything staged, nothing committed, the spec still `approved` |
+| **Commit** | `commit` | Closure 6: the spec to `implemented`, the one commit, with the commit hook as the gate | one local commit, nothing pushed |
+| **Push** | `push` | Closure 7: `git push -u origin <branch>` | the branch on the remote, no merge request |
+| **Merge request** *(default)* | `merge-request` | Closure 8–9: the merge request, the clock stopped, the task to `CODE REVIEW` | the whole flow |
 
 Review comes before the commit because that is where the gates run: the code,
 the spec and the REGISTRY entries land in one commit, and a review after the
@@ -38,7 +39,7 @@ and that merge request has not happened yet.
 ## The question
 
 Asked in intake step 2, **in the same `AskUserQuestion` call as the fork point**
-— the fork point first, these two after it — so the flow still has two stops.
+— the fork point first, these two after it — so launching costs one stop.
 Six stop points do not fit in one question (four options at most), so they are
 split by phase: the second question only matters when the first one is
 `Closure`.
@@ -74,13 +75,27 @@ split by phase: the second question only matters when the first one is
 }
 ```
 
-When the fork point is not asked — the branch already exists, so the run is a
-resume — ask these two on their own, in one call. Either way, **end the turn on
-the tool call**.
+**End the turn on the tool call.** On a resume the question is normally not
+asked at all — see the next section.
 
-The answer is used once, for this run. Nothing writes it down: a resumed run
-asks again, because the developer stopping early is exactly the case where the
-next run's answer may differ.
+## Saving the answer
+
+The answer travels as `--stop <value>` (the column in the table above) on the
+`sdd-start.sh --create` call that cuts the branch. The script saves it beside
+the task clock, where `/clear` does not reach it, and every later call for the
+task returns it as `STOP_POINT`.
+
+On a resume (`BRANCH_EXISTS: true`), intake reads `STOP_POINT`:
+
+| `STOP_POINT` | `--stop` in `$ARGUMENTS` | The run |
+|---|---|---|
+| set | no | uses it, **without asking**, and shows it in the brief |
+| any | yes | uses the argument, and saves it with `--create --stop <value>` |
+| empty | no | asks the two questions on their own, in one call, and saves the answer with `--create --stop <value>` — a branch cut before the stop point was saved |
+
+Changing your mind is `/dev-setup:sdd <id> --stop <value>`: asking on every
+resume cost a click each time to protect the rarer case, which an argument
+covers.
 
 ## Where the flow checks it
 
@@ -112,8 +127,8 @@ Resume:  /dev-setup:sdd DE-123
 ## Resuming
 
 Re-running `/dev-setup:sdd <id>` is the resume, and it needs no special path:
-intake finds the branch, asks the stop point again, and step 4 starts from what
-is on disk. What each stop point leaves maps onto an existing row:
+intake finds the branch, reads the saved stop point, and step 4 starts from
+what is on disk. What each stop point leaves maps onto an existing row:
 
 | Left by | Step 4 reads | Starts at |
 |---|---|---|
@@ -121,7 +136,7 @@ is on disk. What each stop point leaves maps onto an existing row:
 | Development, Review | `approved` with `CHANGED_FILES` | the "is the implementation complete?" question, then step 9 from closure 1 — the gates run again over the full change |
 | Commit, Push | `implemented` | step 9 at closure 7 — the commit exists; skip the push too when `git status -sb` shows the branch level with its upstream |
 
-When the stop point chosen on resume is one the branch has already passed — the
+When the stop point in force on resume is one the branch has already passed — the
 **Spec** stop point on a branch that already has code — say so and end at the
 brief: the run has nothing to do.
 

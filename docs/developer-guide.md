@@ -77,7 +77,8 @@ repository, not in yours — see [workflow.md](./workflow.md).
        │  should stop (the merge request, by default), then creates
        │  feat(<context>)/DE-123_…, moves the task to IN PROGRESS and starts the clock
        │
-       ├─ discovery — a structured interview, only the questions that matter
+       ├─ discovery — one call, up to four questions on what the task leaves
+       │  open; "Requirements clear: go to spec" ends it in one click
        │
        ├─ the technical spec, written to .specs/
        │        ↓
@@ -95,7 +96,7 @@ repository, not in yours — see [workflow.md](./workflow.md).
           posted on it
 ```
 
-Eight things are worth knowing about that shape.
+What is worth knowing about that shape:
 
 **A backlog task is your call.** A task read in `BACKLOG` was never planned
 into a sprint, so the flow stops and asks before anything else happens — no
@@ -112,6 +113,11 @@ carried out as written does stop, and says why.
 spec and the REGISTRY entries land together. Committing more often while you
 work is fine; nothing requires it.
 
+**Three stops before the code.** Launch (fork point and stop point, one
+call), discovery (one call, at most a second, five questions in all) and the
+spec approval. Discovery drafts what the task already says and asks only about
+the gaps — a well-written task reaches the spec in one click.
+
 **You choose where it stops.** Together with the fork point, the flow asks how
 far this run goes — the merge request is the default:
 
@@ -125,9 +131,10 @@ far this run goes — the merge request is the default:
 | Merge request | the whole flow: the merge request, the task in review, the time posted |
 
 Short of the merge request, the task stays `IN PROGRESS` with its clock
-running. Run `/dev-setup:sdd DE-123` again to carry on: it asks the stop point
-once more and starts from what is on disk — the spec, the uncommitted code, or
-the commit — without redoing what is done.
+running. Run `/dev-setup:sdd DE-123` again to carry on: it reuses the stop
+point you chose — saved beside the clock, it survives `/clear` — and starts
+from what is on disk — the spec, the uncommitted code, or the commit — without
+redoing what is done. `/dev-setup:sdd DE-123 --stop push` changes it.
 
 **The clock runs from IN PROGRESS to the merge request.** The move that starts
 the work stamps `task-clock.sh --start`; the move that ends it reads the stamp

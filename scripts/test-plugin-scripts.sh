@@ -413,6 +413,33 @@ assert_eq "--create forks from the --base ref" \
   "$(cd "$SANDBOX" && git rev-parse feat/DE-5 2>/dev/null)"
 (cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-5) >/dev/null 2>&1
 
+# ── --stop: the stop point survives the session (DE-17076) ──
+#
+# Chosen once at launch and read back on resume, so a resumed run does not ask
+# it again. It sits beside the clock, in the common git directory.
+assert_eq "nothing saved, nothing reported" \
+  "" "$(sdd_start --task DE-6 --json | jq -r '.STOP_POINT')"
+
+assert_eq "a report-only call with --stop writes nothing" \
+  "" "$(sdd_start --task DE-6 --stop push --json | jq -r '.STOP_POINT')"
+
+sdd_start --task DE-6 --stop push --create --json >/dev/null 2>&1
+assert_eq "--create --stop saves the stop point, read back on resume" \
+  "push" "$(sdd_start --task DE-6 --json | jq -r '.STOP_POINT')"
+assert_eq "the stop point sits in the common git directory" \
+  "push" "$(cd "$SANDBOX" && cat "$(git rev-parse --git-common-dir)/dev-setup/stop-point/DE-6" 2>/dev/null)"
+
+assert_eq "--create --stop on the existing branch replaces it" \
+  "commit" "$(sdd_start --task DE-6 --stop commit --create --json | jq -r '.STOP_POINT')"
+
+sdd_start --task DE-6 --stop banana --json >/dev/null 2>&1
+assert_eq "an invalid stop point is refused" "1" "$?"
+
+sdd_start --type fix --title "Typo" --stop push --json >/dev/null 2>&1
+assert_eq "--stop without --task is refused" "1" "$?"
+(cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-6 \
+  && rm -rf "$(git rev-parse --git-common-dir)/dev-setup/stop-point") >/dev/null 2>&1
+
 # The task id is read back out of the branch name in both conventions: the
 # current feat(auth)/DE-123_slug, and feat/DE-123-slug for a branch cut before it.
 (cd "$SANDBOX" && git checkout --quiet -b "feat(auth)/DE-999_my-work") >/dev/null 2>&1
@@ -1119,6 +1146,23 @@ assert_contains "quick is started by a person, never inferred" \
   "$(cat "$QUICK")" "disable-model-invocation: true"
 assert_contains "quick declares no spec and no discovery" \
   "$(cat "$QUICK")" "No discovery, no spec"
+
+# Discovery asks the gaps only, in one call of up to four questions, and a
+# resume reads the saved stop point instead of asking it again (DE-17076).
+assert_contains "discovery offers the one-click way to the spec" \
+  "$(cat "$SDD_DIR/sdd-discovery/reference/question-bank.md")" "Requirements clear: go to spec"
+assert_eq "no 10–12 question cap and no one-question-at-a-time left in discovery" "" \
+  "$(grep -rln "10–12\|one question at a time" "$SDD_DIR/sdd-discovery" || true)"
+assert_contains "turn discipline bounds a call at four related questions" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/turn-discipline.md")" "up to four related questions"
+assert_eq "sdd no longer promises two stops" "" \
+  "$(grep -ln "Two stops" "$SDD_DIR/sdd/SKILL.md" || true)"
+assert_eq "a resumed run no longer asks the stop point again" "" \
+  "$(grep -ln "Nothing writes it down" "$SDD_DIR/sdd/reference/stop-point.md" || true)"
+assert_contains "intake saves the stop point on --create" \
+  "$(cat "$SDD_DIR/sdd/reference/intake.md")" "--stop <the chosen stop point> --create"
+assert_contains "the worktree path saves it too" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/worktree.md")" "--stop <the chosen stop point>] --create"
 
 # The routing bar is in both descriptions, so /help alone answers which to use.
 for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do
