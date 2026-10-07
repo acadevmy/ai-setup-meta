@@ -1842,6 +1842,251 @@ assert_contains "vcs-ops says the merge request does not end the task" \
 assert_contains "citing the contract that holds both calls" \
   "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "reference/clickup-contract.md"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 13. review-package.sh: the diff verify and review read, built once (DE-17080)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The closure used to build the diff twice — once per agent. The package is one
+# file both agents read. Three properties matter: it holds the working tree
+# (staged and unstaged, because nothing is committed at closure time), EMPTY is
+# decided by the diff and never by the commits, and an invalid range fails
+# without leaving a package behind.
+
+echo ""
+echo "── review-package.sh (the review diff, built once) ──"
+
+RP_ERR_FILE="$WORK_DIR/review-package.stderr"
+# Runs the script in a directory; sets RP_OUT, RP_ERR and RP_EXIT.
+rp_run() {
+  local dir="$1"
+  shift
+  RP_OUT=$(cd "$dir" && bash "$PLUGIN_SCRIPTS/review-package.sh" "$@" 2>"$RP_ERR_FILE")
+  RP_EXIT=$?
+  RP_ERR=$(cat "$RP_ERR_FILE" 2>/dev/null)
+}
+rp_key() { printf '%s' "$RP_OUT" | jq -r --arg k "$1" '.[$k]'; }
+# The physical path of a directory, or nothing: /tmp is a symlink on macOS.
+phys_dir() { (cd "$1" 2>/dev/null && pwd -P); }
+
+RP_REPO="$WORK_DIR/review-package-repo"
+mkdir -p "$RP_REPO"
+(
+  cd "$RP_REPO" || exit 1
+  git_init .
+  git symbolic-ref HEAD refs/heads/main
+  git config user.email "test@example.com"
+  git config user.name "Test"
+
+  echo "base" > base.txt
+  for i in $(seq -w 1 30); do echo "row-$i"; done > data.txt
+  git add . && git commit --quiet -m "chore: base"
+
+  git checkout --quiet -b next
+  for i in 1 2 3; do
+    echo "next change $i" > "next-$i.txt"
+    git add . && git commit --quiet -m "feat: next change $i"
+  done
+
+  git checkout --quiet -b 'feat(x)/DE-999_work'
+  sed 's/^row-15$/row-15 changed by the branch/' data.txt > data.tmp && mv data.tmp data.txt
+  git add data.txt && git commit --quiet -m "feat: branch work on data"
+
+  # The closure's own state: one new file staged, one tracked file edited after
+  # the staging (what simplify leaves behind), nothing of it committed.
+  echo "staged content" > staged.txt
+  git add staged.txt
+  echo "appended-unstaged" >> base.txt
+) >/dev/null 2>&1
+
+RP_BASE=$(cd "$RP_REPO" && git merge-base HEAD next)
+RP_STATUS_BEFORE=$(cd "$RP_REPO" && git status --porcelain)
+
+# ── Test 1 (REQ-1): what the package holds ──
+rp_run "$RP_REPO" --base "$RP_BASE" --json
+RP_JSON_1="$RP_OUT"
+RP_PKG_1=$(rp_key PACKAGE)
+assert_eq "review-package: a branch with work exits 0" "0" "$RP_EXIT"
+assert_eq "and is not empty" "false" "$(rp_key EMPTY)"
+assert_eq "the package lives under the common git directory" \
+  "$(phys_dir "$RP_REPO/.git")/dev-setup/review-package" \
+  "$(phys_dir "$(dirname "$RP_PKG_1")")"
+assert_eq "and is named after the slugified branch" "true" \
+  "$(basename "$RP_PKG_1" | grep -q '^feat-x-de-999-work' && echo true || echo false)"
+assert_eq "the script stages nothing" "$RP_STATUS_BEFORE" \
+  "$(cd "$RP_REPO" && git status --porcelain)"
+
+RP_CONTENT=$(cat "$RP_PKG_1" 2>/dev/null)
+assert_contains "the package lists the branch's commit" "$RP_CONTENT" "feat: branch work on data"
+assert_eq "and none of the base branch's" "false" \
+  "$(printf '%s' "$RP_CONTENT" | grep -q 'next change' && echo true || echo false)"
+assert_contains "it carries the stat" "$RP_CONTENT" "3 files changed"
+assert_contains "it carries the staged new file" "$RP_CONTENT" "+staged content"
+assert_contains "and the unstaged edit to a tracked file" "$RP_CONTENT" "+appended-unstaged"
+assert_eq "ten lines of context reach row 5" "true" \
+  "$(printf '%s\n' "$RP_CONTENT" | grep -qx ' row-05' && echo true || echo false)"
+assert_eq "and stop before row 4" "false" \
+  "$(printf '%s\n' "$RP_CONTENT" | grep -qx ' row-04' && echo true || echo false)"
+assert_eq "COMMITS counts the branch's own commits" "1" "$(rp_key COMMITS)"
+assert_eq "FILES counts the changed files" "3" "$(rp_key FILES)"
+assert_eq "CHANGED_LINES is insertions plus deletions" \
+  "$(cd "$RP_REPO" && git diff --numstat "$RP_BASE" | awk '{ s += $1 + $2 } END { print s }')" \
+  "$(rp_key CHANGED_LINES)"
+assert_eq "a few lines in three files are small" "small" "$(rp_key SIZE)"
+
+# ── Test 5 (REQ-1): the script contract ──
+assert_eq "the keys are exactly the documented ones" \
+  "PACKAGE,MERGE_BASE,EMPTY,COMMITS,FILES,CHANGED_LINES,SIZE" \
+  "$(printf '%s' "$RP_JSON_1" | jq -r 'keys_unsorted | join(",")')"
+assert_eq "and every value is a string" "string" \
+  "$(printf '%s' "$RP_JSON_1" | jq -r '[.[] | type] | unique | join(",")')"
+assert_eq "MERGE_BASE is the resolved --base" \
+  "$(cd "$RP_REPO" && git rev-parse "$RP_BASE")" \
+  "$(printf '%s' "$RP_JSON_1" | jq -r '.MERGE_BASE')"
+
+# A second run on the same branch overwrites the package with what is there now.
+(cd "$RP_REPO" && sed 's/^row-20$/row-20 first edit/' data.txt > data.tmp && mv data.tmp data.txt)
+rp_run "$RP_REPO" --base "$RP_BASE" --json
+(cd "$RP_REPO" && sed 's/^row-20 first edit$/row-20 second edit/' data.txt > data.tmp && mv data.tmp data.txt)
+rp_run "$RP_REPO" --base "$RP_BASE" --json
+assert_eq "a rerun returns the same package" "$RP_PKG_1" "$(rp_key PACKAGE)"
+RP_CONTENT=$(cat "$RP_PKG_1" 2>/dev/null)
+assert_contains "and the package holds the current change" "$RP_CONTENT" "+row-20 second edit"
+assert_eq "not the one before it" "false" \
+  "$(printf '%s' "$RP_CONTENT" | grep -q 'row-20 first edit' && echo true || echo false)"
+
+# Two branches — two worktrees — get two packages.
+(cd "$RP_REPO" && git checkout --quiet -b 'feat(y)/DE-998_other') >/dev/null 2>&1
+rp_run "$RP_REPO" --base "$RP_BASE" --json
+RP_PKG_OTHER=$(rp_key PACKAGE)
+assert_eq "another branch gets another package" "true" \
+  "$([ -n "$RP_PKG_OTHER" ] && [ "$RP_PKG_OTHER" != "$RP_PKG_1" ] && echo true || echo false)"
+assert_eq "and the first branch's package stays" "true" \
+  "$([ -f "$RP_PKG_1" ] && echo true || echo false)"
+
+# ── Test 2 (REQ-2): no change, no package ──
+(
+  cd "$RP_REPO" || exit 1
+  git checkout --quiet 'feat(x)/DE-999_work'
+  git add -A && git commit --quiet -m "feat: the rest of the work"
+) >/dev/null 2>&1
+rp_run "$RP_REPO" --base HEAD --json
+assert_eq "a clean tree against HEAD exits 0" "0" "$RP_EXIT"
+assert_eq "and is empty" "true" "$(rp_key EMPTY)"
+assert_eq "with no package" "" "$(rp_key PACKAGE)"
+assert_eq "no size" "" "$(rp_key SIZE)"
+assert_eq "no file" "0" "$(rp_key FILES)"
+assert_eq "and no changed line" "0" "$(rp_key CHANGED_LINES)"
+assert_eq "the stale package of the branch is removed" "false" \
+  "$([ -e "$RP_PKG_1" ] && echo true || echo false)"
+assert_eq "another branch's package is left alone" "true" \
+  "$([ -f "$RP_PKG_OTHER" ] && echo true || echo false)"
+
+# ── Test 2b (REQ-2): staged work and no commit is the closure's state ──
+(
+  cd "$RP_REPO" || exit 1
+  git checkout --quiet -b 'feat/DE-997_staged'
+  echo "only staged" > only-staged.txt
+  git add only-staged.txt
+) >/dev/null 2>&1
+rp_run "$RP_REPO" --base HEAD --json
+assert_eq "staged work with no commit is not empty" "false" "$(rp_key EMPTY)"
+assert_eq "COMMITS is reported, not used to decide" "0" "$(rp_key COMMITS)"
+assert_eq "the staged file is counted" "1" "$(rp_key FILES)"
+assert_contains "and is in the package" "$(cat "$(rp_key PACKAGE)" 2>/dev/null)" "+only staged"
+
+# ── Test 2c (REQ-2): a commit and its revert change nothing ──
+(
+  cd "$RP_REPO" || exit 1
+  git commit --quiet -m "feat: staged work"
+  git checkout --quiet -b 'feat/DE-996_revert'
+) >/dev/null 2>&1
+RP_BEFORE=$(cd "$RP_REPO" && git rev-parse HEAD)
+(
+  cd "$RP_REPO" || exit 1
+  echo "short-lived" > short-lived.txt
+  git add short-lived.txt && git commit --quiet -m "feat: short-lived"
+  git revert --no-edit HEAD
+) >/dev/null 2>&1
+rp_run "$RP_REPO" --base "$RP_BEFORE" --json
+assert_eq "commits whose sum is nothing are empty" "true" "$(rp_key EMPTY)"
+assert_eq "and leave no package file" "" \
+  "$(find "$(cd "$RP_REPO" && phys_dir "$(git rev-parse --git-common-dir)")/dev-setup/review-package" \
+       -name 'feat-de-996-revert*' 2>/dev/null)"
+
+# ── Test 3 (REQ-3): an invalid range fails without a package ──
+RP_PKG_DIR="$(phys_dir "$RP_REPO/.git")/dev-setup/review-package"
+RP_LISTING_BEFORE=$(ls -1 "$RP_PKG_DIR" 2>/dev/null)
+(cd "$RP_REPO" && echo "pending" > pending.txt && git add pending.txt) >/dev/null 2>&1
+
+rp_run "$RP_REPO" --base does-not-exist --json
+assert_eq "an unknown --base exits non-zero" "true" "$([ "$RP_EXIT" -ne 0 ] && echo true || echo false)"
+assert_eq "and prints nothing on stdout" "" "$RP_OUT"
+assert_contains "and names the ref" "$RP_ERR" "does-not-exist"
+
+rp_run "$RP_REPO" --json
+assert_eq "a missing --base exits non-zero" "true" "$([ "$RP_EXIT" -ne 0 ] && echo true || echo false)"
+assert_eq "and prints nothing on stdout" "" "$RP_OUT"
+assert_contains "and names --base" "$RP_ERR" "--base"
+
+rp_run "$RP_REPO" --base HEAD --bogus
+assert_eq "an unknown argument exits non-zero" "true" "$([ "$RP_EXIT" -ne 0 ] && echo true || echo false)"
+assert_eq "and prints nothing on stdout" "" "$RP_OUT"
+assert_contains "and names it" "$RP_ERR" "--bogus"
+
+RP_NOT_A_REPO="$WORK_DIR/review-package-not-a-repo"
+mkdir -p "$RP_NOT_A_REPO"
+rp_run "$RP_NOT_A_REPO" --base HEAD --json
+assert_eq "a run outside a repository exits non-zero" "true" "$([ "$RP_EXIT" -ne 0 ] && echo true || echo false)"
+assert_eq "and prints nothing on stdout" "" "$RP_OUT"
+assert_contains "and names git" "$RP_ERR" "git"
+
+assert_eq "no invalid run wrote a package" "$RP_LISTING_BEFORE" "$(ls -1 "$RP_PKG_DIR" 2>/dev/null)"
+
+# ── Test 4 (REQ-4): the size thresholds ──
+RP_SIZE_REPO="$WORK_DIR/review-package-size"
+mkdir -p "$RP_SIZE_REPO"
+(
+  cd "$RP_SIZE_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+) >/dev/null 2>&1
+
+# Stages a fresh change of $1 lines in one file, or one line in each of $2 files.
+rp_size_of() {
+  (
+    cd "$RP_SIZE_REPO" || exit 1
+    git reset --quiet --hard HEAD
+    if [ "$1" -gt 0 ]; then
+      seq 1 "$1" > lines.txt
+    else
+      for i in $(seq 1 "$2"); do echo "one" > "file-$i.txt"; done
+    fi
+    git add -A
+  ) >/dev/null 2>&1
+  rp_run "$RP_SIZE_REPO" --base HEAD --json
+  rp_key SIZE
+}
+assert_eq "300 changed lines are small" "small" "$(rp_size_of 300 0)"
+assert_eq "301 changed lines are large" "large" "$(rp_size_of 301 0)"
+assert_eq "10 files are small" "small" "$(rp_size_of 0 10)"
+assert_eq "11 files are large" "large" "$(rp_size_of 0 11)"
+assert_contains "the line threshold is a named constant" \
+  "$(cat "$PLUGIN_SCRIPTS/review-package.sh")" "LARGE_CHANGED_LINES=300"
+assert_contains "the file threshold is a named constant" \
+  "$(cat "$PLUGIN_SCRIPTS/review-package.sh")" "LARGE_FILES=10"
+
+# ── Test 6 (REQ-12): it ships ──
+assert_eq "the manifest lists review-package.sh" "true" \
+  "$(jq -e '.plugin_scripts | index("review-package.sh") != null' \
+       "$REPO_ROOT/templates/dev-setup/manifest.json" >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "review-package.sh ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/review-package.sh" ] && echo true || echo false)"
+assert_eq "the AGENTS.md script table names it with its keys" "true" \
+  "$(grep -E '^\| `review-package\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'CHANGED_LINES' && echo true || echo false)"
+
 echo ""
 echo "══ DE-16488 — the documentation cannot go stale in silence ══"
 
