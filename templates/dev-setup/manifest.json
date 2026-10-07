@@ -27,6 +27,7 @@
   ],
   "template_agents": [
     "review.md",
+    "validate-findings.md",
     "verify.md"
   ],
   "template_skills": [
@@ -49,6 +50,7 @@
     "detect-stack.sh",
     "sdd-start.sh",
     "check-prerequisites.sh",
+    "review-package.sh",
     "multi-preflight.sh",
     "task-clock.sh",
     "migrate-settings.sh",

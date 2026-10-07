@@ -32,8 +32,11 @@ run went is in git and in the merge request.
 ```
 Review: <STATUS>
 Violations: <count>
+Discarded: <count>
 Warnings: <count>
 REGISTRY updated: <yes/no — uncommitted>
 ```
 
-Then the agent's `SUMMARY`, verbatim.
+`Violations` counts the confirmed ones — the ones the status was decided on —
+and `Discarded` the ones the `finding-validator` threw out (0 when it did not
+run). Then the agent's `SUMMARY`, verbatim.

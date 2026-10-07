@@ -86,7 +86,10 @@ repository, not in yours — see [workflow.md](./workflow.md).
        │
        ├─ development against the approved plan, one step at a time
        │
-       ├─ simplify → verify against the spec → review + REGISTRY
+       ├─ simplify → the diff packaged once → verify ∥ review + REGISTRY
+       │  (verify against the spec and review against the rules run in
+       │  parallel, on the same package; a violation counts only once a
+       │  second agent has confirmed it)
        │
        ├─ one commit: code + spec + REGISTRY, with the gate running here
        │

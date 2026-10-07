@@ -240,6 +240,7 @@ status other than 0.
 | `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
+| `review-package.sh --base <ref>` | `PACKAGE`, `MERGE_BASE`, `EMPTY`, `COMMITS`, `FILES`, `CHANGED_LINES`, `SIZE` — the diff `verify` and `review` read, built once: commits, stat and `git diff -U10` of the working tree against `--base`, in one file under the common git directory, named after the branch. `EMPTY` is decided by the diff, never by the commits; `SIZE` is `large` above 300 changed lines or 10 files. It never stages — the caller does |
 | `task-clock.sh --task <id> --start \| --stop`, `task-clock.sh [--task <id>] --status` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON`, `OPEN_TASKS`, `OPEN_COUNT` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why. `--status` reads without writing and, with no task, answers for the whole repository: asking whether work is open must not consume the measurement |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
 | `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `ADDED_EXCLUDED` |
@@ -450,6 +451,20 @@ times that. The `spec-verifier` agent now reads the diff and returns only the
 `---VERIFY-RESULT---` block, exactly as `code-reviewer` returns only
 `---REVIEW-RESULT---`. The test for a new phase is: *can the thing it reads grow
 without bound?* If yes, it goes in an agent.
+
+**Both checks read one package, and answer short** (DE-17080). Each agent used
+to build its own diff, so the closure paid for the same diff twice, and ran the
+two checks one after the other. Step 3 of the closure now stages and calls
+`review-package.sh` once — commits, stat and `git diff -U10`, written under the
+common git directory — and step 4 launches `spec-verifier` and `code-reviewer`
+in one message on that file. Neither agent has `Bash`, so neither can rebuild
+the diff: the proof is the tools line, not a sentence asking them not to. The
+answers are short by contract — the verify block is counts plus gaps, the review
+lists only what blocks the merge (each with `file:line` and a proof) and at most
+five warnings — and a sonnet `finding-validator` re-reads every violation before
+it counts. The reviewer runs on `opus`/`high` and is promoted to `fable` only
+when the package's `SIZE` is `large`; `effort` cannot be set per call, so a large
+change no longer gets `max`.
 
 **No flow skill declares `allowed-tools`.** `sdd`, `sdd-discovery`, `sdd-plan`,
 `quick` and `verify` all declared `allowed-tools: AskUserQuestion` while using
@@ -783,4 +798,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.26.1 — bump the version number on every substantial change*
+*Version: 2.27.0 — bump the version number on every substantial change*
