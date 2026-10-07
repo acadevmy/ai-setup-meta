@@ -142,7 +142,9 @@ The answer is short by contract — every line of it is read by the caller, and
 an answer padded with reassurance hides the one line that matters:
 
 - `VIOLATIONS` holds only what would block the merge, each with the rule it
-  breaks, its file and line, why it blocks and how to show it.
+  breaks, its file and line, why it blocks and how to show it. The caller has
+  each one re-checked against the cited file, line and rule before it counts:
+  one the proof does not support is discarded.
 - `WARNINGS` holds at most 5 entries, the most important first. Past five, keep
   the five that matter most and drop the rest.
 - A remark that cannot be tied to a file and line is not reported.

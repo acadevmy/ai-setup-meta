@@ -2143,6 +2143,43 @@ assert_contains "what matches is not listed" "$CHECKS_MD" \
 assert_eq "the verify skill no longer promises a list of what matches" "false" \
   "$(grep -q 'an explicit list of what matches' "$SKILLS_SRC/verify/SKILL.md" && echo true || echo false)"
 
+# ── Test 9 (REQ-8): only a large change is promoted ──
+REVIEW_SKILL="$(cat "$SKILLS_SRC/review/SKILL.md")"
+assert_eq "the review skill passes model: fable on a large SIZE" "true" \
+  "$(printf '%s\n' "$REVIEW_SKILL" | grep 'model: fable' | grep -q '`large`' && echo true || echo false)"
+
+# ── Test 10 (REQ-10, REQ-12): the validator exists and ships ──
+VALIDATOR="$AGENTS_SRC/validate-findings.md"
+VALIDATOR_FM="$(frontmatter_of "$VALIDATOR" 2>/dev/null)"
+assert_contains "the validator is named finding-validator" "$VALIDATOR_FM" "name: finding-validator"
+assert_contains "it runs on sonnet" "$VALIDATOR_FM" "model: sonnet"
+assert_contains "at medium effort" "$VALIDATOR_FM" "effort: medium"
+assert_eq "and has no Bash either" "false" \
+  "$(printf '%s\n' "$VALIDATOR_FM" | grep '^tools:' | grep -q 'Bash' && echo true || echo false)"
+VALIDATOR_BODY="$(cat "$VALIDATOR" 2>/dev/null)"
+for NEEDLE in "---VALIDATION-RESULT---" "CONFIRMED:" "DISCARDED:"; do
+  assert_contains "the validator returns $NEEDLE" "$VALIDATOR_BODY" "$NEEDLE"
+done
+assert_contains "the review skill launches the validator" "$REVIEW_SKILL" \
+  'Launch the `finding-validator` agent'
+assert_contains "the final report counts the discarded findings" \
+  "$(cat "$SKILLS_SRC/review/reference/registry-updates.md")" "Discarded: <count>"
+assert_eq "the manifest lists validate-findings.md" "true" \
+  "$(jq -e '.template_agents | index("validate-findings.md") != null' \
+       "$REPO_ROOT/templates/dev-setup/manifest.json" >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "the validator ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/agents/validate-findings.md" ] && echo true || echo false)"
+
+# ── Test 11 (REQ-10): what counts, and what an error means ──
+assert_contains "an entry without file:line is discarded" "$VALIDATOR_BODY" \
+  'An entry without `file:line` is discarded'
+assert_contains "the review status is decided on CONFIRMED" "$REVIEW_SKILL" \
+  'The status is decided on `CONFIRMED`'
+assert_contains "with no validation block every violation stands" "$REVIEW_SKILL" \
+  'no `---VALIDATION-RESULT---` block, every violation stands'
+assert_contains "and the validator is not launched for nothing" "$REVIEW_SKILL" \
+  'With no violations, the validator is not launched'
+
 echo ""
 echo "══ DE-16488 — the documentation cannot go stale in silence ══"
 

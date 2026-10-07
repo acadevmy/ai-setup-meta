@@ -27,6 +27,7 @@
   ],
   "template_agents": [
     "review.md",
+    "validate-findings.md",
     "verify.md"
   ],
   "template_skills": [

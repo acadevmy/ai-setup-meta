@@ -9,6 +9,7 @@
   "agents": [
     "./agents/clickup.md",
     "./agents/review.md",
+    "./agents/validate-findings.md",
     "./agents/verify.md"
   ],
   "userConfig": {
