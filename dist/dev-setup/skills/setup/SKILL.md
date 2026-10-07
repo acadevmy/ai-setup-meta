@@ -1,10 +1,9 @@
 ---
 name: setup
 description: Grafts the AI-native workflow onto a project — path-scoped rules, AGENTS.md, MCP servers, Bash sandbox, branch protection. Use when a project must be configured for AI agents for the first time, or when one the plugin already configured must be updated to the current template.
-model: opus
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+disallowed-tools: Agent, WebFetch, WebSearch
 ---
 
 # Dev Setup

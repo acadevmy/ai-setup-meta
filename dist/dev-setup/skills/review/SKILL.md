@@ -1,6 +1,6 @@
 ---
 name: review
-description: Reviews the current branch's diff against the project rules through the review agent, then records the components it found in REGISTRY.md. Use when a branch is ready and its code quality and rule compliance have to be checked before a merge request.
+description: Reviews the current branch's diff against the project rules through the code-reviewer agent, then records the components it found in REGISTRY.md. Use when a branch is ready and its code quality and rule compliance have to be checked before a merge request.
 effort: max
 user-invocable: true
 disable-model-invocation: false
@@ -29,9 +29,9 @@ Use its `MERGE_BASE` (the fork point), `TASK_ID` and `SPEC`. Never assume
 `main`: on a project targeting `next`, that reviews the whole delta between the
 two long-lived branches.
 
-### 2. Launch the review agent
+### 2. Launch the code-reviewer agent
 
-Launch the `review` agent with:
+Launch the `code-reviewer` agent with:
 
 - `BASE_BRANCH`: the `MERGE_BASE` from step 1
 - `RULES_DIR`: `./.claude/rules/`

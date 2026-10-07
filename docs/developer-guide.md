@@ -355,14 +355,20 @@ hold either way: they are permission rules, not sandbox boundaries.
 
 ### `gh` and `glab` run outside the sandbox
 
-`sandbox.excludedCommands` lists `gh` and `glab`. On macOS a Go binary verifies
+`sandbox.excludedCommands` lists `gh *` and `glab *`. On macOS a Go binary verifies
 TLS certificates through a system service the sandbox does not let it reach, so
 inside the sandbox every call fails with `x509: OSStatus -26276`. Excluding them
 removes only the OS-level confinement: the deny rules and the `ask` checkpoints
 on `gh pr create` / `glab mr create` and on writing `gh api` / `glab api` calls
 still apply, and they see `GH_TOKEN` / `GITLAB_TOKEN`, which is the point — they
 are the tools meant to read the token from the environment. A project set up before the entry existed gets it
-on the setup's UPDATE.
+on the setup's UPDATE — and so does one set up with 3.3.0, whose bare `gh` and
+`glab` entries matched only the command with no arguments.
+
+An entry takes a call out of the sandbox only when **every** command in it
+matches, and a redirect to a file, a `cd` or a `$(...)` keeps it in. So
+`gh pr view 12 --json body | head` stays sandboxed and fails like before: run
+`gh` on its own and filter with its `--jq` / `--template` flags instead.
 
 ---
 

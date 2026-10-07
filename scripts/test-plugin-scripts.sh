@@ -832,7 +832,7 @@ assert_eq "an unblocked settings is then left alone" "3" "$?"
 # `gh` and `glab` run outside the sandbox: inside it, on macOS, they cannot
 # verify a TLS certificate and every call fails. A project sandboxed before the entry existed
 # gets it on UPDATE — added next to the team's own entries, nothing else touched.
-assert_eq "the merged settings excludes gh and glab from the sandbox" '["gh","glab"]' \
+assert_eq "the merged settings excludes gh and glab from the sandbox" '["gh *","glab *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/merged.json")"
 
 jq '.sandbox.excludedCommands = ["docker"]' "$MIG_DIR/merged.json" > "$MIG_DIR/no-gh.json"
@@ -843,9 +843,9 @@ EXCL_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
 
 assert_eq "a sandboxed settings without gh is migrated" "excluded-commands-added" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .REASON)"
-assert_eq "the report names the added entries" "gh,glab" \
+assert_eq "the report names the added entries" "gh *,glab *" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .ADDED_EXCLUDED)"
-assert_eq "they are added after the team's own entries" '["docker","gh","glab"]' \
+assert_eq "they are added after the team's own entries" '["docker","gh *","glab *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/with-gh.json")"
 assert_eq "nothing else changes on the excluded-commands pass" "true" \
   "$(jq -n --slurpfile a "$MIG_DIR/no-gh.json" --slurpfile b "$MIG_DIR/with-gh.json" '
@@ -854,6 +854,19 @@ assert_eq "nothing else changes on the excluded-commands pass" "true" \
 bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/with-gh.json" \
   --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
 assert_eq "a settings with gh excluded is then left alone" "3" "$?"
+
+# 3.3.0 shipped bare "gh" and "glab". Entries match like Bash(...) rules, so a
+# pattern with no wildcard matches the command with no arguments only, and
+# `gh pr view 12` stayed sandboxed (invictus-monorepo). The bare entry is
+# replaced by its ` *` form, the team's other entries kept.
+jq '.sandbox.excludedCommands = ["docker", "gh", "glab"]' "$MIG_DIR/merged.json" > "$MIG_DIR/bare-gh.json"
+BARE_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/bare-gh.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/fixed-gh.json" --json 2>/dev/null)
+assert_eq "a bare gh entry is replaced by gh *" '["docker","gh *","glab *"]' \
+  "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/fixed-gh.json")"
+assert_eq "and the report names what it replaced" "gh,glab" \
+  "$(printf '%s' "$BARE_REPORT" | jq -r .RETIRED_EXCLUDED)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)
@@ -1867,11 +1880,113 @@ assert_eq "no setup reference registers an MCP server with --type url" "false" \
   "$(grep -rq -- '--type url' "$REPO_ROOT/templates/dev-setup/setup" \
        "$REPO_ROOT/dist/dev-setup/skills/setup" && echo true || echo false)"
 
-# The asks in the setup are real tool calls: the skill has to be allowed to make
-# them. `install.md` alone instructs three of them.
-assert_contains "the setup skill may call AskUserQuestion" \
-  "$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")" \
-  "AskUserQuestion"
+# The asks in the setup are real AskUserQuestion calls — `install.md` alone
+# instructs three of them — so nothing may take that tool away. The documented
+# rule: `allowed-tools` only pre-approves the tools it lists and restricts none;
+# `disallowed-tools` is the one field that removes a tool, until the developer's
+# next message. So the setup declares the tools it does not need there, and
+# AskUserQuestion is callable because that line does not name it. No `model:`
+# either: an override either lasts one turn of a multi-turn setup, paying two
+# cache re-keys, or silently moves the rest of the session to another model.
+SETUP_FM="$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")"
+SETUP_DISALLOWED="$(printf '%s\n' "$SETUP_FM" | grep '^disallowed-tools:')"
+assert_eq "the setup declares no allowed-tools, which would restrict nothing" "" \
+  "$(printf '%s\n' "$SETUP_FM" | grep '^allowed-tools:')"
+assert_eq "the setup does not switch the session model" "" \
+  "$(printf '%s\n' "$SETUP_FM" | grep '^model:')"
+for TOOL in Agent WebFetch WebSearch; do
+  assert_contains "the setup removes $TOOL through disallowed-tools" "$SETUP_DISALLOWED" "$TOOL"
+done
+assert_eq "and leaves AskUserQuestion callable" "false" \
+  "$(printf '%s' "$SETUP_DISALLOWED" | grep -q 'AskUserQuestion' && echo true || echo false)"
+
+echo ""
+echo "══ DE-17061 — what the claude.dev analysis found ══"
+
+# REQ-3. `gh *` / `glab *` in excludedCommands only helps a call that has no
+# `$(…)`, no subshell, no `cd` and no redirect: any of them keeps the whole call
+# sandboxed, where on macOS it fails TLS verification. So every merge-request
+# form in the references passes literal values, single-quoted — never a
+# substitution and never a double-quoted string a filled title could turn into
+# one. Pinned on the source and on the shipped copy.
+for VCS_DIR in "$REPO_ROOT/shared/skills/vcs-ops/reference" \
+               "$REPO_ROOT/dist/dev-setup/skills/vcs-ops/reference"; do
+  WHERE="${VCS_DIR#"$REPO_ROOT"/}"
+  assert_eq "$WHERE: no merge-request row carries a \$ or a double-quoted value" "" \
+    "$(grep -hE '^\|' "$VCS_DIR/github.md" "$VCS_DIR/gitlab.md" \
+         | grep -E 'gh pr create|glab mr create|--description' | grep -E '[$"]')"
+  assert_eq "$WHERE: gitlab.md suggests no \$(cat body.md) and no double-quoted description" "" \
+    "$(grep -nF -e '$(cat body.md)' -e '--description "' "$VCS_DIR/gitlab.md")"
+  for NEEDLE in "--base '<BASE_BRANCH>'" "--head '<BRANCH>'" "--title '<TITLE>'" "'\\''"; do
+    assert_contains "$WHERE: github.md passes $NEEDLE" "$(cat "$VCS_DIR/github.md")" "$NEEDLE"
+  done
+  for NEEDLE in "--source-branch '<BRANCH>'" "--target-branch '<BASE_BRANCH>'" "--title '<TITLE>'" "'\\''"; do
+    assert_contains "$WHERE: gitlab.md passes $NEEDLE" "$(cat "$VCS_DIR/gitlab.md")" "$NEEDLE"
+  done
+done
+
+# REQ-4. A `userConfig` value reaches a plugin in two ways only: substituted as
+# `${user_config.KEY}` in the body of a skill or an agent, and exported to hooks
+# as CLAUDE_PLUGIN_OPTION_<KEY>. Bash and Read see neither, so the contract may
+# not send a flow to "read the plugin's userConfig" — the clickup skill states
+# the value, and the contract points there.
+for F in "templates/dev-setup/.claude/reference/clickup-contract.md" \
+         "templates/dev-setup/setup/reference/mcp-env.md" \
+         "dist/dev-setup/reference/clickup-contract.md" \
+         "dist/dev-setup/skills/setup/reference/mcp-env.md"; do
+  assert_eq "$F does not send a flow to read the plugin's userConfig" "false" \
+    "$(grep -qF "plugin's \`userConfig\`" "$REPO_ROOT/$F" && echo true || echo false)"
+done
+for F in "shared/skills/clickup/SKILL.md" "dist/dev-setup/skills/clickup/SKILL.md"; do
+  assert_contains "$F states the install-time list id" \
+    "$(cat "$REPO_ROOT/$F")" '${user_config.CLICKUP_SETUP_LIST_ID}'
+done
+assert_contains "the contract resolves the list id through the clickup skill" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/clickup-contract.md")" \
+  "list configured at install time"
+
+# A placeholder naming a key the manifest does not declare is never substituted:
+# the model would read the literal text. Every one must name a declared key.
+undeclared_user_config() {
+  local declared
+  declared="$(jq -r '.userConfig // {} | keys[]' "$REPO_ROOT/dist/dev-setup/.claude-plugin/plugin.json")"
+  grep -rhoE '\$\{user_config\.[A-Za-z0-9_]+\}' "$@" 2>/dev/null \
+    | sed -E 's/^\$\{user_config\.//; s/\}$//' | LC_ALL=C sort -u \
+    | while IFS= read -r KEY; do
+        printf '%s\n' "$declared" | grep -qxF "$KEY" || printf '%s\n' "$KEY"
+      done
+}
+assert_eq "every \${user_config.KEY} in a shipped skill or agent is declared" "" \
+  "$(undeclared_user_config "$REPO_ROOT/dist/dev-setup/skills" "$REPO_ROOT/dist/dev-setup/agents")"
+UC_PROBE="$WORK_DIR/user-config-probe"
+mkdir -p "$UC_PROBE"
+printf 'List: ${user_config.CLICKUP_SETUP_LIST_ID}, team: ${user_config.NOT_DECLARED}\n' \
+  > "$UC_PROBE/SKILL.md"
+assert_eq "and the check catches an undeclared key" "NOT_DECLARED" \
+  "$(undeclared_user_config "$UC_PROBE")"
+
+# REQ-6. AGENTS.md is the ground truth for an agent, so it may not credit the
+# setup with a boundary its frontmatter does not draw.
+AGENTS_MD="$(cat "$REPO_ROOT/AGENTS.md")"
+assert_eq "AGENTS.md no longer says allowed-tools denies the agent launcher" "false" \
+  "$(printf '%s' "$AGENTS_MD" | grep -q 'denies the agent launcher and the network' && echo true || echo false)"
+assert_contains "AGENTS.md describes the setup's disallowed-tools" "$AGENTS_MD" "disallowed-tools"
+assert_eq "the AGENTS.md version footer moved past 2.25.0" "false" \
+  "$(printf '%s' "$AGENTS_MD" | grep -q '^\*Version: 2\.25\.0 ' && echo true || echo false)"
+
+# REQ-8. A skill launches an agent by its frontmatter `name:`, not by its file
+# name: review.md is `code-reviewer`, verify.md is `spec-verifier`. A name that
+# resolves to no agent sends the launcher looking for one that does not exist.
+AGENT_NAMES="$(for A in "$REPO_ROOT"/templates/dev-setup/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
+    sed -n '2,/^---$/p' "$A" | sed -n 's/^name:[[:space:]]*//p'
+  done | LC_ALL=C sort -u)"
+UNKNOWN_AGENTS="$(grep -rhoE 'Launch the `[^`]+` agent' \
+    "$REPO_ROOT/templates/dev-setup/.claude/skills" "$REPO_ROOT/shared/skills" \
+  | sed -E 's/^Launch the `//; s/` agent$//' | LC_ALL=C sort -u \
+  | while IFS= read -r NAME; do
+      printf '%s\n' "$AGENT_NAMES" | grep -qxF "$NAME" || printf '%s\n' "$NAME"
+    done)"
+assert_eq "every \"Launch the \`<name>\` agent\" names an agent's frontmatter name" "" "$UNKNOWN_AGENTS"
 
 echo ""
 echo "── frontmatter parseability ──"

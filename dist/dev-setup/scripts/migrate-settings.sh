@@ -38,9 +38,12 @@
 #     `sandbox.filesystem.denyRead`), those entries are removed. Write denies
 #     are kept either way;
 #   - if it lacks a `sandbox.excludedCommands` entry the template carries, the
-#     entry is added. `gh` and `glab` are there because inside the macOS
+#     entry is added. `gh *` and `glab *` are there because inside the macOS
 #     sandbox they cannot verify a TLS certificate, so every call fails; the
-#     team's own entries stay.
+#     team's own entries stay. An entry the template supersedes — a bare `gh`
+#     where the template says `gh *` — is replaced: entries match like
+#     `Bash(...)` rules, so `gh` with no wildcard matches only `gh` with no
+#     arguments, and the 3.3.0 template shipped exactly that.
 #
 # Report keys (--json):
 #   MIGRATED        true | false
@@ -54,6 +57,7 @@
 #   KEPT_ALLOW      comma-separated allow entries kept that the template lacks
 #   RETIRED_DENY    comma-separated `.env` read denies removed, or ""
 #   ADDED_EXCLUDED  comma-separated `sandbox.excludedCommands` entries added, or ""
+#   RETIRED_EXCLUDED comma-separated entries replaced by their ` *` form, or ""
 #
 # Exit code: 0 = merged · 3 = nothing to migrate · other = error.
 # The merged output is written; it is never applied in place. The caller shows
@@ -156,6 +160,7 @@ report_and_exit() {
     json_set KEPT_ALLOW ""
     json_set RETIRED_DENY ""
     json_set ADDED_EXCLUDED ""
+    json_set RETIRED_EXCLUDED ""
     json_emit
   else
     warn "nothing to migrate: $reason"
@@ -168,11 +173,16 @@ RETIRED_DENYREAD_JSON=$(printf '%s\n' "${RETIRED_DENYREAD[@]}" | jq -R . | jq -s
 
 csv_of() { jq -r 'if length == 0 then "" else join(",") end'; }
 
-# The template's `sandbox.excludedCommands` entries the project lacks.
+# The template's `sandbox.excludedCommands` entries the project lacks, and the
+# project's entries one of them supersedes (`gh` when the template has `gh *`).
 MISSING_EXCLUDED=$(jq -n --slurpfile proj "$IN_FILE" --slurpfile tpl "$TEMPLATE_FILE" '
   ((($tpl[0].sandbox // {}).excludedCommands) // []) as $t |
   ((($proj[0].sandbox // {}).excludedCommands) // []) as $p |
-  $t | map(select(. as $e | $p | index($e) | not))')
+  $t | map(select(. as $e | $p | index([$e]) | not))')
+SUPERSEDED_EXCLUDED=$(jq -n --slurpfile proj "$IN_FILE" --slurpfile tpl "$TEMPLATE_FILE" '
+  ((($tpl[0].sandbox // {}).excludedCommands) // []) as $t |
+  ((($proj[0].sandbox // {}).excludedCommands) // []) as $p |
+  $p | map(select(. as $e | $t | index([$e + " *"])))')
 
 if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
   # The team's file, normally left alone. Two checks remain: the `.env` read
@@ -189,7 +199,7 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
   fi
 
   MERGED=$(jq --argjson rd "$RETIRED_DENY_JSON" --argjson rr "$RETIRED_DENYREAD_JSON" \
-              --argjson ex "$MISSING_EXCLUDED" '
+              --argjson ex "$MISSING_EXCLUDED" --argjson sup "$SUPERSEDED_EXCLUDED" '
     (if ((.permissions // {}) | has("deny")) then
        .permissions.deny |= map(select(. as $e | $rd | index($e) | not))
      else . end)
@@ -199,13 +209,15 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
             then del(.sandbox.filesystem.denyRead) else . end)
        else . end)
     | (if ($ex | length) > 0 then
-         .sandbox.excludedCommands = ((.sandbox.excludedCommands // []) + $ex)
+         .sandbox.excludedCommands = ((.sandbox.excludedCommands // [])
+           | map(select(. as $e | $sup | index([$e]) | not))) + $ex
        else . end)
     ' "$IN_FILE")
   [ -n "$MERGED" ] || die "the sandbox pass produced nothing — is $IN_FILE a settings.json?"
 
   RETIRED_DENY_FOUND=$(printf '%s' "$FOUND_RETIRED" | csv_of)
   ADDED_EXCLUDED=$(printf '%s' "$MISSING_EXCLUDED" | csv_of)
+  RETIRED_EXCLUDED=$(printf '%s' "$SUPERSEDED_EXCLUDED" | csv_of)
   if [ -n "$RETIRED_DENY_FOUND" ]; then
     PATCH_REASON=env-read-unblocked
   else
@@ -227,6 +239,7 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
     json_set KEPT_ALLOW ""
     json_set RETIRED_DENY "$RETIRED_DENY_FOUND"
     json_set ADDED_EXCLUDED "$ADDED_EXCLUDED"
+    json_set RETIRED_EXCLUDED "$RETIRED_EXCLUDED"
     json_emit
   elif [ -z "$OUT_FILE" ]; then
     printf '%s\n' "$MERGED"
@@ -312,6 +325,7 @@ if [ "$AS_JSON" = true ]; then
   json_set KEPT_ALLOW "$KEPT_ALLOW"
   json_set RETIRED_DENY "$RETIRED_DENY_FOUND"
   json_set ADDED_EXCLUDED "$(printf '%s' "$MISSING_EXCLUDED" | csv_of)"
+  json_set RETIRED_EXCLUDED ""
   json_emit
 elif [ -z "$OUT_FILE" ]; then
   printf '%s\n' "$MERGED"

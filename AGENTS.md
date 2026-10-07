@@ -458,9 +458,18 @@ $19.34 run) from the three that did not. Cause is not proven — the same
 declarations sat on the same skills in v2.3.1, which never re-keyed, so the
 change from `model: opus` to `effort:` is the other variable in play — but a
 declaration that restricts nothing is not worth keeping while it is a suspect.
-`setup/SKILL.md` keeps its own `allowed-tools`: there the list is real, it
-denies the agent launcher and the network, and setup is one skill at the start
-of a session rather than a transition inside a flow.
+
+`allowed-tools` never restricts anything: it pre-approves the tools it lists,
+and every other tool stays callable. `setup/SKILL.md` used to keep its own list
+on the claim that it denied the agent launcher and the network; it did not
+(DE-17061). The setup now declares `disallowed-tools: Agent, WebFetch,
+WebSearch`, the field that does remove tools, and no `model:` — an override
+that either lasts one turn of a multi-turn setup or moves the rest of the
+session to another model. The removal lasts only until the developer's next
+message, and the setup ends its turn at every question, so it guards the first
+turn and nothing more: it is a guard against a stray call, not a boundary. The
+boundary is still the `deny` rules plus the sandbox. `AskUserQuestion` stays
+off that list: the setup's questions are real calls.
 
 Whoever measures the next run: the number to watch is `cache_creation` on the
 request that loads a skill, and the tell is `cache_read` collapsing to the size
@@ -768,4 +777,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.25.0 — bump the version number on every substantial change*
+*Version: 2.25.1 — bump the version number on every substantial change*
