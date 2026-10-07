@@ -413,6 +413,15 @@ assert_eq "--create forks from the --base ref" \
   "$(cd "$SANDBOX" && git rev-parse feat/DE-5 2>/dev/null)"
 (cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-5) >/dev/null 2>&1
 
+# --create never sets up tracking: from a remote base it would write
+# branch.<name>.* into .git/config, which the Claude Code sandbox protects, and
+# the branch would not be cut at all. `git push -u` sets the upstream later.
+(cd "$SANDBOX" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=branch.autoSetupMerge GIT_CONFIG_VALUE_0=always \
+  bash "$PLUGIN_SCRIPTS/sdd-start.sh" --task DE-5 --base main --create --json) >/dev/null 2>&1
+assert_eq "--create cuts the branch without tracking its base" "" \
+  "$(cd "$SANDBOX" && git config --get branch.feat/DE-5.merge)"
+(cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-5) >/dev/null 2>&1
+
 # ── --stop: the stop point survives the session (DE-17076) ──
 #
 # Chosen once at launch and read back on resume, so a resumed run does not ask

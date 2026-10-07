@@ -167,7 +167,9 @@ if [ "$DO_CREATE" = true ]; then
     git checkout "$BRANCH" >/dev/null 2>&1 || die "cannot check out the existing branch $BRANCH"
   else
     if [ -n "$BASE_BRANCH" ]; then
-      git checkout -b "$BRANCH" "$BASE_BRANCH" >/dev/null 2>&1 \
+      # --no-track: a remote base would otherwise write branch.<name>.* into
+      # .git/config, which the sandbox protects — `git push -u` sets it later.
+      git checkout --no-track -b "$BRANCH" "$BASE_BRANCH" >/dev/null 2>&1 \
         || die "cannot create $BRANCH from $BASE_BRANCH"
     else
       git checkout -b "$BRANCH" >/dev/null 2>&1 \
