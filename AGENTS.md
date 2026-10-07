@@ -423,7 +423,8 @@ with open points carries the `da dettagliare` tag, and the flows that meet it
 go through the open-points gate of `clickup-contract.md` — once, before any
 branch, never in the middle of a run. A description in any other shape keeps
 working exactly as before: the format is used when it is there, never
-required.
+required. The command ships in **beta**: its drafts and its ClickUp output
+may still change between releases.
 
 The standalone `tdd` and `bdd` skills are gone (DE-16479): they restated
 `sdd-dev/reference/methodologies.md`, nothing in the flow ever invoked them, and
@@ -793,4 +794,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.26.0 — bump the version number on every substantial change*
+*Version: 2.27.0 — bump the version number on every substantial change*
