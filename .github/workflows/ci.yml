@@ -1,12 +1,13 @@
 name: CI
 
-# The meta-repo's safety net (DE-16471). Four independent gates:
+# The meta-repo's safety net (DE-16471). Five independent gates:
 #   - plugin-validate: the plugin and marketplace catalogue manifests are valid
 #   - shellcheck:      the sh scripts carry no warnings
 #   - static-checks:   the static checks on skill, workflow and documentation
 #                      quality (validate-plugin.sh) — checks 14-15 resolve every
 #                      command, script and path the docs cite (DE-16488)
 #   - bash-tests:      the plugin scripts and hooks against their fixtures (DE-16476)
+#   - mod-tests:       the mod's hooks and helpers under `claude plugin test` (DE-17071)
 #
 # `static-checks` runs against a baseline of known failures (scripts/validate-baseline.txt):
 # the defects the audit recorded are reported but do not block; any new defect does.
@@ -39,6 +40,18 @@ jobs:
       # authentication nor network access to the API.
       - name: Validate plugin manifest (dist/dev-setup)
         run: claude plugin validate --strict dist/dev-setup/
+
+      # The mod is an interface layer (DE-17071): it may read, draw and fill the
+      # prompt, never send one or act. validate lists every mods API call the
+      # module makes; a call that would let it enforce or act fails the job.
+      - name: The mod makes no call that acts
+        run: |
+          calls=$(claude plugin validate dist/dev-setup/ 2>&1 | grep 'register.ts calls:' || true)
+          echo "$calls"
+          [ -n "$calls" ] || { echo "no 'register.ts calls:' line in the validate output"; exit 1; }
+          if printf '%s' "$calls" | grep -Eq '\$\.(prompt\.submit|tool\.call|turn\.abort|config\.set|env\.set|fs\.write)\b'; then
+            echo "the mod calls a method that acts — it must only read, draw and fill"; exit 1
+          fi
 
       - name: Validate marketplace catalog
         run: claude plugin validate --strict .claude-plugin/marketplace.json
@@ -92,3 +105,24 @@ jobs:
       # branch naming, the template rendering and both modes of gate-commit.
       - name: Run the plugin script tests
         run: bash scripts/test-plugin-scripts.sh
+
+  mod-tests:
+    name: mod tests (claude plugin test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      # The tests run on the built plugin — exactly what is released — with no
+      # session, sign-in or network. The flag turns mods on in a build that
+      # still ships them as early access, and changes nothing where they are on.
+      - name: Run the mod tests (dist/dev-setup)
+        env:
+          CLAUDE_CODE_ENABLE_FUNCTION_HOOKS: '1'
+        run: claude plugin test dist/dev-setup

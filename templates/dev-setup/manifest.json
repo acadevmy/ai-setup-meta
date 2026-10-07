@@ -64,6 +64,18 @@
     "post-merge-request.sh",
     "on-compact.sh"
   ],
+  "mod": [
+    "register.ts",
+    "lib/clock.ts",
+    "lib/merge-request.ts",
+    "lib/catalogue.ts",
+    "lib/usage.ts",
+    "lib/runs.ts",
+    "lib/context.ts",
+    "lib/views.ts",
+    "tests/lib.test.ts",
+    "tests/register.test.ts"
+  ],
   "rules": [
     "core.md",
     "code-style.md",

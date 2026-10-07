@@ -2,6 +2,7 @@
 name: multi-sdd
 description: Runs the autonomous SDD workflow on up to five tracked tasks from one session — a sequential pre-flight, then one background run per task in its own worktree, each outcome reported as it lands. Use when several independent tasks should each reach a review-ready merge request without a terminal per task.
 effort: medium
+argument-hint: "<TASK_ID>… | --from-sprint <n>"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -12,11 +13,11 @@ One session, several tasks. This command **composes** the `auto-sdd` workflow: i
 holds no development logic, and every line of spec → challenge → dev → verify
 lives in `workflows/auto-sdd.js`.
 
-**Usage**: `/dev-setup:multi-sdd DE-1 DE-2 …`, or `--from-sprint <n>` to take
-the first `n` `SPRINT` tasks off the board rather than naming them.
+**Usage**: `/dev-setup:multi-sdd DE-1 DE-2 …`, or `--from-sprint <n>` for the
+first `n` `SPRINT` tasks on the board.
 
 The chat is a control tower: the human parts happen **before** the fan-out or
-**after**, never braided through the middle. Parallel *interactive* work stays
+**after**, never braided through it. Parallel *interactive* work stays
 `n` invocations of `sdd`, one terminal each.
 
 ## The cap is a script, not a sentence
