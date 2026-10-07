@@ -452,6 +452,20 @@ times that. The `spec-verifier` agent now reads the diff and returns only the
 `---REVIEW-RESULT---`. The test for a new phase is: *can the thing it reads grow
 without bound?* If yes, it goes in an agent.
 
+**Both checks read one package, and answer short** (DE-17080). Each agent used
+to build its own diff, so the closure paid for the same diff twice, and ran the
+two checks one after the other. Step 3 of the closure now stages and calls
+`review-package.sh` once — commits, stat and `git diff -U10`, written under the
+common git directory — and step 4 launches `spec-verifier` and `code-reviewer`
+in one message on that file. Neither agent has `Bash`, so neither can rebuild
+the diff: the proof is the tools line, not a sentence asking them not to. The
+answers are short by contract — the verify block is counts plus gaps, the review
+lists only what blocks the merge (each with `file:line` and a proof) and at most
+five warnings — and a sonnet `finding-validator` re-reads every violation before
+it counts. The reviewer runs on `opus`/`high` and is promoted to `fable` only
+when the package's `SIZE` is `large`; `effort` cannot be set per call, so a large
+change no longer gets `max`.
+
 **No flow skill declares `allowed-tools`.** `sdd`, `sdd-discovery`, `sdd-plan`,
 `quick` and `verify` all declared `allowed-tools: AskUserQuestion` while using
 Bash, Read, Edit and the agent launcher — a restriction none of them respected,

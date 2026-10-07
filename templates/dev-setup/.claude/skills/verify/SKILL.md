@@ -12,12 +12,12 @@ Answer one question: did we build what we said we would build? `review` checks
 **code quality** against the project rules; this skill checks **spec
 conformance**, and the two are not substitutes.
 
-**Input**: optionally a spec path. Without one, the spec is resolved from the
-current branch (`feat(auth)/DE-123_slug` → `.specs/DE-123-*.md`).
+**Input**: optionally a spec path and a `PACKAGE`. Without a path, the spec is
+resolved from the current branch (`feat(auth)/DE-123_slug` → `.specs/DE-123-*.md`).
+The `sdd` closure passes the package it built once for both checks.
 
-The comparison itself runs in the `spec-verifier` agent, the same shape `review`
-uses: the diff is unbounded and belongs in an isolated context, while this skill
-handles the resolution before it and the reporting after it.
+The comparison runs in the `spec-verifier` agent: the diff is unbounded and
+belongs in an isolated context.
 
 ## Before you start
 
@@ -28,8 +28,6 @@ handles the resolution before it and the reporting after it.
 ## Procedure
 
 ### 1. Collect the prerequisites
-
-One call resolves the spec, the plan, the base branch and the changed files:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
@@ -45,21 +43,23 @@ whether to proceed anyway.
 
 ### 2. Launch the verification agent
 
-Build the review package against the fork point, never a hard-coded `main`:
+With a `PACKAGE` given, use it. Without one, stage (`git add -A`: an untracked
+file has no diff) and build it against the fork point, never a hard-coded `main`:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-package.sh" --base <MERGE_BASE> --json
 ```
 
-Then launch the `spec-verifier` agent with:
+`EMPTY=true` means there is nothing to verify: say so and stop, with no agent
+launched. Otherwise launch the `spec-verifier` agent with:
 
 - `SPEC`: the spec path from step 1
-- `PACKAGE`: the `PACKAGE` the script returned
+- `PACKAGE`: the one given, or the one the script returned
 - `CHECKS_PATH`: `${CLAUDE_PLUGIN_ROOT}/skills/verify/reference/checks.md`
 - `TASK_ID`: the `TASK_ID` from step 1, if there is one
 
-**Do not run `git diff` here.** The agent reads it; pulling it into this context
-too pays for it twice and is what this split exists to avoid.
+**Do not read the package here.** The agent reads it; reading it twice is what
+this split exists to avoid.
 
 ### 3. Read the result
 
@@ -71,8 +71,8 @@ Parse the `---VERIFY-RESULT---` block the agent returns.
 - **pass-with-warnings** — show the block, highlight the warnings, and ask
   whether they are intentional scope reductions. Proceed on a confirmation.
 - **pass** — show the block and confirm the implementation matches the spec.
-- **error** — the agent could not run the check (a spec or a ref it could not
-  resolve). Report what it says and stop: an error is not a pass.
+- **error** — the agent could not run the check (a spec or a package it could
+  not read). Report what it says and stop: an error is not a pass.
 
 ## Expected output
 

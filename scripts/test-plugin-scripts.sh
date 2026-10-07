@@ -2180,6 +2180,47 @@ assert_contains "with no validation block every violation stands" "$REVIEW_SKILL
 assert_contains "and the validator is not launched for nothing" "$REVIEW_SKILL" \
   'With no violations, the validator is not launched'
 
+# ── Test 8 (REQ-5, REQ-6): the closure packages once and runs both checks ──
+CLOSURE="$SKILLS_SRC/sdd/reference/closure.md"
+assert_eq "the closure builds the package exactly once" "1" \
+  "$(grep -o 'review-package\.sh' "$CLOSURE" | wc -l | tr -d ' ')"
+# Step 3 is the block between its heading and step 4's.
+CLOSURE_STEP3="$(sed -n '/^## 3\. /,/^## 4\. /p' "$CLOSURE")"
+line_of() { printf '%s\n' "$1" | grep -nF -- "$2" | head -1 | cut -d: -f1; }
+STAGE_AT="$(line_of "$CLOSURE_STEP3" 'git add -A')"
+PACKAGE_AT="$(line_of "$CLOSURE_STEP3" 'review-package.sh')"
+assert_eq "step 3 stages before it packages" "true" \
+  "$([ -n "$STAGE_AT" ] && [ -n "$PACKAGE_AT" ] && [ "$STAGE_AT" -lt "$PACKAGE_AT" ] && echo true || echo false)"
+CLOSURE_MD="$(cat "$CLOSURE")"
+assert_contains "both skills get the one package" "$CLOSURE_MD" \
+  'Invoke the `verify` and `review` skills in the same turn, each with `PACKAGE` and `SIZE`'
+assert_contains "and both agents launch in one message" "$CLOSURE_MD" \
+  'launch `spec-verifier` and `code-reviewer` in one message'
+assert_contains "an empty change stops the closure" "$CLOSURE_MD" \
+  '`EMPTY=true` stops the closure: nothing to verify or review'
+OUTCOME_1="$(line_of "$CLOSURE_MD" '1. **verify fail** → back to development')"
+OUTCOME_2="$(line_of "$CLOSURE_MD" '2. otherwise **review fail** → fix the `CONFIRMED` violations and rerun from step 3')"
+OUTCOME_3="$(line_of "$CLOSURE_MD" '3. otherwise **verify pass-with-warnings** → show the warnings and ask')"
+OUTCOME_4="$(line_of "$CLOSURE_MD" '4. otherwise → step 5')"
+assert_eq "the two results are read in one order" "true" \
+  "$([ -n "$OUTCOME_1" ] && [ -n "$OUTCOME_2" ] && [ -n "$OUTCOME_3" ] && [ -n "$OUTCOME_4" ] \
+       && [ "$OUTCOME_1" -lt "$OUTCOME_2" ] && [ "$OUTCOME_2" -lt "$OUTCOME_3" ] \
+       && [ "$OUTCOME_3" -lt "$OUTCOME_4" ] && echo true || echo false)"
+assert_contains "the developer guide runs the two checks in parallel" \
+  "$(cat "$REPO_ROOT/docs/developer-guide.md")" "verify ∥ review"
+
+# ── Test 12 (REQ-7): invoked on their own, the skills build the package ──
+for SKILL_NAME in verify review; do
+  SKILL_BODY="$(cat "$SKILLS_SRC/$SKILL_NAME/SKILL.md")"
+  assert_contains "$SKILL_NAME accepts a PACKAGE from its caller" "$SKILL_BODY" 'With a `PACKAGE` given'
+  assert_contains "$SKILL_NAME builds one otherwise" "$SKILL_BODY" \
+    'review-package.sh" --base <MERGE_BASE> --json'
+  assert_contains "$SKILL_NAME launches no agent on an empty change" "$SKILL_BODY" \
+    '`EMPTY=true` means there is nothing to'
+done
+bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict >/dev/null 2>&1
+assert_eq "the static checks pass, word budgets included" "0" "$?"
+
 echo ""
 echo "══ DE-16488 — the documentation cannot go stale in silence ══"
 

@@ -28,8 +28,8 @@ commits this flow used to mandate (`refactor: simplify`, `docs(registry)`,
 
 - [1. Stage](#1-stage)
 - [2. Simplify](#2-simplify)
-- [3. Verify](#3-verify)
-- [4. Review](#4-review)
+- [3. Package the diff](#3-package-the-diff)
+- [4. Verify and review, in parallel](#4-verify-and-review-in-parallel)
 - [5. Summary](#5-summary)
 - [6. Commit](#6-commit)
 - [7. Push](#7-push)
@@ -53,21 +53,41 @@ quality and efficiency, fix what it finds. **This is the only place `simplify`
 runs in the flow** — `sdd-dev` no longer calls it. Whatever it changes is part
 of the change, not a commit of its own.
 
-## 3. Verify
+## 3. Package the diff
 
-Invoke the `verify` skill — it checks the change against the spec: every `REQ-N`
-implemented, every planned test present, the Impact list respected, the
-technical decisions followed.
+```bash
+git add -A
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-package.sh" --base <MERGE_BASE> --json
+```
 
-- **fail** → show what is missing and go back to development;
-- **pass-with-warnings** → show the warnings and ask the developer to confirm;
-- **pass** → go on to review.
+Stage again first: a file `simplify` (step 2) or a review fix created is
+untracked until it is staged, and an untracked file has no diff. Then build the
+review package once, against the `MERGE_BASE` the prerequisites return — both
+checks read this one file, and neither builds a diff of its own. Do not read the
+package here: it is unbounded, and the agents read it.
 
-## 4. Review
+`EMPTY=true` stops the closure: nothing to verify or review, and no agent is
+launched. Say so and go back to development.
 
-Invoke the `review` skill: rule compliance through the review agent, code
-quality, and the `REGISTRY.md` entries the change earns. It writes those entries
-into the working tree and commits nothing — they ride the commit below.
+## 4. Verify and review, in parallel
+
+Invoke the `verify` and `review` skills in the same turn, each with `PACKAGE` and `SIZE`
+from step 3, and launch `spec-verifier` and `code-reviewer` in one message:
+the two checks are independent, so neither waits for the other. `verify` checks
+the change against the spec; `review` checks the code against the rules,
+validates its own violations, and writes the `REGISTRY.md` entries the change
+earns into the working tree — they ride the commit below.
+
+Read the two results together, in this order:
+
+1. **verify fail** → back to development; the review's findings are shown, not acted on;
+2. otherwise **review fail** → fix the `CONFIRMED` violations and rerun from step 3, the packaging step;
+3. otherwise **verify pass-with-warnings** → show the warnings and ask the developer to confirm;
+4. otherwise → step 5.
+
+A verify fail comes first because fixing the code's style on an implementation
+that does not yet do what the spec says is work done twice.
 
 ## 5. Summary
 
