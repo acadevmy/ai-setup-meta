@@ -30,7 +30,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 ```
 /dev-setup:setup      ← one-off, per project
        │
-/dev-setup:story      ← writes the story (or the epic) on ClickUp
+/dev-setup:story      ← (beta) writes the story (or the epic) on ClickUp
        │
        ├── /dev-setup:quick     ← a fix or chore: branch, change, commit, MR
        │
@@ -45,7 +45,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 | Command | Use it when | Example |
 |---|---|---|
 | `/dev-setup:setup` | Configuring a project for the first time, or pulling in a new plugin version | `/dev-setup:setup` |
-| `/dev-setup:story` | The work exists only as an idea, a sentence or a Figma file, and needs to become a story someone can build | `/dev-setup:story "visitors can sign up for updates on a sold-out product" https://figma.com/design/…` |
+| `/dev-setup:story` (beta) | The work exists only as an idea, a sentence or a Figma file, and needs to become a story someone can build | `/dev-setup:story "visitors can sign up for updates on a sold-out product" https://figma.com/design/…` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
 | `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
@@ -71,6 +71,10 @@ board. A story that still has open points is tagged `da dettagliare`. With
 skeleton, the release lanes — as a page of the ClickUp Doc named under
 `Story maps` in `product.md`; every epic links to it, and the release plan
 lives there only.
+
+**`story` is in beta.** The drafts, the questions it asks and the shape of
+what it creates on ClickUp may still change between releases. Read the drafts
+before approving them, and report what it got wrong.
 
 **Which one does `review` belong to?** It runs inside `sdd` already, before the
 commit. Invoked on its own it reviews the current branch, updates `REGISTRY.md`

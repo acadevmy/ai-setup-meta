@@ -1,6 +1,6 @@
 ---
 name: story
-description: Writes a user story, or an epic with its stories, from a short description and optional Figma links, checks it against INVEST and the project's product context, and publishes it to ClickUp after the developer approves it. Use when work has to be turned into a ready-to-build backlog item before anyone runs sdd on it.
+description: (Beta) Writes a user story, or an epic with its stories, from a short description and optional Figma links, checks it against INVEST and the project's product context, and publishes it to ClickUp after the developer approves it. Use when work has to be turned into a ready-to-build backlog item before anyone runs sdd on it.
 effort: high
 user-invocable: true
 disable-model-invocation: true
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 # Story
 
-Turn a raw request into backlog items a developer can build without asking
+**Beta.** Turn a raw request into backlog items a developer can build without asking
 anyone anything — drafted, reviewed, approved, then created on ClickUp.
 
 **Usage**: `/dev-setup:story "<what the feature should do>" [figma-url…] [--map]`.
