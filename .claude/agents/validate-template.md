@@ -81,7 +81,7 @@ If any pattern turns up in a non-example file, the check FAILs.
 
 Verify that `<TEMPLATE_PATH>/.gitignore` contains at least:
 - `.env.local`
-- `.env*.local`
+- `.env.*.local`
 - `node_modules/`
 - `.claude/todos.md`
 

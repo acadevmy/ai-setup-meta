@@ -21,14 +21,10 @@ human review. The pipeline never merges anything: the PR is the handover.
 ## When it runs
 
 - **Scheduled** (the only automatic mode) — the Claude Code Routine
-  `auto-maintain ai-base-setup` on `claude.ai/code/routines`, daily. It runs on
-  Anthropic cloud infrastructure: no launchd, no TTY dependency, no personal
-  paths. `AGENTS.md` § "Autonomous maintenance pipeline" has the setup.
+  `auto-maintain ai-base-setup` on `claude.ai/code/routines`, daily, on
+  Anthropic cloud infrastructure. `AGENTS.md` § "Autonomous maintenance
+  pipeline" has the setup.
 - **On demand** — `/project:auto-maintain`, for a test or a local catch-up.
-
-The launchd runner (`scripts/auto-maintain-runner.sh`) was removed: it ran with
-`--dangerously-skip-permissions` and `source .env.local` on an agent that reads
-third-party text.
 
 ## Operating principles
 
