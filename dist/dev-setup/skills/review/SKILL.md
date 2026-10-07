@@ -31,9 +31,15 @@ two long-lived branches.
 
 ### 2. Launch the code-reviewer agent
 
-Launch the `code-reviewer` agent with:
+Build the review package against the fork point:
 
-- `BASE_BRANCH`: the `MERGE_BASE` from step 1
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-package.sh" --base <MERGE_BASE> --json
+```
+
+Then launch the `code-reviewer` agent with:
+
+- `PACKAGE`: the `PACKAGE` the script returned
 - `RULES_DIR`: `./.claude/rules/`
 - `REGISTRY_PATH`: `./REGISTRY.md`
 - `TASK_ID`: the `TASK_ID` from step 1, if there is one

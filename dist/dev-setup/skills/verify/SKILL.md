@@ -45,11 +45,16 @@ whether to proceed anyway.
 
 ### 2. Launch the verification agent
 
-Launch the `spec-verifier` agent with:
+Build the review package against the fork point, never a hard-coded `main`:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-package.sh" --base <MERGE_BASE> --json
+```
+
+Then launch the `spec-verifier` agent with:
 
 - `SPEC`: the spec path from step 1
-- `MERGE_BASE`: the `MERGE_BASE` from step 1 — the fork point, never a
-  hard-coded `main`
+- `PACKAGE`: the `PACKAGE` the script returned
 - `CHECKS_PATH`: `${CLAUDE_PLUGIN_ROOT}/skills/verify/reference/checks.md`
 - `TASK_ID`: the `TASK_ID` from step 1, if there is one
 
@@ -71,6 +76,5 @@ Parse the `---VERIFY-RESULT---` block the agent returns.
 
 ## Expected output
 
-- a `---VERIFY-RESULT---` report comparing spec against implementation;
-- an explicit list of what matches and what does not;
+- a `---VERIFY-RESULT---` report: the counts, and every gap with its id;
 - an actionable suggestion for every gap.

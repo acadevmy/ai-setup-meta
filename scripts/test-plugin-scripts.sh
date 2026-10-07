@@ -2087,6 +2087,62 @@ assert_eq "review-package.sh ships in the built plugin" "true" \
 assert_eq "the AGENTS.md script table names it with its keys" "true" \
   "$(grep -E '^\| `review-package\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'CHANGED_LINES' && echo true || echo false)"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 14. verify and review: one package, short answers (DE-17080)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The agents read the package and cannot rebuild the diff: the proof is that
+# they have no Bash, not a sentence asking them not to. Both answer short — the
+# problems, never the list of what is fine.
+
+echo ""
+echo "── verify and review read one package and answer short ──"
+
+AGENTS_SRC="$REPO_ROOT/templates/dev-setup/.claude/agents"
+SKILLS_SRC="$REPO_ROOT/templates/dev-setup/.claude/skills"
+frontmatter_of() { sed -n '2,/^---$/p' "$1"; }
+
+# ── Test 7 (REQ-5): no agent can regenerate the diff ──
+assert_eq "no agent runs git diff" "" \
+  "$(grep -l 'git diff' "$AGENTS_SRC"/*.md 2>/dev/null)"
+for AGENT_FILE in verify.md review.md; do
+  assert_eq "$AGENT_FILE has no Bash in its tools" "false" \
+    "$(frontmatter_of "$AGENTS_SRC/$AGENT_FILE" | grep '^tools:' | grep -q 'Bash' && echo true || echo false)"
+  assert_contains "$AGENT_FILE takes PACKAGE as input" \
+    "$(cat "$AGENTS_SRC/$AGENT_FILE")" "- **PACKAGE**"
+done
+
+# ── Test 9 (REQ-8, REQ-9): the reviewer's model and its short contract ──
+REVIEW_FM="$(frontmatter_of "$AGENTS_SRC/review.md")"
+VERIFY_FM="$(frontmatter_of "$AGENTS_SRC/verify.md")"
+assert_contains "code-reviewer defaults to opus" "$REVIEW_FM" "model: opus"
+assert_contains "at high effort" "$REVIEW_FM" "effort: high"
+assert_eq "and never max" "false" \
+  "$(printf '%s' "$REVIEW_FM" | grep -q 'effort: max' && echo true || echo false)"
+assert_contains "spec-verifier stays on opus" "$VERIFY_FM" "model: opus"
+assert_contains "at high effort" "$VERIFY_FM" "effort: high"
+REVIEW_AGENT="$(cat "$AGENTS_SRC/review.md")"
+assert_contains "the review contract caps warnings at 5" "$REVIEW_AGENT" "at most 5"
+assert_contains "a violation carries file, line and proof" "$REVIEW_AGENT" \
+  "] <file>:<line> — <why it blocks> — proof: <how to show it>"
+assert_contains "a warning carries file and line" "$REVIEW_AGENT" \
+  "  - <file>:<line> — <suggestion>"
+assert_contains "a remark with no file and line is not reported" "$REVIEW_AGENT" \
+  "cannot be tied to a file and line is not reported"
+assert_contains "the answer never lists what is fine" "$REVIEW_AGENT" "never lists what is fine"
+
+# ── Test 14 (REQ-13): the verify answer is counts plus gaps ──
+CHECKS_MD="$(cat "$SKILLS_SRC/verify/reference/checks.md")"
+assert_contains "the verify block counts" "$CHECKS_MD" \
+  "COUNTS: requirements <covered>/<total> · tests <found>/<total> · decisions <followed>/<total> · Impact files <touched>/<total>"
+assert_contains "and lists the gaps" "$CHECKS_MD" "GAPS:"
+assert_eq "the per-item COMPLETENESS list is gone" "false" \
+  "$(printf '%s' "$CHECKS_MD" | grep -q 'COMPLETENESS:' && echo true || echo false)"
+assert_contains "what matches is not listed" "$CHECKS_MD" \
+  "Covered requirements, found tests and followed decisions are not listed"
+assert_eq "the verify skill no longer promises a list of what matches" "false" \
+  "$(grep -q 'an explicit list of what matches' "$SKILLS_SRC/verify/SKILL.md" && echo true || echo false)"
+
 echo ""
 echo "══ DE-16488 — the documentation cannot go stale in silence ══"
 
