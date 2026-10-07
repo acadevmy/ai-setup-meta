@@ -236,7 +236,7 @@ status other than 0.
 | Script | Returns |
 |---|---|
 | `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `HOOK_MANAGER` |
-| `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket |
+| `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>] [--stop <point>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED`, `STOP_POINT` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket; `--stop` with `--create` saves the stop point beside the task clock, and every later call returns it, so a resumed `sdd` does not ask again |
 | `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
@@ -416,9 +416,12 @@ Four things left `sdd`, and each one was paid for on every task:
   states it, so asking produced an answer the rules already had;
 - **the final OK in chat** — the `ask` rule on `gh pr create` / `glab mr create`
   puts the developer in front of the real command instead of a summary of it.
-  The flow's stops are now two: the fork-point confirmation at intake (the
-  resolved base branch is the default, the developer confirms it) and the spec
-  approval in `sdd-plan` — plus one conditional gate: a task read in `BACKLOG`
+  The flow's stops are now three (DE-17076): the launch call — the fork-point
+  confirmation (the resolved base branch is the default, the developer
+  confirms it) and the stop point, saved so a resume skips it — discovery, one
+  `AskUserQuestion` call of up to four questions on what the task leaves open
+  (at most one follow-up, five questions in all), and the spec approval in
+  `sdd-plan` — plus one conditional gate: a task read in `BACKLOG`
   is implemented only after the developer explicitly confirms it, and is never
   moved onto the board's flow automatically (the backlog gate in
   `clickup-contract.md`);
@@ -609,10 +612,13 @@ agents, constitution) by processing dedicated ClickUp tasks and opening review-r
 > **A note on the sandbox and SSH remotes.** Sandboxed commands reach the network only
 > through the HTTP(S) proxy: no raw TCP, no DNS for anything else. With `origin` on
 > `git@github.com:...`, a `git push` inside the sandbox cannot even resolve the hostname.
-> In the cloud Routine the repo is cloned over HTTPS, so this never comes up; locally you
-> either move the remote to HTTPS (`gh auth setup-git` + `git remote set-url`) or the push
-> runs outside the sandbox, through the normal permission flow. The `deny` rules hold
-> either way: they are permission rules, not sandbox boundaries.
+> In the cloud Routine the repo is cloned over HTTPS, so this never comes up; locally
+> `git push origin *` and `git push -u origin *` are in `sandbox.excludedCommands`, so
+> the push runs outside the sandbox — towards `origin` only, whose URL sits in the
+> sandbox-protected `.git/config`. The `deny` rules hold either way, `-u` included:
+> they are permission rules, not sandbox boundaries. A template change that excludes
+> a command from the sandbox ships the denies that guard it, and `migrate-settings.sh`
+> carries them to existing projects with the exclusion.
 
 ### Flow (per run)
 1. Pick the highest-priority SPRINT task from the `CLICKUP_MAINTENANCE_LIST_ID` list
@@ -777,4 +783,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.25.1 — bump the version number on every substantial change*
+*Version: 2.26.1 — bump the version number on every substantial change*

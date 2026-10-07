@@ -111,14 +111,7 @@ fi
 [ "$(detect_vcs)" = "git" ] \
   || die "not a git repository: the work clock is kept in the repository's git directory"
 
-GIT_COMMON="$(git rev-parse --git-common-dir 2>/dev/null)" \
-  || die "cannot resolve the git directory"
-case "$GIT_COMMON" in
-  /*) ;;
-  *) GIT_COMMON="$(pwd)/$GIT_COMMON" ;;
-esac
-
-STATE_DIR="$GIT_COMMON/dev-setup/task-clock"
+STATE_DIR="$(state_dir task-clock)" || die "cannot resolve the git directory"
 STATE_FILE=""
 [ -n "$TASK" ] && STATE_FILE="$STATE_DIR/$TASK.log"
 

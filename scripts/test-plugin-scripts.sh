@@ -413,6 +413,42 @@ assert_eq "--create forks from the --base ref" \
   "$(cd "$SANDBOX" && git rev-parse feat/DE-5 2>/dev/null)"
 (cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-5) >/dev/null 2>&1
 
+# --create never sets up tracking: from a remote base it would write
+# branch.<name>.* into .git/config, which the Claude Code sandbox protects, and
+# the branch would not be cut at all. `git push -u` sets the upstream later.
+(cd "$SANDBOX" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=branch.autoSetupMerge GIT_CONFIG_VALUE_0=always \
+  bash "$PLUGIN_SCRIPTS/sdd-start.sh" --task DE-5 --base main --create --json) >/dev/null 2>&1
+assert_eq "--create cuts the branch without tracking its base" "" \
+  "$(cd "$SANDBOX" && git config --get branch.feat/DE-5.merge)"
+(cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-5) >/dev/null 2>&1
+
+# ── --stop: the stop point survives the session (DE-17076) ──
+#
+# Chosen once at launch and read back on resume, so a resumed run does not ask
+# it again. It sits beside the clock, in the common git directory.
+assert_eq "nothing saved, nothing reported" \
+  "" "$(sdd_start --task DE-6 --json | jq -r '.STOP_POINT')"
+
+assert_eq "a report-only call with --stop writes nothing" \
+  "" "$(sdd_start --task DE-6 --stop push --json | jq -r '.STOP_POINT')"
+
+sdd_start --task DE-6 --stop push --create --json >/dev/null 2>&1
+assert_eq "--create --stop saves the stop point, read back on resume" \
+  "push" "$(sdd_start --task DE-6 --json | jq -r '.STOP_POINT')"
+assert_eq "the stop point sits in the common git directory" \
+  "push" "$(cd "$SANDBOX" && cat "$(git rev-parse --git-common-dir)/dev-setup/stop-point/DE-6" 2>/dev/null)"
+
+assert_eq "--create --stop on the existing branch replaces it" \
+  "commit" "$(sdd_start --task DE-6 --stop commit --create --json | jq -r '.STOP_POINT')"
+
+sdd_start --task DE-6 --stop banana --json >/dev/null 2>&1
+assert_eq "an invalid stop point is refused" "1" "$?"
+
+sdd_start --type fix --title "Typo" --stop push --json >/dev/null 2>&1
+assert_eq "--stop without --task is refused" "1" "$?"
+(cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-6 \
+  && rm -rf "$(git rev-parse --git-common-dir)/dev-setup/stop-point") >/dev/null 2>&1
+
 # The task id is read back out of the branch name in both conventions: the
 # current feat(auth)/DE-123_slug, and feat/DE-123-slug for a branch cut before it.
 (cd "$SANDBOX" && git checkout --quiet -b "feat(auth)/DE-999_my-work") >/dev/null 2>&1
@@ -832,7 +868,8 @@ assert_eq "an unblocked settings is then left alone" "3" "$?"
 # `gh` and `glab` run outside the sandbox: inside it, on macOS, they cannot
 # verify a TLS certificate and every call fails. A project sandboxed before the entry existed
 # gets it on UPDATE — added next to the team's own entries, nothing else touched.
-assert_eq "the merged settings excludes gh and glab from the sandbox" '["gh *","glab *"]' \
+assert_eq "the merged settings excludes gh, glab and the push to origin from the sandbox" \
+  '["gh *","glab *","git push origin *","git push -u origin *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/merged.json")"
 
 jq '.sandbox.excludedCommands = ["docker"]' "$MIG_DIR/merged.json" > "$MIG_DIR/no-gh.json"
@@ -843,9 +880,10 @@ EXCL_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
 
 assert_eq "a sandboxed settings without gh is migrated" "excluded-commands-added" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .REASON)"
-assert_eq "the report names the added entries" "gh *,glab *" \
+assert_eq "the report names the added entries" "gh *,glab *,git push origin *,git push -u origin *" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .ADDED_EXCLUDED)"
-assert_eq "they are added after the team's own entries" '["docker","gh *","glab *"]' \
+assert_eq "they are added after the team's own entries" \
+  '["docker","gh *","glab *","git push origin *","git push -u origin *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/with-gh.json")"
 assert_eq "nothing else changes on the excluded-commands pass" "true" \
   "$(jq -n --slurpfile a "$MIG_DIR/no-gh.json" --slurpfile b "$MIG_DIR/with-gh.json" '
@@ -863,10 +901,46 @@ jq '.sandbox.excludedCommands = ["docker", "gh", "glab"]' "$MIG_DIR/merged.json"
 BARE_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
   --in "$MIG_DIR/bare-gh.json" --template "$SETTINGS_TEMPLATE" \
   --out "$MIG_DIR/fixed-gh.json" --json 2>/dev/null)
-assert_eq "a bare gh entry is replaced by gh *" '["docker","gh *","glab *"]' \
+assert_eq "a bare gh entry is replaced by gh *" \
+  '["docker","gh *","glab *","git push origin *","git push -u origin *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/fixed-gh.json")"
 assert_eq "and the report names what it replaced" "gh,glab" \
   "$(printf '%s' "$BARE_REPORT" | jq -r .RETIRED_EXCLUDED)"
+
+# Pushing leaves the sandbox — an SSH origin cannot be reached from inside it —
+# but only towards origin. `allow` carries `Bash(git *)` and there is no `ask`
+# on a push, so a bare `git push *` would send an unsandboxed push to any URL
+# with no allowlist and no prompt. origin itself lives in .git/config, which
+# the sandbox protects.
+assert_eq "no exclusion lets a push leave the sandbox towards an arbitrary URL" "" \
+  "$(jq -r '.sandbox.excludedCommands[] | select(startswith("git push") and (contains(" origin ") | not))' "$SETTINGS_TEMPLATE")"
+assert_contains "the template denies a push to a protected branch with -u" \
+  "$(jq -r '.permissions.deny[]' "$SETTINGS_TEMPLATE")" "Bash(git push * origin next*)"
+
+# Outside the sandbox the deny rules are the only boundary, so on UPDATE an
+# exclusion never arrives without the template's denies that guard it — and a
+# project that already has the exclusion gets the guards it lacks.
+jq '.sandbox.excludedCommands = ["gh *", "glab *"]
+    | .permissions.deny |= map(select(startswith("Bash(git push * origin ") | not))' \
+  "$MIG_DIR/merged.json" > "$MIG_DIR/no-push.json"
+GUARD_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/no-push.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/with-push.json" --json 2>/dev/null)
+assert_eq "the push exclusion is added" "git push origin *,git push -u origin *" \
+  "$(printf '%s' "$GUARD_REPORT" | jq -r .ADDED_EXCLUDED)"
+assert_eq "with the push denies that guard it" "4" \
+  "$(printf '%s' "$GUARD_REPORT" | jq -r .ADDED_DENY)"
+assert_contains "the -u push to next is denied after UPDATE" \
+  "$(jq -r '.permissions.deny[]' "$MIG_DIR/with-push.json")" "Bash(git push * origin next*)"
+assert_eq "no deny unrelated to an excluded command is added" "" \
+  "$(jq -n --slurpfile a "$MIG_DIR/no-push.json" --slurpfile b "$MIG_DIR/with-push.json" -r '
+     ($b[0].permissions.deny - $a[0].permissions.deny)[] | select(startswith("Bash(git push") | not)')"
+
+jq '.permissions.deny |= map(select(startswith("Bash(git push * origin ") | not))' \
+  "$MIG_DIR/with-push.json" > "$MIG_DIR/unguarded.json"
+assert_eq "an exclusion already there still gets its guards" "excluded-commands-guarded" \
+  "$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unguarded.json" \
+       --template "$SETTINGS_TEMPLATE" --json 2>/dev/null | jq -r .REASON)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)
@@ -1119,6 +1193,23 @@ assert_contains "quick is started by a person, never inferred" \
   "$(cat "$QUICK")" "disable-model-invocation: true"
 assert_contains "quick declares no spec and no discovery" \
   "$(cat "$QUICK")" "No discovery, no spec"
+
+# Discovery asks the gaps only, in one call of up to four questions, and a
+# resume reads the saved stop point instead of asking it again (DE-17076).
+assert_contains "discovery offers the one-click way to the spec" \
+  "$(cat "$SDD_DIR/sdd-discovery/reference/question-bank.md")" "Requirements clear: go to spec"
+assert_eq "no 10–12 question cap and no one-question-at-a-time left in discovery" "" \
+  "$(grep -rln "10–12\|one question at a time" "$SDD_DIR/sdd-discovery" || true)"
+assert_contains "turn discipline bounds a call at four related questions" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/turn-discipline.md")" "up to four related questions"
+assert_eq "sdd no longer promises two stops" "" \
+  "$(grep -ln "Two stops" "$SDD_DIR/sdd/SKILL.md" || true)"
+assert_eq "a resumed run no longer asks the stop point again" "" \
+  "$(grep -ln "Nothing writes it down" "$SDD_DIR/sdd/reference/stop-point.md" || true)"
+assert_contains "intake saves the stop point on --create" \
+  "$(cat "$SDD_DIR/sdd/reference/intake.md")" "--stop <the chosen stop point> --create"
+assert_contains "the worktree path saves it too" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/worktree.md")" "--stop <the chosen stop point>] --create"
 
 # The routing bar is in both descriptions, so /help alone answers which to use.
 for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do

@@ -52,6 +52,10 @@
       "Bash(git push origin master*)",
       "Bash(git push origin next*)",
       "Bash(git push origin develop*)",
+      "Bash(git push * origin main*)",
+      "Bash(git push * origin master*)",
+      "Bash(git push * origin next*)",
+      "Bash(git push * origin develop*)",
       "Bash(git push * HEAD:main*)",
       "Bash(git push * HEAD:master*)",
       "Bash(git push * HEAD:next*)",
@@ -84,7 +88,9 @@
     "autoAllowBashIfSandboxed": true,
     "excludedCommands": [
       "gh *",
-      "glab *"
+      "glab *",
+      "git push origin *",
+      "git push -u origin *"
     ],
     "filesystem": {
       "denyWrite": [

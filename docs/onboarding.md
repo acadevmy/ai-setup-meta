@@ -69,9 +69,10 @@ interface:
 /dev-setup:sdd DE-124
 ```
 
-It asks which branch to fork from (the base resolved from the repository is
-the default), then discovery, a technical spec you approve, development, the
-gates, one commit and the merge request.
+It stops three times: once at launch — which branch to fork from (the base
+resolved from the repository is the default) and how far to go — once for
+discovery, only about what the task leaves open, and once to approve the spec.
+Then development, the gates, one commit and the merge request.
 
 ## Where to go next
 

@@ -202,9 +202,10 @@ template would read as protection and enforce nothing, so they live in
 A sandboxed command reaches the network only through the sandbox's HTTP(S)
 proxy, so `git push` against a `git@host:` remote cannot resolve the hostname.
 The setup asks: switch `origin` to HTTPS (with the forge CLI's credential
-helper, so no token lands in a URL), or keep SSH and let git's network commands
-run outside the sandbox through the normal permission prompt. The deny rules
-hold either way.
+helper, so no token lands in a URL), or keep SSH. The push to `origin` runs
+outside the sandbox either way (`sandbox.excludedCommands`), and UPDATE adds
+that entry with the protected-branch denies that guard it. The deny rules hold
+either way.
 
 ---
 

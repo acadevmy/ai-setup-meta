@@ -48,7 +48,8 @@ why the fork point is passed explicitly anyway:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --task DE-123 --title "<name, in English>" --base origin/next --create --json
+  --task DE-123 --title "<name, in English>" --base origin/next \
+  [--stop <the chosen stop point>] --create --json
 ```
 
 Take that ref from `check-prerequisites.sh` in the main checkout — `BASE_BRANCH`

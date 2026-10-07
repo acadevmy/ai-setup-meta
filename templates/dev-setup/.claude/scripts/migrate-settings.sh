@@ -43,16 +43,22 @@
 #     team's own entries stay. An entry the template supersedes — a bare `gh`
 #     where the template says `gh *` — is replaced: entries match like
 #     `Bash(...)` rules, so `gh` with no wildcard matches only `gh` with no
-#     arguments, and the 3.3.0 template shipped exactly that.
+#     arguments, and the 3.3.0 template shipped exactly that;
+#   - the template's `deny` entries guarding a command it excludes from the
+#     sandbox travel with it: a missing `Bash(git push …)` deny is added when
+#     `git push origin *` is excluded. Outside the sandbox the deny rules are
+#     the only boundary left, so the exclusion never arrives without them.
 #
 # Report keys (--json):
 #   MIGRATED        true | false
 #   REASON          migrated | env-read-unblocked | excluded-commands-added |
-#                   already-sandboxed | no-template-sandbox
+#                   excluded-commands-guarded | already-sandboxed |
+#                   no-template-sandbox
 #                   (env-read-unblocked wins when both exceptions apply)
 #   ADDED_SANDBOX   true | false
 #   ADDED_ASK       number of `ask` entries the project did not have
-#   ADDED_DENY      number of `deny` entries the project did not have
+#   ADDED_DENY      number of `deny` entries the project did not have — on a
+#                   team's sandboxed file, the guards of its excluded commands
 #   RETIRED_ALLOW   comma-separated allow entries dropped, or ""
 #   KEPT_ALLOW      comma-separated allow entries kept that the template lacks
 #   RETIRED_DENY    comma-separated `.env` read denies removed, or ""
@@ -183,6 +189,17 @@ SUPERSEDED_EXCLUDED=$(jq -n --slurpfile proj "$IN_FILE" --slurpfile tpl "$TEMPLA
   ((($tpl[0].sandbox // {}).excludedCommands) // []) as $t |
   ((($proj[0].sandbox // {}).excludedCommands) // []) as $p |
   $p | map(select(. as $e | $t | index([$e + " *"])))')
+# The template's deny entries that guard one of its excluded commands, missing
+# from the project. An exclusion's command is its first two words (`git push`),
+# or its first word when the second is the wildcard (`gh`).
+MISSING_GUARDS=$(jq -n --slurpfile proj "$IN_FILE" --slurpfile tpl "$TEMPLATE_FILE" '
+  ((($tpl[0].sandbox // {}).excludedCommands) // [])
+    | map(split(" ") | if (.[1] // "*") == "*" then .[0] else .[0] + " " + .[1] end)
+    as $cmds |
+  ((($proj[0].permissions // {}).deny) // []) as $p |
+  ((($tpl[0].permissions // {}).deny) // [])
+    | map(select(. as $d | ($p | index([$d]) | not)
+                 and any($cmds[]; . as $c | $d | startswith("Bash(" + $c + " "))))')
 
 if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
   # The team's file, normally left alone. Two checks remain: the `.env` read
@@ -194,12 +211,14 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
     ' "$IN_FILE")
 
   if [ "$(printf '%s' "$FOUND_RETIRED" | jq 'length')" -eq 0 ] \
-     && [ "$(printf '%s' "$MISSING_EXCLUDED" | jq 'length')" -eq 0 ]; then
+     && [ "$(printf '%s' "$MISSING_EXCLUDED" | jq 'length')" -eq 0 ] \
+     && [ "$(printf '%s' "$MISSING_GUARDS" | jq 'length')" -eq 0 ]; then
     report_and_exit already-sandboxed 3
   fi
 
   MERGED=$(jq --argjson rd "$RETIRED_DENY_JSON" --argjson rr "$RETIRED_DENYREAD_JSON" \
-              --argjson ex "$MISSING_EXCLUDED" --argjson sup "$SUPERSEDED_EXCLUDED" '
+              --argjson ex "$MISSING_EXCLUDED" --argjson sup "$SUPERSEDED_EXCLUDED" \
+              --argjson gd "$MISSING_GUARDS" '
     (if ((.permissions // {}) | has("deny")) then
        .permissions.deny |= map(select(. as $e | $rd | index($e) | not))
      else . end)
@@ -212,16 +231,22 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
          .sandbox.excludedCommands = ((.sandbox.excludedCommands // [])
            | map(select(. as $e | $sup | index([$e]) | not))) + $ex
        else . end)
+    | (if ($gd | length) > 0 then
+         .permissions.deny = (((.permissions // {}).deny // []) + $gd)
+       else . end)
     ' "$IN_FILE")
   [ -n "$MERGED" ] || die "the sandbox pass produced nothing — is $IN_FILE a settings.json?"
 
   RETIRED_DENY_FOUND=$(printf '%s' "$FOUND_RETIRED" | csv_of)
   ADDED_EXCLUDED=$(printf '%s' "$MISSING_EXCLUDED" | csv_of)
   RETIRED_EXCLUDED=$(printf '%s' "$SUPERSEDED_EXCLUDED" | csv_of)
+  ADDED_GUARDS=$(printf '%s' "$MISSING_GUARDS" | jq 'length')
   if [ -n "$RETIRED_DENY_FOUND" ]; then
     PATCH_REASON=env-read-unblocked
-  else
+  elif [ -n "$ADDED_EXCLUDED" ]; then
     PATCH_REASON=excluded-commands-added
+  else
+    PATCH_REASON=excluded-commands-guarded
   fi
 
   if [ -n "$OUT_FILE" ]; then
@@ -234,7 +259,7 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
     json_set REASON "$PATCH_REASON"
     json_set ADDED_SANDBOX false
     json_set ADDED_ASK 0
-    json_set ADDED_DENY 0
+    json_set ADDED_DENY "$ADDED_GUARDS"
     json_set RETIRED_ALLOW ""
     json_set KEPT_ALLOW ""
     json_set RETIRED_DENY "$RETIRED_DENY_FOUND"

@@ -80,22 +80,26 @@ and resolves `BASE_BRANCH` — the branch HEAD forked from most recently, never 
 hard-coded `main`.
 
 `BRANCH_EXISTS: true` means the task already had a branch: re-run the call with
-`--create` (it checks the branch out), skip the question below — the fork point
-was decided when the branch was born — and say the task is being resumed; step 4
-will show how far it got. The stop point is still asked, on its own.
+`--create` (it checks the branch out, plus `--stop <value>` when `$ARGUMENTS`
+carries one), skip the question below — the fork point was decided when the
+branch was born — and say the task is being resumed; step 4 will show how far
+it got. What `STOP_POINT` decides on a resume is in `stop-point.md`, "Saving
+the answer".
 
 Otherwise confirm the fork point, as
 `${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md` defines it: the resolved
 `BASE_BRANCH` is the default and the first option, never the decision. Ask it
 for `<BRANCH>`, and in the **same** `AskUserQuestion` call the two stop-point
-questions from `stop-point.md` — one call, then the turn ends on it.
+questions from `stop-point.md` — one call, then the turn ends on it. A
+`--stop <value>` in `$ARGUMENTS` already answers those two: ask the fork point
+alone.
 
 Then create the branch from the answer:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
   --task <custom_id> --type <type> [--context <area>] --title "<name, in English>" \
-  --base <the chosen ref> --create --json
+  --base <the chosen ref> --stop <the chosen stop point> --create --json
 ```
 
 Never run `git checkout`/`git pull` by hand in place of these calls: a wrong
@@ -105,7 +109,7 @@ fork point makes every diff downstream cover two branches' work. Report
 With `--worktree`, the order matters: resolve and confirm the fork point **in
 the main checkout** — the report-only call and the question above — then
 enter the worktree named after the task, and only there run the `--create`
-call with `--base <the chosen ref>`. A fresh worktree forks from the remote default, so
+call with `--base <the chosen ref>` and `--stop <the chosen stop point>`. A fresh worktree forks from the remote default, so
 its local HEAD is not a fork point worth resolving.
 `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` covers the rest — the dependency
 install, the port, the overlap warning.
@@ -160,6 +164,7 @@ Priority: High
 Branch:   feat(auth)/DE-123_add-user-auth  (base: origin/next)
 Status:   IN PROGRESS  (clock started 2026-09-18 14:03)
 Spec:     .specs/DE-123-add-user-auth.md (approved) — or "none yet"
+Stop at:  Merge request  (saved — /dev-setup:sdd DE-123 --stop <value> changes it)
 
 Description:
 <the task description, as the agent returned it>
