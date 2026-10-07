@@ -1,6 +1,6 @@
 # Spec: [dev-setup] Correggere i difetti emersi dall'analisi di claude.dev [DE-17061]
 
-> Status: approved
+> Status: implemented
 > Task: https://app.clickup.com/t/869faxmvc
 > Branch: the branch sdd-start.sh cuts from the confirmed fork point (origin/next); not stacked (see Technical decisions)
 > Created: 2026-10-07
