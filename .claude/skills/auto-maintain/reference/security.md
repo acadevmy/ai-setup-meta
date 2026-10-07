@@ -41,14 +41,14 @@ Recovery, on the human side: once the blocker is resolved, move the task back to
 ## The conventions
 
 - Never commit `.env.local` or any file holding secrets.
-- Never read `.env` / `.env.local`: the rules in `.claude/settings.json` deny
-  them to the file tools and the sandbox denies them to shell commands. Do not
-  look for workarounds.
+- `.env` / `.env.local` follow `AGENTS.md` § "What you must never do": never
+  written, read only for a value a real call needs. Here that value also never
+  reaches a commit, the PR body or a ClickUp comment.
 - Never let a token appear on a command line: not in a push URL, not in a `curl`
   header, not in an `echo`. `gh` and the credential helper read it from the
   environment.
 - Never run `git push --force` or `--no-verify`.
-- Never work directly on `main`.
+- Never work directly on `main` or `next`.
 - Never close or delete ClickUp tasks: status updates and comments only.
 - Never add or remove GitHub reviewers automatically — that is a human's call.
 - Never run `claude` with `--dangerously-skip-permissions` or

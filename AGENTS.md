@@ -15,7 +15,7 @@ you take must improve the quality, the coherence or the automation of the templa
 ## Repository architecture
 
 ```
-ai-base-setup/
+ai-setup-meta/
 ├── shared/                 # Common assets TO DISTRIBUTE (not used by the meta-repo)
 │   ├── agents/             # Reusable agents (e.g. clickup.md)
 │   └── skills/             # Reusable skills (e.g. clickup, vcs-ops)
@@ -32,7 +32,7 @@ ai-base-setup/
 │   └── <domain>/           # Built plugin: skills/, agents/, workflows/, scripts/, hooks/, .claude-plugin/
 │
 ├── .claude/                # Meta-repo tooling ONLY
-│   ├── agents/             # validate-template.md, clickup.md
+│   ├── agents/             # validate-template.md
 │   ├── commands/           # Invocable commands (/project:build-plugin)
 │   └── skills/             # auto-maintain, validate
 │
@@ -186,7 +186,6 @@ Agents are isolated sub-processes with their own context.
 | Agent | File | Role |
 |---|---|---|
 | **validate-template** | `.claude/agents/validate-template.md` | Pre-release validation of the templates. Reads manifest.json. |
-| **clickup** | `.claude/agents/clickup.md` | ClickUp CRUD + tag handling, used by the `auto-maintain` pipeline. Meta-repo variant of the canonical subagent in `shared/agents/clickup.md`. |
 
 ### Shared agents (under `shared/`, distributed to the templates)
 
@@ -617,7 +616,7 @@ agents, constitution) by processing dedicated ClickUp tasks and opening review-r
 
 ### Components
 - Orchestrator skill: `.claude/skills/auto-maintain/SKILL.md`
-- Subagent: `.claude/agents/clickup.md`
+- ClickUp: the connector's `mcp__clickup__*` tools, called directly
 - Quality gate: `/project:validate`
 - Boundaries: the `sandbox` block in `.claude/settings.json` (filesystem and network at the
   OS level) and the `deny` rules on force push, direct pushes to the protected branches,
@@ -638,7 +637,7 @@ agents, constitution) by processing dedicated ClickUp tasks and opening review-r
 ### Flow (per run)
 1. Pick the highest-priority SPRINT task from the `CLICKUP_MAINTENANCE_LIST_ID` list
 2. Move the task `SPRINT -> IN PROGRESS`
-3. Create the branch `chore/<customId>-<slug>` from an up-to-date `main`
+3. Create the branch `chore/<customId>-<slug>` from an up-to-date `next`
 4. Classify the kind of change (skill / mcp / profile / agent / constitution / manifest / docs)
 5. Apply the changes the task `description` asks for
 6. Run `/project:validate`
@@ -697,17 +696,6 @@ The ClickUp connector is available with OAuth authentication: use the
 `mcp__clickup__*` tools for every ClickUp operation, with no token to handle.
 ```
 
-**4. Unload launchd (if it was ever installed)**
-
-The local launchd runner has been removed: it ran with
-`--dangerously-skip-permissions` and sourced `.env.local`, and the Routine replaces it.
-If its launchd entries are still loaded:
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.auto-maintain.plist
-launchctl unload ~/Library/LaunchAgents/com.devmy.ai-base-setup.caffeinate.plist
-```
-
 **Quick test**: from the Routine's detail page, click **Run now**.
 
 ### When a task ends up in `BLOCKED`
@@ -764,8 +752,7 @@ checks find *today*: they are reported on every run but they do not fail CI. It 
 been **empty since DE-16478** — the file stays as the mechanism, not as debt.
 There are two rules:
 
-1. **A new finding gets fixed**, not added to the baseline. The baseline shrinks with
-   the PRs of the revision chain; it does not grow.
+1. **A new finding gets fixed**, not added to the baseline. It stays empty.
 2. **Whoever fixes a defect removes its line** from the baseline in the same PR.
    The `--fail-on-stale` flag turns the CI job red if a line is left orphaned.
 
@@ -777,7 +764,8 @@ Before opening a PR, check that:
 
 - [ ] `/project:validate` passes (or the new findings are fixed)
 - [ ] The generated files hold no API keys or secrets
-- [ ] The template's `CHANGELOG.md` is up to date
+- [ ] Every commit subject is release-note-ready — release-please generates the
+      CHANGELOG from them, so it is never edited by hand
 - [ ] The stack profiles match the ones in the template
 - [ ] `core.md` is still the only rule template without `paths:`, and still under 150 lines
 - [ ] Every `SKILL.md` touched is still inside the 500-line / 500-word budget, with a
@@ -798,4 +786,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.27.0 — bump the version number on every substantial change*
+*Version: 2.28.0 — bump the version number on every substantial change*
