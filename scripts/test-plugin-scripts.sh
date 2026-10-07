@@ -1911,6 +1911,46 @@ for VCS_DIR in "$REPO_ROOT/shared/skills/vcs-ops/reference" \
   done
 done
 
+# REQ-4. A `userConfig` value reaches a plugin in two ways only: substituted as
+# `${user_config.KEY}` in the body of a skill or an agent, and exported to hooks
+# as CLAUDE_PLUGIN_OPTION_<KEY>. Bash and Read see neither, so the contract may
+# not send a flow to "read the plugin's userConfig" — the clickup skill states
+# the value, and the contract points there.
+for F in "templates/dev-setup/.claude/reference/clickup-contract.md" \
+         "templates/dev-setup/setup/reference/mcp-env.md" \
+         "dist/dev-setup/reference/clickup-contract.md" \
+         "dist/dev-setup/skills/setup/reference/mcp-env.md"; do
+  assert_eq "$F does not send a flow to read the plugin's userConfig" "false" \
+    "$(grep -qF "plugin's \`userConfig\`" "$REPO_ROOT/$F" && echo true || echo false)"
+done
+for F in "shared/skills/clickup/SKILL.md" "dist/dev-setup/skills/clickup/SKILL.md"; do
+  assert_contains "$F states the install-time list id" \
+    "$(cat "$REPO_ROOT/$F")" '${user_config.CLICKUP_SETUP_LIST_ID}'
+done
+assert_contains "the contract resolves the list id through the clickup skill" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/clickup-contract.md")" \
+  "list configured at install time"
+
+# A placeholder naming a key the manifest does not declare is never substituted:
+# the model would read the literal text. Every one must name a declared key.
+undeclared_user_config() {
+  local declared
+  declared="$(jq -r '.userConfig // {} | keys[]' "$REPO_ROOT/dist/dev-setup/.claude-plugin/plugin.json")"
+  grep -rhoE '\$\{user_config\.[A-Za-z0-9_]+\}' "$@" 2>/dev/null \
+    | sed -E 's/^\$\{user_config\.//; s/\}$//' | LC_ALL=C sort -u \
+    | while IFS= read -r KEY; do
+        printf '%s\n' "$declared" | grep -qxF "$KEY" || printf '%s\n' "$KEY"
+      done
+}
+assert_eq "every \${user_config.KEY} in a shipped skill or agent is declared" "" \
+  "$(undeclared_user_config "$REPO_ROOT/dist/dev-setup/skills" "$REPO_ROOT/dist/dev-setup/agents")"
+UC_PROBE="$WORK_DIR/user-config-probe"
+mkdir -p "$UC_PROBE"
+printf 'List: ${user_config.CLICKUP_SETUP_LIST_ID}, team: ${user_config.NOT_DECLARED}\n' \
+  > "$UC_PROBE/SKILL.md"
+assert_eq "and the check catches an undeclared key" "NOT_DECLARED" \
+  "$(undeclared_user_config "$UC_PROBE")"
+
 echo ""
 echo "── frontmatter parseability ──"
 
