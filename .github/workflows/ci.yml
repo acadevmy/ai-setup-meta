@@ -22,6 +22,13 @@ on:
 permissions:
   contents: read
 
+# The CLI is pinned: the mods (`claude plugin test`, the `calls:` line of
+# `plugin validate`) exist only from a recent build, and an unpinned
+# `npm install` gave whatever `latest` was on the day — on DE-17071 a build
+# without either, so both mod jobs failed on a correct plugin. Bump it on purpose.
+env:
+  CLAUDE_CODE_VERSION: 2.1.295
+
 jobs:
   plugin-validate:
     name: claude plugin validate
@@ -34,7 +41,9 @@ jobs:
           node-version: '20'
 
       - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          claude --version
 
       # `plugin validate` is a local check of the manifests: it needs neither
       # authentication nor network access to the API.
@@ -117,7 +126,9 @@ jobs:
           node-version: '20'
 
       - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          claude --version
 
       # The tests run on the built plugin — exactly what is released — with no
       # session, sign-in or network. The flag turns mods on in a build that
