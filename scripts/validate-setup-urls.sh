@@ -177,6 +177,22 @@ for manifest in "${REPO_ROOT}"/templates/*/manifest.json; do
     fi
   done
 
+  # The mod (a TypeScript hooks module the builder declares as ./register.ts)
+  mod_files=$(python3 -c "import json; [print(m) for m in json.load(open('$manifest')).get('mod',[])]" 2>/dev/null)
+  if [ -n "$mod_files" ] && ! printf '%s\n' "$mod_files" | grep -qx 'register.ts'; then
+    printf '%b\n' "${RED}MISSING${NC}  register.ts in the manifest's mod list (the module entry)"
+    errors=$((errors + 1))
+  fi
+  for mod_file in $mod_files; do
+    file="templates/$TEMPLATE_NAME/.claude/mod/$mod_file"
+    if [ -f "${REPO_ROOT}/${file}" ]; then
+      printf '%b\n' "${GREEN}OK${NC}  ${file}"
+    else
+      printf '%b\n' "${RED}MISSING${NC}  ${file}"
+      errors=$((errors + 1))
+    fi
+  done
+
   # Boilerplate files (greenfield-only verbatim downloads)
   for bp in $(python3 -c "import json; [print(b) for b in json.load(open('$manifest')).get('boilerplate_files',[])]" 2>/dev/null); do
     file="templates/$TEMPLATE_NAME/boilerplate/$bp"

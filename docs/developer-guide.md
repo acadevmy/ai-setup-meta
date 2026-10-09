@@ -65,6 +65,27 @@ in your working tree and commits nothing.
 **`validate` is not one of these.** `/project:validate` runs in the plugin's own
 repository, not in yours — see [workflow.md](./workflow.md).
 
+### Where you are, without a turn: the band and `/dev-setup`
+
+On a Claude Code that loads mods (2.1.287 and later), the plugin also shows the
+state of the work without spending a model turn:
+
+- **above the prompt** — each open task clock (`DE-123 · in progress · 42m`);
+  after a `gh pr create` / `glab mr create` that created a merge request, a
+  button that fills — never sends — the prompt that stops the clock and moves
+  the task to `CODE REVIEW`; while an `sdd` runs, its tokens and cost per phase;
+  past 70% of context, a warning before a long phase compacts it;
+- **`/dev-setup`** — with no argument, the six commands with when to use each,
+  and a button that puts one in the prompt. `/dev-setup clock`, `status` (branch,
+  task, spec, base), `worktrees` (ports and overlaps), `context` (how full, and
+  how much of it the plugin brings), `usage` (the last `sdd`, per phase) and
+  `runs` (this session's `multi-sdd` runs). It answers at once, even while Claude
+  is working, and in the terminal it adds nothing to the conversation; in
+  `claude -p` or VS Code it prints text.
+
+None of it is a rule. On an older client, or with mods turned off, the plugin
+works exactly the same — without the view.
+
 ---
 
 ## 2. A task, end to end
@@ -639,6 +660,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task DE-123 --stop --json
 then move the task to `CODE REVIEW` with the `COMMENT` it returns, verbatim. To
 see what is still open in the repository without closing anything, the same
 script with `--status` and no `--task` lists it.
+
+### `/dev-setup` is not in the command list
+
+The client is not loading mods: it is older than 2.1.287, the rollout has not
+reached it, or mods are turned off (`--safe-mode`, `disableAllHooks`, managed
+settings). On 2.1.285 they are early access: start Claude Code with
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` in its environment. Nothing else in the
+plugin depends on them.
 
 ### The task moved but carries no time
 
