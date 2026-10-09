@@ -313,12 +313,14 @@ elif [ -d "$HOOKS_SRC" ]; then
   done
 fi
 
+# The path is quoted: the plugin root can contain a space, and an unquoted
+# ${CLAUDE_PLUGIN_ROOT} is a warning `claude plugin validate --strict` fails on.
 SETTINGS_HOOKS=$(jq '.hooks // {}' "$SETTINGS_SRC" 2>/dev/null)
 
 if [ "$SETTINGS_HOOKS" != "{}" ] && [ -n "$SETTINGS_HOOKS" ]; then
   echo "$SETTINGS_HOOKS" | \
     jq 'walk(if type == "string" and test("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/") then
-      gsub("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/"; "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/")
+      gsub("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/(?<script>[^ \"]+)"; "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/\(.script)\"")
     else . end)' | \
     jq '{hooks: .}' > "$DIST_DIR/hooks/hooks.json"
   ok "hooks.json generated with plugin paths"
@@ -332,7 +334,7 @@ elif [ "$HAS_HOOKS" = true ]; then
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh\"",
             "timeout": 600
           }
         ]
@@ -344,7 +346,7 @@ elif [ "$HAS_HOOKS" = true ]; then
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit.sh\""
           }
         ]
       }
@@ -355,7 +357,7 @@ elif [ "$HAS_HOOKS" = true ]; then
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-compact.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-compact.sh\""
           }
         ]
       }
