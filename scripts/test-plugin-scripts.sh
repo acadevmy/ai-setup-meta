@@ -1228,6 +1228,96 @@ for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do
        && echo true || echo false)"
 done
 
+echo ""
+echo "── DE-17128 — sdd-dev aligned with the stops and the script, no history in the instructions ──"
+
+# Prose assertions read the file with its newlines folded: a sentence markdown
+# wraps still counts, and a removed phrase cannot pass because an edit wrapped it.
+flat() { tr '\n' ' ' < "$1" | tr -s ' '; }
+
+METH="$SDD_DIR/sdd-dev/reference/methodologies.md"
+INSTALL="$REPO_ROOT/templates/dev-setup/setup/reference/install.md"
+TEMPLATE_ROOT="$REPO_ROOT/templates/dev-setup"
+
+# The scenarios go into the test names, never in front of the developer: the
+# flow's stops are declared in sdd/SKILL.md and the autonomous run has nobody
+# to answer one more.
+assert_eq "nothing under sdd-dev presents the scenarios to the developer" "" \
+  "$(grep -rln 'Present the scenarios' "$SDD_DIR/sdd-dev" || true)"
+assert_contains "the scenarios are written into the test names" \
+  "$(flat "$METH")" "into the test names before implementing them"
+
+# No per-stack table: detect-stack.sh is the one source of the commands, and a
+# table restating it drifted the moment the script changed.
+assert_eq "methodologies.md carries no per-stack command table" "" \
+  "$(grep -n '^|' "$METH" || true)"
+assert_eq "and names none of the commands the table held" "" \
+  "$(grep -nE 'npm test|ruff check|go test|cargo test|flutter test' "$METH" || true)"
+assert_contains "it points at detect-stack.sh" "$(flat "$METH")" "detect-stack.sh --json"
+
+# One rule for an empty command, in both flows: run nothing, substitute
+# nothing, report it where the step reports.
+assert_eq "nothing under sdd-dev asks which commands to use" "" \
+  "$(grep -rn 'ask the developer which commands\|If both come back empty' "$SDD_DIR/sdd-dev" || true)"
+assert_contains "an empty command is never substituted" \
+  "$(flat "$METH")" "never substitute one of your own"
+assert_contains "and is reported in notes on the autonomous run" \
+  "$(flat "$METH")" '`notes`'
+
+# The rule stays, the story goes. A sentence that narrates what the flow used
+# to do is a sentence the model can re-perform.
+while IFS='|' read -r HIST_FILE HIST_PHRASE; do
+  [ -n "$HIST_FILE" ] || continue
+  assert_eq "$(basename "$HIST_FILE") tells no history: $HIST_PHRASE" "" \
+    "$(flat "$TEMPLATE_ROOT/$HIST_FILE" | grep -o "$HIST_PHRASE" || true)"
+done <<'HIST_GONE'
+.claude/skills/sdd-dev/SKILL.md|second approval wearing
+.claude/skills/sdd-dev/SKILL.md|once cost a task four commits
+.claude/skills/sdd/reference/closure.md|this flow used to mandate
+.claude/skills/sdd/reference/closure.md|no longer calls it
+.claude/skills/sdd-spec/reference/spec-template.md|this template used to carry
+.claude/skills/review/reference/registry-updates.md|this reference used to mandate
+setup/reference/mcp-env.md|used to be two bullets
+HIST_GONE
+
+while IFS='|' read -r HIST_FILE HIST_PHRASE; do
+  [ -n "$HIST_FILE" ] || continue
+  assert_contains "$(basename "$HIST_FILE") keeps the rule: $HIST_PHRASE" \
+    "$(flat "$TEMPLATE_ROOT/$HIST_FILE")" "$HIST_PHRASE"
+done <<'HIST_KEPT'
+.claude/skills/sdd-dev/SKILL.md|Do not ask the developer to confirm the breakdown
+.claude/skills/sdd-dev/SKILL.md|Do not commit, simplify or touch the spec's status
+.claude/skills/sdd/reference/closure.md|the gates run before the commit, and there is one commit
+.claude/skills/sdd/reference/closure.md|This is the only place `simplify` runs in the flow
+.claude/skills/sdd-spec/reference/spec-template.md|Nothing in here records how the run went
+.claude/skills/review/reference/registry-updates.md|Leave the change in the working tree — do not commit it
+setup/reference/mcp-env.md|settings on the host
+HIST_KEPT
+
+# Over the prose the model reads, the three phrases survive only where they
+# state a present fact (fork-point.md, rules-generation.md) or the recognition
+# rule UPDATE applies to an old AGENTS.md (agents-generation.md).
+assert_eq "the only history phrases left are present-tense facts and the UPDATE recognition rule" \
+  "templates/dev-setup/.claude/reference/fork-point.md
+templates/dev-setup/setup/reference/agents-generation.md
+templates/dev-setup/setup/reference/rules-generation.md" \
+  "$(cd "$REPO_ROOT" && grep -rln "used to\|no longer\|once cost" \
+       templates/dev-setup/.claude/skills templates/dev-setup/.claude/reference \
+       templates/dev-setup/.claude/agents templates/dev-setup/setup 2>/dev/null | LC_ALL=C sort)"
+
+# The verbatim-write rule keeps its constraint and gains its reason; the bold
+# IMPORTANT goes. Pinned on its own, so a regression names the file.
+INSTALL_BLOCK="$(sed -n '/^### 3.2 /,/^### 3.2b/p' "$INSTALL" | tr '\n' ' ' | tr -s ' ')"
+assert_eq "no shouted IMPORTANT in the verbatim-write rule" "" \
+  "$(printf '%s' "$INSTALL_BLOCK" | grep -o '\*\*IMPORTANT\*\*' || true)"
+assert_contains "the verbatim-write rule is kept" "$INSTALL_BLOCK" "exactly as received"
+assert_contains "and states its reason" "$INSTALL_BLOCK" "read them back"
+assert_eq "install.md carries no history phrase" "" \
+  "$(grep -n 'used to\|no longer\|once cost' "$INSTALL" || true)"
+
+assert_eq "sdd-dev/SKILL.md stays inside the 500-word budget" "true" \
+  "$([ "$(wc -w < "$SDD_DIR/sdd-dev/SKILL.md" | tr -d ' ')" -le 500 ] && echo true || echo false)"
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 10. multi-sdd: the cap, the overlap and the composition (DE-16487)
@@ -1464,6 +1554,8 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     deviations: (out.deviations || []).length,
     grounds: (prompts['revise:DE-1'] || '').includes('grounds: an ADR'),
     devSees: (prompts['dev:DE-1'] || '').includes('the styling ADR forbids it'),
+    devAbsent: /test:\s+\(none\)/.test(prompts['dev:DE-1'] || '')
+      && (prompts['dev:DE-1'] || '').includes('say so in `notes`'),
     precedence: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
       .every((l) => prompts[l].includes('settle it in this')),
   }));
@@ -1495,6 +1587,10 @@ NODEJS
   SIM=$(sim '{}')
   assert_eq "three satisfied reviewers cost three agents and no revision" \
     "3 0 " "$(field "$SIM" reviews) $(field "$SIM" revisions) $(field "$SIM" open)"
+  # The simulation passes no stack, so every command prints as (none): the
+  # dev agent has to be told to skip it and to say so in `notes`, not to wait.
+  assert_eq "with no quality command defined, the dev agent is told to skip it and say so in notes" \
+    "true" "$(field "$SIM" devAbsent)"
 
   SIM=$(sim '{"simpler":"propose","revise":"dead"}')
   assert_eq "a reviser that returns nothing leaves every proposal open" \
