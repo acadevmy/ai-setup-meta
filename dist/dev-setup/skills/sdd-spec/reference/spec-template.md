@@ -74,6 +74,4 @@ recorded here: the layer fixes it and the project's `tests.md` rule states it.>
   case, either it is not verifiable — rewrite it — or the strategy is
   incomplete.
 - **Nothing in here records how the run went.** The spec states what to build;
-  which gate ran on which day is in git and in the merge request. The
-  `## Simplify phase` and `## Review phase` sections this template used to carry
-  turned every task into two extra bookkeeping commits and were read by nobody.
+  which gate ran on which day is in git and in the merge request.
