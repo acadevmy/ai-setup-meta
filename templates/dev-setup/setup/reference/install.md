@@ -148,8 +148,12 @@ Multi-project: one `REGISTRY.md` per confirmed sub-project, at
 `${CLAUDE_SKILL_DIR}/templates/.worktreeinclude`. See 3.7 for what it does and
 for the one `.gitignore` line that goes with it.
 
-**IMPORTANT**: write the files you read **exactly as received**. Do not
-reformat, do not adjust, do not improve. The content must be verbatim.
+Write the files you read exactly as received — no reformatting, no adjusting,
+no improving. The later steps read them back by their content:
+`migrate-settings.sh` tells an old generated `settings.json` from the team's by
+its shape (3.2b), and the review finds the sections and `_No ... registered._`
+placeholders of `REGISTRY.md` by their exact text. A copy that differs from the
+template is one the setup reads as the team's file.
 
 **Check**: verify that the written files are not empty. If one is, tell the
 developer and stop.

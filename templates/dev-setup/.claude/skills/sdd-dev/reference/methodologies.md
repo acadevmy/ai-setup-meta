@@ -49,7 +49,7 @@ For frontend work: UI components, pages, user flows.
   ```
 
   `And` adds steps; `Scenario Outline` with `Examples` covers parametric
-  variants. Present the scenarios to the developer before implementing them.
+  variants. Write the scenarios into the test names before implementing them.
 
 - **Test** — translate each scenario into an executable test. Every `Given`
   prepares the state (render, mocks), every `When` performs the user action
@@ -78,20 +78,10 @@ resolved for you:
 ${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh --json
 ```
 
-`TEST_CMD`, `LINT_CMD` and `TYPECHECK_CMD` hold what this project uses; an empty
-value means the project has none. What the script resolves, per stack:
-
-| Stack marker | `TEST_CMD` | `LINT_CMD` |
-|---|---|---|
-| `package.json` with a `test` / `lint` script | `npm test` (or `npx vitest`) | `npm run lint` |
-| `pytest.ini`, or `pyproject.toml` with `[tool.pytest]` | `pytest` | `ruff check .` with `[tool.ruff]` |
-| `go.mod` | `go test ./...` | `golangci-lint run` with `.golangci.yml` |
-| `pubspec.yaml` | `flutter test` | `dart analyze` |
-| `Cargo.toml` | `cargo test` | `cargo clippy` |
-| Terraform | `terraform validate` | `terraform fmt -check -recursive` |
-
-If both come back empty, ask the developer which commands to use rather than
-guessing one.
+`TEST_CMD`, `LINT_CMD` and `TYPECHECK_CMD` hold what this project uses. An
+empty value is a command the project does not define: run nothing for it and
+never substitute one of your own. Say so where the step reports — the `Tests:`
+/ `Linter:` lines of the summary, or `notes` in the autonomous run.
 
 A red test or a lint error stops the step: fix it before announcing the next
 one. Do not carry a failure forward "to fix at the end" — the commit gate will

@@ -137,9 +137,8 @@ In every case, close with one line for the summary:
 
 ## Step 7b — Branch protection on the reference branch
 
-"One review required" and "no direct push to the reference branch" used to be
-two bullets in a governance document nobody could enforce. They are settings on
-the host, so this step sets them there and they stop being prose.
+"One review required" and "no direct push to the reference branch" are not
+prose: they are settings on the host, so this step sets them there.
 
 **Skip this step** when `{VCS}` is `none` or `other`.
 
