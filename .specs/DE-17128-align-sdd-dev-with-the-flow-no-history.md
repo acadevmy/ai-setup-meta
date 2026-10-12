@@ -1,6 +1,6 @@
 # Spec: [dev-setup] Align sdd-dev with the flow's stops and the autonomous run, and take the history out of the instructions [DE-17128]
 
-> Status: approved
+> Status: implemented
 > Task: https://app.clickup.com/t/869fcez3y
 > Branch: fix/DE-17128_align-sdd-dev-with-the-flow-no-history
 > Created: 2026-10-12
