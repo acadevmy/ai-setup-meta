@@ -1832,7 +1832,7 @@ assert_eq "the hook ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/hooks/scripts/post-merge-request.sh" ] && echo true || echo false)"
 assert_eq "and is mounted as a PostToolUse hook on Bash" "true" \
   "$(jq -e '[.hooks.PostToolUse[] | select(.matcher == "Bash")
-            | .hooks[].command | select(endswith("/post-merge-request.sh"))] | length == 1' \
+            | .hooks[].command | select(endswith("/post-merge-request.sh\""))] | length == 1' \
        "$REPO_ROOT/dist/dev-setup/hooks/hooks.json" >/dev/null 2>&1 && echo true || echo false)"
 
 # The skill that actually opens a merge request is the one place the obligation

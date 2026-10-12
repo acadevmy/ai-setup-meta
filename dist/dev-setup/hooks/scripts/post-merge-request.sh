@@ -75,6 +75,9 @@ RESPONSE=$(printf '%s' "$INPUT" | jq -r '.tool_response // empty | if type == "s
 
 # ── Is this a merge request being opened? ─────────────────────────────────────
 #
+# Mirrored by the mod (mod/lib/merge-request.ts), which shows the developer the
+# same closure: the scan, the URL proof and the task choice — change both.
+#
 # The scan runs on the command with every quoted string removed: a pull request
 # body explaining how to run `gh pr create` must not read as one.
 

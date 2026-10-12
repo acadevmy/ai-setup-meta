@@ -145,6 +145,7 @@ ai-setup-meta/
 │       │   ├── settings.json           # Permissions + sandbox + hooks (source)
 │       │   ├── settings.user.json      # User-scope snippet: credential masking
 │       │   ├── hooks/                  # gate-commit, post-edit, on-compact
+│       │   ├── mod/                    # The mod: the band and /dev-setup, no rule (register.ts, lib/, tests/)
 │       │   ├── scripts/                # The deterministic steps (bash + jq, --json)
 │       │   ├── agents/                 # review — the one domain agent left
 │       │   ├── reference/              # Contracts shared by several skills
@@ -163,7 +164,7 @@ ai-setup-meta/
 │       ├── agents/              # 2 agents (review + the shared clickup)
 │       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
 │       ├── workflows/           # dev-setup:auto-sdd
-│       └── hooks/               # hooks.json + hooks/scripts/
+│       └── hooks/               # hooks.json + hooks/scripts/ + the mod (register.ts, lib/, tests/)
 ├── scripts/
 │   ├── build-plugin.sh          # Orchestrator: reads the manifest, calls the builder
 │   ├── builders/

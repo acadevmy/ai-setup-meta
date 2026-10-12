@@ -65,6 +65,32 @@ in your working tree and commits nothing.
 **`validate` is not one of these.** `/project:validate` runs in the plugin's own
 repository, not in yours — see [workflow.md](./workflow.md).
 
+### Where you are, without a turn: the band and `/dev-setup`
+
+On a Claude Code that loads mods (2.1.287 and later), the plugin also shows the
+state of the work without spending a model turn:
+
+- **above the prompt** — one row per thing to know, each with a coloured mark:
+  an open task clock (`● DE-123  in progress  42m`, green); after a `gh pr
+  create` / `glab mr create` that created a merge request, its link and a
+  `close DE-123` button that fills — never sends — the prompt that stops the
+  clock and moves the task to `CODE REVIEW`; while an `sdd` runs, its tokens per
+  phase with the phase in progress at full strength, and the cost so far; past
+  70% of context, a yellow warning before a long phase compacts it;
+- **`/dev-setup`** — a pane with one tab per view (`1`–`7` switch, `r` reloads,
+  `Esc` closes). With no argument, the six commands with when to use each and
+  what each takes, and a `use` button that puts one in the prompt. `/dev-setup
+  clock`, `status` (branch, task, spec, the changed files), `worktrees` (ports
+  and overlaps), `context` (how full, as a meter, and how much of it the plugin
+  brings), `usage` (the `sdd` in progress, or the last one, per phase) and
+  `runs` (this session's `multi-sdd` runs). Its footer names where the figures
+  come from and when they were read. It answers at once, even while Claude is
+  working, and in the terminal it adds nothing to the conversation; in
+  `claude -p` or VS Code it prints the same rows as text.
+
+None of it is a rule. On an older client, or with mods turned off, the plugin
+works exactly the same — without the view.
+
 ---
 
 ## 2. A task, end to end
@@ -639,6 +665,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task DE-123 --stop --json
 then move the task to `CODE REVIEW` with the `COMMENT` it returns, verbatim. To
 see what is still open in the repository without closing anything, the same
 script with `--status` and no `--task` lists it.
+
+### `/dev-setup` is not in the command list
+
+The client is not loading mods: it is older than 2.1.287, the rollout has not
+reached it, or mods are turned off (`--safe-mode`, `disableAllHooks`, managed
+settings). On 2.1.285 they are early access: start Claude Code with
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` in its environment. Nothing else in the
+plugin depends on them.
 
 ### The task moved but carries no time
 

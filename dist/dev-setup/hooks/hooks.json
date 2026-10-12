@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh\"",
             "timeout": 600
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit.sh\""
           }
         ]
       },
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-request.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-request.sh\""
           }
         ]
       }
@@ -38,10 +38,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-compact.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-compact.sh\""
           }
         ]
       }
     ]
-  }
+  },
+  "modules": [
+    "./register.ts"
+  ]
 }

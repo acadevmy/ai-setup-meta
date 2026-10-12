@@ -2,6 +2,7 @@
 name: auto-sdd
 description: Launches the autonomous SDD workflow for one task — spec, three reviewers improving it, test-first development in an isolated worktree, the project own quality commands — and opens the merge request behind a confirmation. Use when a tracked task should go from the board to a review-ready merge request with no supervision.
 effort: medium
+argument-hint: "[TASK_ID]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -10,11 +11,11 @@ disable-model-invocation: true
 
 The launcher of the `auto-sdd` workflow. The orchestration lives in
 `workflows/auto-sdd.js`, JavaScript the harness runs: its bounds are bounds and
-its control flow never enters the context. What is left here is what code cannot
+its control flow never enters the context. What is left is what code cannot
 do — the task, the launch, the outcome.
 
-**Usage**: `/dev-setup:auto-sdd [TASK_ID]`. For several tasks, `multi-sdd`
-composes it.
+**Usage**: `/dev-setup:auto-sdd [TASK_ID]`; `multi-sdd` composes it for
+several.
 
 ## Before you start
 
