@@ -147,7 +147,7 @@ ai-setup-meta/
 │       │   ├── hooks/                  # gate-commit, post-edit, on-compact
 │       │   ├── mod/                    # The mod: the band and /dev-setup, no rule (register.ts, lib/, tests/)
 │       │   ├── scripts/                # The deterministic steps (bash + jq, --json)
-│       │   ├── agents/                 # review — the one domain agent left
+│       │   ├── agents/                 # code-reviewer, spec-verifier, finding-validator
 │       │   ├── reference/              # Contracts shared by several skills
 │       │   ├── skills/                 # 10 workflow skills (SKILL.md + reference/)
 │       │   └── workflows/              # auto-sdd.js — the autonomous run, as code
@@ -161,7 +161,7 @@ ai-setup-meta/
 │   └── dev-setup/               # Claude Code plugin
 │       ├── .claude-plugin/      # Plugin manifest
 │       ├── skills/              # 13 skills (10 from the template + 2 shared + setup)
-│       ├── agents/              # 2 agents (review + the shared clickup)
+│       ├── agents/              # 4 agents (3 from the template + the shared clickup)
 │       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
 │       ├── workflows/           # dev-setup:auto-sdd
 │       └── hooks/               # hooks.json + hooks/scripts/ + the mod (register.ts, lib/, tests/)
@@ -361,5 +361,7 @@ merge request, so the person reviewing it reads both sides instead.
 
 | Agent | Role |
 |---|---|
-| **review** | Code review against `.claude/rules/`, updates the REGISTRY |
+| **code-reviewer** | Code review against `.claude/rules/`, proposes the REGISTRY entries |
+| **spec-verifier** | The branch's diff against its approved spec: requirements, tests, Impact list |
+| **finding-validator** | Re-checks every blocking review finding against the cited line before it counts |
 | **clickup** | Generic ClickUp CRUD (MCP passthrough) |

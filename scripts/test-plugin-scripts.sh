@@ -1319,6 +1319,7 @@ echo "── DE-17128 — sdd-dev aligned with the stops and the script, no hist
 # Prose assertions read the file with its newlines folded: a sentence markdown
 # wraps still counts, and a removed phrase cannot pass because an edit wrapped it.
 flat() { tr '\n' ' ' < "$1" | tr -s ' '; }
+frontmatter_of() { sed -n '2,/^---$/p' "$1"; }
 
 METH="$SDD_DIR/sdd-dev/reference/methodologies.md"
 INSTALL="$REPO_ROOT/templates/dev-setup/setup/reference/install.md"
@@ -1402,6 +1403,109 @@ assert_eq "install.md carries no history phrase" "" \
 
 assert_eq "sdd-dev/SKILL.md stays inside the 500-word budget" "true" \
   "$([ "$(wc -w < "$SDD_DIR/sdd-dev/SKILL.md" | tr -d ' ')" -le 500 ] && echo true || echo false)"
+
+echo ""
+echo "── DE-17130 — the generated AGENTS.md describes the plugin that ships it ──"
+
+# The AGENTS.md the setup writes into a project is read in every session of
+# that project, so its tables are pinned to the plugin's own surface rather
+# than to a list kept here: a public command is a `user-invocable: true`
+# skill, an agent is the `name:` of a file under agents/. A row for something
+# that does not exist and no row for something that does are both red.
+GEN_SINGLE="$TEMPLATE_ROOT/AGENTS.template.md"
+GEN_WORKSPACE="$TEMPLATE_ROOT/AGENTS.workspace-template.md"
+GEN_PROJECT="$TEMPLATE_ROOT/AGENTS.project-template.md"
+GEN_REGISTRY="$TEMPLATE_ROOT/REGISTRY.md"
+AGENTS_GEN="$TEMPLATE_ROOT/setup/reference/agents-generation.md"
+
+PUBLIC_SKILLS="$(for S in "$SDD_DIR"/*/SKILL.md "$REPO_ROOT"/shared/skills/*/SKILL.md \
+                          "$TEMPLATE_ROOT/setup/SKILL.md"; do
+    FM="$(frontmatter_of "$S")"
+    printf '%s\n' "$FM" | grep -q '^user-invocable: true' || continue
+    printf '%s\n' "$FM" | sed -n 's/^name:[[:space:]]*//p'
+  done | LC_ALL=C sort)"
+SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
+    frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
+  done | LC_ALL=C sort -u)"
+assert_eq "the surface the check reads is the six public commands" \
+  "auto-sdd multi-sdd quick review sdd setup" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+
+# The names from $2 (one per line) with no row in $1 matching $3, where `@`
+# stands for the name.
+missing_rows() {
+  local file="$1" names="$2" pattern="$3" name missing=""
+  while IFS= read -r name; do
+    grep -q "${pattern//@/$name}" "$file" || missing="$missing $name"
+  done <<<"$names"
+  printf '%s' "${missing# }"
+}
+agents_table_rows() {
+  awk '/^## Available agents/{f=1; next} /^## /{f=0} f && /^\| \*\*/' "$1" | grep -c .
+}
+
+for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE"; do
+  NAME="$(basename "$GEN")"
+  assert_eq "$NAME lists every public command" "" \
+    "$(missing_rows "$GEN" "$PUBLIC_SKILLS" '^| `/dev-setup:@')"
+  assert_eq "$NAME lists no command the plugin does not expose" \
+    "$(printf '%s\n' "$PUBLIC_SKILLS" | grep -c .)" "$(grep -c '^| `/dev-setup:' "$GEN")"
+  assert_eq "$NAME lists every shipped agent by its frontmatter name" "" \
+    "$(missing_rows "$GEN" "$SHIPPED_AGENTS" '^| \*\*@\*\* |')"
+  assert_eq "$NAME names no agent that does not exist" \
+    "$(printf '%s\n' "$SHIPPED_AGENTS" | grep -c .)" "$(agents_table_rows "$GEN")"
+  assert_contains "$NAME carries quick's bar" "$(grep '^| `/dev-setup:quick' "$GEN")" "three files"
+
+  # The stops are named, never counted: a count went stale once already.
+  FLAT_GEN="$(flat "$GEN")"
+  assert_contains "$NAME names the stops and closes the list" "$FLAT_GEN" \
+    "for your approval of the spec — nowhere else"
+  assert_eq "$NAME promises no checkpoint between phases" "false" \
+    "$(printf '%s' "$FLAT_GEN" | grep -q 'each checkpoint' && echo true || echo false)"
+  assert_eq "$NAME keeps git conventions out of the rules row" "false" \
+    "$(grep '^| Rules on the code' "$GEN" | grep -q 'git' && echo true || echo false)"
+  assert_contains "$NAME sends them to vcs-ops" "$(grep '^| Branch, commit' "$GEN")" '`vcs-ops`'
+done
+
+# Nothing loads the registry at session start — the generated CLAUDE.md imports
+# AGENTS.md only — so no generated file may say it is read then.
+for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE" "$GEN_PROJECT" "$GEN_REGISTRY"; do
+  assert_eq "$(basename "$GEN") never asks for the registry at session start" "false" \
+    "$(flat "$GEN" | grep -qi 'start of each session\|start of a new session' && echo true || echo false)"
+done
+for GEN in "$GEN_PROJECT" "$GEN_REGISTRY"; do
+  assert_contains "$(basename "$GEN") says when the registry is read" \
+    "$(flat "$GEN")" "before adding something that may already exist"
+done
+
+# A placeholder the template declares and the reference does not fill is a
+# render-template.sh failure on the first multi-project setup.
+DOCUMENTED_VARS="$(grep -o '{{[A-Z_]*}}' "$AGENTS_GEN" | LC_ALL=C sort -u)"
+for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE" "$GEN_PROJECT"; do
+  DECLARED_VARS="$(bash "$PLUGIN_SCRIPTS/render-template.sh" --in "$GEN" --list 2>/dev/null)"
+  UNDOCUMENTED=""
+  while IFS= read -r VAR; do
+    [ -n "$VAR" ] || continue
+    printf '%s\n' "$DOCUMENTED_VARS" | grep -qxF "{{$VAR}}" || UNDOCUMENTED="$UNDOCUMENTED $VAR"
+  done <<<"$DECLARED_VARS"
+  assert_eq "every placeholder of $(basename "$GEN") is one agents-generation.md fills" "" "${UNDOCUMENTED# }"
+  [ "$GEN" = "$GEN_PROJECT" ] || continue
+  assert_contains "the sub-project template carries the type-check" "$DECLARED_VARS" "TYPECHECK_COMMAND"
+done
+
+# UPDATE carries the whole plugin-owned tail, and says what it did with it.
+FLAT_AGEN="$(flat "$AGENTS_GEN")"
+assert_contains "UPDATE compares the tail from its heading" "$FLAT_AGEN" '`## Available agents`'
+assert_contains "and the sub-project tail from its own" "$FLAT_AGEN" '`## Project registry`'
+for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DECLINED" "AGENTS.md already current"; do
+  assert_contains "the offer reports: $LINE" "$FLAT_AGEN" "$LINE"
+done
+
+# DE-17079 wants the generated file shorter; these fixes may not lengthen it.
+for BUDGET in "$GEN_SINGLE:131" "$GEN_WORKSPACE:136" "$GEN_PROJECT:30"; do
+  GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
+  assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
+    "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
+done
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2412,7 +2516,6 @@ echo "── verify and review read one package and answer short ──"
 
 AGENTS_SRC="$REPO_ROOT/templates/dev-setup/.claude/agents"
 SKILLS_SRC="$REPO_ROOT/templates/dev-setup/.claude/skills"
-frontmatter_of() { sed -n '2,/^---$/p' "$1"; }
 
 # ── Test 7 (REQ-5): no agent can regenerate the diff ──
 assert_eq "no agent runs git diff" "" \
@@ -2771,9 +2874,7 @@ assert_contains "and says the reminder arrives as context" "$DEV_GUIDE_MD" "addi
 # REQ-8. A skill launches an agent by its frontmatter `name:`, not by its file
 # name: review.md is `code-reviewer`, verify.md is `spec-verifier`. A name that
 # resolves to no agent sends the launcher looking for one that does not exist.
-AGENT_NAMES="$(for A in "$REPO_ROOT"/templates/dev-setup/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
-    sed -n '2,/^---$/p' "$A" | sed -n 's/^name:[[:space:]]*//p'
-  done | LC_ALL=C sort -u)"
+AGENT_NAMES="$SHIPPED_AGENTS"
 UNKNOWN_AGENTS="$(grep -rhoE 'Launch the `[^`]+` agent' \
     "$REPO_ROOT/templates/dev-setup/.claude/skills" "$REPO_ROOT/shared/skills" \
   | sed -E 's/^Launch the `//; s/` agent$//' | LC_ALL=C sort -u \
