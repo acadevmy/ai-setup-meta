@@ -57,14 +57,22 @@ find_bin() {
   return 1
 }
 
-FAILED=""
+# What the model is told, collected here and sent once at the end.
+REPORT=""
+
+# Keeps the report readable: the tail is where a formatter puts its summary.
+# A line cap, not a byte cap — the harness accepts 10,000 characters of
+# additionalContext, and 40 lines per tool keeps a formatter's report inside
+# that in practice, while a byte cap would cut exactly the tail that matters.
+MAX_OUTPUT_LINES=40
 
 # ── Prettier ──────────────────────────────────────────────────────────────────
 
 if PRETTIER=$(find_bin prettier); then
   if ! PRETTIER_OUT=$("$PRETTIER" --write "$FILE_PATH" 2>&1); then
-    FAILED="prettier"
-    printf 'post-edit: prettier failed on %s\n%s\n' "$FILE_PATH" "$PRETTIER_OUT" >&2
+    REPORT="${REPORT}post-edit: prettier failed on $FILE_PATH
+$(printf '%s\n' "$PRETTIER_OUT" | tail -n "$MAX_OUTPUT_LINES")
+"
   fi
 fi
 
@@ -74,16 +82,25 @@ case "$FILE_PATH" in
   *.js|*.jsx|*.mjs|*.cjs|*.ts|*.tsx|*.mts|*.cts|*.vue|*.svelte)
     if ESLINT=$(find_bin eslint); then
       if ! ESLINT_OUT=$("$ESLINT" --fix "$FILE_PATH" 2>&1); then
-        FAILED="${FAILED:+$FAILED, }eslint"
-        printf 'post-edit: eslint reported problems it could not fix in %s\n%s\n' \
-          "$FILE_PATH" "$ESLINT_OUT" >&2
+        REPORT="${REPORT}post-edit: eslint reported problems it could not fix in $FILE_PATH
+$(printf '%s\n' "$ESLINT_OUT" | tail -n "$MAX_OUTPUT_LINES")
+"
       fi
     fi
     ;;
 esac
 
-# Exit 2 makes the message above visible to Claude instead of only to the user:
-# a rule ESLint cannot auto-fix is work still to do on the file just written.
-[ -n "$FAILED" ] && exit 2
+# ── The report ────────────────────────────────────────────────────────────────
+#
+# A rule ESLint cannot auto-fix is work still to do on the file just written,
+# and the model learns it through `additionalContext`: on PostToolUse that is
+# the channel the hooks reference gives a hook with something to say, and it
+# arrives next to the tool result rather than as a hook error (DE-17064). The
+# exit code is 0 either way — the edit happened and stays.
+
+if [ -n "$REPORT" ]; then
+  jq -n --arg text "$REPORT" \
+    '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $text}}'
+fi
 
 exit 0

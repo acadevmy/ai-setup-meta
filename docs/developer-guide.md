@@ -417,6 +417,11 @@ matches, and a redirect to a file, a `cd` or a `$(...)` keeps it in. So
 `gate-commit.sh` is a `PreToolUse` hook on `Bash`, and it picks its mode from
 what the project already owns, so the checks run once and only once.
 
+It spawns only on a git commit call: its handler carries the rule
+`Bash(*git *commit*)`, the hook's own definition of a commit in permission-rule
+syntax, so a `git status` never starts it — and it keeps its own check inside,
+for a client that ignores the rule.
+
 **Your project has husky, lefthook, simple-git-hooks or a `core.hooksPath`.**
 Then your own tooling runs the per-commit checks and the hook only refuses the
 ways around it: `HUSKY=0`, `LEFTHOOK=0`, a `-c core.hooksPath=…` override, a
@@ -655,8 +660,10 @@ Claude Code and the flow starts again on its own.
 
 `post-merge-request.sh` exists to catch exactly this: it fires on the command
 that created the merge request and names the task whose clock is still running.
-If no reminder arrived — the merge request was opened from the web UI, `jq` is
-missing, the installed plugin predates the hook — the two calls are:
+The reminder arrives as context next to the command's result
+(`additionalContext`), not as a hook error. If none arrived — the merge request
+was opened from the web UI, `jq` is missing, the installed plugin predates the
+hook — the two calls are:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task DE-123 --stop --json

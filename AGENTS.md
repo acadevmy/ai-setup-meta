@@ -284,6 +284,17 @@ the project already owns, so the checks run once and only once:
   `TEST_CMD` from `detect-stack.sh` and denies with the tail of the real output as
   the reason.
 
+The handler carries `"if": "Bash(*git *commit*)"` (DE-17064), so the harness spawns
+the gate on a git commit call only and a `git status` pays for no process. The rule
+is `is_git_commit` in permission-rule syntax — `*git *commit*`, not `git commit*`: a
+global flag before the subcommand (`git -c core.hooksPath=… commit`) and the `env`
+prefix are the forms the anti-bypass mode exists to refuse, and a form the hook acts
+on that the rule never spawned would be a silent gap, so the suite pins the
+invariant (every shape the gate denies is one the rule matches). The regex stays the
+decision: a client that ignores `if`, and a compound command the harness cannot
+narrow, still reach it — asserted on a `git status` in a red project, where a gate
+that reached the checks would deny.
+
 The bypass scan reads the command with the quoted strings removed, so a commit
 *message* mentioning `HUSKY=0` is not treated as an attempt to set it. It also reads
 each kind of bypass where that kind can actually live: a **flag** is looked for in
@@ -328,9 +339,19 @@ Two properties are the design, not details:
    that a flow of this plugin moved a task to `IN PROGRESS` here; a hook that
    fired on every `gh` call would be switched off within the week.
 
-Exit 2 is the channel and not a verdict: on `PostToolUse` it is what puts stderr
-in front of the model (stdout there reaches the debug log only). The merge request
-was created and stays created.
+The reminder is `additionalContext`, with exit 0 (DE-17064): on `PostToolUse` that
+is the channel the hooks reference gives a hook with something to tell the model,
+and it arrives next to the command's result rather than as a hook error. The rule
+for every hook of the plugin: a hook that *reports* uses `additionalContext`, a hook
+that *refuses* uses the `PreToolUse` decision object, and `exit 2` is used nowhere —
+the suite greps the hooks for it. The merge request was created and stays created.
+
+The hook is mounted twice, with `"if": "Bash(*gh pr *create*)"` and
+`"if": "Bash(*glab mr *create*)"` — its scan in permission-rule syntax, one host per
+handler because a handler holds exactly one rule — so the harness spawns it on a
+merge-request creation only. The scan stays, for the same two reasons as the gate's
+regex, and is asserted with a clock open and the URL in the response, where an
+unfiltered hook would speak.
 
 **Hooks reach a project through the plugin, not through its `settings.json`.**
 `build-claude.sh` generates `dist/<domain>/hooks/hooks.json` from the `hooks` block
@@ -862,4 +883,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.29.0 — bump the version number on every substantial change*
+*Version: 2.30.0 — bump the version number on every substantial change*

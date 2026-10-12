@@ -106,6 +106,43 @@ assert_contains() {
   esac
 }
 
+# The harness cannot run the harness's own hook matcher. The permissions
+# reference gives one rule for the shapes the plugin uses — every `*` stands for
+# any text, including none, and leading `VAR=value` assignments are stripped
+# before matching — and bash pattern matching on the text between `Bash(` and
+# `)` is that rule. Each segment of a compound command is checked on its own,
+# as the hooks reference describes (DE-17064). The proxy does not strip quoted
+# strings, so a `;`, `&` or `|` inside quotes splits a segment here where the
+# hooks' own scan would not: keep the tables to shapes with no delimiter inside
+# quotes.
+if_matches() {
+  local rule="$1" command="$2" glob segment
+  glob="${rule#Bash(}"
+  glob="${glob%)}"
+  while IFS= read -r segment; do
+    segment="${segment#"${segment%%[![:space:]]*}"}"
+    while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+ ]]; do
+      segment="${segment#"${BASH_REMATCH[0]}"}"
+    done
+    # shellcheck disable=SC2053
+    [[ "$segment" == $glob ]] && return 0
+  done <<EOF
+$(printf '%s\n' "$command" | tr ';&|' '\n\n\n')
+EOF
+  return 1
+}
+
+# True when at least one of the newline-separated rules spawns the command.
+rules_match() {
+  local rules="$1" command="$2" rule
+  while IFS= read -r rule; do
+    [ -n "$rule" ] && if_matches "$rule" "$command" && return 0
+  done <<EOF
+$rules
+EOF
+  return 1
+}
+
 command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 1; }
 
 # ── Git environment ───────────────────────────────────────────────────────────
@@ -639,6 +676,32 @@ assert_eq "HUSKY=0 exported in an earlier segment is refused" \
 assert_eq "with husky the gate runs no check of its own" \
   "none" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'git commit -m "feat: something"')")"
 
+# ── The `if` rule: the gate spawns only on a git commit call (DE-17064) ──
+#
+# The handler carries `"if": "Bash(*git *commit*)"`, which is `is_git_commit`
+# written in permission-rule syntax, so the harness never spawns the gate on a
+# `git status`. Asserted on the generated hooks.json rather than the template:
+# a builder that dropped the key would fail here.
+HOOKS_JSON="$REPO_ROOT/dist/dev-setup/hooks/hooks.json"
+GATE_HANDLERS="$(jq -c '[.hooks.PreToolUse[] | select(.matcher == "Bash")
+  | .hooks[] | select(.command | endswith("/gate-commit.sh\""))]' "$HOOKS_JSON")"
+assert_eq "the gate is mounted once as a PreToolUse hook on Bash" "1" \
+  "$(printf '%s' "$GATE_HANDLERS" | jq 'length')"
+GATE_RULE="$(printf '%s' "$GATE_HANDLERS" | jq -r '.[0].if // ""')"
+assert_eq "and spawns on a git commit call only" "Bash(*git *commit*)" "$GATE_RULE"
+assert_eq "keeping its timeout" "600" \
+  "$(printf '%s' "$GATE_HANDLERS" | jq -r '.[0].timeout // ""')"
+
+for CMD in 'git status' 'git log --format=%H -1' 'npm test' 'echo "about to commit"'; do
+  assert_eq "the rule leaves alone: $CMD" "false" \
+    "$(if_matches "$GATE_RULE" "$CMD" && echo true || echo false)"
+done
+for CMD in 'git commit -m "x"' 'git commit' 'git -c core.hooksPath=/dev/null commit -m "x"' \
+           'git -C dir commit -m "x"' 'HUSKY=0 git commit -m "x"' 'env HUSKY=0 git commit -m "x"'; do
+  assert_eq "the rule spawns on: $CMD" "true" \
+    "$(if_matches "$GATE_RULE" "$CMD" && echo true || echo false)"
+done
+
 # ── Full-gate mode ──
 make_gate_project() {
   local dir="$1" test_exit="$2"
@@ -675,6 +738,28 @@ if command -v npm >/dev/null 2>&1; then
   git -C "$EMPTY_PROJECT" commit --quiet -m "chore: base"
   assert_eq "nothing staged, no suite run" \
     "none" "$(decision_of "$(gate "$EMPTY_PROJECT" 'git commit -m "feat: thing"')")"
+
+  # The internal filter stays, for a client that ignores `if` and for the
+  # compound commands the harness cannot narrow — and it is asserted where a
+  # spawn would show. A gate that reached the checks here would deny (the
+  # suite is red), so silence and exit 0 prove the filter, not an empty stack.
+  RED_STATUS_OUT=$(gate "$RED_PROJECT" 'git status')
+  RED_STATUS_RC=$?
+  assert_eq "git status in a red project: no decision" "none" "$(decision_of "$RED_STATUS_OUT")"
+  assert_eq "git status in a red project: empty stdout" "" "$RED_STATUS_OUT"
+  assert_eq "git status in a red project: exit 0" "0" "$RED_STATUS_RC"
+
+  # Every shape the hook acts on is one the rule spawns. A form the gate denies
+  # that the rule never starts would be a silent gap: the rule is
+  # `*git *commit*` rather than `git commit*` precisely for `git -c … commit`
+  # and the `env` prefix, which the gate refuses today.
+  for CMD in 'git commit -m "x"' 'git -c core.hooksPath=/dev/null commit -m "x"' \
+             'HUSKY=0 git commit -m "x"' 'env HUSKY=0 git commit -m "x"' \
+             'export HUSKY=0 && git commit -m "x"'; do
+    assert_eq "the gate acts on: $CMD" "deny" "$(decision_of "$(gate "$RED_PROJECT" "$CMD")")"
+    assert_eq "and the rule spawns it: $CMD" "true" \
+      "$(if_matches "$GATE_RULE" "$CMD" && echo true || echo false)"
+  done
 else
   echo "  ${DIM}npm not found: full-gate execution tests skipped${NC}"
 fi
@@ -1836,24 +1921,36 @@ mkdir -p "$MR_REPO"
 
 MR_URL_GH="https://github.com/acme/repo/pull/12"
 
-# Feeds a PostToolUse payload to the hook and prints its stderr — which is the
-# channel that reaches the model on this event.
+# The handlers that mount the hook, read from the generated hooks.json: the
+# `if` rules below are what the harness spawns it on (DE-17064).
+MR_HANDLERS="$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Bash")
+  | .hooks[] | select(.command | contains("/post-merge-request.sh\""))]' "$HOOKS_JSON")"
+MR_RULES="$(printf '%s' "$MR_HANDLERS" | jq -r '.[].if // ""')"
+
+# Feeds a PostToolUse payload to the hook and prints what it tells the model:
+# the `additionalContext` of the JSON object on its stdout, which is the channel
+# the hooks reference gives this event (DE-17064). Nothing on stdout, nothing
+# printed.
 mr_hook() {
+  local command="$1" response="$2" out
+  out=$(jq -n --arg c "$command" --arg r "$response" --arg cwd "$MR_REPO" \
+    '{tool_name: "Bash", tool_input: {command: $c}, tool_response: $r, cwd: $cwd}' \
+    | bash "$PLUGIN_HOOKS/post-merge-request.sh" 2>/dev/null)
+  [ -n "$out" ] || return 0
+  printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // empty'
+}
+
+# The raw run: stdout and stderr to files, the hook's exit code returned.
+mr_hook_raw() {
   local command="$1" response="$2"
   jq -n --arg c "$command" --arg r "$response" --arg cwd "$MR_REPO" \
     '{tool_name: "Bash", tool_input: {command: $c}, tool_response: $r, cwd: $cwd}' \
-    | { bash "$PLUGIN_HOOKS/post-merge-request.sh" >/dev/null; } 2>&1
+    | bash "$PLUGIN_HOOKS/post-merge-request.sh" >"$WORK_DIR/mr-stdout" 2>"$WORK_DIR/mr-stderr"
 }
 
 mr_clock() { (cd "$MR_REPO" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
 
 # ── Quiet by default ──
-assert_eq "a command that is not a merge request is ignored" "" \
-  "$(mr_hook 'git status' "$MR_URL_GH")"
-
-assert_eq "a quoted mention of the command is not the command" "" \
-  "$(mr_hook 'git commit -m "explain how gh pr create works"' "$MR_URL_GH")"
-
 assert_eq "a merge request that was not created says nothing" "" \
   "$(mr_hook 'gh pr create --fill' 'error: pull request create failed')"
 
@@ -1861,9 +1958,23 @@ assert_eq "a merge request that was not created says nothing" "" \
 # see this hook at all.
 assert_eq "no open clock, no reminder" "" \
   "$(mr_hook 'gh pr create --fill' "$MR_URL_GH")"
+mr_hook_raw 'gh pr create --fill' "$MR_URL_GH"
+assert_eq "and the quiet path exits 0" "0" "$?"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/mr-stdout")"
 
 # ── With a task in progress ──
 mr_clock --task DE-810 --start >/dev/null
+
+# The internal filter stays, for a client that ignores `if`, and it is asserted
+# where an unfiltered hook would speak: the URL is in the response and DE-810's
+# clock is open, so only the scan keeps these two quiet.
+assert_eq "a command that is not a merge request is ignored" "" \
+  "$(mr_hook 'git status' "$MR_URL_GH")"
+assert_eq "a quoted mention of the command is not the command" "" \
+  "$(mr_hook 'git commit -m "explain how gh pr create works"' "$MR_URL_GH")"
+mr_hook_raw 'git status' "$MR_URL_GH"
+assert_eq "and the filtered call exits 0" "0" "$?"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/mr-stdout")"
 
 MR_FIRED=$(mr_hook 'gh pr create --title "feat: thing [DE-810]" --base next' "$MR_URL_GH")
 
@@ -1875,16 +1986,33 @@ assert_contains "and for the board" "$MR_FIRED" "CODE REVIEW"
 assert_contains "citing the contract that holds the call" \
   "$MR_FIRED" "reference/clickup-contract.md"
 
-# Exit 2 is what puts stderr in front of the model on PostToolUse. The merge
-# request was created either way: the hook reports, it does not undo.
-jq -n --arg cwd "$MR_REPO" \
-  '{tool_name: "Bash", tool_input: {command: "gh pr create --fill"}, tool_response: "https://github.com/acme/repo/pull/12", cwd: $cwd}' \
-  | bash "$PLUGIN_HOOKS/post-merge-request.sh" >/dev/null 2>&1
-assert_eq "it reports through exit 2" "2" "$?"
+# The reminder is additionalContext with exit 0: on PostToolUse that is the
+# channel the hooks reference gives a hook with something to tell the model,
+# and it arrives as context rather than as a hook error. The merge request was
+# created either way: the hook reports, it does not undo.
+mr_hook_raw 'gh pr create --fill' "$MR_URL_GH"
+assert_eq "it reports through additionalContext and exits 0" "0" "$?"
+assert_eq "stdout is one JSON object" "1" "$(jq -s 'length' "$WORK_DIR/mr-stdout" 2>/dev/null)"
+assert_eq "naming the event" "PostToolUse" \
+  "$(jq -r '.hookSpecificOutput.hookEventName // empty' "$WORK_DIR/mr-stdout" 2>/dev/null)"
+assert_eq "and nothing goes to stderr" "" "$(cat "$WORK_DIR/mr-stderr")"
 
 assert_contains "glab is the same event" \
   "$(mr_hook 'glab mr create --fill' 'https://gitlab.com/g/p/-/merge_requests/7')" \
   "DE-810 is still IN PROGRESS"
+
+# Every shape the scan accepts is one a rule spawns: the hook speaks on it with
+# the clock open, and at least one `if` rule matches it. A form the hook acts
+# on that no rule started would be a silent gap — the rules read `*gh pr
+# *create*`, not `gh pr create*`, for `--repo=` before the subcommand and the
+# `env` prefix.
+for CMD in 'gh pr create --fill' 'gh pr --repo=acme/repo create --fill' \
+           'env GH_REPO=acme/repo gh pr create --fill' 'glab mr --repo=g/p create --fill'; do
+  assert_contains "the hook acts on: $CMD" \
+    "$(mr_hook "$CMD" "$MR_URL_GH")" "DE-810 is still IN PROGRESS"
+  assert_eq "and a rule spawns it: $CMD" "true" \
+    "$(rules_match "$MR_RULES" "$CMD" && echo true || echo false)"
+done
 
 # The measurement belongs to whoever posts it. A hook that stopped the clock
 # would close the interval in a session that may never reach the board.
@@ -1926,10 +2054,32 @@ assert_contains "and the hook refuses to choose" "$MR_AMBIGUOUS" "Do not guess"
 # built but not mounted runs nowhere.
 assert_eq "the hook ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/hooks/scripts/post-merge-request.sh" ] && echo true || echo false)"
-assert_eq "and is mounted as a PostToolUse hook on Bash" "true" \
-  "$(jq -e '[.hooks.PostToolUse[] | select(.matcher == "Bash")
-            | .hooks[].command | select(endswith("/post-merge-request.sh\""))] | length == 1' \
-       "$REPO_ROOT/dist/dev-setup/hooks/hooks.json" >/dev/null 2>&1 && echo true || echo false)"
+# One rule per handler, and `gh pr create` shares no literal with `glab mr
+# create` that a single rule could hold — so two handlers, one host each
+# (DE-17064). Read from the generated hooks.json: a builder that dropped the
+# key would fail here.
+assert_eq "and is mounted as a PostToolUse hook on Bash, one handler per host" "2" \
+  "$(printf '%s' "$MR_HANDLERS" | jq 'length')"
+# The harness deduplicates identical hook commands, and nothing says `if` is
+# part of the key: two handlers with one command string could collapse into one
+# and the GitLab creation would never spawn the hook. The trailing argument
+# (`gh` / `glab`), which the script never reads, keeps them distinct.
+assert_eq "with two distinct command strings, so neither is deduplicated away" "2" \
+  "$(printf '%s' "$MR_HANDLERS" | jq '[.[].command] | unique | length')"
+assert_eq "each spawning on one host's merge-request creation" \
+  "Bash(*gh pr *create*) Bash(*glab mr *create*)" \
+  "$(printf '%s\n' "$MR_RULES" | LC_ALL=C sort | paste -sd' ' -)"
+
+for CMD in 'git status' 'gh pr view 12 --json body' 'glab mr list'; do
+  assert_eq "no rule spawns: $CMD" "false" \
+    "$(rules_match "$MR_RULES" "$CMD" && echo true || echo false)"
+done
+for CMD in 'gh pr create --fill' 'gh pr --repo=acme/repo create --fill' \
+           'env GH_REPO=acme/repo gh pr create --fill' \
+           'glab mr create --fill' 'glab mr --repo=g/p create --fill'; do
+  assert_eq "a rule spawns: $CMD" "true" \
+    "$(rules_match "$MR_RULES" "$CMD" && echo true || echo false)"
+done
 
 # The skill that actually opens a merge request is the one place the obligation
 # is certain to be loaded when it happens.
@@ -1937,6 +2087,72 @@ assert_contains "vcs-ops says the merge request does not end the task" \
   "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "does not end the task"
 assert_contains "citing the contract that holds both calls" \
   "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "reference/clickup-contract.md"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12b. post-edit.sh: the formatter's report arrives as context (DE-17064)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Same channel as the merge-request hook: a formatter that fails on the file
+# just written is work still to do on it, and the model learns it from
+# `additionalContext`, not from a hook error.
+
+echo ""
+echo "── post-edit.sh (the report is context, not an error) ──"
+
+# A project whose prettier fails, and one whose prettier passes. The fake
+# binaries are what find_bin walks up to — nothing is installed here, and a
+# passing eslint keeps a developer's own copy higher up out of the answer. The
+# failing one prints 45 numbered lines before its marker: the report keeps the
+# last 40, as the gate's MAX_OUTPUT_LINES does.
+make_edit_project() {
+  local dir="$1" exit_code="$2"
+  mkdir -p "$dir/node_modules/.bin"
+  printf 'const a = 1\n' > "$dir/a.ts"
+  printf '#!/bin/sh\nseq 1 45 | sed "s/^/LINE_/"\necho PRETTIER_MARKER\nexit %s\n' "$exit_code" \
+    > "$dir/node_modules/.bin/prettier"
+  printf '#!/bin/sh\nexit 0\n' > "$dir/node_modules/.bin/eslint"
+  chmod +x "$dir/node_modules/.bin/prettier" "$dir/node_modules/.bin/eslint"
+}
+
+# Feeds an Edit payload for the project's a.ts: stdout and stderr to files, the
+# hook's exit code returned.
+edit_hook_raw() {
+  local dir="$1"
+  jq -n --arg f "$dir/a.ts" '{tool_name: "Edit", tool_input: {file_path: $f}}' \
+    | bash "$PLUGIN_HOOKS/post-edit.sh" >"$WORK_DIR/edit-stdout" 2>"$WORK_DIR/edit-stderr"
+}
+
+EDIT_RED="$WORK_DIR/post-edit-red"
+make_edit_project "$EDIT_RED" 1
+edit_hook_raw "$EDIT_RED"
+assert_eq "a failing formatter still exits 0" "0" "$?"
+assert_eq "and reports through one JSON object" "1" \
+  "$(jq -s 'length' "$WORK_DIR/edit-stdout" 2>/dev/null)"
+assert_eq "naming the event" "PostToolUse" \
+  "$(jq -r '.hookSpecificOutput.hookEventName // empty' "$WORK_DIR/edit-stdout" 2>/dev/null)"
+EDIT_CONTEXT="$(jq -r '.hookSpecificOutput.additionalContext // empty' "$WORK_DIR/edit-stdout" 2>/dev/null)"
+assert_contains "whose context says what failed" "$EDIT_CONTEXT" "prettier failed on"
+assert_contains "with the tool's own output" "$EDIT_CONTEXT" "PRETTIER_MARKER"
+assert_eq "and nothing on stderr" "" "$(cat "$WORK_DIR/edit-stderr")"
+# 46 lines of output, 40 kept: LINE_7 is the first that survives the tail.
+assert_contains "the tail of the output is kept" "$EDIT_CONTEXT" "LINE_7"
+assert_eq "and the head is not" "false" \
+  "$(printf '%s\n' "$EDIT_CONTEXT" | grep -qx 'LINE_6' && echo true || echo false)"
+
+EDIT_GREEN="$WORK_DIR/post-edit-green"
+make_edit_project "$EDIT_GREEN" 0
+edit_hook_raw "$EDIT_GREEN"
+assert_eq "a passing formatter exits 0" "0" "$?"
+assert_eq "and says nothing" "" "$(cat "$WORK_DIR/edit-stdout")"
+
+# ── No hook exits 2 ──
+#
+# A hook that reports uses additionalContext; a hook that refuses uses the
+# PreToolUse decision object. A comment may still name the old channel, code
+# may not: the grep reads each line up to its first `#`.
+assert_eq "no hook script exits 2 in code" "" \
+  "$(grep -lE '^[^#]*(^|[^[:alnum:]_])exit[[:space:]]+2([^[:digit:]]|$)' "$PLUGIN_HOOKS"/*.sh \
+     | sed "s|^$REPO_ROOT/||")"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 13. review-package.sh: the diff verify and review read, built once (DE-17080)
@@ -2539,6 +2755,18 @@ assert_eq "AGENTS.md no longer says allowed-tools denies the agent launcher" "fa
 assert_contains "AGENTS.md describes the setup's disallowed-tools" "$AGENTS_MD" "disallowed-tools"
 assert_eq "the AGENTS.md version footer moved past 2.25.0" "false" \
   "$(printf '%s' "$AGENTS_MD" | grep -q '^\*Version: 2\.25\.0 ' && echo true || echo false)"
+
+# DE-17064. The hooks changed channel and filter, and the two pages that
+# describe them have to say so: AGENTS.md is the ground truth for an agent, the
+# developer guide is what a person reads when the gate or the reminder behaves
+# differently from what they expected.
+assert_eq "AGENTS.md no longer calls exit 2 the channel" "false" \
+  "$(printf '%s' "$AGENTS_MD" | grep -q 'Exit 2 is the channel' && echo true || echo false)"
+assert_contains "AGENTS.md names additionalContext as the channel" "$AGENTS_MD" "additionalContext"
+assert_contains "and the gate's if rule" "$AGENTS_MD" 'Bash(*git *commit*)'
+DEV_GUIDE_MD="$(cat "$REPO_ROOT/docs/developer-guide.md")"
+assert_contains "the developer guide names the gate's if rule" "$DEV_GUIDE_MD" 'Bash(*git *commit*)'
+assert_contains "and says the reminder arrives as context" "$DEV_GUIDE_MD" "additionalContext"
 
 # REQ-8. A skill launches an agent by its frontmatter `name:`, not by its file
 # name: review.md is `code-reviewer`, verify.md is `spec-verifier`. A name that
