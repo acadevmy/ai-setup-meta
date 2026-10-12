@@ -490,6 +490,16 @@ Four things left `sdd`, and each one was paid for on every task:
   `clickup-contract.md`);
 - **the second `simplify` run** — it ran in `sdd-dev` and again in the closure;
   it now runs once, in the closure, over the staged change;
+- **the quality-command question** (DE-17128) — `sdd-dev`'s reference used to
+  close with "ask the developer which commands to use", the fallback of the
+  prose detection that `detect-stack.sh` replaced. An empty `TEST_CMD`,
+  `LINT_CMD` or `TYPECHECK_CMD` is a command the project does not define: it is
+  skipped, never substituted, and reported where the step reports — the
+  `Tests:` / `Linter:` lines of the summary, `notes` in the autonomous run —
+  the same rule `gate-commit.sh` and the dev agent of `auto-sdd.js` apply. A
+  command named in chat would be checked by `sdd-dev` and by nothing
+  downstream, since the gate, the closure and the autonomous run all read the
+  script;
 - **three bookkeeping commits** — `refactor: simplify`, `docs(registry)` and
   `docs(spec): track review outcome`, plus the spec's `## Simplify phase` and
   `## Review phase` sections that fed them. The gates run *before* the commit
