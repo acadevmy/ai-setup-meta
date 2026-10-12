@@ -20,9 +20,7 @@ The order matters and it is not the obvious one: **the gates run before the
 commit, and there is one commit.** Two reasons. The commit hook is the gate that
 runs `LINT_CMD`, `TYPECHECK_CMD` and `TEST_CMD`, and it skips when nothing is
 staged — so staging first is what makes it fire at all. And a task that ends in
-one commit is a task whose diff a reviewer can read: the three bookkeeping
-commits this flow used to mandate (`refactor: simplify`, `docs(registry)`,
-`docs(spec): track review outcome`) carried process, not work.
+one commit is a task whose diff a reviewer can read.
 
 ## Index
 
@@ -50,8 +48,8 @@ against the fork point.
 
 Run the `simplify` skill over the staged change: reuse what exists, improve
 quality and efficiency, fix what it finds. **This is the only place `simplify`
-runs in the flow** — `sdd-dev` no longer calls it. Whatever it changes is part
-of the change, not a commit of its own.
+runs in the flow.** Whatever it changes is part of the change, not a commit of
+its own.
 
 ## 3. Package the diff
 
