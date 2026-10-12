@@ -188,6 +188,7 @@
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/gate-commit.sh",
+            "if": "Bash(*git *commit*)",
             "timeout": 600
           }
         ]
@@ -208,7 +209,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-merge-request.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-merge-request.sh gh",
+            "if": "Bash(*gh pr *create*)"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-merge-request.sh glab",
+            "if": "Bash(*glab mr *create*)"
           }
         ]
       }
