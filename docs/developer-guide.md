@@ -567,7 +567,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | Regenerated | Left alone |
 |---|---|
 | `.claude/rules/dev-setup-*.md` — overwritten, and any that your stack no longer needs are removed | `.claude/rules/<your-own>.md` |
-| `AGENTS.md`, `CLAUDE.md` — after asking | Git hooks, ESLint, Prettier, CI config |
+| `AGENTS.md`, `CLAUDE.md` — after asking; for `AGENTS.md` the first offer replaces only the plugin-owned tail (agents, commands, where the rules live), quoting the diff, and your sections stay | Git hooks, ESLint, Prettier, CI config |
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
