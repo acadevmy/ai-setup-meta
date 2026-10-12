@@ -349,7 +349,7 @@ adds `"modules": ["./register.ts"]` to the generated `hooks.json`, next to the
 bash hooks it leaves untouched. It is on for everyone, and it shows the state of
 the work without a model turn:
 
-- **the band above the prompt** — the open task clocks (`DE-123 · in progress ·
+- **the band above the prompt** — the open task clocks (`● DE-123  in progress
   42m`), a button after a created merge request that fills the closure prompt,
   the `sdd` usage per phase while one runs, a warning past 70% of context;
 - **`/dev-setup [clock|status|worktrees|context|usage|runs]`** — one command
@@ -372,7 +372,11 @@ or `$.fs.write`.
 **The split is forced by the engine.** Its static analysis accepts `$` passed to
 a top-level function of the same file only, so every `$` call lives in
 `register.ts` and `lib/` is plain functions — which is also what makes them
-testable without the kit.
+testable without the kit. The drawing follows the same split: `lib/views.ts`
+says what a view holds as rows of spans (`lib/rows.ts`, one model for the pane
+and for the plain-text answer, so a test on the text is a test on the pane),
+`lib/draw.ts` lays the band and the pane out over the surface's element table,
+and every handler it gets is a closure made in `register.ts`.
 
 **Running and trying it.** `claude plugin test dist/dev-setup` runs the suite with
 no session, sign-in or network; on an early-access build (2.1.285) prefix it with

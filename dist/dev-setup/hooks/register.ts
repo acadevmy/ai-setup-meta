@@ -10,37 +10,36 @@
 //
 // Every `$` call is in this file, because the engine's static analysis accepts
 // `$` passed to a top-level function of the same file only. The logic is in
-// lib/, as plain functions with their own tests.
+// lib/, as plain functions with their own tests: views.ts says what a view
+// holds, draw.ts lays it out, and the handlers it gets are closures made here.
 
-import type { EngineInterface, On, RenderElement } from 'claude-code'
-import { clockLine, openTasks, toOpenClock } from './lib/clock.ts'
+import type { EngineInterface, On } from 'claude-code'
+import { clockRow, formatTime, openTasks, toOpenClock } from './lib/clock.ts'
 import type { OpenClock } from './lib/clock.ts'
 import { closurePrompt, closureTask, isMergeRequestCreate, mergeRequestUrl, toolOutputText } from './lib/merge-request.ts'
 import { parseFrontmatter, sortEntries, toEntry, useText } from './lib/catalogue.ts'
 import type { CatalogueEntry } from './lib/catalogue.ts'
-import { addRequest, compactLine, isUsageRecord, newRecord, NO_USAGE, phaseOf, pruneIndex, toIndex, USAGE_INDEX, usageTable, withTask } from './lib/usage.ts'
+import { addRequest, compactRow, isUsageRecord, newRecord, NO_USAGE, phaseOf, pruneIndex, toIndex, USAGE_INDEX, usageRows, withTask } from './lib/usage.ts'
 import type { Phase, RequestUsage, UsageRecord } from './lib/usage.ts'
-import { addRun, applyNotification, attachMergeRequest, canResume, parseNotification, resumePrompt, runFromWorkflowCall } from './lib/runs.ts'
+import { addRun, applyNotification, attachMergeRequest, parseNotification, resumePrompt, runFromWorkflowCall } from './lib/runs.ts'
 import type { Run } from './lib/runs.ts'
-import { contextLines, contextWarning, devSetupShare, mcpServerNames } from './lib/context.ts'
+import { contextRows, contextWarning, devSetupShare, mcpServerNames } from './lib/context.ts'
+import { dim, rowsText } from './lib/rows.ts'
+import type { Row } from './lib/rows.ts'
+import { bandIsEmpty, drawBand, drawPane } from './lib/draw.ts'
+import type { PaneBody } from './lib/draw.ts'
 import {
   ARGUMENT_VIEWS,
-  catalogueLines,
-  clockView,
-  entryDetails,
+  catalogueRows,
+  clockRows,
   failureLine,
-  GUIDE_POINTER,
-  NO_COMMANDS,
-  NO_RUNS,
   parseView,
-  runLine,
-  RUNS_NOTE,
-  runsLines,
+  runsRows,
   scriptOutcome,
-  statusView,
+  statusRows,
   unknownViewText,
-  VIEWS,
-  worktreesView,
+  VIEW_SOURCES,
+  worktreesRows,
 } from './lib/views.ts'
 import type { ScriptOutcome, View } from './lib/views.ts'
 
@@ -52,16 +51,6 @@ const SCRIPT_TIMEOUT_MS = 15_000
 const REFRESH_MS = 60_000
 /** A task-clock.sh call that changes a clock; `--status` only reads one. */
 const CLOCK_CHANGE = /task-clock\.sh\b[^\n]*--(start|stop)\b/
-
-const TAB_LABELS: Readonly<Record<View, string>> = {
-  commands: 'Commands',
-  clock: 'Clock',
-  status: 'Status',
-  worktrees: 'Worktrees',
-  context: 'Context',
-  usage: 'Usage',
-  runs: 'Runs',
-}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 //
@@ -81,9 +70,13 @@ let workDir = ''
 let refreshTimer: { cancel: () => void } | null = null
 let refreshing: Promise<void> | null = null
 let clocks: OpenClock[] = []
+/** What the last full read of the clocks reported, for the clock view. */
+let clockStatus: ScriptOutcome | null = null
+let clockFailures: string[] = []
 let closure: { url: string; tasks: string[] } | null = null
 let view: View = 'commands'
-let viewLines: string[] = []
+let viewRows: Row[] = []
+let viewReadAt: number | null = null
 let viewLoad = 0
 let catalogue: CatalogueEntry[] | null = null
 let sdd: SddRun | null = null
@@ -123,7 +116,9 @@ async function readClocks($: Api): Promise<{ status: ScriptOutcome; open: OpenCl
 }
 
 async function readAndApplyClocks($: Api): Promise<void> {
-  const { status, open } = await readClocks($)
+  const { status, open, failures } = await readClocks($)
+  clockStatus = status
+  clockFailures = failures
   if (!status.ok) return
   const changed = open.length !== clocks.length || open.some((clock, i) => clock.task !== clocks[i]?.task)
   clocks = open
@@ -131,7 +126,8 @@ async function readAndApplyClocks($: Api): Promise<void> {
     const still = closure.tasks.filter((task) => open.some((clock) => clock.task === task))
     closure = still.length > 0 ? { url: closure.url, tasks: still } : null
   }
-  if (sdd && open.length === 1) sdd = { ...sdd, record: withTask(sdd.record, open[0].task) }
+  const only = open.length === 1 ? open[0] : undefined
+  if (sdd && only) sdd = { ...sdd, record: withTask(sdd.record, only.task) }
   if (changed || open.length > 0) $.ui.invalidate('ui.render')
 }
 
@@ -169,7 +165,7 @@ async function loadCatalogue($: Api): Promise<CatalogueEntry[]> {
   try {
     const dirs = (await $.fs.list(skillsDir)).filter((dir) => dir.kind === 'dir')
     const texts = await Promise.all(dirs.map((dir) => readText($, `${skillsDir}/${dir.name}/SKILL.md`)))
-    const entries = dirs.flatMap((dir, i) => toEntry($.plugin.name, dir.name, parseFrontmatter(texts[i])) ?? [])
+    const entries = dirs.flatMap((dir, i) => toEntry($.plugin.name, dir.name, parseFrontmatter(texts[i] ?? '')) ?? [])
     catalogue = sortEntries(entries)
     return catalogue
   } catch {
@@ -177,14 +173,14 @@ async function loadCatalogue($: Api): Promise<CatalogueEntry[]> {
   }
 }
 
-async function contextViewLines($: Api): Promise<string[]> {
+async function contextViewRows($: Api): Promise<Row[]> {
   const [usage, mcpJson] = await Promise.all([
     $.session.usage({ breakdown: 'summary' }).catch(() => $.session.usage()),
     readText($, `${workDir}/.mcp.json`),
   ])
   const breakdown = usage.context.breakdown
   const share = breakdown ? devSetupShare(breakdown, mcpServerNames(mcpJson), $.plugin.name) : []
-  return contextLines(usage.context, breakdown, share)
+  return contextRows(usage.context, breakdown, share)
 }
 
 /** The latest record of this project — the store is shared by every project. */
@@ -201,26 +197,32 @@ async function latestRecord($: Api): Promise<UsageRecord | null> {
   return null
 }
 
-async function loadView($: Api, wanted: View): Promise<string[]> {
+/** A view's rows, read now: the plain-text answer, and what the pane shows
+ * until the next load — the clock, runs and a live usage are drawn from the
+ * session's state instead, so they move without a reload. */
+async function loadView($: Api, wanted: View): Promise<Row[]> {
   switch (wanted) {
     case 'commands':
-      return catalogueLines(await loadCatalogue($))
+      return catalogueRows(await loadCatalogue($))
     case 'clock': {
       const { status, open, failures } = await readClocks($)
-      return clockView(status, open, failures, await $.clock.now())
+      clockStatus = status
+      clockFailures = failures
+      if (status.ok) clocks = open
+      return clockRows(status, open, failures, await $.clock.now())
     }
     case 'status':
-      return statusView(await runScript($, 'check-prerequisites.sh', []), workDir)
+      return statusRows(await runScript($, 'check-prerequisites.sh', []), workDir)
     case 'worktrees':
-      return worktreesView(await runScript($, 'worktree-info.sh', []))
+      return worktreesRows(await runScript($, 'worktree-info.sh', []))
     case 'context':
-      return contextViewLines($)
+      return contextViewRows($)
     case 'usage': {
       const shown = sdd?.record ?? (await latestRecord($))
-      return shown ? usageTable(shown) : [NO_USAGE]
+      return shown ? usageRows(shown, sdd?.phase ?? null) : [[dim(NO_USAGE)]]
     }
     case 'runs':
-      return runsLines(runs, await $.clock.now())
+      return runsRows(runs, await $.clock.now())
   }
 }
 
@@ -228,10 +230,31 @@ async function loadView($: Api, wanted: View): Promise<string[]> {
 async function showView($: Api, wanted: View): Promise<void> {
   const load = ++viewLoad
   view = wanted
-  const lines = await loadView($, wanted)
+  const rows = await loadView($, wanted)
   if (load !== viewLoad) return
-  viewLines = lines
+  viewRows = rows
+  viewReadAt = await $.clock.now()
   $.ui.invalidate('ui.render')
+}
+
+/** What the pane draws for the current view, and the note its footer carries. */
+async function paneBody($: Api): Promise<{ body: PaneBody; note: string }> {
+  const readAt = viewReadAt === null ? '' : `read at ${formatTime(viewReadAt)}`
+  switch (view) {
+    case 'commands':
+      return { body: { kind: 'commands', entries: catalogue ?? [] }, note: '' }
+    case 'clock': {
+      const status: ScriptOutcome = clockStatus ?? { ok: true, script: 'task-clock.sh', json: {} }
+      return { body: { kind: 'rows', rows: clockRows(status, clocks, clockFailures, await $.clock.now()) }, note: 'refreshed every minute' }
+    }
+    case 'runs':
+      return { body: { kind: 'runs', runs, nowMs: await $.clock.now() }, note: '' }
+    case 'usage':
+      if (sdd) return { body: { kind: 'rows', rows: usageRows(sdd.record, sdd.phase) }, note: sdd.phase === null ? 'this session' : 'live' }
+      return { body: { kind: 'rows', rows: viewRows }, note: 'the last run of this project' }
+    default:
+      return { body: { kind: 'rows', rows: viewRows }, note: readAt }
+  }
 }
 
 async function fillPrompt($: Api, text: string): Promise<void> {
@@ -272,7 +295,8 @@ async function observeSkill($: Api, skill: string): Promise<void> {
       const now = await $.clock.now()
       const fresh = newRecord(`usage:${await $.session.id()}:${now}`, workDir, now)
       const cost = (await $.session.usage()).cost?.usd ?? null
-      sdd = { record: clocks.length === 1 ? withTask(fresh, clocks[0].task) : fresh, phase: opened, lastCostUsd: cost, indexed: false }
+      const only = clocks.length === 1 ? clocks[0] : undefined
+      sdd = { record: only ? withTask(fresh, only.task) : fresh, phase: opened, lastCostUsd: cost, indexed: false }
     } else if (sdd && sdd.phase !== null) {
       // Only an `sdd` run is measured: a sub-skill outside one opens nothing.
       sdd = { ...sdd, phase: opened }
@@ -333,7 +357,7 @@ async function observeWorkflow($: Api, input: unknown, result: unknown): Promise
     $.ui.invalidate('ui.render')
     if (drawing && first) {
       view = 'runs'
-      await $.ui.open({ id: PANE, title: COMMAND })
+      await $.ui.open({ id: PANE, title: COMMAND, closeOnEscape: true })
       $.ui.toast('auto-sdd runs launched — /dev-setup runs shows them')
     }
   } catch {
@@ -384,6 +408,8 @@ export function register(on: On): void {
     refreshTimer?.cancel()
     refreshTimer = null
     clocks = []
+    clockStatus = null
+    clockFailures = []
     closure = null
     sdd = null
     runs = []
@@ -403,114 +429,53 @@ export function register(on: On): void {
         // The pane could not open: answer in text instead.
       }
     }
-    return { text: (await loadView($, wanted)).join('\n') }
+    return { text: rowsText(await loadView($, wanted)).join('\n') }
   })
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
     if (e.requestId !== PANE) return next(e)
-    const { Box, Text, Button, Link } = $.ui.resolve(e)
-    const tabs = Box({
-      flexDirection: 'row',
-      columnGap: 2,
-      children: VIEWS.map((name, i) =>
-        Button({
-          key: `tab-${name}`,
-          label: TAB_LABELS[name],
-          hotkey: String(i + 1),
-          plain: true,
-          dimColor: name !== view,
-          onPress: () => {
-            void showView($, name)
-          },
-        }),
-      ),
-    })
-    const body: RenderElement[] = []
-    if (view === 'commands' && catalogue) {
-      for (const entry of catalogue) {
-        body.push(
-          Box({
-            flexDirection: 'row',
-            columnGap: 1,
-            children: [
-              Button({
-                key: `use-${entry.name}`,
-                label: 'use',
-                onPress: () => {
-                  void fillPrompt($, useText(entry))
-                },
-              }),
-              Text({ bold: true, children: [entry.command] }),
-              Text({ children: [`— ${entry.what}`] }),
-            ],
-          }),
-          ...entryDetails(entry).map((line) => Text({ dimColor: true, children: [line] })),
-        )
-      }
-      if (catalogue.length === 0) body.push(Text({ children: [NO_COMMANDS] }))
-      body.push(Text({ dimColor: true, children: [GUIDE_POINTER] }))
-    } else if (view === 'runs') {
-      const now = await $.clock.now()
-      if (runs.length === 0) body.push(Text({ children: [NO_RUNS] }))
-      for (const run of runs) {
-        const row: RenderElement[] = [Text({ children: [runLine(run, now)] })]
-        if (run.mergeRequest) row.push(Link({ href: run.mergeRequest, label: 'open' }))
-        if (canResume(run)) {
-          row.push(
-            Button({
-              key: `resume-${run.taskId}`,
-              label: 'resume',
-              onPress: () => {
-                void fillPrompt($, resumePrompt(run))
-              },
-            }),
-          )
-        }
-        body.push(Box({ flexDirection: 'row', columnGap: 1, children: row }))
-      }
-      if (runs.length > 0) body.push(Text({ dimColor: true, children: [RUNS_NOTE] }))
-    } else {
-      const lines = view === 'usage' && sdd ? usageTable(sdd.record) : viewLines
-      body.push(...lines.map((line) => Text({ children: [line] })))
-    }
-    return Box({ flexDirection: 'column', children: [tabs, Text({ children: [' '] }), ...body] })
+    const { body, note } = await paneBody($)
+    return drawPane(
+      $.ui.resolve(e),
+      { view, bodyColumns: e.props.bodyColumns, body, note, source: VIEW_SOURCES[view] },
+      {
+        show: (name) => {
+          void showView($, name)
+        },
+        reload: () => {
+          void showView($, view)
+        },
+        use: (entry) => {
+          void fillPrompt($, useText(entry))
+        },
+        resume: (run) => {
+          void fillPrompt($, resumePrompt(run))
+        },
+      },
+    )
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const usageLine = sdd && sdd.phase !== null ? compactLine(sdd.record) : ''
-    const warning = contextWarning(contextPercent)
-    if (clocks.length === 0 && !closure && !usageLine && !warning) return next(e)
-    const { Box, Text, Button } = $.ui.resolve(e)
-    const rows: RenderElement[] = []
-    if (clocks.length > 0) {
-      const now = await $.clock.now()
-      rows.push(...clocks.map((clock) => Text({ children: [clockLine(clock, now)] })))
+    if (e.props.hasSurvey) return next(e)
+    const now = await $.clock.now()
+    const band = {
+      clocks: clocks.map((clock) => clockRow(clock, now)),
+      closure,
+      usage: sdd && sdd.phase !== null ? compactRow(sdd.record, sdd.phase) : [],
+      warning: contextWarning(contextPercent),
     }
-    if (closure) {
-      const { url, tasks } = closure
-      rows.push(
-        Box({
-          flexDirection: 'row',
-          columnGap: 1,
-          children: [
-            Text({ children: [`merge request open: ${url}`] }),
-            ...tasks.map((task) =>
-              Button({
-                key: `close-${task}`,
-                label: `close ${task}: stop clock + CODE REVIEW`,
-                onPress: () => {
-                  void fillPrompt($, closurePrompt(task, url, $.plugin.root))
-                },
-              }),
-            ),
-          ],
-        }),
-      )
-    }
-    if (usageLine) rows.push(Text({ dimColor: true, children: [usageLine] }))
-    if (warning) rows.push(Text({ color: 'yellow', children: [warning] }))
+    if (bandIsEmpty(band)) return next(e)
     const theirs = await next(e)
-    return Box({ flexDirection: 'column', children: theirs ? [...rows, theirs] : rows })
+    return drawBand(
+      $.ui.resolve(e),
+      band,
+      {
+        close: (task, url) => {
+          void fillPrompt($, closurePrompt(task, url, $.plugin.root))
+        },
+      },
+      theirs ?? null,
+    )
   })
 
   on('turn.complete', async ($, e, next) => {

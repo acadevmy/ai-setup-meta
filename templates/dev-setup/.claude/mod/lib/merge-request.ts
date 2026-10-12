@@ -23,7 +23,7 @@ export function isMergeRequestCreate(command: string): boolean {
 /** The URL the command printed — the proof that it created something. */
 export function mergeRequestUrl(output: string): string | null {
   const match = /https:\/\/[^\s"'\\]+\/(pull|merge_requests)\/[0-9]+/.exec(output)
-  return match ? match[0] : null
+  return match?.[0] ?? null
 }
 
 /** A Bash tool result as text, whatever shape the client returns it in —
@@ -56,7 +56,7 @@ export function closureTask(openTasks: readonly string[], branch: string, comman
   for (const task of openTasks) {
     if (new RegExp(`(^|[^A-Za-z0-9])${escapeRegExp(task)}([^A-Za-z0-9]|$)`).test(haystack)) return task
   }
-  return openTasks.length === 1 ? openTasks[0] : null
+  return openTasks.length === 1 ? (openTasks[0] ?? null) : null
 }
 
 /** The prompt the closure button fills — the two calls the hook asks for,

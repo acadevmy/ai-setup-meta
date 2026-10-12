@@ -66,6 +66,8 @@
   ],
   "mod": [
     "register.ts",
+    "lib/rows.ts",
+    "lib/draw.ts",
     "lib/clock.ts",
     "lib/merge-request.ts",
     "lib/catalogue.ts",

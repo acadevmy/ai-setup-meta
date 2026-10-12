@@ -11,6 +11,8 @@ export type Frontmatter = Readonly<Record<string, string>>
 
 export type CatalogueEntry = {
   readonly name: string
+  /** `/<plugin>:` — the command is the prefix and the name, shown on two lines. */
+  readonly prefix: string
   readonly command: string
   readonly what: string
   readonly when: string
@@ -54,7 +56,8 @@ export function parseFrontmatter(text: string): Frontmatter {
     closeBlock()
     const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line)
     if (!match) continue
-    const [, key, value] = match
+    const key = match[1] ?? ''
+    const value = match[2] ?? ''
     if (value === '>' || value === '|' || value === '>-' || value === '|-') {
       blockKey = key
     } else {
@@ -65,11 +68,12 @@ export function parseFrontmatter(text: string): Frontmatter {
   return fields
 }
 
-/** The description split at its "Use when…" sentence. */
+/** The description split at its "Use when…" sentence: what the command does,
+ * and when to reach for it — the condition alone, read under a `when` label. */
 export function splitDescription(description: string): { what: string; when: string } {
   const at = description.search(/\bUse when\b/)
   if (at < 0) return { what: description.trim(), when: '' }
-  return { what: description.slice(0, at).trim(), when: description.slice(at).trim() }
+  return { what: description.slice(0, at).trim(), when: description.slice(at).replace(/^Use when\s*/, '').trim() }
 }
 
 /** One catalogue row, or null for a skill that is not user-invocable. */
@@ -79,6 +83,7 @@ export function toEntry(plugin: string, dirName: string, fields: Frontmatter): C
   const { what, when } = splitDescription(fields.description ?? '')
   return {
     name,
+    prefix: `/${plugin}:`,
     command: `/${plugin}:${name}`,
     what,
     when,

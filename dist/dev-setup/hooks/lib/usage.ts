@@ -6,6 +6,9 @@
 // so a phase is charged the growth of that total across its requests — exact
 // in sum, approximate per phase when parallel subagents interleave.
 
+import type { Row, Span } from './rows.ts'
+import { bold, columns, dim, GAP, rowsText, rowText, span } from './rows.ts'
+
 export const PHASES = ['intake', 'discovery', 'spec', 'plan', 'dev', 'closure'] as const
 export type Phase = (typeof PHASES)[number]
 
@@ -119,41 +122,53 @@ function measured(record: UsageRecord): [Phase, PhaseTotals][] {
   })
 }
 
-/** The band's one line: tokens per phase, then the cost of the run so far. */
-export function compactLine(record: UsageRecord): string {
+/** The band's row: tokens per phase, the phase in progress in full strength,
+ * then the cost of the run so far. */
+export function compactRow(record: UsageRecord, current: Phase | null = null): Row {
   const rows = measured(record)
-  if (rows.length === 0) return ''
+  if (rows.length === 0) return []
   const sum = rows.reduce((acc, [, t]) => plus(acc, t), ZERO)
-  const phases = rows.map(([phase, t]) => `${phase} ${formatTokens(t.input + t.output + t.cacheRead + t.cacheWrite)}`)
-  const label = record.task ? `sdd ${record.task}` : 'sdd'
-  return `${label} · ${phases.join(' · ')} · ${formatUsd(sum.costUsd)}`
+  const row: Span[] = [dim(record.task ? `sdd ${record.task}` : 'sdd'), GAP]
+  rows.forEach(([phase, t], i) => {
+    if (i > 0) row.push(dim(' › '))
+    const cell = `${phase} ${formatTokens(t.input + t.output + t.cacheRead + t.cacheWrite)}`
+    row.push(phase === current ? bold(cell) : dim(cell))
+  })
+  row.push(GAP, bold(formatUsd(sum.costUsd)))
+  return row
+}
+
+export function compactLine(record: UsageRecord, current: Phase | null = null): string {
+  return rowText(compactRow(record, current))
 }
 
 export const NO_USAGE = 'No sdd phase measured yet.'
 
-/** The full table `/dev-setup usage` reports. */
-export function usageTable(record: UsageRecord): string[] {
+export const USAGE_NOTE = 'Cost per phase is the growth of the session total: exact in sum, approximate per phase when subagents overlap.'
+
+/** The table `/dev-setup usage` reports: one row per measured phase, the
+ * figures right-aligned, the total in bold. */
+export function usageRows(record: UsageRecord, current: Phase | null = null): Row[] {
   const rows = measured(record)
-  if (rows.length === 0) return [NO_USAGE]
-  const cells = (label: string, t: PhaseTotals) => [
+  if (rows.length === 0) return [[dim(NO_USAGE)]]
+  const cells = (label: Span, t: PhaseTotals, weight: (text: string) => Span) => [
     label,
-    String(t.requests),
-    formatTokens(t.input),
-    formatTokens(t.cacheRead),
-    formatTokens(t.cacheWrite),
-    formatTokens(t.output),
-    formatUsd(t.costUsd),
+    weight(String(t.requests)),
+    weight(formatTokens(t.input)),
+    weight(formatTokens(t.cacheRead)),
+    weight(formatTokens(t.cacheWrite)),
+    weight(formatTokens(t.output)),
+    weight(formatUsd(t.costUsd)),
   ]
-  const header = ['phase', 'requests', 'input', 'cache read', 'cache write', 'output', 'cost']
-  const body = [...rows.map(([phase, t]) => cells(phase, t)), cells('total', rows.reduce((acc, [, t]) => plus(acc, t), ZERO))]
-  const widths = header.map((cell, i) => Math.max(cell.length, ...body.map((row) => row[i].length)))
-  const line = (row: readonly string[]) => row.map((cell, i) => cell.padEnd(widths[i])).join('  ').trimEnd()
-  return [
-    record.task ? `sdd usage — ${record.task}` : 'sdd usage',
-    line(header),
-    ...body.map(line),
-    'Cost per phase is the growth of the session total: exact in sum, approximate per phase when subagents overlap.',
-  ]
+  const header = ['phase', 'requests', 'input', 'cache read', 'cache write', 'output', 'cost'].map(dim)
+  const total = rows.reduce((acc, [, t]) => plus(acc, t), ZERO)
+  const body = rows.map(([phase, t]) => (phase === current ? cells(bold(phase), t, bold) : cells(span(phase), t, span)))
+  const table = columns([header, ...body, cells(bold('total'), total, bold)], ['left', 'right', 'right', 'right', 'right', 'right', 'right'])
+  return [[bold(record.task ? `sdd usage — ${record.task}` : 'sdd usage')], ...table, [dim(USAGE_NOTE)]]
+}
+
+export function usageTable(record: UsageRecord, current: Phase | null = null): string[] {
+  return rowsText(usageRows(record, current))
 }
 
 /** The index with a new key appended, capped: the store is 4 MiB shared by

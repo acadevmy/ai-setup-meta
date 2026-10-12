@@ -62,7 +62,7 @@ export type Notification = {
 
 function tag(body: string, name: string): string {
   const match = new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(body)
-  return match ? match[1].trim() : ''
+  return match?.[1]?.trim() ?? ''
 }
 
 /** The run's result: its top-level fields when it is JSON (nested objects —
@@ -74,7 +74,7 @@ function resultField(result: string, key: string): string {
     return text(field(parsed, key))
   } catch {
     const match = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`).exec(result)
-    return match ? match[1] : ''
+    return match?.[1] ?? ''
   }
 }
 

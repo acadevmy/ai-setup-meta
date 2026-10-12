@@ -7,8 +7,12 @@
 // wrote into the project's .mcp.json. Nothing here is inferred from disk.
 
 import { formatTokens } from './usage.ts'
+import type { Row, Span, Tone } from './rows.ts'
+import { bold, columns, dim, GAP, INDENT, meter, rowsText, span } from './rows.ts'
 
 const CONTEXT_WARNING_PERCENT = 70
+const CONTEXT_CRITICAL_PERCENT = 90
+const METER_WIDTH = 30
 
 export type ContextFigures = {
   readonly tokens?: number
@@ -72,25 +76,37 @@ export function devSetupShare(breakdown: BreakdownLike, mcpServers: readonly str
   return items
 }
 
+/** How a share of the window reads: fine, worth a warning, about to compact. */
+export function contextTone(percent: number): Tone {
+  if (percent >= CONTEXT_CRITICAL_PERCENT) return 'bad'
+  if (percent >= CONTEXT_WARNING_PERCENT) return 'warn'
+  return 'good'
+}
+
+export const SPLIT_UNAVAILABLE = 'Split by category: unavailable on this client — /context shows it.'
+
+export function contextRows(figures: ContextFigures, breakdown: BreakdownLike | undefined, share: readonly ShareItem[]): Row[] {
+  if (figures.tokens === undefined) return [[bold('Context'), GAP, dim('no response measured yet')]]
+  const percent = figures.percent ?? Math.round((figures.tokens / figures.window) * 100)
+  const tone = contextTone(percent)
+  const rows: Row[] = [
+    [bold('Context'), GAP, bold(`${formatTokens(figures.tokens)} of ${formatTokens(figures.window)} tokens`), GAP, span(`${percent}%`, tone, true)],
+    [span(meter(percent, METER_WIDTH), tone)],
+  ]
+  if (!breakdown || !breakdown.categories) return [...rows, [dim(SPLIT_UNAVAILABLE)]]
+  // The indent is part of the cell, so the figures line up across the table.
+  const table: Span[][] = []
+  const categories = breakdown.categories.filter((category) => category.kind !== 'free' && category.kind !== 'buffer')
+  for (const category of categories) table.push([span(`  ${category.name}`), span(formatTokens(category.tokens))])
+  table.push([bold('dev-setup share'), bold(formatTokens(sumTokens(share)))])
+  for (const item of share) table.push([span(`  ${item.label}`), span(formatTokens(item.tokens))])
+  rows.push([dim("Split by category (Claude Code's estimate)")], ...columns(table, ['left', 'right']))
+  if (share.length === 0) rows.push([INDENT, dim('nothing from dev-setup is in the context yet')])
+  return rows
+}
+
 export function contextLines(figures: ContextFigures, breakdown: BreakdownLike | undefined, share: readonly ShareItem[]): string[] {
-  const used =
-    figures.tokens === undefined
-      ? 'no response measured yet'
-      : `${formatTokens(figures.tokens)} of ${formatTokens(figures.window)} tokens (${figures.percent ?? Math.round((figures.tokens / figures.window) * 100)}%)`
-  const lines = [`Context used: ${used}`]
-  if (!breakdown || !breakdown.categories) {
-    lines.push('Split by category: unavailable on this client — /context shows it.')
-    return lines
-  }
-  lines.push("Split by category (Claude Code's estimate):")
-  for (const category of breakdown.categories) {
-    if (category.kind === 'free' || category.kind === 'buffer') continue
-    lines.push(`  ${category.name.padEnd(24)} ${formatTokens(category.tokens)}`)
-  }
-  lines.push(`dev-setup share: ${formatTokens(sumTokens(share))}`)
-  for (const item of share) lines.push(`  ${item.label.padEnd(24)} ${formatTokens(item.tokens)}`)
-  if (share.length === 0) lines.push('  nothing from dev-setup is in the context yet')
-  return lines
+  return rowsText(contextRows(figures, breakdown, share))
 }
 
 export function contextWarning(percent: number | undefined): string | null {

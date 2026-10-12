@@ -6,6 +6,9 @@
 // local `YYYY-MM-DD HH:MM` the script writes — plus the minutes of the
 // intervals already closed.
 
+import type { Row } from './rows.ts'
+import { bold, dim, GAP, rowText, span } from './rows.ts'
+
 /** The script's flat JSON: every key UPPER_SNAKE, every value a string. */
 export type ScriptJson = Readonly<Record<string, string>>
 
@@ -14,6 +17,8 @@ export type OpenClock = {
   /** STARTED_AT, parsed once when the clock is read — never on a redraw. */
   readonly startMs: number | null
   readonly closedMinutes: number
+  /** The intervals already closed, as the script counts them. */
+  readonly sessions: number
 }
 
 /** The tasks with an open interval, from `--status --json` with no task. */
@@ -25,10 +30,12 @@ export function openTasks(status: ScriptJson): string[] {
 export function toOpenClock(status: ScriptJson): OpenClock | null {
   if (status.RUNNING !== 'true' || !status.TASK || !status.STARTED_AT) return null
   const closed = Number.parseInt(status.TOTAL_MINUTES ?? '', 10)
+  const sessions = Number.parseInt(status.SESSIONS ?? '', 10)
   return {
     task: status.TASK,
     startMs: parseLocalStamp(status.STARTED_AT),
     closedMinutes: Number.isFinite(closed) && closed > 0 ? closed : 0,
+    sessions: Number.isFinite(sessions) && sessions > 0 ? sessions : 0,
   }
 }
 
@@ -36,8 +43,8 @@ export function toOpenClock(status: ScriptJson): OpenClock | null {
 export function parseLocalStamp(stamp: string): number | null {
   const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/.exec(stamp.trim())
   if (!match) return null
-  const [, year, month, day, hour, minute] = match.map(Number)
-  return new Date(year, month - 1, day, hour, minute).getTime()
+  const part = (i: number) => Number(match[i])
+  return new Date(part(1), part(2) - 1, part(3), part(4), part(5)).getTime()
 }
 
 /** Minutes in progress: the open interval so far plus the closed ones. */
@@ -56,6 +63,29 @@ export function formatDuration(minutes: number): string {
   return `${rest}m`
 }
 
+/** Epoch ms as the local `HH:MM`, the way STARTED_AT is written. */
+export function formatTime(ms: number): string {
+  const date = new Date(ms)
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+/** The band's row for one clock: the task, its state, the time in progress. */
+export function clockRow(clock: OpenClock, nowMs: number): Row {
+  return [bold(clock.task), GAP, span('in progress', 'good'), GAP, bold(formatDuration(elapsedMinutes(clock, nowMs)))]
+}
+
+/** What the clock view adds under a clock: when this interval began and what
+ * the closed ones add up to. */
+export function clockDetail(clock: OpenClock): Row {
+  const parts: string[] = []
+  if (clock.startMs !== null) parts.push(`since ${formatTime(clock.startMs)}`)
+  if (clock.sessions > 0) {
+    const earlier = clock.sessions === 1 ? '1 earlier session' : `${clock.sessions} earlier sessions`
+    parts.push(`${earlier}, ${formatDuration(clock.closedMinutes)}`)
+  }
+  return parts.length > 0 ? [dim(parts.join(' · '))] : []
+}
+
 export function clockLine(clock: OpenClock, nowMs: number): string {
-  return `${clock.task} · in progress · ${formatDuration(elapsedMinutes(clock, nowMs))}`
+  return rowText(clockRow(clock, nowMs))
 }

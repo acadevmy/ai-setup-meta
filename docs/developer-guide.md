@@ -70,18 +70,23 @@ repository, not in yours — see [workflow.md](./workflow.md).
 On a Claude Code that loads mods (2.1.287 and later), the plugin also shows the
 state of the work without spending a model turn:
 
-- **above the prompt** — each open task clock (`DE-123 · in progress · 42m`);
-  after a `gh pr create` / `glab mr create` that created a merge request, a
-  button that fills — never sends — the prompt that stops the clock and moves
-  the task to `CODE REVIEW`; while an `sdd` runs, its tokens and cost per phase;
-  past 70% of context, a warning before a long phase compacts it;
-- **`/dev-setup`** — with no argument, the six commands with when to use each,
-  and a button that puts one in the prompt. `/dev-setup clock`, `status` (branch,
-  task, spec, base), `worktrees` (ports and overlaps), `context` (how full, and
-  how much of it the plugin brings), `usage` (the last `sdd`, per phase) and
-  `runs` (this session's `multi-sdd` runs). It answers at once, even while Claude
-  is working, and in the terminal it adds nothing to the conversation; in
-  `claude -p` or VS Code it prints text.
+- **above the prompt** — one row per thing to know, each with a coloured mark:
+  an open task clock (`● DE-123  in progress  42m`, green); after a `gh pr
+  create` / `glab mr create` that created a merge request, its link and a
+  `close DE-123` button that fills — never sends — the prompt that stops the
+  clock and moves the task to `CODE REVIEW`; while an `sdd` runs, its tokens per
+  phase with the phase in progress at full strength, and the cost so far; past
+  70% of context, a yellow warning before a long phase compacts it;
+- **`/dev-setup`** — a pane with one tab per view (`1`–`7` switch, `r` reloads,
+  `Esc` closes). With no argument, the six commands with when to use each and
+  what each takes, and a `use` button that puts one in the prompt. `/dev-setup
+  clock`, `status` (branch, task, spec, the changed files), `worktrees` (ports
+  and overlaps), `context` (how full, as a meter, and how much of it the plugin
+  brings), `usage` (the `sdd` in progress, or the last one, per phase) and
+  `runs` (this session's `multi-sdd` runs). Its footer names where the figures
+  come from and when they were read. It answers at once, even while Claude is
+  working, and in the terminal it adds nothing to the conversation; in
+  `claude -p` or VS Code it prints the same rows as text.
 
 None of it is a rule. On an older client, or with mods turned off, the plugin
 works exactly the same — without the view.

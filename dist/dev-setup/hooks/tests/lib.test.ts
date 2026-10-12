@@ -1,15 +1,18 @@
 // lib.test.ts — the mod's pure helpers, without the engine.
 
 import { describe, expect, test } from 'claude-code/testing'
-import { clockLine, elapsedMinutes, formatDuration, openTasks, parseLocalStamp, toOpenClock } from '../lib/clock.ts'
+import { clockDetail, clockLine, elapsedMinutes, formatDuration, formatTime, openTasks, parseLocalStamp, toOpenClock } from '../lib/clock.ts'
 import { closurePrompt, closureTask, isMergeRequestCreate, mergeRequestUrl, toolOutputText } from '../lib/merge-request.ts'
 import { parseFrontmatter, sortEntries, splitDescription, toEntry, useText } from '../lib/catalogue.ts'
 import type { CatalogueEntry } from '../lib/catalogue.ts'
-import { addRequest, compactLine, newRecord, phaseOf, pruneIndex, toIndex, usageTable, withTask } from '../lib/usage.ts'
+import { addRequest, compactLine, compactRow, newRecord, phaseOf, pruneIndex, toIndex, usageTable, withTask } from '../lib/usage.ts'
 import { addRun, applyNotification, attachMergeRequest, canResume, parseNotification, resumePrompt, runFromWorkflowCall } from '../lib/runs.ts'
 import type { Run } from '../lib/runs.ts'
-import { contextLines, contextWarning, devSetupShare, mcpServerNames } from '../lib/context.ts'
-import { catalogueLines, parseView, relativeTo, scriptOutcome, statusView, unknownViewText, worktreesView } from '../lib/views.ts'
+import { contextLines, contextTone, contextWarning, devSetupShare, mcpServerNames } from '../lib/context.ts'
+import { catalogueLines, parseView, relativeTo, runLine, scriptOutcome, statusView, unknownViewText, worktreesView } from '../lib/views.ts'
+import { columns, dim, field, meter, rowText, span } from '../lib/rows.ts'
+import { drawRow, linkable } from '../lib/draw.ts'
+import type { Ui } from '../lib/draw.ts'
 
 const AT_10_00 = new Date(2026, 9, 7, 10, 0).getTime()
 
@@ -24,16 +27,20 @@ describe('clock', () => {
       task: 'DE-1',
       startMs: new Date(2026, 9, 7, 9, 18).getTime(),
       closedMinutes: 0,
+      sessions: 0,
     })
     expect(toOpenClock({ TASK: 'DE-1', RUNNING: 'false', STARTED_AT: '' })).toBe(null)
   })
 
   test('elapsed adds the open interval to the closed ones', async () => {
-    const clock = { task: 'DE-1', startMs: new Date(2026, 9, 7, 9, 18).getTime(), closedMinutes: 30 }
+    const clock = { task: 'DE-1', startMs: new Date(2026, 9, 7, 9, 18).getTime(), closedMinutes: 30, sessions: 1 }
     expect(parseLocalStamp('2026-10-07 09:18')).toBe(new Date(2026, 9, 7, 9, 18).getTime())
     expect(parseLocalStamp('yesterday')).toBe(null)
     expect(elapsedMinutes(clock, AT_10_00)).toBe(72)
-    expect(clockLine(clock, AT_10_00)).toBe('DE-1 · in progress · 1h 12m')
+    expect(clockLine(clock, AT_10_00)).toBe('DE-1  in progress  1h 12m')
+    expect(formatTime(clock.startMs)).toBe('09:18')
+    expect(rowText(clockDetail(clock))).toBe('since 09:18 · 1 earlier session, 30m')
+    expect(rowText(clockDetail({ ...clock, startMs: null, sessions: 0 }))).toBe('')
   })
 
   test('durations read like task-clock.sh writes them', async () => {
@@ -114,8 +121,9 @@ describe('catalogue', () => {
 
   test('only a user-invocable skill becomes a row, with what, when, input and the outward mark', async () => {
     expect(SDD_ENTRY).toMatchObject({
+      prefix: '/dev-setup:',
       command: '/dev-setup:sdd',
-      when: 'Use when the work touches more than three files.',
+      when: 'the work touches more than three files.',
       input: '[TASK_ID] [--worktree]',
       outward: true,
     })
@@ -149,10 +157,13 @@ describe('usage', () => {
     record = withTask(record, 'DE-1')
     expect(record.phases.discovery).toEqual({ requests: 2, input: 20, output: 10, cacheRead: 2000, cacheWrite: 400, costUsd: 0.1 })
     expect(record.phases.spec?.requests).toBe(1)
-    expect(compactLine(record)).toBe('sdd DE-1 · discovery 2.4k · spec 0 · $0.15')
+    expect(compactLine(record)).toBe('sdd DE-1  discovery 2.4k › spec 0  $0.15')
+    // The phase in progress is the one span at full strength.
+    expect(compactRow(record, 'spec').filter((cell) => cell.bold).map((cell) => cell.text)).toEqual(['spec 0', '$0.15'])
     const table = usageTable(record)
     expect(table[0]).toBe('sdd usage — DE-1')
-    expect(table.some((line) => line.startsWith('total'))).toBe(true)
+    expect(table[1]).toMatch(/^phase\s+requests\s+input\s+cache read\s+cache write\s+output\s+cost$/)
+    expect(table.some((line) => /^total\s+3\s+20\s+2\.0k\s+400\s+10\s+\$0\.15$/.test(line))).toBe(true)
   })
 
   test('the index keeps the newest keys and names the dropped ones', async () => {
@@ -248,13 +259,21 @@ describe('context', () => {
       { label: 'MCP clickup (1 tools)', tokens: 120 },
     ])
     const lines = contextLines({ tokens: 42000, window: 200000, percent: 21 }, breakdown, share)
-    expect(lines[0]).toBe('Context used: 42.0k of 200.0k tokens (21%)')
+    expect(lines[0]).toBe('Context  42.0k of 200.0k tokens  21%')
+    expect(lines[1]).toBe(`${'█'.repeat(6)}${'░'.repeat(24)}`)
     expect(lines.some((line) => line.includes('Free space'))).toBe(false)
-    expect(lines.some((line) => line.startsWith('dev-setup share: 1.2k'))).toBe(true)
+    expect(lines.some((line) => /^dev-setup share\s+1\.2k$/.test(line))).toBe(true)
+    // The figures line up: every token column ends on the same cell.
+    const figures = lines.slice(3).map((line) => line.length)
+    expect(new Set(figures).size).toBe(1)
+    expect(contextTone(21)).toBe('good')
+    expect(contextTone(70)).toBe('warn')
+    expect(contextTone(90)).toBe('bad')
   })
 
   test('without a breakdown the total stands alone; the warning starts at 70%', async () => {
-    expect(contextLines({ tokens: 1000, window: 200000, percent: 1 }, undefined, [])[1]).toContain('unavailable on this client')
+    expect(contextLines({ tokens: 1000, window: 200000, percent: 1 }, undefined, [])[2]).toContain('unavailable on this client')
+    expect(contextLines({ window: 200000 }, undefined, [])).toEqual(['Context  no response measured yet'])
     expect(mcpServerNames('not json')).toEqual([])
     expect(contextWarning(69)).toBe(null)
     expect(contextWarning(70)).toContain('context 70%')
@@ -282,20 +301,103 @@ describe('views', () => {
 
   test('empty values read none or not set, never blank', async () => {
     const status = statusView(scriptOutcome('check-prerequisites.sh', 0, '{"BRANCH":"main","SPEC":"","BASE_BRANCH":"","CHANGED_FILES":""}', ''))
-    expect(status).toEqual(['Branch:   main', 'Base:     not set', 'Spec:     none', 'Changed:  nothing'])
+    expect(status.map((line) => line.replace(/\s+/g, ' '))).toEqual(['Branch main', 'Base not set', 'Spec none', 'Changed nothing'])
+    // The values start on one column, whatever the label.
+    expect(new Set(status.map((line) => line.length - line.replace(/^\S+\s+/, '').length)).size).toBe(1)
     const withSpec = statusView(scriptOutcome('check-prerequisites.sh', 0, '{"SPEC":"/w/.specs/DE-1-x.md","SPEC_STATUS":"approved"}', ''), '/w')
-    expect(withSpec[2]).toBe('Spec:     .specs/DE-1-x.md (approved)')
+    expect(withSpec[2]).toMatch(/^Spec\s+\.specs\/DE-1-x\.md  approved$/)
+    const many = statusView(scriptOutcome('check-prerequisites.sh', 0, `{"CHANGED_FILES":"${Array.from({ length: 17 }, (_, i) => `f${i}.ts`).join('\\n')}"}`, ''))
+    expect(many[3]).toMatch(/^Changed\s+17 files$/)
+    expect(many[4]).toBe('  f0.ts')
+    expect(many[many.length - 1]).toBe('  … 2 more')
     expect(relativeTo('/w', '/elsewhere/a.md')).toBe('/elsewhere/a.md')
     const worktrees = worktreesView(
       scriptOutcome('worktree-info.sh', 0, '{"WORKTREE":"/w","WORKTREE_INDEX":"0","PORT_OFFSET":"0","WORKTREES":"/w\\tmain","OVERLAPS":""}', ''),
     )
-    expect(worktrees).toEqual(['This worktree: /w  (index 0, port offset +0)', 'Worktrees:', '  main  /w', 'Overlaps: none'])
+    expect(worktrees.map((line) => line.replace(/\s+/g, ' '))).toEqual(['Here /w index 0 · port offset +0', 'Worktrees', ' main /w', 'Overlaps none'])
+    const overlapping = worktreesView(
+      scriptOutcome('worktree-info.sh', 0, '{"WORKTREE":"/w","WORKTREES":"/w\\tmain\\n/w2\\t","OVERLAPS":"src/a.ts\\tfeat/x,feat/y"}', ''),
+    )
+    expect(overlapping).toContain('  (detached)  /w2')
+    expect(overlapping.some((line) => /^Overlaps\s+1$/.test(line))).toBe(true)
+    expect(overlapping[overlapping.length - 1]).toBe('  src/a.ts  feat/x, feat/y')
   })
 
   test('the catalogue text names each command and ends on the guide', async () => {
     const lines = catalogueLines([SDD_ENTRY])
-    expect(lines[0]).toContain('/dev-setup:sdd — Runs the interactive')
-    expect(lines[2]).toBe('  Takes: [TASK_ID] [--worktree] · outward-facing — started only by you')
+    // The command breaks after the colon: the prefix alone, the name under it.
+    expect(lines[0]).toBe('/dev-setup:')
+    expect(lines[1]).toMatch(/^  sdd\s+Runs the interactive/)
+    expect(lines[2]).toMatch(/^  when\s+the work touches more than three files\.$/)
+    expect(lines[3]).toMatch(/^  takes\s+\[TASK_ID\] \[--worktree\]  outward-facing · started only by you$/)
+    // The name and the labels share one column, sized to the widest name.
+    const other = { ...SDD_ENTRY, name: 'multi-sdd', command: '/dev-setup:multi-sdd' }
+    const starts = catalogueLines([SDD_ENTRY, other])
+      .filter((line) => /^  \S/.test(line))
+      .map((line) => line.length - line.replace(/^  \S+\s+/, '').length)
+    expect(new Set(starts).size).toBe(1)
     expect(lines[lines.length - 1]).toContain('docs/developer-guide.md')
+    expect(runLine({ ...RUN, state: 'failed', reason: 'verify failed' }, AT_10_00)).toBe('DE-5  failed  verify failed')
+    expect(runLine(RUN, AT_10_00 + 5 * 60_000)).toBe('DE-5  running  5m')
+  })
+})
+
+describe('rows', () => {
+  test('a row joins its spans and drops the trailing blanks', async () => {
+    expect(rowText([span('a', 'accent', true), span('  '), dim('b'), span('  ')])).toBe('a  b')
+    expect(rowText(field('Branch', 9, span('main')))).toBe('Branch     main')
+  })
+
+  test('columns pad every cell to its column, numbers to the right', async () => {
+    const table = columns(
+      [
+        [span('phase'), span('cost')],
+        [span('discovery'), span('$0.10')],
+        [span('dev'), span('$12.00')],
+      ],
+      ['left', 'right'],
+    )
+    expect(table.map(rowText)).toEqual(['phase        cost', 'discovery   $0.10', 'dev        $12.00'])
+    expect(table[1]?.[0]).toMatchObject({ text: 'discovery' })
+  })
+
+  test('a meter fills its share of the cells and clamps the percent', async () => {
+    expect(meter(50, 10)).toBe('█████░░░░░')
+    expect(meter(120, 4)).toBe('████')
+    expect(meter(-5, 4)).toBe('░░░░')
+  })
+})
+
+/** Stub constructors: the element as plain data, enough to read a tree back. */
+const stubUi: Ui = {
+  Box: (props) => ({ type: 'Box', props }) as never,
+  Text: (props) => ({ type: 'Text', props }) as never,
+  Button: (props) => ({ type: 'Button', props }) as never,
+  Link: (props) => ({ type: 'Link', props }) as never,
+}
+
+describe('draw', () => {
+  test('adjacent spans of one style become one Text; a change of style starts another', async () => {
+    const one = drawRow(stubUi, [span('a'), span('b')]) as unknown as { type: string; props: { children: string[] } }
+    expect(one).toMatchObject({ type: 'Text', props: { children: ['ab'] } })
+    const row = drawRow(stubUi, [span('DE-1', undefined, true), span('  '), span('in progress', 'good')]) as unknown as {
+      type: string
+      props: { children: { type: string; props: Record<string, unknown> }[] }
+    }
+    expect(row.type).toBe('Box')
+    expect(row.props.children.map((child) => child.props)).toEqual([
+      { bold: true, children: ['DE-1'] },
+      { children: ['  '] },
+      { color: 'success', children: ['in progress'] },
+    ])
+    const blank = drawRow(stubUi, []) as unknown as { props: { children: string[] } }
+    expect(blank.props.children).toEqual([' '])
+  })
+
+  test('only an https URL of printable ASCII becomes a Link', async () => {
+    expect(linkable('https://github.com/a/b/pull/9')).toBe(true)
+    expect(linkable('http://gitlab.local/x/-/merge_requests/1')).toBe(false)
+    expect(linkable('https://user@host/pull/1')).toBe(false)
+    expect(linkable('https://host/pull/1 and more')).toBe(false)
   })
 })

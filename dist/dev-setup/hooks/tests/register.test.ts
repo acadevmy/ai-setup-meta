@@ -109,9 +109,14 @@ describe('the command', () => {
     )
     await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
     const answer = await $.command.run({ command: 'dev-setup', args: 'status', origin: { kind: 'sdk' } })
-    expect(answer.text).toBe(
-      ['Branch:   feat/DE-1_x  (task DE-1)', 'Base:     origin/next', 'Spec:     none', 'Changed:  2 files'].join('\n'),
-    )
+    expect((answer.text ?? '').split('\n').map((line) => line.replace(/\s+/g, ' '))).toEqual([
+      'Branch feat/DE-1_x task DE-1',
+      'Base origin/next',
+      'Spec none',
+      'Changed 2 files',
+      ' a.ts',
+      ' b.ts',
+    ])
     expect(calls).toEqual(['check-prerequisites.sh --json @/work'])
   })
 
@@ -167,11 +172,12 @@ describe('the catalogue', () => {
     }))
     await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
     const answer = await $.command.run({ command: 'dev-setup', args: '', origin: { kind: 'sdk' } })
-    expect(answer.text).toContain('/dev-setup:sdd — Runs the interactive flow.')
-    expect(answer.text).toContain('Takes: [TASK_ID] · outward-facing — started only by you')
+    expect(answer.text).toMatch(/\/dev-setup:\n  sdd\s+Runs the interactive flow\./)
+    expect(answer.text).toMatch(/when\s+the work is bigger than a quick fix\./)
+    expect(answer.text).toMatch(/takes\s+\[TASK_ID\]  outward-facing · started only by you/)
     expect(answer.text?.includes('sdd-dev')).toBe(false)
     // A skill added to the plugin shows up with no change to the mod.
-    expect(answer.text).toContain('/dev-setup:brand-new')
+    expect(answer.text).toMatch(/\/dev-setup:\n  brand-new\s+Runs/)
   })
 
   test('the use button fills the prompt and never sends it', async ($, on) => {
@@ -202,7 +208,9 @@ describe('the band', () => {
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
     await $.tool.call({ tool: 'Bash', command: 'bash scripts/task-clock.sh --task DE-1 --start --json' })
     const ui = await $.ui.mount(BAND)
-    expect(await ui.find({ type: 'Text', text: 'DE-1 · in progress · 42m' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'DE-1' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'in progress' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '42m' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
   })
 
@@ -353,7 +361,9 @@ describe('the runs', () => {
     expect(passed).toEqual({ text: note })
 
     const ui = await $.ui.mount(PANE)
-    expect(await ui.find({ type: 'Text', text: 'DE-5  failed  verify failed' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'DE-5' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'failed' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'verify failed' })).toBeDefined()
     await ui.press({ key: 'resume-DE-5' })
     expect(filled.length).toBe(1)
     expect(filled[0]).toContain('resumeFromRunId "wf_1"')
@@ -382,8 +392,8 @@ describe('the context view', () => {
     on('fs.read', () => ({ value: '{"mcpServers":{}}' }))
     await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
     const answer = await $.command.run({ command: 'dev-setup', args: 'context', origin: { kind: 'sdk' } })
-    expect(answer.text).toContain('Context used: 42.0k of 200.0k tokens (21%)')
-    expect(answer.text).toContain("Split by category (Claude Code's estimate):")
+    expect(answer.text).toContain('Context  42.0k of 200.0k tokens  21%')
+    expect(answer.text).toContain("Split by category (Claude Code's estimate)")
     expect(answer.text).toContain('rules (dev-setup-core.md)')
   })
 
