@@ -1,4 +1,5 @@
 {
+  "COMMANDS_SOURCE": "none",
   "FRAMEWORKS": "",
   "HAS_FRONTEND": "false",
   "HAS_INFRA": "false",
@@ -8,6 +9,7 @@
   "LINT_CMD": "",
   "MONOREPO": "",
   "PKG_MANAGER": "npm",
+  "PREFLIGHT_CMD": "",
   "SERVICES_GLOB": "**/{services,controllers,repositories,routes,handlers,use-cases}/**/*.{ts,js,mts}",
   "TEST_CMD": "",
   "TYPECHECK_CMD": "",

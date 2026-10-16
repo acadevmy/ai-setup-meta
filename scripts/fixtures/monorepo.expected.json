@@ -1,4 +1,5 @@
 {
+  "COMMANDS_SOURCE": "detected",
   "FRAMEWORKS": "nestjs,nextjs,terraform",
   "HAS_FRONTEND": "true",
   "HAS_INFRA": "true",
@@ -8,6 +9,7 @@
   "LINT_CMD": "npx nx run-many -t lint",
   "MONOREPO": "nx",
   "PKG_MANAGER": "pnpm",
+  "PREFLIGHT_CMD": "",
   "SERVICES_GLOB": "**/*.{service,controller,repository,resolver,guard,interceptor}.ts",
   "TEST_CMD": "npx nx run-many -t test",
   "TYPECHECK_CMD": "npx nx run-many -t typecheck",

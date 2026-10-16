@@ -1,0 +1,17 @@
+{
+  "COMMANDS_SOURCE": "none",
+  "FRAMEWORKS": "",
+  "HAS_FRONTEND": "false",
+  "HAS_INFRA": "false",
+  "HAS_MOBILE": "false",
+  "HOOK_MANAGER": "",
+  "LANG": "unknown",
+  "LINT_CMD": "",
+  "MONOREPO": "",
+  "PKG_MANAGER": "",
+  "PREFLIGHT_CMD": "",
+  "SERVICES_GLOB": "",
+  "TEST_CMD": "",
+  "TYPECHECK_CMD": "",
+  "VCS": "none"
+}

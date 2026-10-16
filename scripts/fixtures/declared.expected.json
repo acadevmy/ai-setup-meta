@@ -1,0 +1,17 @@
+{
+  "COMMANDS_SOURCE": "declared",
+  "FRAMEWORKS": "",
+  "HAS_FRONTEND": "false",
+  "HAS_INFRA": "false",
+  "HAS_MOBILE": "false",
+  "HOOK_MANAGER": "",
+  "LANG": "node",
+  "LINT_CMD": "make lint-all",
+  "MONOREPO": "",
+  "PKG_MANAGER": "npm",
+  "PREFLIGHT_CMD": "bin/check-toolchain.sh",
+  "SERVICES_GLOB": "**/{services,controllers,repositories,routes,handlers,use-cases}/**/*.{ts,js,mts}",
+  "TEST_CMD": "make test-all",
+  "TYPECHECK_CMD": "",
+  "VCS": "none"
+}

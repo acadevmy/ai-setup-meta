@@ -765,6 +765,111 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 6b. The quality commands are a declaration of the project (DE-17535)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# On DE-17472 detection found no stack it knew, returned three empty commands,
+# and every consumer read "empty" as "the project has none": an autonomous run
+# spent its whole budget without running a test. The commands are now declared
+# by the project in `.claude/quality-commands.json`, which detect-stack.sh reads
+# before its heuristics — and "declared absent" is a value, not an empty string.
+
+echo ""
+echo "── detect-stack.sh (the quality-commands declaration) ──"
+
+stack_of() { (cd "$1" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json 2>/dev/null); }
+stack_key() { stack_of "$1" | jq -r --arg k "$2" '.[$k]'; }
+
+# Writes a declaration into a fresh directory under the work directory.
+declare_in() {
+  local dir="$1" json="$2"
+  mkdir -p "$dir/.claude"
+  printf '%s\n' "$json" > "$dir/.claude/quality-commands.json"
+}
+
+# REQ-2: the declaration wins over the heuristics, wholesale. The fixture's
+# package.json has lint and test scripts and a tsconfig.json, so the heuristics
+# would answer `npm run lint`, `npm run test` and `npx tsc --noEmit`.
+assert_eq "a declared lint wins over the package.json script" \
+  "make lint-all" "$(stack_key "$WORK_DIR/declared" LINT_CMD)"
+assert_eq "a declared test wins over the package.json script" \
+  "make test-all" "$(stack_key "$WORK_DIR/declared" TEST_CMD)"
+# REQ-3: null is a decision, not a gap — never filled in from a heuristic.
+assert_eq "a command declared absent stays empty, although tsconfig.json would give one" \
+  "" "$(stack_key "$WORK_DIR/declared" TYPECHECK_CMD)"
+assert_eq "and the source says the commands are declared" \
+  "declared" "$(stack_key "$WORK_DIR/declared" COMMANDS_SOURCE)"
+assert_eq "the declared preflight is reported" \
+  "bin/check-toolchain.sh" "$(stack_key "$WORK_DIR/declared" PREFLIGHT_CMD)"
+
+# REQ-4: without a declaration, "detected" means at least one heuristic
+# command, and "none" means all three are empty — the case that must never
+# reach an autonomous run unnoticed again.
+for NAME in plain-node unknown-make laravel-api; do
+  assert_eq "no declaration and nothing detected is none: $NAME" \
+    "none" "$(stack_key "$WORK_DIR/$NAME" COMMANDS_SOURCE)"
+done
+for NAME in nestjs nextjs flutter monorepo; do
+  assert_eq "no declaration and heuristic commands is detected: $NAME" \
+    "detected" "$(stack_key "$WORK_DIR/$NAME" COMMANDS_SOURCE)"
+done
+LINT_ONLY="$WORK_DIR/lint-only"
+mkdir -p "$LINT_ONLY"
+echo '{"scripts":{"lint":"eslint ."}}' > "$LINT_ONLY/package.json"
+assert_eq "one detected command is enough to be detected" \
+  "detected" "$(stack_key "$LINT_ONLY" COMMANDS_SOURCE)"
+assert_eq "no declaration, no preflight" "" "$(stack_key "$WORK_DIR/nestjs" PREFLIGHT_CMD)"
+for SNAPSHOT in "$FIXTURES"/*.expected.json; do
+  assert_eq "the snapshot carries the two new keys: $(basename "$SNAPSHOT")" "true" \
+    "$(jq 'has("COMMANDS_SOURCE") and has("PREFLIGHT_CMD")' "$SNAPSHOT")"
+done
+
+# REQ-1: a malformed declaration is an error, not a guess. Exit non-zero, the
+# cause on stderr, nothing on stdout — the precedent mr-meta.sh set.
+slug_of() { printf '%s' "$1" | tr -cs 'A-Za-z0-9' '-'; }
+malformed_case() {
+  local label="$1" json="$2" dir out err rc
+  dir="$WORK_DIR/malformed-$(slug_of "$label")"
+  declare_in "$dir" "$json"
+  out=$(cd "$dir" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json 2>"$dir.err")
+  rc=$?
+  err=$(cat "$dir.err")
+  assert_eq "malformed ($label): non-zero exit" "true" "$([ "$rc" -ne 0 ] && echo true || echo false)"
+  assert_eq "malformed ($label): nothing on stdout" "" "$out"
+  assert_eq "malformed ($label): the cause on stderr" "true" "$([ -n "$err" ] && echo true || echo false)"
+}
+
+malformed_case "missing test key" '{"lint":"make lint","typecheck":null,"absent":{"typecheck":"none"}}'
+malformed_case "empty-string lint" '{"lint":"","typecheck":"make types","test":"make test"}'
+malformed_case "null without a reason" '{"lint":"make lint","typecheck":null,"test":"make test"}'
+malformed_case "hook manager with a space" '{"lint":"make lint","typecheck":"make types","test":"make test","hook_manager":"a b"}'
+malformed_case "invalid JSON" '{"lint": "make lint",'
+
+# REQ-5: a declared hook manager is the hook manager, even one no detection
+# rule knows. The gate then stands down to anti-bypass.
+HM_PRECOMMIT="$WORK_DIR/hm-pre-commit"
+declare_in "$HM_PRECOMMIT" '{"lint":"make lint","typecheck":"make types","test":"make test","hook_manager":"pre-commit"}'
+assert_eq "a declared pre-commit is accepted" "pre-commit" "$(stack_key "$HM_PRECOMMIT" HOOK_MANAGER)"
+
+HM_CAPTAIN="$WORK_DIR/hm-captainhook"
+declare_in "$HM_CAPTAIN" '{"lint":"false","typecheck":null,"absent":{"typecheck":"none"},"test":"true","hook_manager":"captainhook"}'
+git_init "$HM_CAPTAIN"
+echo "x" > "$HM_CAPTAIN/x.txt"
+git -C "$HM_CAPTAIN" add -A
+assert_eq "a declared captainhook becomes HOOK_MANAGER" "captainhook" "$(stack_key "$HM_CAPTAIN" HOOK_MANAGER)"
+assert_eq "and the gate delegates: a red declared lint does not refuse the commit" \
+  "none" "$(decision_of "$(gate "$HM_CAPTAIN" 'git commit -m "feat: x"')")"
+
+# The control: the same red lint, no hook manager declared — the gate runs it.
+HM_NONE="$WORK_DIR/hm-none"
+declare_in "$HM_NONE" '{"lint":"false","typecheck":null,"absent":{"typecheck":"none"},"test":"true"}'
+git_init "$HM_NONE"
+echo "x" > "$HM_NONE/x.txt"
+git -C "$HM_NONE" add -A
+assert_eq "without a declared hook manager the red declared lint refuses the commit" \
+  "deny" "$(decision_of "$(gate "$HM_NONE" 'git commit -m "feat: x"')")"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 7. rules/ — the path-scoped rule templates (DE-16477)
 # ═══════════════════════════════════════════════════════════════════════════════
 

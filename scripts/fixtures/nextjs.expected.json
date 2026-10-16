@@ -1,4 +1,5 @@
 {
+  "COMMANDS_SOURCE": "detected",
   "FRAMEWORKS": "nextjs",
   "HAS_FRONTEND": "true",
   "HAS_INFRA": "false",
@@ -8,6 +9,7 @@
   "LINT_CMD": "pnpm run lint",
   "MONOREPO": "",
   "PKG_MANAGER": "pnpm",
+  "PREFLIGHT_CMD": "",
   "SERVICES_GLOB": "",
   "TEST_CMD": "pnpm run test",
   "TYPECHECK_CMD": "pnpm run typecheck",

@@ -5,11 +5,35 @@
 # (the setup skill's Step 2). Reads only files already on disk: no network, no
 # package installation, no `.env*` access.
 #
-# Usage:
-#   detect-stack.sh [--json] [--dir <path>]
+# The quality commands are the project's declaration first: when
+# `.claude/quality-commands.json` exists, its `lint`, `typecheck` and `test` are
+# the commands, read before any heuristic and never mixed with one — a `null`
+# there is the project saying it has no such command, not a gap to fill. The
+# per-language heuristics below only answer for a project that declared nothing,
+# and what they find is a suggestion the setup confirms (step 3b) and writes
+# into the declaration.
 #
-#   --json        emit a flat JSON object (the machine contract)
-#   --dir <path>  inspect <path> instead of the current directory
+# Usage:
+#   detect-stack.sh [--json] [--dir <path>] [--no-declaration]
+#
+#   --json            emit a flat JSON object (the machine contract)
+#   --dir <path>      inspect <path> instead of the current directory
+#   --no-declaration  ignore .claude/quality-commands.json: the heuristics
+#                     alone, which is what quality-candidates.sh proposes
+#
+# The declaration:
+#   {
+#     "lint": "make lint",                 // a command, or null
+#     "typecheck": null,                   // null needs a reason in "absent"
+#     "test": "make test",
+#     "absent": { "typecheck": "the project has no type checker" },
+#     "preflight": null,                   // optional: a readiness check
+#     "hook_manager": null                 // optional: e.g. pre-commit, captainhook
+#   }
+#
+# A malformed declaration exits non-zero with the cause on stderr and nothing on
+# stdout: a missing command key, an empty-string command, a null command with no
+# reason in `absent`, a `hook_manager` that is not a short tool name, invalid JSON.
 #
 # Keys:
 #   LANG            comma-separated list of detected languages, or "unknown"
@@ -24,14 +48,21 @@
 #   SERVICES_GLOB   glob matching the business-logic layer, or "" when the
 #                   project has no backend (used to instantiate the
 #                   backend-services path-scoped rule)
-#   TEST_CMD        the test command, or "" when none was detected
-#   LINT_CMD        the lint command, or "" when none was detected
-#   TYPECHECK_CMD   the type-check command, or "" when none was detected
-#   HOOK_MANAGER    husky | lefthook | simple-git-hooks | custom-hookspath | ""
+#   TEST_CMD        the test command, or "" when there is none
+#   LINT_CMD        the lint command, or "" when there is none
+#   TYPECHECK_CMD   the type-check command, or "" when there is none
+#   COMMANDS_SOURCE declared (the three commands come from the declaration,
+#                   an empty one is declared absent) | detected (no
+#                   declaration, at least one heuristic command) | none (no
+#                   declaration and nothing detected)
+#   PREFLIGHT_CMD   the declared preflight, or "" when there is none
+#   HOOK_MANAGER    husky | lefthook | simple-git-hooks | custom-hookspath |
+#                   the declared hook_manager | ""
 #
 # A missing value is always the empty string, never a message: the consumer
 # tests for emptiness. Exits non-zero only on a real error (bad flag, missing
-# jq, unreadable directory).
+# jq, unreadable directory, malformed declaration).
+# ---8<--- end of the --help message
 
 set -uo pipefail
 
@@ -43,6 +74,12 @@ source "$SCRIPT_DIR/common.sh"
 
 AS_JSON=false
 TARGET_DIR="."
+READ_DECLARATION=true
+
+usage() {
+  awk 'NR == 1 { next } /^# ---8<---/ { exit } /^#/ { sub(/^# ?/, ""); print }' \
+    "${BASH_SOURCE[0]}"
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -50,9 +87,8 @@ while [ $# -gt 0 ]; do
     --dir)
       [ $# -ge 2 ] || die "--dir requires a path"
       TARGET_DIR="$2"; shift 2 ;;
-    -h|--help)
-      sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
-      exit 0 ;;
+    --no-declaration) READ_DECLARATION=false; shift ;;
+    -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
@@ -60,6 +96,65 @@ done
 require_jq
 [ -d "$TARGET_DIR" ] || die "directory not found: $TARGET_DIR"
 cd "$TARGET_DIR" || die "cannot enter: $TARGET_DIR"
+
+# ── The declaration ───────────────────────────────────────────────────────────
+#
+# Read and validated before anything else, so a malformed file fails the whole
+# call before a single heuristic runs: a consumer that got half an answer would
+# fall back to the guess the file exists to replace.
+
+DECLARATION=".claude/quality-commands.json"
+DECLARED=false
+DECLARED_LINT=""
+DECLARED_TYPECHECK=""
+DECLARED_TEST=""
+PREFLIGHT_CMD=""
+DECLARED_HOOK_MANAGER=""
+
+if [ "$READ_DECLARATION" = true ] && [ -f "$DECLARATION" ]; then
+  jq -e . "$DECLARATION" >/dev/null 2>&1 \
+    || die "$DECLARATION is not valid JSON: fix it, or re-run the setup to rewrite it"
+
+  # Every problem at once, so one edit fixes the file. A `null` command is the
+  # project saying it has none, and saying why: without the reason it cannot be
+  # told apart from a key someone blanked by accident.
+  PROBLEMS=$(jq -r '
+    def reason($k): (.absent | if type == "object" then .[$k] else null end);
+    def blank: type == "string" and test("^\\s*$");
+    if type != "object" then "the file must hold a JSON object"
+    else
+      [ ("lint", "typecheck", "test") as $k
+        | if has($k) | not then
+            "\"\($k)\" is missing: declare the command, or null with a reason in absent.\($k)"
+          elif .[$k] == null then
+            (if (reason($k) | type) == "string" and (reason($k) | blank | not) then empty
+             else "\"\($k)\" is null with no reason in absent.\($k)" end)
+          elif (.[$k] | type) != "string" then
+            "\"\($k)\" must be a command string, or null"
+          elif (.[$k] | blank) then
+            "\"\($k)\" is an empty string: declare the command, or null with a reason in absent.\($k)"
+          else empty end ]
+      + [ if (.preflight // null) == null then empty
+          elif (.preflight | type) != "string" or (.preflight | blank) then
+            "\"preflight\" must be a command string, or null"
+          else empty end ]
+      + [ if (.hook_manager // null) == null then empty
+          elif (.hook_manager | type) == "string"
+            and (.hook_manager | test("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")) then empty
+          else "\"hook_manager\" must be a short tool name (letters, digits, dot, dash, underscore), or null" end ]
+      | join("; ")
+    end
+  ' "$DECLARATION")
+
+  [ -z "$PROBLEMS" ] || die "$DECLARATION: $PROBLEMS"
+
+  DECLARED=true
+  DECLARED_LINT=$(jq -r '.lint // empty' "$DECLARATION")
+  DECLARED_TYPECHECK=$(jq -r '.typecheck // empty' "$DECLARATION")
+  DECLARED_TEST=$(jq -r '.test // empty' "$DECLARATION")
+  PREFLIGHT_CMD=$(jq -r '.preflight // empty' "$DECLARATION")
+  DECLARED_HOOK_MANAGER=$(jq -r '.hook_manager // empty' "$DECLARATION")
+fi
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -303,83 +398,103 @@ fi
 
 # ── Quality commands ──────────────────────────────────────────────────────────
 #
-# An npm script wins over the bare binary: the project's own script carries the
-# flags the project needs.
-
-TEST_CMD=""
-if has_script test; then
-  # A placeholder `test` script ("no test specified") is not a test command.
-  body=$(script_body test)
-  case "$body" in
-    *'no test specified'*|*'Error: no test'*) TEST_CMD="" ;;
-    *) TEST_CMD="$(run_prefix) test" ;;
-  esac
-fi
-if [ -z "$TEST_CMD" ]; then
-  if has_dep vitest; then TEST_CMD="npx vitest run"
-  elif has_dep jest; then TEST_CMD="npx jest"
-  elif [ -f pubspec.yaml ]; then TEST_CMD="flutter test"
-  elif [ -f pytest.ini ] || has_pyproject_table 'tool.pytest.ini_options'; then TEST_CMD="pytest"
-  elif [ -f go.mod ]; then TEST_CMD="go test ./..."
-  elif [ -f Cargo.toml ]; then TEST_CMD="cargo test"
-  elif lang_has terraform; then TEST_CMD="terraform validate"
-  fi
-fi
-
-LINT_CMD=""
-if has_script lint; then
-  LINT_CMD="$(run_prefix) lint"
-elif [ -f eslint.config.js ] || [ -f eslint.config.mjs ] || [ -f eslint.config.cjs ] \
-  || [ -f eslint.config.ts ] || has_dep eslint; then
-  LINT_CMD="npx eslint ."
-elif [ -f analysis_options.yaml ]; then LINT_CMD="dart analyze"
-elif has_pyproject_table 'tool.ruff'; then LINT_CMD="ruff check ."
-elif [ -f .flake8 ]; then LINT_CMD="flake8"
-elif [ -f .golangci.yml ] || [ -f .golangci.yaml ]; then LINT_CMD="golangci-lint run"
-elif [ -f Cargo.toml ]; then LINT_CMD="cargo clippy"
-elif lang_has terraform; then LINT_CMD="terraform fmt -check -recursive"
-fi
-
-TYPECHECK_CMD=""
-for candidate in typecheck type-check tsc; do
-  if has_script "$candidate"; then
-    TYPECHECK_CMD="$(run_prefix) $candidate"
-    break
-  fi
-done
-if [ -z "$TYPECHECK_CMD" ]; then
-  if [ -f tsconfig.json ]; then TYPECHECK_CMD="npx tsc --noEmit"
-  elif [ -f pubspec.yaml ]; then TYPECHECK_CMD="flutter analyze"
-  elif has_pyproject_table 'tool.mypy' || [ -f mypy.ini ]; then TYPECHECK_CMD="mypy ."
-  elif [ -f go.mod ]; then TYPECHECK_CMD="go build ./..."
-  elif [ -f Cargo.toml ]; then TYPECHECK_CMD="cargo check"
-  fi
-fi
-
-# In a monorepo the commands must run from the workspace root. Nx and Turborepo
-# expose a root-level task runner that fans out across the projects, and that
-# beats the single-language fallbacks above: on an Nx workspace holding both a
-# Next app and a Terraform module, `terraform validate` is not the test command.
-# An explicit root script still wins — the project wrote it on purpose.
+# The declaration answers when there is one, and wholesale: none of the three
+# heuristic commands is used, not even to fill a `null`.
 #
-# The workspace managers (pnpm/yarn/npm/lerna) need a filter per package, which
-# only the caller knows, so there the root script is used as-is.
-case "$MONOREPO" in
-  nx)
-    has_script test      || TEST_CMD="npx nx run-many -t test"
-    has_script lint      || LINT_CMD="npx nx run-many -t lint"
-    if ! has_script typecheck && ! has_script type-check; then
-      TYPECHECK_CMD="npx nx run-many -t typecheck"
+# Otherwise the heuristics below guess. An npm script wins over the bare binary:
+# the project's own script carries the flags the project needs.
+
+heuristic_commands() {
+  local body candidate
+  TEST_CMD=""
+  if has_script test; then
+    # A placeholder `test` script ("no test specified") is not a test command.
+    body=$(script_body test)
+    case "$body" in
+      *'no test specified'*|*'Error: no test'*) TEST_CMD="" ;;
+      *) TEST_CMD="$(run_prefix) test" ;;
+    esac
+  fi
+  if [ -z "$TEST_CMD" ]; then
+    if has_dep vitest; then TEST_CMD="npx vitest run"
+    elif has_dep jest; then TEST_CMD="npx jest"
+    elif [ -f pubspec.yaml ]; then TEST_CMD="flutter test"
+    elif [ -f pytest.ini ] || has_pyproject_table 'tool.pytest.ini_options'; then TEST_CMD="pytest"
+    elif [ -f go.mod ]; then TEST_CMD="go test ./..."
+    elif [ -f Cargo.toml ]; then TEST_CMD="cargo test"
+    elif lang_has terraform; then TEST_CMD="terraform validate"
     fi
-    ;;
-  turborepo)
-    has_script test      || TEST_CMD="npx turbo run test"
-    has_script lint      || LINT_CMD="npx turbo run lint"
-    if ! has_script typecheck && ! has_script type-check; then
-      TYPECHECK_CMD="npx turbo run typecheck"
+  fi
+
+  LINT_CMD=""
+  if has_script lint; then
+    LINT_CMD="$(run_prefix) lint"
+  elif [ -f eslint.config.js ] || [ -f eslint.config.mjs ] || [ -f eslint.config.cjs ] \
+    || [ -f eslint.config.ts ] || has_dep eslint; then
+    LINT_CMD="npx eslint ."
+  elif [ -f analysis_options.yaml ]; then LINT_CMD="dart analyze"
+  elif has_pyproject_table 'tool.ruff'; then LINT_CMD="ruff check ."
+  elif [ -f .flake8 ]; then LINT_CMD="flake8"
+  elif [ -f .golangci.yml ] || [ -f .golangci.yaml ]; then LINT_CMD="golangci-lint run"
+  elif [ -f Cargo.toml ]; then LINT_CMD="cargo clippy"
+  elif lang_has terraform; then LINT_CMD="terraform fmt -check -recursive"
+  fi
+
+  TYPECHECK_CMD=""
+  for candidate in typecheck type-check tsc; do
+    if has_script "$candidate"; then
+      TYPECHECK_CMD="$(run_prefix) $candidate"
+      break
     fi
-    ;;
-esac
+  done
+  if [ -z "$TYPECHECK_CMD" ]; then
+    if [ -f tsconfig.json ]; then TYPECHECK_CMD="npx tsc --noEmit"
+    elif [ -f pubspec.yaml ]; then TYPECHECK_CMD="flutter analyze"
+    elif has_pyproject_table 'tool.mypy' || [ -f mypy.ini ]; then TYPECHECK_CMD="mypy ."
+    elif [ -f go.mod ]; then TYPECHECK_CMD="go build ./..."
+    elif [ -f Cargo.toml ]; then TYPECHECK_CMD="cargo check"
+    fi
+  fi
+
+  # In a monorepo the commands must run from the workspace root. Nx and Turborepo
+  # expose a root-level task runner that fans out across the projects, and that
+  # beats the single-language fallbacks above: on an Nx workspace holding both a
+  # Next app and a Terraform module, `terraform validate` is not the test command.
+  # An explicit root script still wins — the project wrote it on purpose.
+  #
+  # The workspace managers (pnpm/yarn/npm/lerna) need a filter per package, which
+  # only the caller knows, so there the root script is used as-is.
+  case "$MONOREPO" in
+    nx)
+      has_script test      || TEST_CMD="npx nx run-many -t test"
+      has_script lint      || LINT_CMD="npx nx run-many -t lint"
+      if ! has_script typecheck && ! has_script type-check; then
+        TYPECHECK_CMD="npx nx run-many -t typecheck"
+      fi
+      ;;
+    turborepo)
+      has_script test      || TEST_CMD="npx turbo run test"
+      has_script lint      || LINT_CMD="npx turbo run lint"
+      if ! has_script typecheck && ! has_script type-check; then
+        TYPECHECK_CMD="npx turbo run typecheck"
+      fi
+      ;;
+  esac
+}
+
+if [ "$DECLARED" = true ]; then
+  TEST_CMD="$DECLARED_TEST"
+  LINT_CMD="$DECLARED_LINT"
+  TYPECHECK_CMD="$DECLARED_TYPECHECK"
+  COMMANDS_SOURCE="declared"
+else
+  heuristic_commands
+  if [ -n "$TEST_CMD$LINT_CMD$TYPECHECK_CMD" ]; then
+    COMMANDS_SOURCE="detected"
+  else
+    COMMANDS_SOURCE="none"
+  fi
+fi
 
 # ── Hook manager ──────────────────────────────────────────────────────────────
 #
@@ -405,6 +520,10 @@ elif [ -f .git/hooks/pre-commit ] && [ -x .git/hooks/pre-commit ]; then
   HOOK_MANAGER="custom-hookspath"
 fi
 
+# A declared hook manager is the project naming its own tooling — pre-commit,
+# captainhook, grumphp — which no detection rule above has to know.
+[ -n "$DECLARED_HOOK_MANAGER" ] && HOOK_MANAGER="$DECLARED_HOOK_MANAGER"
+
 # ── Output ────────────────────────────────────────────────────────────────────
 
 json_set LANG "$LANGS"
@@ -419,6 +538,8 @@ json_set SERVICES_GLOB "$SERVICES_GLOB"
 json_set TEST_CMD "$TEST_CMD"
 json_set LINT_CMD "$LINT_CMD"
 json_set TYPECHECK_CMD "$TYPECHECK_CMD"
+json_set COMMANDS_SOURCE "$COMMANDS_SOURCE"
+json_set PREFLIGHT_CMD "$PREFLIGHT_CMD"
 json_set HOOK_MANAGER "$HOOK_MANAGER"
 
 if [ "$AS_JSON" = true ]; then

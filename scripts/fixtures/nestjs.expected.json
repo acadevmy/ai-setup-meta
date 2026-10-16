@@ -1,4 +1,5 @@
 {
+  "COMMANDS_SOURCE": "detected",
   "FRAMEWORKS": "nestjs",
   "HAS_FRONTEND": "false",
   "HAS_INFRA": "false",
@@ -8,6 +9,7 @@
   "LINT_CMD": "npm run lint",
   "MONOREPO": "",
   "PKG_MANAGER": "npm",
+  "PREFLIGHT_CMD": "",
   "SERVICES_GLOB": "**/*.{service,controller,repository,resolver,guard,interceptor}.ts",
   "TEST_CMD": "npm run test",
   "TYPECHECK_CMD": "npx tsc --noEmit",
