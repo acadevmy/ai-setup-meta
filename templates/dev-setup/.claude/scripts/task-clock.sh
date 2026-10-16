@@ -54,6 +54,11 @@
 #                   space-separated — a fan-out has one per worktree, and they
 #                   share the common git directory
 #   OPEN_COUNT      how many they are
+#   RECENT_TASKS    every task in this repository whose last event is a stop
+#                   less than 300 seconds old, space-separated — never one with
+#                   an open interval. A run that stops its clock and then waits
+#                   for the developer (the BLOCKED move of a failed run) is still
+#                   the task in play, and the notification hook names it
 #   STATE_FILE      where the clock is kept — empty for a --status with no task
 #
 # Exit: 0 on success, including a --stop with nothing to measure · 1 usage error
@@ -165,6 +170,20 @@ open_stamp_of() {
   printf '%s' "$open"
 }
 
+# The epoch of a log's last event when that event is a stop, or the empty
+# string. Same file format again, read without touching the globals.
+last_stop_epoch_of() {
+  local file="$1" kind epoch stamp minutes last=""
+  [ -f "$file" ] || return 0
+  while IFS=$'\t' read -r kind epoch stamp minutes; do
+    case "$kind" in
+      start) last="" ;;
+      stop) last="$epoch" ;;
+    esac
+  done < "$file"
+  printf '%s' "$last"
+}
+
 # Minutes between two epochs, rounded to the nearest minute. An interval that
 # closed is never reported as 0m: a one-line fix takes seconds, and "0m" reads
 # as a broken clock rather than as a fast job.
@@ -265,14 +284,30 @@ esac
 # not about the call. A fan-out keeps one log per task and every worktree shares
 # the common git directory, so this is the whole repository's view.
 
+#
+# RECENT_TASKS is the same pass looking the other way: a clock stopped less than
+# RECENT_WINDOW seconds ago. A failed run stops its clock and then asks for the
+# BLOCKED move, so for those few seconds it is still the task the developer is
+# being called back for — and the reader still writes nothing.
+
+RECENT_WINDOW=300
 OPEN_TASKS=""
 OPEN_COUNT=0
+RECENT_TASKS=""
 if [ -d "$STATE_DIR" ]; then
   for LOG in "$STATE_DIR"/*.log; do
     [ -f "$LOG" ] || continue
-    [ -n "$(open_stamp_of "$LOG")" ] || continue
-    OPEN_TASKS="${OPEN_TASKS:+$OPEN_TASKS }$(basename "$LOG" .log)"
-    OPEN_COUNT=$((OPEN_COUNT + 1))
+    if [ -n "$(open_stamp_of "$LOG")" ]; then
+      OPEN_TASKS="${OPEN_TASKS:+$OPEN_TASKS }$(basename "$LOG" .log)"
+      OPEN_COUNT=$((OPEN_COUNT + 1))
+      continue
+    fi
+    LAST_STOP="$(last_stop_epoch_of "$LOG")"
+    case "$LAST_STOP" in
+      ''|*[!0-9]*) continue ;;
+    esac
+    [ $((NOW_EPOCH - LAST_STOP)) -lt "$RECENT_WINDOW" ] || continue
+    RECENT_TASKS="${RECENT_TASKS:+$RECENT_TASKS }$(basename "$LOG" .log)"
   done
 fi
 
@@ -298,6 +333,7 @@ json_set COMMENT "$COMMENT"
 json_set REASON "$REASON"
 json_set OPEN_TASKS "$OPEN_TASKS"
 json_set OPEN_COUNT "$OPEN_COUNT"
+json_set RECENT_TASKS "$RECENT_TASKS"
 json_set STATE_FILE "$STATE_FILE"
 
 if [ "$AS_JSON" = true ]; then

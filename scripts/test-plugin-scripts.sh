@@ -2485,6 +2485,42 @@ assert_eq "and leaves nothing open in the repository" "0" \
 assert_eq "--status still measures nothing on a clock nobody started" "no-start-stamp" \
   "$(clock --task DE-705 --status | jq -r '.REASON')"
 
+# ── RECENT_TASKS: a clock stopped a moment ago is still the task in play (DE-17077) ──
+#
+# A failed run stops its clock and then asks for the BLOCKED move: the
+# notification hook has to name that task for the few seconds in between, and
+# it can only ask the reader that consumes nothing.
+CLOCK_RECENT_REPO="$WORK_DIR/clock-recent-repo"
+mkdir -p "$CLOCK_RECENT_REPO"
+git_init "$CLOCK_RECENT_REPO" >/dev/null 2>&1
+recent_clock() { (cd "$CLOCK_RECENT_REPO" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
+
+recent_clock --task DE-710 --start >/dev/null
+recent_clock --task DE-710 --stop >/dev/null
+recent_clock --task DE-711 --start >/dev/null
+CLOCK_RECENT_DIR="$CLOCK_RECENT_REPO/.git/dev-setup/task-clock"
+CLOCK_AGED=$(date +%s)
+{
+  printf 'start\t%s\t%s\n' "$((CLOCK_AGED - 1200))" "2026-10-16 09:00"
+  printf 'stop\t%s\t%s\t%s\n' "$((CLOCK_AGED - 600))" "2026-10-16 09:10" "10"
+} > "$CLOCK_RECENT_DIR/DE-712.log"
+
+CLOCK_RECENT=$(recent_clock --status)
+assert_eq "a task stopped seconds ago is in RECENT_TASKS" "DE-710" \
+  "$(printf '%s' "$CLOCK_RECENT" | jq -r '.RECENT_TASKS')"
+assert_eq "and not in OPEN_TASKS, which holds only the open one" "DE-711" \
+  "$(printf '%s' "$CLOCK_RECENT" | jq -r '.OPEN_TASKS')"
+assert_eq "an open task is never recent, a stop 600 s old is not either" "false" \
+  "$(printf '%s' "$CLOCK_RECENT" | jq -r '.RECENT_TASKS' | grep -qE 'DE-711|DE-712' && echo true || echo false)"
+assert_eq "--status with a task reports the same RECENT_TASKS" "DE-710" \
+  "$(recent_clock --task DE-711 --status | jq -r '.RECENT_TASKS')"
+
+CLOCK_RECENT_BEFORE=$(cat "$CLOCK_RECENT_DIR"/*.log | cksum)
+recent_clock --status >/dev/null
+recent_clock --task DE-710 --status >/dev/null
+assert_eq "and reading it leaves every log byte-identical" "$CLOCK_RECENT_BEFORE" \
+  "$(cat "$CLOCK_RECENT_DIR"/*.log | cksum)"
+
 # ── Both ends, in every flow ──
 #
 # A clock started and never read is a file nobody looks at; a clock read and
@@ -2786,6 +2822,217 @@ assert_eq "and says nothing" "" "$(cat "$WORK_DIR/edit-stdout")"
 assert_eq "no hook script exits 2 in code" "" \
   "$(grep -lE '^[^#]*(^|[^[:alnum:]_])exit[[:space:]]+2([^[:digit:]]|$)' "$PLUGIN_HOOKS"/*.sh \
      | sed "s|^$REPO_ROOT/||")"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12c. notify.sh: the developer is called back with the task id (DE-17077)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Claude Code's own notification says "Claude needs your permission", not for
+# which task. The hook adds one that names it — and only when a task of this
+# plugin is in play here (an open or just-stopped clock): a hook that speaks on
+# every prompt would be switched off within the week. The notifiers and `uname`
+# are stubs, so both delivery paths are asserted on any host.
+
+echo ""
+echo "── notify.sh (a permission prompt names its task) ──"
+
+NOTIFY_BIN="$WORK_DIR/notify-bin"
+NOTIFY_CALLS="$WORK_DIR/notify-calls"
+export NOTIFY_CALLS
+mkdir -p "$NOTIFY_BIN"
+cat > "$NOTIFY_BIN/uname" <<'STUB'
+#!/bin/sh
+printf '%s\n' "${STUB_OS:-Linux}"
+STUB
+# One line per call: the notifier's name, then each argument after a tab.
+for NOTIFIER in osascript notify-send; do
+  cat > "$NOTIFY_BIN/$NOTIFIER" <<'STUB'
+#!/bin/sh
+{ printf '%s' "$(basename "$0")"; for a in "$@"; do printf '\t%s' "$a"; done; printf '\n'; } >> "$NOTIFY_CALLS"
+exit "${STUB_NOTIFY_EXIT:-0}"
+STUB
+done
+chmod +x "$NOTIFY_BIN"/*
+
+NT_REPO="$WORK_DIR/notify-repo"
+mkdir -p "$NT_REPO"
+(
+  cd "$NT_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b chore/no-task
+) >/dev/null 2>&1
+
+NT_MESSAGE="Claude needs your permission to use Bash"
+
+# Feeds a Notification payload to the hook with the stubs first on PATH: stdout
+# and stderr to files, the calls to $NOTIFY_CALLS, the hook's exit code returned.
+notify_hook_raw() {
+  local type="$1" message="$2" cwd="${3:-$NT_REPO}"
+  : > "$NOTIFY_CALLS"
+  jq -n --arg t "$type" --arg m "$message" --arg cwd "$cwd" \
+    '{hook_event_name: "Notification", notification_type: $t, message: $m, cwd: $cwd}' \
+    | PATH="$NOTIFY_BIN:$PATH" bash "$PLUGIN_HOOKS/notify.sh" \
+      >"$WORK_DIR/notify-stdout" 2>"$WORK_DIR/notify-stderr"
+}
+notify_count() { grep -c . "$NOTIFY_CALLS" 2>/dev/null || true; }
+# The title is the first argument of either notifier: notify-send's first,
+# osascript's first after the script.
+notify_title() { awk -F'\t' '{ print ($1 == "osascript") ? $(NF-1) : $2 }' "$NOTIFY_CALLS"; }
+nt_clock() { (cd "${NT_CLOCK_CWD:-$NT_REPO}" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
+
+# ── Test 2 (REQ-2): nothing in play, nothing said ──
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "no task branch and no clock: exit 0" "0" "$?"
+assert_eq "and no notifier is invoked" "0" "$(notify_count)"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/notify-stdout")"
+
+(cd "$NT_REPO" && git checkout -q -b feat/DE-900_thing) >/dev/null 2>&1
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "a task branch with no clock is not a signal" "0" "$(notify_count)"
+
+# ── Test 1 (REQ-1): a permission prompt with a task in play ──
+nt_clock --task DE-900 --start >/dev/null
+
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "an open clock makes a permission prompt one notification" "1" "$(notify_count)"
+assert_eq "through notify-send on Linux" "notify-send" "$(cut -f1 "$NOTIFY_CALLS")"
+assert_eq "titled with the task" "dev-setup · DE-900" "$(cut -f2 "$NOTIFY_CALLS")"
+assert_eq "with the prompt's message as the body" "$NT_MESSAGE" "$(cut -f3 "$NOTIFY_CALLS")"
+assert_eq "and stdout stays empty" "" "$(cat "$WORK_DIR/notify-stdout")"
+
+STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "on Darwin it is one osascript call" "osascript" \
+  "$(cut -f1 "$NOTIFY_CALLS")$( [ "$(notify_count)" = 1 ] || echo ' (not one call)')"
+assert_eq "whose argv carries the title as its own argument" "dev-setup · DE-900" \
+  "$(awk -F'\t' '{ print $(NF-1) }' "$NOTIFY_CALLS")"
+assert_eq "and the body as the next one" "$NT_MESSAGE" \
+  "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
+assert_eq "never interpolated into the script" "false" \
+  "$(awk -F'\t' '{ for (i = 2; i < NF - 1; i++) print $i }' "$NOTIFY_CALLS" \
+     | grep -q 'DE-900' && echo true || echo false)"
+
+NT_QUOTED="Claude needs \"your\" permission to use Bash's tool"
+STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_QUOTED"
+assert_eq "a message with quotes arrives verbatim in argv" "$NT_QUOTED" \
+  "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
+
+# ── Test 2 (REQ-2): every other notification type is left alone ──
+for NT_TYPE in idle_prompt auth_success agent_needs_input agent_completed; do
+  STUB_OS=Linux notify_hook_raw "$NT_TYPE" "$NT_MESSAGE"
+  assert_eq "$NT_TYPE says nothing, even with a task open" "0:" \
+    "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+done
+
+# ── Test 3 (REQ-3): it fails open ──
+NOJQ_BIN="$WORK_DIR/notify-nojq-bin"
+mkdir -p "$NOJQ_BIN"
+for NT_TOOL in bash git sed grep cat dirname head tr; do
+  ln -sf "$(command -v "$NT_TOOL")" "$NOJQ_BIN/$NT_TOOL"
+done
+ln -sf "$NOTIFY_BIN/uname" "$NOJQ_BIN/uname"
+ln -sf "$NOTIFY_BIN/notify-send" "$NOJQ_BIN/notify-send"
+NT_PAYLOAD=$(jq -n --arg cwd "$NT_REPO" --arg m "$NT_MESSAGE" \
+  '{hook_event_name: "Notification", notification_type: "permission_prompt", message: $m, cwd: $cwd}')
+: > "$NOTIFY_CALLS"
+printf '%s' "$NT_PAYLOAD" | STUB_OS=Linux PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$PLUGIN_HOOKS/notify.sh" \
+  >"$WORK_DIR/notify-stdout" 2>/dev/null
+assert_eq "without jq it exits 0" "0" "$?"
+assert_eq "with an empty stdout and no call" "0:" \
+  "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+NT_LONELY="$WORK_DIR/notify-lonely/hooks"
+mkdir -p "$NT_LONELY"
+cp "$PLUGIN_HOOKS/notify.sh" "$NT_LONELY/notify.sh"
+: > "$NOTIFY_CALLS"
+printf '%s' "$NT_PAYLOAD" | STUB_OS=Linux PATH="$NOTIFY_BIN:$PATH" env -u CLAUDE_PLUGIN_ROOT \
+  bash "$NT_LONELY/notify.sh" >"$WORK_DIR/notify-stdout" 2>/dev/null
+assert_eq "without the plugin scripts it exits 0" "0" "$?"
+assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+STUB_OS=Plan9 notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "an unsupported OS exits 0" "0" "$?"
+assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+mkdir -p "$WORK_DIR/notify-not-a-repo"
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$WORK_DIR/notify-not-a-repo"
+assert_eq "a cwd outside a repository exits 0" "0" "$?"
+assert_eq "and invokes nothing" "0" "$(notify_count)"
+
+STUB_OS=Linux STUB_NOTIFY_EXIT=1 notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "a failing notifier still exits 0" "0" "$?"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/notify-stdout")"
+nt_clock --task DE-900 --stop >/dev/null
+
+# ── Test 4 (REQ-4): the launcher's order, replayed on its checkout ──
+#
+# An autonomous run is launched from the developer checkout, on a branch with
+# no task id. ready-for-mr asks for the merge request with the clock still
+# open; failed stops the clock and then asks for the BLOCKED move.
+NT4_REPO="$WORK_DIR/notify-launcher-repo"
+mkdir -p "$NT4_REPO"
+(
+  cd "$NT4_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b next
+) >/dev/null 2>&1
+
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-901 --start >/dev/null
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "ready-for-mr: the open clock names the run from a branch with no id" \
+  "1:dev-setup · DE-901" "$(notify_count):$(notify_title)"
+
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-902 --start >/dev/null
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "two runs in flight, nothing narrowing: both are named" \
+  "1:dev-setup · DE-901 DE-902" "$(notify_count):$(notify_title)"
+assert_eq "and the hook stops neither clock" "true true" \
+  "$(NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-901 --status | jq -r '.RUNNING') $(NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-902 --status | jq -r '.RUNNING')"
+
+(cd "$NT4_REPO" && git checkout -q -b feat/DE-901_thing) >/dev/null 2>&1
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "a branch naming one of them narrows to it" \
+  "1:dev-setup · DE-901" "$(notify_count):$(notify_title)"
+(cd "$NT4_REPO" && git checkout -q next) >/dev/null 2>&1
+
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-901 --stop >/dev/null
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-902 --stop >/dev/null
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "failed: the BLOCKED prompt after --stop still names them" \
+  "1:dev-setup · DE-901 DE-902" "$(notify_count):$(notify_title)"
+
+NT4_CLOCKS="$NT4_REPO/.git/dev-setup/task-clock"
+NT4_NOW=$(date +%s)
+for NT_TASK in DE-901 DE-902; do
+  {
+    printf 'start\t%s\t%s\n' "$((NT4_NOW - 1200))" "2026-10-16 09:00"
+    printf 'stop\t%s\t%s\t%s\n' "$((NT4_NOW - 600))" "2026-10-16 09:10" "10"
+  } > "$NT4_CLOCKS/$NT_TASK.log"
+done
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "a stop 600 s old is no longer in play: exit 0" "0" "$?"
+assert_eq "no call, empty stdout" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+# The two halves rest on the order of run-outcomes.md: ready-for-mr opens the
+# merge request before it stops the clock, failed stops it before the BLOCKED
+# move. Reordering either changes which half the clocks name, silently.
+NT_OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+NT_READY=$(awk '/^## ready-for-mr/ { p = 1; next } /^## / { p = 0 } p' "$NT_OUTCOMES")
+NT_VCS_LINE=$(printf '%s\n' "$NT_READY" | grep -n 'Then invoke `vcs-ops`' | head -1 | cut -d: -f1)
+NT_STOP_LINE=$(printf '%s\n' "$NT_READY" | grep -n -- '--task <taskId> --stop' | head -1 | cut -d: -f1)
+assert_eq "ready-for-mr invokes vcs-ops before it stops the clock" "true" \
+  "$([ -n "$NT_VCS_LINE" ] && [ -n "$NT_STOP_LINE" ] && [ "$NT_VCS_LINE" -lt "$NT_STOP_LINE" ] \
+     && echo true || echo false)"
+assert_eq "failed stops the clock before the BLOCKED move" "true" \
+  "$(awk '/^## failed/ { p = 1; next } /^## / { p = 0 } p' "$NT_OUTCOMES" \
+     | grep -qE '^3\. Stop the clock, then move the task to `BLOCKED`' && echo true || echo false)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 13. review-package.sh: the diff verify and review read, built once (DE-17080)
