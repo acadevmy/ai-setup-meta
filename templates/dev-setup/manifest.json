@@ -49,6 +49,7 @@
     "common.sh",
     "detect-stack.sh",
     "quality-candidates.sh",
+    "quality-preflight.sh",
     "sdd-start.sh",
     "check-prerequisites.sh",
     "review-package.sh",

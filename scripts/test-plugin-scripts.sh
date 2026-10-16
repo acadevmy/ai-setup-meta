@@ -1026,6 +1026,95 @@ assert_eq "no rule for PHP was added to detect-stack.sh" "" \
 assert_eq "the candidates script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/quality-candidates.sh" ] && echo true || echo false)"
 
+echo ""
+echo "── quality-preflight.sh (no autonomous run starts without its commands) ──"
+
+# The launchers ask this before the board, the fork point and the workflow. A
+# refusal is exit 3 with the reason, and it costs seconds: nothing but the
+# declared preflight runs unless --run asks for the commands themselves.
+qp() { (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/quality-preflight.sh" --json "$@" 2>/dev/null); }
+qp_key() { local dir="$1" key="$2"; shift 2; qp "$dir" "$@" | jq -r --arg k "$key" '.[$k]'; }
+qp_exit() {
+  (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/quality-preflight.sh" --json "$@" >/dev/null 2>&1)
+  printf '%s' "$?"
+}
+QP="$WORK_DIR/preflight"
+
+mkdir -p "$QP/undeclared"
+assert_eq "no declaration with --require-declared is refused" "3" \
+  "$(qp_exit "$QP/undeclared" --require-declared)"
+assert_contains "and the reason points at the setup" \
+  "$(qp_key "$QP/undeclared" REASON --require-declared)" "/dev-setup:setup"
+assert_eq "and says the run is not ready" "false" "$(qp_key "$QP/undeclared" READY --require-declared)"
+assert_eq "no declaration and nothing detected is refused even without the flag" "3" \
+  "$(qp_exit "$QP/undeclared")"
+
+declare_in "$QP/empty-lint" '{"lint":"","typecheck":null,"absent":{"typecheck":"none"},"test":"true"}'
+assert_eq "a rejected declaration is a refusal, not a crash" "3" "$(qp_exit "$QP/empty-lint")"
+assert_eq "with a JSON object on stdout" "object" "$(qp "$QP/empty-lint" | jq -r 'type')"
+assert_contains "whose reason carries detect-stack's cause" \
+  "$(qp_key "$QP/empty-lint" REASON)" "lint"
+
+declare_in "$QP/all-null" '{"lint":null,"typecheck":null,"test":null,"absent":{"lint":"x","typecheck":"x","test":"x"}}'
+assert_eq "every command declared absent leaves nothing to check with" "3" "$(qp_exit "$QP/all-null")"
+
+declare_in "$QP/missing" '{"lint":"definitely-not-installed-qp lint","typecheck":null,"absent":{"typecheck":"x"},"test":"touch ran"}'
+assert_eq "a command whose program is not installed is refused" "3" "$(qp_exit "$QP/missing")"
+assert_contains "and MISSING names it" \
+  "$(qp_key "$QP/missing" MISSING)" "definitely-not-installed-qp"
+assert_eq "and nothing ran" "false" "$([ -e "$QP/missing/ran" ] && echo true || echo false)"
+
+declare_in "$QP/cd-sub" '{"lint":"CI=1 true","typecheck":null,"absent":{"typecheck":"x"},"test":"cd sub && ./run-tests"}'
+assert_eq "a relative program is looked for in the directory the command enters" "3" \
+  "$(qp_exit "$QP/cd-sub")"
+mkdir -p "$QP/cd-sub/sub"
+printf '#!/bin/sh\nexit 0\n' > "$QP/cd-sub/sub/run-tests"
+chmod +x "$QP/cd-sub/sub/run-tests"
+assert_eq "and found there once it exists (a leading VAR=value is skipped too)" "0" \
+  "$(qp_exit "$QP/cd-sub")"
+
+declare_in "$QP/preflight-red" '{"lint":"true","typecheck":null,"absent":{"typecheck":"x"},"test":"true","preflight":"echo boom; exit 7"}'
+assert_eq "a red declared preflight is refused" "3" "$(qp_exit "$QP/preflight-red")"
+assert_contains "with its output" "$(qp_key "$QP/preflight-red" OUTPUT)" "boom"
+assert_eq "and PREFLIGHT says it failed" "failed" "$(qp_key "$QP/preflight-red" PREFLIGHT)"
+
+QP_READY="$QP/ready"
+declare_in "$QP_READY" '{"lint":"true","typecheck":null,"absent":{"typecheck":"none"},"test":"touch ran"}'
+assert_eq "a declaration with lint and test and no typecheck is ready" "0" \
+  "$(qp_exit "$QP_READY" --require-declared)"
+assert_eq "READY says so" "true" "$(qp_key "$QP_READY" READY)"
+assert_eq "nothing is missing" "" "$(qp_key "$QP_READY" MISSING)"
+assert_eq "and without --run no command was executed" "false" \
+  "$([ -e "$QP_READY/ran" ] && echo true || echo false)"
+QP_RUN=$(qp "$QP_READY" --run)
+assert_eq "--run runs each command once and reports it" "passed absent passed" \
+  "$(printf '%s' "$QP_RUN" | jq -r '[.LINT_STATUS, .TYPECHECK_STATUS, .TEST_STATUS] | join(" ")')"
+assert_eq "from the repository root" "true" "$([ -e "$QP_READY/ran" ] && echo true || echo false)"
+
+declare_in "$QP/red-test" '{"lint":"true","typecheck":null,"absent":{"typecheck":"x"},"test":"false"}'
+assert_eq "a red test is reported, not refused" "failed 0" \
+  "$(qp_key "$QP/red-test" TEST_STATUS --run) $(qp_exit "$QP/red-test" --run)"
+
+declare_in "$QP/not-started" '{"lint":"true","typecheck":null,"absent":{"typecheck":"x"},"test":"exit 127"}'
+assert_eq "a command that did not start (127) is not-found, and refused" "not-found 3" \
+  "$(qp_key "$QP/not-started" TEST_STATUS --run) $(qp_exit "$QP/not-started" --run)"
+
+assert_eq "an unknown flag is a usage error" "1" "$(qp_exit "$QP_READY" --frobnicate)"
+
+# REQ-7, end to end: the DE-17472 project with its root commands declared
+# passes the setup's verification — no PHP rule, no `cd api`.
+if command -v make >/dev/null 2>&1; then
+  cp -R "$WORK_DIR/laravel-api" "$QP/laravel-api"
+  declare_in "$QP/laravel-api" '{"lint":"make lint","typecheck":null,"absent":{"typecheck":"none"},"test":"make test"}'
+  assert_eq "laravel-api: the declared make lint and make test pass the verification" "passed passed 0" \
+    "$(qp_key "$QP/laravel-api" LINT_STATUS --run) $(qp_key "$QP/laravel-api" TEST_STATUS --run) $(qp_exit "$QP/laravel-api" --run --require-declared)"
+else
+  printf '%s  skip%s  make not found: the laravel-api verification needs it\n' "$DIM" "$NC"
+fi
+
+assert_eq "the preflight script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/quality-preflight.sh" ] && echo true || echo false)"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. rules/ — the path-scoped rule templates (DE-16477)
 # ═══════════════════════════════════════════════════════════════════════════════
