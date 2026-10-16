@@ -35,7 +35,7 @@ The agent reads the project and adapts what it installs:
 - **Existing project**: it grafts on the AI workflow only (path-scoped rules, AGENTS.md, skills, MCP) without touching your tooling
 - **New project (greenfield)**: full setup with quality tools, stack profile and MCP
 
-**Prerequisites**: `git`, the `claude` CLI. Optional: the `gh` CLI (for the ClickUp MCP and greenfield work).
+**Prerequisites**: `git`, the `claude` CLI — Claude Code 2.1.281 or later on every machine and runner that works on the project: it reads `AGENTS.md` as the project instructions, and the setup writes no `CLAUDE.md`. Optional: the `gh` CLI (for the ClickUp MCP and greenfield work).
 
 ### Session context cost
 
@@ -115,7 +115,7 @@ were literal copies of the skill bodies.
 │  /dev-setup:setup                                           │
 │  → Detects the mode (UPDATE/GREENFIELD/EXISTING)            │
 │  → Auto-detects the stack                                   │
-│  → Generates .claude/rules/, AGENTS.md, CLAUDE.md, REGISTRY │
+│  → Generates .claude/rules/, AGENTS.md, REGISTRY.md         │
 │  → Registers only the MCPs the stack uses (Step 6)          │
 │  → Skills available through the plugin                      │
 └─────────────────────────────────────────────────────────────┘

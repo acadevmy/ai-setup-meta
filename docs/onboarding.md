@@ -3,8 +3,10 @@
 One page. Four steps. Everything else is in
 [developer-guide.md](./developer-guide.md).
 
-**You need**: `git`, the `claude` CLI, and `gh` (GitHub repos) or `glab` (GitLab
-repos) already authenticated.
+**You need**: `git`, the `claude` CLI — Claude Code 2.1.281 or later, on every
+machine and runner that works on the project — and `gh` (GitHub repos) or `glab`
+(GitLab repos) already authenticated. The setup stops on an older client: it
+writes no `CLAUDE.md`, and an older Claude Code does not read `AGENTS.md`.
 
 ## 1. Add the marketplace, install the plugin
 
@@ -36,7 +38,7 @@ this plugin has configured before. Then it writes:
 |---|---|
 | The rules the harness loads by file type | `.claude/rules/dev-setup-*.md` |
 | Permissions, Bash sandbox, quality gate | `.claude/settings.json` |
-| Project context for any agent | `AGENTS.md`, `CLAUDE.md` |
+| Project context for any agent, Claude Code included | `AGENTS.md` |
 | What already exists in the project | `REGISTRY.md` |
 | The pull request template, in the language you pick | `.github/PULL_REQUEST_TEMPLATE.md` or `.gitlab/merge_request_templates/Default.md` |
 | The merge request language and labels — yours to edit | `.claude/merge-request.json` |

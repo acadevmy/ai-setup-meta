@@ -1839,8 +1839,8 @@ for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE"; do
   assert_contains "$NAME sends them to vcs-ops" "$(grep '^| Branch, commit' "$GEN")" '`vcs-ops`'
 done
 
-# Nothing loads the registry at session start — the generated CLAUDE.md imports
-# AGENTS.md only — so no generated file may say it is read then.
+# Nothing loads the registry at session start — Claude Code reads AGENTS.md,
+# which imports nothing — so no generated file may say it is read then.
 for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE" "$GEN_PROJECT" "$GEN_REGISTRY"; do
   assert_eq "$(basename "$GEN") never asks for the registry at session start" "false" \
     "$(flat "$GEN" | grep -qi 'start of each session\|start of a new session' && echo true || echo false)"
@@ -3411,6 +3411,360 @@ UNKNOWN_AGENTS="$(grep -rhoE 'Launch the `[^`]+` agent' \
       printf '%s\n' "$AGENT_NAMES" | grep -qxF "$NAME" || printf '%s\n' "$NAME"
     done)"
 assert_eq "every \"Launch the \`<name>\` agent\" names an agent's frontmatter name" "" "$UNKNOWN_AGENTS"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 15. instruction-files.sh: which instruction file Claude Code reads (DE-17167)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Claude Code reads AGENTS.md only when no CLAUDE.md, .claude/CLAUDE.md or
+# CLAUDE.local.md sits in the directory or above it. Telling the one-line shim
+# the setup used to write from a CLAUDE.md the team wrote is the step that can
+# destroy instructions, so it is a script with fixtures, not prose.
+
+echo ""
+echo "── instruction-files.sh (which instruction file Claude Code reads) ──"
+
+IF_SCRIPT="$PLUGIN_SCRIPTS/instruction-files.sh"
+
+# One `<key>` of the JSON object, as lines.
+if_key() { printf '%s' "$1" | jq -r --arg k "$2" '.[$k] // "<missing>"'; }
+
+# Every file under a tree with its checksum, plus every path: a run that wrote,
+# removed or created anything changes it.
+if_tree_sum() {
+  (cd "$1" && { find . -print | LC_ALL=C sort; find . -type f -exec cksum {} + | LC_ALL=C sort; })
+}
+
+# ── Test 1 (REQ-2): shims, custom files, local files ──
+IF_TREE="$WORK_DIR/if-scan"
+mkdir -p "$IF_TREE/apps/web" "$IF_TREE/apps/api" "$IF_TREE/apps/admin/.claude" \
+  "$IF_TREE/libs/ui" "$IF_TREE/apps/x" "$IF_TREE/node_modules/pkg" \
+  "$IF_TREE/.claude/worktrees/DE-1"
+for D in "" apps/web apps/api apps/admin apps/x node_modules/pkg .claude/worktrees/DE-1; do
+  printf '# Agents\n' > "$IF_TREE/${D:+$D/}AGENTS.md"
+done
+printf '@AGENTS.md\n' > "$IF_TREE/CLAUDE.md"
+printf '@AGENTS.md  \r\n\n' > "$IF_TREE/apps/web/CLAUDE.md"
+printf '@AGENTS.md\nUse pnpm.' > "$IF_TREE/apps/api/CLAUDE.md"
+printf 'Be terse.' > "$IF_TREE/apps/admin/.claude/CLAUDE.md"
+printf 'Notes' > "$IF_TREE/libs/ui/CLAUDE.md"
+printf '\n@AGENTS.md' > "$IF_TREE/apps/x/CLAUDE.md"
+printf 'my local notes\n' > "$IF_TREE/CLAUDE.local.md"
+printf '@AGENTS.md\n' > "$IF_TREE/node_modules/pkg/CLAUDE.md"
+printf '@AGENTS.md\n' > "$IF_TREE/.claude/worktrees/DE-1/CLAUDE.md"
+
+IF_SUM_BEFORE="$(if_tree_sum "$IF_TREE")"
+IF_OUT="$(bash "$IF_SCRIPT" --json --dir "$IF_TREE" 2>/dev/null)"
+IF_ALL="$(for K in SHIMS CUSTOM UNIMPORTED LOCAL; do if_key "$IF_OUT" "$K"; echo; done)"
+
+assert_eq "SHIMS is exactly the files that hold only @AGENTS.md" \
+  "CLAUDE.md
+apps/web/CLAUDE.md" "$(if_key "$IF_OUT" SHIMS)"
+assert_eq "CUSTOM is every other CLAUDE.md that shadows an AGENTS.md" \
+  "apps/admin/.claude/CLAUDE.md
+apps/api/CLAUDE.md
+apps/x/CLAUDE.md" "$(if_key "$IF_OUT" CUSTOM)"
+assert_eq "UNIMPORTED is the custom file with no @AGENTS.md line" \
+  "apps/admin/.claude/CLAUDE.md" "$(if_key "$IF_OUT" UNIMPORTED)"
+assert_eq "LOCAL is the CLAUDE.local.md" "CLAUDE.local.md" "$(if_key "$IF_OUT" LOCAL)"
+assert_eq "nothing under node_modules/ or .claude/worktrees/ is listed" "false" \
+  "$(printf '%s' "$IF_ALL" | grep -q 'node_modules\|worktrees' && echo true || echo false)"
+assert_eq "a CLAUDE.md with no AGENTS.md beside it is in no list" "false" \
+  "$(printf '%s' "$IF_ALL" | grep -q 'libs/ui' && echo true || echo false)"
+
+# ── Test 2 (REQ-3): the files above the project ──
+# Only the lines under the fixture base are asserted: in CI the meta-repo's own
+# CLAUDE.md sits above the repo-local work directory.
+IF_BASE="$WORK_DIR/if-above"
+mkdir -p "$IF_BASE/parent/proj" "$IF_BASE/.claude"
+printf '# Agents\n' > "$IF_BASE/parent/proj/AGENTS.md"
+printf 'local\n' > "$IF_BASE/parent/CLAUDE.local.md"
+printf 'above\n' > "$IF_BASE/CLAUDE.md"
+printf 'user\n' > "$IF_BASE/.claude/CLAUDE.md"
+IF_ABOVE="$(HOME="$IF_BASE" bash "$IF_SCRIPT" --json --dir "$IF_BASE/parent/proj" 2>/dev/null \
+  | jq -r '.ABOVE')"
+# The lines of stdin under the directory $1. A function, not a `case` inside
+# `$(…)`: bash 3.2 misparses the pattern's `)` there.
+if_lines_under() {
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      "$1"/*) printf '%s\n' "$line" ;;
+    esac
+  done
+}
+IF_ABOVE_UNDER="$(printf '%s\n' "$IF_ABOVE" | if_lines_under "$IF_BASE" | LC_ALL=C sort)"
+assert_eq "ABOVE lists the CLAUDE.md and CLAUDE.local.md above the project" \
+  "$(printf '%s\n%s' "$IF_BASE/CLAUDE.md" "$IF_BASE/parent/CLAUDE.local.md" | LC_ALL=C sort)" \
+  "$IF_ABOVE_UNDER"
+assert_eq "ABOVE never lists the user's ~/.claude/CLAUDE.md" "false" \
+  "$(printf '%s\n' "$IF_ABOVE" | grep -qxF "$IF_BASE/.claude/CLAUDE.md" && echo true || echo false)"
+
+IF_BASE2="$WORK_DIR/if-above2"
+mkdir -p "$IF_BASE2/proj"
+IF_ABOVE2="$(bash "$IF_SCRIPT" --json --dir "$IF_BASE2/proj" 2>/dev/null | jq -r '.ABOVE')"
+assert_eq "with no instruction file above, ABOVE names nothing there" "false" \
+  "$(printf '%s\n' "$IF_ABOVE2" | grep -q "^$IF_BASE2/" && echo true || echo false)"
+
+# ── Test 3 (REQ-4): the client version, compared per component ──
+IF_BIN="$WORK_DIR/if-bin"
+mkdir -p "$IF_BIN"
+# shellcheck disable=SC2016
+printf '#!/bin/sh\ncat "$(dirname "$0")/version.txt"\n' > "$IF_BIN/claude"
+chmod +x "$IF_BIN/claude"
+if_version_ok() {
+  printf '%s\n' "$1" > "$IF_BIN/version.txt"
+  PATH="$IF_BIN:$PATH" bash "$IF_SCRIPT" --json --dir "$IF_TREE" 2>/dev/null \
+    | jq -r '"\(.VERSION_OK)|\(.CLAUDE_VERSION)|\(.MIN_CLAUDE_VERSION)"'
+}
+for V in 2.1.281 2.1.300 2.2.0 2.1.1000; do
+  assert_eq "claude $V is at or above the floor" "true|$V|2.1.281" \
+    "$(if_version_ok "$V (Claude Code)")"
+done
+assert_eq "claude 2.1.280 is below the floor" "false|2.1.280|2.1.281" "$(if_version_ok "2.1.280")"
+for V in 2.1.28 2.1.29 2.1.99; do
+  assert_eq "claude $V is below the floor (numeric, not string, comparison)" \
+    "false|$V|2.1.281" "$(if_version_ok "$V (Claude Code)")"
+done
+assert_eq "an output with no version leaves VERSION_OK empty" "||2.1.281" "$(if_version_ok "garbage")"
+
+# No claude at all: a PATH of the system directories plus the two programs the
+# script needs that may live elsewhere.
+IF_NOBIN="$WORK_DIR/if-nobin"
+mkdir -p "$IF_NOBIN"
+for P in jq git; do
+  ln -sf "$(command -v "$P")" "$IF_NOBIN/$P"
+done
+if [ -x /usr/bin/claude ] || [ -x /bin/claude ]; then
+  pass "no claude on PATH: skipped, a claude is installed in a system directory"
+else
+  assert_eq "no claude on PATH leaves VERSION_OK and CLAUDE_VERSION empty" "||2.1.281" \
+    "$(PATH="$IF_NOBIN:/usr/bin:/bin" "$BASH" "$IF_SCRIPT" --json --dir "$IF_TREE" 2>/dev/null \
+      | jq -r '"\(.VERSION_OK)|\(.CLAUDE_VERSION)|\(.MIN_CLAUDE_VERSION)"')"
+fi
+
+# ── Test 4 (REQ-5): the script contract ──
+assert_eq "--json prints exactly the eight keys" \
+  "ABOVE,CLAUDE_VERSION,CUSTOM,LOCAL,MIN_CLAUDE_VERSION,SHIMS,UNIMPORTED,VERSION_OK" \
+  "$(printf '%s' "$IF_OUT" | jq -r 'keys | join(",")' 2>/dev/null)"
+assert_eq "every value is a string" "true" \
+  "$(printf '%s' "$IF_OUT" | jq -r '[.[] | type] | unique == ["string"]' 2>/dev/null)"
+assert_eq "stdout holds the object and nothing else" "1" \
+  "$(printf '%s' "$IF_OUT" | jq -s 'length' 2>/dev/null)"
+IF_MISSING_OUT="$(bash "$IF_SCRIPT" --json --dir "$WORK_DIR/if-does-not-exist" 2>"$WORK_DIR/if-err")"
+IF_MISSING_RC=$?
+assert_eq "a --dir that does not exist exits non-zero" "true" \
+  "$([ "$IF_MISSING_RC" -ne 0 ] && echo true || echo false)"
+assert_eq "with nothing on stdout" "" "$IF_MISSING_OUT"
+assert_eq "and says why on stderr" "true" "$([ -s "$WORK_DIR/if-err" ] && echo true || echo false)"
+assert_eq "a run leaves the scanned tree byte-identical" "$IF_SUM_BEFORE" "$(if_tree_sum "$IF_TREE")"
+
+# ── Test 8b (REQ-8): --merge moves a custom CLAUDE.md into its AGENTS.md ──
+IF_MERGE="$WORK_DIR/if-merge"
+mkdir -p "$IF_MERGE/apps/api" "$IF_MERGE/apps/admin/.claude" "$IF_MERGE/apps/team" \
+  "$IF_MERGE/apps/x" "$IF_MERGE/libs/ui"
+cp "$REPO_ROOT/templates/dev-setup/AGENTS.template.md" "$IF_MERGE/AGENTS.md"
+printf 'Be terse.\n' > "$IF_MERGE/CLAUDE.md"
+cp "$REPO_ROOT/templates/dev-setup/AGENTS.project-template.md" "$IF_MERGE/apps/api/AGENTS.md"
+printf '@AGENTS.md\nUse pnpm.' > "$IF_MERGE/apps/api/CLAUDE.md"
+printf '# Admin\n\nAdmin rules.\n' > "$IF_MERGE/apps/admin/AGENTS.md"
+printf '\nKeep it short.\n\n' > "$IF_MERGE/apps/admin/.claude/CLAUDE.md"
+printf '# Team\n\nWritten by the team, no footer.' > "$IF_MERGE/apps/team/AGENTS.md"
+printf 'Team note.\n' > "$IF_MERGE/apps/team/CLAUDE.md"
+printf '# X\n' > "$IF_MERGE/apps/x/AGENTS.md"
+printf '\n@AGENTS.md' > "$IF_MERGE/apps/x/CLAUDE.md"
+printf 'Notes' > "$IF_MERGE/libs/ui/CLAUDE.md"
+IF_MERGE_SUM="$(if_tree_sum "$IF_MERGE")"
+
+# Writes the merge of <path> to <out>; prints the exit status.
+if_merge() {
+  bash "$IF_SCRIPT" --merge "$1" --dir "$IF_MERGE" > "$2" 2>/dev/null
+  echo $?
+}
+# True when <out> starts with <agents> byte for byte.
+if_has_prefix() {
+  local n
+  n=$(wc -c < "$1" | tr -d ' ')
+  head -c "$n" "$2" | cmp -s - "$1" && echo true || echo false
+}
+if_line_of() { grep -nF "$1" "$2" | tail -1 | cut -d: -f1; }
+IF_HEADING="## Instructions moved from CLAUDE.md"
+
+# A sub-project file: the section goes after the footer, so the tail the UPDATE
+# offer compares — `## Project registry` to the footer — is unchanged.
+IF_M="$WORK_DIR/if-merge-api.md"
+assert_eq "--merge on a custom CLAUDE.md exits 0" "0" "$(if_merge apps/api/CLAUDE.md "$IF_M")"
+assert_eq "the output starts with the sub-project AGENTS.md byte for byte" "true" \
+  "$(if_has_prefix "$IF_MERGE/apps/api/AGENTS.md" "$IF_M")"
+assert_eq "the moved section comes after the *Generated by: footer" "true" \
+  "$([ "$(if_line_of "$IF_HEADING" "$IF_M")" -gt "$(if_line_of '*Generated by:' "$IF_M")" ] \
+     && echo true || echo false)"
+assert_eq "the CLAUDE.md content follows the heading" "Use pnpm." \
+  "$(awk -v h="$IF_HEADING" '$0 == h { f = 1; next } f && NF { print; exit }' "$IF_M")"
+assert_eq "no @AGENTS.md line is moved" "0" "$(grep -cx '@AGENTS.md' "$IF_M")"
+assert_eq "the sub-project tail is unchanged" \
+  "$(sed -n '/^## Project registry/,/^\*Generated by:/p' "$IF_MERGE/apps/api/AGENTS.md")" \
+  "$(sed -n '/^## Project registry/,/^\*Generated by:/p' "$IF_M")"
+
+IF_M="$WORK_DIR/if-merge-root.md"
+assert_eq "--merge on the root CLAUDE.md exits 0" "0" "$(if_merge CLAUDE.md "$IF_M")"
+assert_eq "the output starts with the root AGENTS.md byte for byte" "true" \
+  "$(if_has_prefix "$IF_MERGE/AGENTS.md" "$IF_M")"
+assert_eq "the root tail is unchanged" \
+  "$(sed -n '/^## Available agents/,/^\*Generated by:/p' "$IF_MERGE/AGENTS.md")" \
+  "$(sed -n '/^## Available agents/,/^\*Generated by:/p' "$IF_M")"
+assert_contains "and the root content is moved" "$(cat "$IF_M")" "$IF_HEADING
+
+Be terse."
+
+IF_M="$WORK_DIR/if-merge-admin.md"
+assert_eq "--merge on a .claude/CLAUDE.md exits 0" "0" "$(if_merge apps/admin/.claude/CLAUDE.md "$IF_M")"
+assert_eq "it is built from the AGENTS.md of the parent of .claude/" "true" \
+  "$(if_has_prefix "$IF_MERGE/apps/admin/AGENTS.md" "$IF_M")"
+assert_eq "edge blank lines are dropped" "# Admin
+
+Admin rules.
+
+$IF_HEADING
+
+Keep it short." "$(cat "$IF_M")"
+
+IF_M="$WORK_DIR/if-merge-team.md"
+assert_eq "--merge beside a team AGENTS.md with no footer exits 0" "0" \
+  "$(if_merge apps/team/CLAUDE.md "$IF_M")"
+assert_eq "the team file comes first byte for byte" "true" \
+  "$(if_has_prefix "$IF_MERGE/apps/team/AGENTS.md" "$IF_M")"
+assert_eq "the section comes after its last line" "true" \
+  "$([ "$(if_line_of "$IF_HEADING" "$IF_M")" -gt "$(if_line_of 'no footer.' "$IF_M")" ] \
+     && echo true || echo false)"
+
+IF_M="$WORK_DIR/if-merge-x.md"
+assert_eq "--merge on a file holding only an import exits 0" "0" "$(if_merge apps/x/CLAUDE.md "$IF_M")"
+assert_eq "and leaves the AGENTS.md unchanged" "true" \
+  "$(cmp -s "$IF_MERGE/apps/x/AGENTS.md" "$IF_M" && echo true || echo false)"
+
+IF_M="$WORK_DIR/if-merge-ui.md"
+assert_eq "--merge on a path not in CUSTOM exits non-zero" "true" \
+  "$([ "$(if_merge libs/ui/CLAUDE.md "$IF_M")" -ne 0 ] && echo true || echo false)"
+assert_eq "with nothing on stdout" "true" "$([ -s "$IF_M" ] && echo false || echo true)"
+
+assert_eq "--merge writes nothing into the tree" "$IF_MERGE_SUM" "$(if_tree_sum "$IF_MERGE")"
+
+# ── Test 5 (REQ-12): it ships ──
+assert_eq "the manifest lists instruction-files.sh" "true" \
+  "$(jq -e '.plugin_scripts | index("instruction-files.sh") != null' \
+       "$REPO_ROOT/templates/dev-setup/manifest.json" >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "instruction-files.sh ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/instruction-files.sh" ] && echo true || echo false)"
+
+# ── Test 6 (REQ-1): no setup mode generates a CLAUDE.md ──
+# Every needle is a line the setup held while it still wrote the shim.
+IF_SETUP_DOCS=()
+for F in "$TEMPLATE_ROOT/setup/SKILL.md" "$TEMPLATE_ROOT"/setup/reference/*.md \
+         "$TEMPLATE_ROOT/profiles/nextjs.md" \
+         "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md" \
+         "$REPO_ROOT"/dist/dev-setup/skills/setup/reference/*.md \
+         "$REPO_ROOT/dist/dev-setup/skills/setup/templates/profiles/nextjs.md"; do
+  [ -f "$F" ] && IF_SETUP_DOCS+=("$F")
+done
+assert_eq "the setup docs and their built copies are all there" "18" "${#IF_SETUP_DOCS[@]}"
+while IFS= read -r NEEDLE; do
+  [ -n "$NEEDLE" ] || continue
+  assert_eq "no setup doc says: $NEEDLE" "" \
+    "$(grep -lF -- "$NEEDLE" "${IF_SETUP_DOCS[@]}" | sed "s#^$REPO_ROOT/##")"
+done <<'EOF'
+Generate AGENTS.md and CLAUDE.md
+Generate CLAUDE.md
+`CLAUDE.md` is the one-line entry
+AGENTS.md / CLAUDE.md / REGISTRY.md
+generate a `CLAUDE.md`
+generate `AGENTS.md`, `CLAUDE.md`
+**`CLAUDE.md`** — the import shim
+EOF
+assert_eq "no setup summary lists a CLAUDE.md row" "" \
+  "$(grep -lE '^ *- `?CLAUDE\.md`? ' "${IF_SETUP_DOCS[@]}" | sed "s#^$REPO_ROOT/##")"
+
+# ── Test 7 (REQ-6): the version gate comes first ──
+IF_SETUP_MD="$TEMPLATE_ROOT/setup/SKILL.md"
+IF_STEP1="$(awk '/^## Step 1/ { f = 1; print; next } f && /^## / { exit } f' "$IF_SETUP_MD" \
+  | tr '\n' ' ' | tr -s ' ')"
+assert_contains "Step 1 runs instruction-files.sh" "$IF_STEP1" "instruction-files.sh --json"
+assert_contains "and acts on VERSION_OK=false" "$IF_STEP1" "VERSION_OK=false"
+assert_contains "by stopping before any write" "$IF_STEP1" "stop before any write"
+assert_contains "naming both versions" "$IF_STEP1" '`CLAUDE_VERSION` and `MIN_CLAUDE_VERSION`'
+assert_eq "the check runs before the mode is reported" "true" \
+  "$([ "$(grep -n 'instruction-files.sh --json' "$IF_SETUP_MD" | head -1 | cut -d: -f1)" \
+       -lt "$(grep -n 'Report the mode' "$IF_SETUP_MD" | head -1 | cut -d: -f1)" ] \
+     && echo true || echo false)"
+assert_contains "an unknown version is reported, not refused" "$(cat "$AGENTS_GEN")" \
+  "Claude Code version not verified — AGENTS.md needs <MIN_CLAUDE_VERSION> or later"
+assert_eq "the setup SKILL.md stays within 500 words" "true" \
+  "$([ "$(wc -w < "$IF_SETUP_MD" | tr -d ' ')" -le 500 ] && echo true || echo false)"
+
+# ── Test 8 (REQ-7, REQ-8): Step 5b removes the shims and moves the rest ──
+IF_STEP5B="$(awk '/^## Step 5b/ { f = 1; print; next } f && /^## / { exit } f' "$AGENTS_GEN")"
+for KEY in SHIMS CUSTOM UNIMPORTED; do
+  assert_contains "Step 5b reads $KEY" "$IF_STEP5B" "\`$KEY\`"
+done
+assert_contains "it reports the removed shims" "$IF_STEP5B" \
+  "CLAUDE.md shim removed (AGENTS.md is read directly): <paths>"
+assert_contains "it reports a move" "$IF_STEP5B" "<path> moved into <AGENTS.md path> and removed"
+assert_contains "it reports a declined move that imports AGENTS.md" "$IF_STEP5B" \
+  "<path> kept: Claude Code reads it, and AGENTS.md only through its @AGENTS.md import"
+assert_contains "and one that does not" "$IF_STEP5B" \
+  "<path> kept: Claude Code reads it and does NOT read <AGENTS.md path>"
+assert_contains "the merged file comes from the script" "$IF_STEP5B" "instruction-files.sh --merge"
+assert_contains "after the footer" "$IF_STEP5B" '`*Generated by:`'
+assert_eq "not under the root file's tail heading" "false" \
+  "$(printf '%s' "$IF_STEP5B" | grep -q '## Available agents' && echo true || echo false)"
+assert_eq "check 16 finds every ask of the instruction-files step reported" "" \
+  "$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict 2>&1 | grep 'SETUP_ASK_UNREPORTED' \
+     | grep 'agents-generation.md' || true)"
+
+# ── Test 9 (REQ-9): the files the setup does not own ──
+for WORD in '`LOCAL`' '`ABOVE`' 'claude-md-and-agents-md' 'cc-plugin-agents-md@builtin'; do
+  assert_contains "Step 5b names $WORD" "$IF_STEP5B" "$WORD"
+done
+assert_eq "Step 5b never writes the user's settings" "" \
+  "$(printf '%s\n' "$IF_STEP5B" | grep -E '(>|mv |cp |tee ).*~/\.claude/settings\.json' || true)"
+for F in "$TEMPLATE_ROOT/.claude/settings.json" "$TEMPLATE_ROOT/.claude/settings.user.json" \
+         "$REPO_ROOT/dist/dev-setup/skills/setup/templates/settings.json" \
+         "$REPO_ROOT/dist/dev-setup/skills/setup/templates/settings.user.json"; do
+  assert_eq "${F#"$REPO_ROOT"/} carries no pluginConfigs" "true" \
+    "$(jq -e 'has("pluginConfigs") | not' "$F" >/dev/null 2>&1 && echo true || echo false)"
+done
+
+# ── Test 11 (REQ-11): every shipped agent keeps the project instructions ──
+assert_eq "no shipped agent sets omitClaudeMd" "" \
+  "$(grep -l omitClaudeMd "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md || true)"
+
+# ── Test 10 (REQ-10): the floor is declared where the requirements are ──
+IF_MIN="$(bash "$IF_SCRIPT" --json --dir "$IF_TREE" 2>/dev/null | jq -r '.MIN_CLAUDE_VERSION')"
+# The paragraph that opens with $1, on one line.
+if_paragraph() {
+  awk -v start="$1" 'index($0, start) == 1 { f = 1 } f && /^$/ { exit } f' "$2" | tr '\n' ' ' | tr -s ' '
+}
+IF_README_REQ="$(if_paragraph '**Prerequisites**' "$REPO_ROOT/README.md")"
+IF_ONBOARDING_REQ="$(if_paragraph '**You need**' "$REPO_ROOT/docs/onboarding.md")"
+for PAIR in "README.md|$IF_README_REQ" "docs/onboarding.md|$IF_ONBOARDING_REQ"; do
+  assert_eq "${PAIR%%|*} names the floor instruction-files.sh enforces" "$IF_MIN" \
+    "$(printf '%s' "${PAIR#*|}" | grep -oE 'Claude Code [0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^Claude Code //')"
+  assert_contains "${PAIR%%|*} applies it on every machine and runner" "${PAIR#*|}" \
+    "on every machine and runner"
+done
+
+# ── Test 12 (REQ-12): the docs no longer list a CLAUDE.md the setup writes ──
+for DOC in README.md docs/onboarding.md docs/developer-guide.md; do
+  assert_eq "$DOC lists no CLAUDE.md beside AGENTS.md" "" \
+    "$(grep -nF -e '`AGENTS.md`, `CLAUDE.md`' -e 'AGENTS.md, CLAUDE.md' "$REPO_ROOT/$DOC" || true)"
+done
+IF_MIGRATION="$REPO_ROOT/docs/migration-v2-to-v3.md"
+assert_eq "the migration guide has the CLAUDE.md section" "1" \
+  "$(grep -c '^## 12\. CLAUDE\.md is gone' "$IF_MIGRATION")"
+assert_eq "and its index entry" "1" \
+  "$(grep -c '^- \[12\. CLAUDE\.md is gone.*\](#12-' "$IF_MIGRATION")"
+assert_eq "the AGENTS.md script table lists instruction-files.sh with its keys" "true" \
+  "$(grep -E '^\| `instruction-files\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'VERSION_OK' && echo true || echo false)"
 
 echo ""
 echo "── frontmatter parseability ──"

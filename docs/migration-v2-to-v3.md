@@ -25,6 +25,7 @@ them.
 - [9. Base branch resolution](#9-base-branch-resolution)
 - [10. Meta-repo changes](#10-meta-repo-changes)
 - [11. Autonomous runs need declared quality commands](#11-autonomous-runs-need-declared-quality-commands)
+- [12. CLAUDE.md is gone: Claude Code reads AGENTS.md](#12-claudemd-is-gone-claude-code-reads-agentsmd)
 - [How to migrate a project](#how-to-migrate-a-project)
 - [Post-migration checklist](#post-migration-checklist)
 
@@ -352,6 +353,37 @@ request), so the work survives the session.
 
 ---
 
+## 12. CLAUDE.md is gone: Claude Code reads AGENTS.md
+
+**Breaking.** The setup no longer writes a `CLAUDE.md`. It used to write a
+one-line `CLAUDE.md` holding `@AGENTS.md` at the root and in every application
+sub-project, because Claude Code read only `CLAUDE.md`. Since 2.1.277 it reads
+`AGENTS.md` as the project instructions — but only when no `CLAUDE.md`,
+`.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the directory or above it, so
+the shim had become a second file that also decided which one won.
+
+**Claude Code 2.1.281 or later is now required**, on every machine and runner
+that works on the project. Before 2.1.281, sessions on Amazon Bedrock or with
+telemetry disabled still read `CLAUDE.md` only, and with no `CLAUDE.md` they
+would run with no project instructions and no error. The setup checks the
+client first (`instruction-files.sh`) and stops below the floor, before it
+writes anything.
+
+| Before | Now |
+|---|---|
+| `CLAUDE.md` = `@AGENTS.md`, at the root and per sub-project | no `CLAUDE.md`; Claude Code reads `AGENTS.md` directly |
+| the shim kept on UPDATE | UPDATE removes every `CLAUDE.md` whose whole content is `@AGENTS.md`, and the summary lists them |
+| a `CLAUDE.md` your team wrote | UPDATE offers to move its content to the end of the `AGENTS.md` beside it, under `## Instructions moved from CLAUDE.md`; on a no it stays, and the summary says whether `AGENTS.md` is still read through its import |
+| `CLAUDE.local.md`, or a `CLAUDE.md` in a folder above the repository | listed in the summary and never touched: either one makes Claude Code skip `AGENTS.md` |
+
+Project instructions can only be configured in your own
+`~/.claude/settings.json` (`/config` → **Project instructions**), never in a
+project's settings, so the plugin sets nothing there: it relies on the default.
+To keep a `CLAUDE.local.md` *and* read `AGENTS.md`, choose
+`claude-md-and-agents-md` there. `/memory` shows which file a session loaded.
+
+---
+
 ## How to migrate a project
 
 **1. Update the plugin.**
@@ -378,7 +410,8 @@ it starts.
 |---|---|
 | Migrate the pre-sandbox `settings.json`? | **Yes**, unless you have a specific reason. Declining leaves the project without the sandbox, and it will say so |
 | Delete `CONSTITUTION.md`? | Yes, *after* checking whether your team added rules to it. Anything you want to keep goes into a `.claude/rules/<your-name>.md` of your own first |
-| Overwrite `AGENTS.md` / `CLAUDE.md`? | Yes, if you have kept your customisation out of them. If not, copy it somewhere else first |
+| Overwrite `AGENTS.md`? | Take the first offer, which replaces only the plugin-owned tail. The full regeneration drops your own sections: copy them somewhere else first |
+| Move a `CLAUDE.md` your team wrote into `AGENTS.md`? | **Yes**, after reading the quoted content. Declining keeps the project on `CLAUDE.md`, and the summary says whether `AGENTS.md` is still read |
 | Lint, typecheck and test — and write `.claude/quality-commands.json`? | Pick the commands your CI runs, **None** for a kind the project really lacks, and **Write it**. Declining leaves `auto-sdd` and `multi-sdd` refusing to start, and the summary says so |
 
 **5. What is regenerated, and what is not.**
@@ -386,7 +419,8 @@ it starts.
 | Regenerated | Left alone |
 |---|---|
 | `.claude/rules/dev-setup-*.md` — overwritten without asking, and any your stack no longer needs are deleted | `.claude/rules/<anything-else>.md` |
-| `AGENTS.md`, `CLAUDE.md` — after asking | Git hooks, ESLint, Prettier, CI config |
+| `AGENTS.md` — after asking | Git hooks, ESLint, Prettier, CI config |
+| a `CLAUDE.md` holding only `@AGENTS.md` — removed without asking; one with your content moved into `AGENTS.md` only on a yes | `CLAUDE.local.md` and instruction files above the project — reported only |
 | `REGISTRY.md`, `.env.example` — after asking; in UPDATE mode they are yours, not artefacts | Dependencies, lock files, source code, `.env` |
 | `.claude/settings.json` — only when it predates the sandbox, and only after you accept the diff | |
 | `.claude/merge-request.json` — written when absent, after asking the merge request language; the catalogue labels missing on the forge are created | `.claude/merge-request.json` once you have one |

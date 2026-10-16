@@ -22,7 +22,9 @@
 #                   base, or "" when the branch has no changes of its own
 #   AVAILABLE_DOCS  comma-separated governance docs present at the repo root
 #                   (AGENTS.md, CLAUDE.md, REGISTRY.md, README.md) plus
-#                   `.claude/rules/` when the project has generated rules
+#                   `.claude/rules/` when the project has generated rules.
+#                   The plugin writes no CLAUDE.md: one listed here is the
+#                   team's own, kept when the setup offered to move it
 #   BASE_BRANCH     the resolved base ref, e.g. origin/next
 #   MERGE_BASE      the commit the branch forked from — the diff anchor
 #   BRANCH          the current branch

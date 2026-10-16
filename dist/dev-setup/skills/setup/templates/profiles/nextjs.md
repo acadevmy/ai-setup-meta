@@ -20,11 +20,10 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 <!-- END:nextjs-agent-rules -->
 ```
 
-**`CLAUDE.md`** — the import shim for Claude Code:
-
-```md
-@AGENTS.md
-```
+There is no second file. `create-next-app` also writes a one-line `CLAUDE.md`
+holding `@AGENTS.md`; Claude Code reads `AGENTS.md` directly, and a `CLAUDE.md`
+beside it would make Claude Code read that file instead, so the setup writes
+none and Step 5b removes that shim.
 
 ## The `BEGIN/END` markers are load-bearing
 
