@@ -1,6 +1,6 @@
 # Spec: Quality commands declared by the project and verified at setup: no autonomous run starts without them [DE-17535]
 
-> Status: approved
+> Status: implemented
 > Task: https://app.clickup.com/t/869fj4v0z
 > Branch: created by the dev step through `sdd-start.sh`
 > Created: 2026-10-16
