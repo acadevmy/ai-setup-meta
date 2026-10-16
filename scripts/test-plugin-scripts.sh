@@ -2075,8 +2075,14 @@ async function agent(prompt, opts) {
   return null;
 }
 
+// argv[4], when given, overrides the launch arguments. The default stack is a
+// declared project with no type checker: lint and test, typecheck absent.
+const overrides = process.argv[4] ? JSON.parse(process.argv[4]) : {};
 const context = {
-  args: { taskId: 'DE-1', pluginRoot: '/plugin', baseBranch: 'origin/next' },
+  args: Object.assign({
+    taskId: 'DE-1', pluginRoot: '/plugin', baseBranch: 'origin/next',
+    stack: { lint: 'make lint', typecheck: '', test: 'make test' },
+  }, overrides),
   agent,
   parallel: (thunks) => Promise.all(thunks.map((thunk) => thunk())),
   phase() {},
@@ -2085,6 +2091,8 @@ const context = {
 vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', context).then((out) => {
   console.log(JSON.stringify({
     status: out.status,
+    stage: out.stage || '',
+    agents: calls.length,
     reviews: calls.filter((l) => l.startsWith('challenge:')).length,
     revisions: calls.filter((l) => l.startsWith('revise:')).length,
     open: (out.openPoints || []).map((o) => o.lens).join(','),
@@ -2094,7 +2102,7 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     deviations: (out.deviations || []).length,
     grounds: (prompts['revise:DE-1'] || '').includes('grounds: an ADR'),
     devSees: (prompts['dev:DE-1'] || '').includes('the styling ADR forbids it'),
-    devAbsent: /test:\s+\(none\)/.test(prompts['dev:DE-1'] || '')
+    devAbsent: /typecheck:\s+\(none\)/.test(prompts['dev:DE-1'] || '')
       && (prompts['dev:DE-1'] || '').includes('say so in `notes`'),
     precedence: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
       .every((l) => prompts[l].includes('settle it in this')),
@@ -2102,7 +2110,7 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
 });
 NODEJS
 
-  sim() { node "$WORK_DIR/workflow-sim.cjs" "$AUTO_SDD" "$1" 2>&1; }
+  sim() { node "$WORK_DIR/workflow-sim.cjs" "$AUTO_SDD" "$1" ${2:+"$2"} 2>&1; }
   field() { printf '%s' "$1" | jq -r ".$2" 2>/dev/null; }
 
   SIM=$(sim '{"simpler":"propose","scope":"propose","testable":"propose"}')
@@ -2127,10 +2135,23 @@ NODEJS
   SIM=$(sim '{}')
   assert_eq "three satisfied reviewers cost three agents and no revision" \
     "3 0 " "$(field "$SIM" reviews) $(field "$SIM" revisions) $(field "$SIM" open)"
-  # The simulation passes no stack, so every command prints as (none): the
-  # dev agent has to be told to skip it and to say so in `notes`, not to wait.
-  assert_eq "with no quality command defined, the dev agent is told to skip it and say so in notes" \
+  # The simulation's project declares no type checker, so typecheck prints as
+  # (none): the dev agent has to be told to skip it and to say so in `notes`,
+  # not to wait — and the run goes on with lint and test (DE-17535, REQ-3).
+  assert_eq "a command declared absent: the dev agent is told to skip it and say so in notes" \
     "true" "$(field "$SIM" devAbsent)"
+  assert_eq "and the run proceeds on the other two" "ready-for-mr" "$(field "$SIM" status)"
+
+  # REQ-9: a run with no command at all could not verify anything, and the
+  # outcome would be certain before the first agent. It ends at intake, free.
+  SIM=$(sim '{}' '{"stack":null}')
+  assert_eq "no stack at all ends at intake" "failed intake" \
+    "$(field "$SIM" status) $(field "$SIM" stage)"
+  assert_eq "without launching a single agent" "0" "$(field "$SIM" agents)"
+  SIM=$(sim '{}' '{"stack":{"lint":"","typecheck":"","test":""}}')
+  assert_eq "three empty commands, as a launcher passes them, end at intake" "failed intake" \
+    "$(field "$SIM" status) $(field "$SIM" stage)"
+  assert_eq "without launching a single agent either" "0" "$(field "$SIM" agents)"
 
   SIM=$(sim '{"simpler":"propose","revise":"dead"}')
   assert_eq "a reviser that returns nothing leaves every proposal open" \

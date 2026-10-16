@@ -37,7 +37,9 @@ export const meta = {
 //     baseBranch:  'origin/next',             // required — never hard-coded
 //     title, description, url,                // the task, as ClickUp returned it
 //     branchType:  'feat' | 'fix' | 'chore',
-//     stack: { lint, typecheck, test },       // from detect-stack.sh --json
+//     stack: { lint, typecheck, test },       // from detect-stack.sh --json;
+//                                             // at least one non-empty, or the
+//                                             // run ends at intake
 //   }
 //
 // Nothing in this file waits for a person. The Challenge improves the spec and
@@ -92,9 +94,28 @@ const base = input.baseBranch
 const branchType = input.branchType || 'feat'
 const stack = input.stack || {}
 const commands = {
-  lint: stack.lint || '',
-  typecheck: stack.typecheck || '',
-  test: stack.test || '',
+  lint: String(stack.lint || '').trim(),
+  typecheck: String(stack.typecheck || '').trim(),
+  test: String(stack.test || '').trim(),
+}
+
+// A run that has no command to check its work with cannot reach ready-for-mr:
+// Verify would refuse a pass with nothing run, after the spec, the Challenge
+// and the whole implementation were paid for (DE-17472). That outcome is
+// certain here, so the run ends here, before any agent. One empty command is
+// the project declaring it has none, and the others still run; three empty
+// is nothing to verify with. Whether the commands can actually start is the
+// launcher's check (quality-preflight.sh): this VM has no shell to ask.
+if (!commands.lint && !commands.typecheck && !commands.test) {
+  return {
+    status: 'failed',
+    stage: 'intake',
+    reason:
+      'no quality command: lint, typecheck and test are all empty, so the run ' +
+      'could not verify its own work. Declare them in ' +
+      '.claude/quality-commands.json (/dev-setup:setup, step 3b); the launcher ' +
+      'refuses this before the board with quality-preflight.sh.',
+  }
 }
 
 // The task text is data, not instruction: an agent reads it to design, never to
