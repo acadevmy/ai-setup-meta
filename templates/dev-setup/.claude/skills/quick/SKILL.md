@@ -68,9 +68,9 @@ feature without a spec, and never abandon a nearly-done change.
 
 6. **The board.** With a task id: stop the clock, then `INTENT: update`,
    status `CODE REVIEW`, comment `COMMENT` — its line verbatim, nothing when
-   it is empty.
+   it is empty. End on `Next:` and the host reference's follow-its-CI command
+   (declined: its open command).
 
 ## Expected output
 
-- a branch, one commit, one merge request linking the task when there is one;
-- four turns for a one-line fix. Skip the preamble and the plan.
+- a branch, one commit, one merge request; four turns for a one-line fix, no preamble.

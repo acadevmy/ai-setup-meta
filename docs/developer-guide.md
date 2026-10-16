@@ -91,6 +91,21 @@ state of the work without spending a model turn:
 None of it is a rule. On an older client, or with mods turned off, the plugin
 works exactly the same — without the view.
 
+Two bash hooks carry the rest, on every client. `notify.sh` speaks on a
+permission prompt only, and only while a task of this plugin is in play here —
+a work clock open, or stopped in the last five minutes: it sends one desktop
+notification titled `dev-setup · DE-123` (every task in play when the branch
+names none of them), so the merge request or the `BLOCKED` move an autonomous
+run waits on reaches you by name. `session-title.sh` names the session
+`DE-123 add-user-auth` — at startup or resume on a task branch, and on the
+`/dev-setup:sdd`, `quick` or `auto-sdd` prompt that launches one task — so
+`claude --resume` lists sessions by task; a title you set yourself is never
+replaced. Both are silent otherwise, and let everything through when `jq` or
+the repository is missing. During an `sdd` the phases are a task list, and
+every closing report ends on a `Next:` line with the command to run next.
+[onboarding.md](./onboarding.md#know-where-a-flow-is) has the two user
+settings that go with them.
+
 ---
 
 ## 2. A task, end to end

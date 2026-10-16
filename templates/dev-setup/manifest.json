@@ -66,7 +66,9 @@
     "gate-commit.sh",
     "post-edit.sh",
     "post-merge-request.sh",
-    "on-compact.sh"
+    "on-compact.sh",
+    "notify.sh",
+    "session-title.sh"
   ],
   "mod": [
     "register.ts",

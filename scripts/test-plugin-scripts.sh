@@ -2485,6 +2485,42 @@ assert_eq "and leaves nothing open in the repository" "0" \
 assert_eq "--status still measures nothing on a clock nobody started" "no-start-stamp" \
   "$(clock --task DE-705 --status | jq -r '.REASON')"
 
+# ── RECENT_TASKS: a clock stopped a moment ago is still the task in play (DE-17077) ──
+#
+# A failed run stops its clock and then asks for the BLOCKED move: the
+# notification hook has to name that task for the few seconds in between, and
+# it can only ask the reader that consumes nothing.
+CLOCK_RECENT_REPO="$WORK_DIR/clock-recent-repo"
+mkdir -p "$CLOCK_RECENT_REPO"
+git_init "$CLOCK_RECENT_REPO" >/dev/null 2>&1
+recent_clock() { (cd "$CLOCK_RECENT_REPO" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
+
+recent_clock --task DE-710 --start >/dev/null
+recent_clock --task DE-710 --stop >/dev/null
+recent_clock --task DE-711 --start >/dev/null
+CLOCK_RECENT_DIR="$CLOCK_RECENT_REPO/.git/dev-setup/task-clock"
+CLOCK_AGED=$(date +%s)
+{
+  printf 'start\t%s\t%s\n' "$((CLOCK_AGED - 1200))" "2026-10-16 09:00"
+  printf 'stop\t%s\t%s\t%s\n' "$((CLOCK_AGED - 600))" "2026-10-16 09:10" "10"
+} > "$CLOCK_RECENT_DIR/DE-712.log"
+
+CLOCK_RECENT=$(recent_clock --status)
+assert_eq "a task stopped seconds ago is in RECENT_TASKS" "DE-710" \
+  "$(printf '%s' "$CLOCK_RECENT" | jq -r '.RECENT_TASKS')"
+assert_eq "and not in OPEN_TASKS, which holds only the open one" "DE-711" \
+  "$(printf '%s' "$CLOCK_RECENT" | jq -r '.OPEN_TASKS')"
+assert_eq "an open task is never recent, a stop 600 s old is not either" "false" \
+  "$(printf '%s' "$CLOCK_RECENT" | jq -r '.RECENT_TASKS' | grep -qE 'DE-711|DE-712' && echo true || echo false)"
+assert_eq "--status with a task reports the same RECENT_TASKS" "DE-710" \
+  "$(recent_clock --task DE-711 --status | jq -r '.RECENT_TASKS')"
+
+CLOCK_RECENT_BEFORE=$(cat "$CLOCK_RECENT_DIR"/*.log | cksum)
+recent_clock --status >/dev/null
+recent_clock --task DE-710 --status >/dev/null
+assert_eq "and reading it leaves every log byte-identical" "$CLOCK_RECENT_BEFORE" \
+  "$(cat "$CLOCK_RECENT_DIR"/*.log | cksum)"
+
 # ── Both ends, in every flow ──
 #
 # A clock started and never read is a file nobody looks at; a clock read and
@@ -2786,6 +2822,356 @@ assert_eq "and says nothing" "" "$(cat "$WORK_DIR/edit-stdout")"
 assert_eq "no hook script exits 2 in code" "" \
   "$(grep -lE '^[^#]*(^|[^[:alnum:]_])exit[[:space:]]+2([^[:digit:]]|$)' "$PLUGIN_HOOKS"/*.sh \
      | sed "s|^$REPO_ROOT/||")"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12c. notify.sh: the developer is called back with the task id (DE-17077)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Claude Code's own notification says "Claude needs your permission", not for
+# which task. The hook adds one that names it — and only when a task of this
+# plugin is in play here (an open or just-stopped clock): a hook that speaks on
+# every prompt would be switched off within the week. The notifiers and `uname`
+# are stubs, so both delivery paths are asserted on any host.
+
+echo ""
+echo "── notify.sh (a permission prompt names its task) ──"
+
+NOTIFY_BIN="$WORK_DIR/notify-bin"
+NOTIFY_CALLS="$WORK_DIR/notify-calls"
+export NOTIFY_CALLS
+mkdir -p "$NOTIFY_BIN"
+cat > "$NOTIFY_BIN/uname" <<'STUB'
+#!/bin/sh
+printf '%s\n' "${STUB_OS:-Linux}"
+STUB
+# One line per call: the notifier's name, then each argument after a tab.
+for NOTIFIER in osascript notify-send; do
+  cat > "$NOTIFY_BIN/$NOTIFIER" <<'STUB'
+#!/bin/sh
+{ printf '%s' "$(basename "$0")"; for a in "$@"; do printf '\t%s' "$a"; done; printf '\n'; } >> "$NOTIFY_CALLS"
+exit "${STUB_NOTIFY_EXIT:-0}"
+STUB
+done
+chmod +x "$NOTIFY_BIN"/*
+
+NT_REPO="$WORK_DIR/notify-repo"
+mkdir -p "$NT_REPO"
+(
+  cd "$NT_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b chore/no-task
+) >/dev/null 2>&1
+
+NT_MESSAGE="Claude needs your permission to use Bash"
+
+# Feeds a Notification payload to the hook with the stubs first on PATH: stdout
+# and stderr to files, the calls to $NOTIFY_CALLS, the hook's exit code returned.
+notify_hook_raw() {
+  local type="$1" message="$2" cwd="${3:-$NT_REPO}"
+  : > "$NOTIFY_CALLS"
+  jq -n --arg t "$type" --arg m "$message" --arg cwd "$cwd" \
+    '{hook_event_name: "Notification", notification_type: $t, message: $m, cwd: $cwd}' \
+    | PATH="$NOTIFY_BIN:$PATH" bash "$PLUGIN_HOOKS/notify.sh" \
+      >"$WORK_DIR/notify-stdout" 2>"$WORK_DIR/notify-stderr"
+}
+notify_count() { grep -c . "$NOTIFY_CALLS" 2>/dev/null || true; }
+# The title is the first argument of either notifier: notify-send's first,
+# osascript's first after the script.
+notify_title() { awk -F'\t' '{ print ($1 == "osascript") ? $(NF-1) : $2 }' "$NOTIFY_CALLS"; }
+nt_clock() { (cd "${NT_CLOCK_CWD:-$NT_REPO}" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
+
+# ── Test 2 (REQ-2): nothing in play, nothing said ──
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "no task branch and no clock: exit 0" "0" "$?"
+assert_eq "and no notifier is invoked" "0" "$(notify_count)"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/notify-stdout")"
+
+(cd "$NT_REPO" && git checkout -q -b feat/DE-900_thing) >/dev/null 2>&1
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "a task branch with no clock is not a signal" "0" "$(notify_count)"
+
+# ── Test 1 (REQ-1): a permission prompt with a task in play ──
+nt_clock --task DE-900 --start >/dev/null
+
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "an open clock makes a permission prompt one notification" "1" "$(notify_count)"
+assert_eq "through notify-send on Linux" "notify-send" "$(cut -f1 "$NOTIFY_CALLS")"
+assert_eq "titled with the task" "dev-setup · DE-900" "$(cut -f2 "$NOTIFY_CALLS")"
+assert_eq "with the prompt's message as the body" "$NT_MESSAGE" "$(cut -f3 "$NOTIFY_CALLS")"
+assert_eq "and stdout stays empty" "" "$(cat "$WORK_DIR/notify-stdout")"
+
+STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "on Darwin it is one osascript call" "osascript" \
+  "$(cut -f1 "$NOTIFY_CALLS")$( [ "$(notify_count)" = 1 ] || echo ' (not one call)')"
+assert_eq "whose argv carries the title as its own argument" "dev-setup · DE-900" \
+  "$(awk -F'\t' '{ print $(NF-1) }' "$NOTIFY_CALLS")"
+assert_eq "and the body as the next one" "$NT_MESSAGE" \
+  "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
+assert_eq "never interpolated into the script" "false" \
+  "$(awk -F'\t' '{ for (i = 2; i < NF - 1; i++) print $i }' "$NOTIFY_CALLS" \
+     | grep -q 'DE-900' && echo true || echo false)"
+
+NT_QUOTED="Claude needs \"your\" permission to use Bash's tool"
+STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_QUOTED"
+assert_eq "a message with quotes arrives verbatim in argv" "$NT_QUOTED" \
+  "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
+
+# ── Test 2 (REQ-2): every other notification type is left alone ──
+for NT_TYPE in idle_prompt auth_success agent_needs_input agent_completed; do
+  STUB_OS=Linux notify_hook_raw "$NT_TYPE" "$NT_MESSAGE"
+  assert_eq "$NT_TYPE says nothing, even with a task open" "0:" \
+    "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+done
+
+# ── Test 3 (REQ-3): it fails open ──
+NOJQ_BIN="$WORK_DIR/notify-nojq-bin"
+mkdir -p "$NOJQ_BIN"
+for NT_TOOL in bash git sed grep cat dirname head tr; do
+  ln -sf "$(command -v "$NT_TOOL")" "$NOJQ_BIN/$NT_TOOL"
+done
+ln -sf "$NOTIFY_BIN/uname" "$NOJQ_BIN/uname"
+ln -sf "$NOTIFY_BIN/notify-send" "$NOJQ_BIN/notify-send"
+NT_PAYLOAD=$(jq -n --arg cwd "$NT_REPO" --arg m "$NT_MESSAGE" \
+  '{hook_event_name: "Notification", notification_type: "permission_prompt", message: $m, cwd: $cwd}')
+: > "$NOTIFY_CALLS"
+printf '%s' "$NT_PAYLOAD" | STUB_OS=Linux PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$PLUGIN_HOOKS/notify.sh" \
+  >"$WORK_DIR/notify-stdout" 2>/dev/null
+assert_eq "without jq it exits 0" "0" "$?"
+assert_eq "with an empty stdout and no call" "0:" \
+  "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+NT_LONELY="$WORK_DIR/notify-lonely/hooks"
+mkdir -p "$NT_LONELY"
+cp "$PLUGIN_HOOKS/notify.sh" "$NT_LONELY/notify.sh"
+: > "$NOTIFY_CALLS"
+printf '%s' "$NT_PAYLOAD" | STUB_OS=Linux PATH="$NOTIFY_BIN:$PATH" env -u CLAUDE_PLUGIN_ROOT \
+  bash "$NT_LONELY/notify.sh" >"$WORK_DIR/notify-stdout" 2>/dev/null
+assert_eq "without the plugin scripts it exits 0" "0" "$?"
+assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+STUB_OS=Plan9 notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "an unsupported OS exits 0" "0" "$?"
+assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+mkdir -p "$WORK_DIR/notify-not-a-repo"
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$WORK_DIR/notify-not-a-repo"
+assert_eq "a cwd outside a repository exits 0" "0" "$?"
+assert_eq "and invokes nothing" "0" "$(notify_count)"
+
+STUB_OS=Linux STUB_NOTIFY_EXIT=1 notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "a failing notifier still exits 0" "0" "$?"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/notify-stdout")"
+nt_clock --task DE-900 --stop >/dev/null
+
+# ── Test 4 (REQ-4): the launcher's order, replayed on its checkout ──
+#
+# An autonomous run is launched from the developer checkout, on a branch with
+# no task id. ready-for-mr asks for the merge request with the clock still
+# open; failed stops the clock and then asks for the BLOCKED move.
+NT4_REPO="$WORK_DIR/notify-launcher-repo"
+mkdir -p "$NT4_REPO"
+(
+  cd "$NT4_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b next
+) >/dev/null 2>&1
+
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-901 --start >/dev/null
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "ready-for-mr: the open clock names the run from a branch with no id" \
+  "1:dev-setup · DE-901" "$(notify_count):$(notify_title)"
+
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-902 --start >/dev/null
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "two runs in flight, nothing narrowing: both are named" \
+  "1:dev-setup · DE-901 DE-902" "$(notify_count):$(notify_title)"
+assert_eq "and the hook stops neither clock" "true true" \
+  "$(NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-901 --status | jq -r '.RUNNING') $(NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-902 --status | jq -r '.RUNNING')"
+
+(cd "$NT4_REPO" && git checkout -q -b feat/DE-901_thing) >/dev/null 2>&1
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "a branch naming one of them narrows to it" \
+  "1:dev-setup · DE-901" "$(notify_count):$(notify_title)"
+(cd "$NT4_REPO" && git checkout -q next) >/dev/null 2>&1
+
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-901 --stop >/dev/null
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-902 --stop >/dev/null
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "failed: the BLOCKED prompt after --stop still names them" \
+  "1:dev-setup · DE-901 DE-902" "$(notify_count):$(notify_title)"
+
+NT4_CLOCKS="$NT4_REPO/.git/dev-setup/task-clock"
+NT4_NOW=$(date +%s)
+for NT_TASK in DE-901 DE-902; do
+  {
+    printf 'start\t%s\t%s\n' "$((NT4_NOW - 1200))" "2026-10-16 09:00"
+    printf 'stop\t%s\t%s\t%s\n' "$((NT4_NOW - 600))" "2026-10-16 09:10" "10"
+  } > "$NT4_CLOCKS/$NT_TASK.log"
+done
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "a stop 600 s old is no longer in play: exit 0" "0" "$?"
+assert_eq "no call, empty stdout" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+# The two halves rest on the order of run-outcomes.md: ready-for-mr opens the
+# merge request before it stops the clock, failed stops it before the BLOCKED
+# move. Reordering either changes which half the clocks name, silently.
+NT_OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+NT_READY=$(awk '/^## ready-for-mr/ { p = 1; next } /^## / { p = 0 } p' "$NT_OUTCOMES")
+NT_VCS_LINE=$(printf '%s\n' "$NT_READY" | grep -n 'Then invoke `vcs-ops`' | head -1 | cut -d: -f1)
+NT_STOP_LINE=$(printf '%s\n' "$NT_READY" | grep -n -- '--task <taskId> --stop' | head -1 | cut -d: -f1)
+assert_eq "ready-for-mr invokes vcs-ops before it stops the clock" "true" \
+  "$([ -n "$NT_VCS_LINE" ] && [ -n "$NT_STOP_LINE" ] && [ "$NT_VCS_LINE" -lt "$NT_STOP_LINE" ] \
+     && echo true || echo false)"
+assert_eq "failed stops the clock before the BLOCKED move" "true" \
+  "$(awk '/^## failed/ { p = 1; next } /^## / { p = 0 } p' "$NT_OUTCOMES" \
+     | grep -qE '^3\. Stop the clock, then move the task to `BLOCKED`' && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12d. session-title.sh: the session is named after its task (DE-17077)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# `claude --resume` lists sessions by their first prompt. The hook answers
+# `sessionTitle: "<TASK_ID> <slug>"` from the branch at SessionStart, and from
+# the launch prompt of a single-task flow at UserPromptSubmit — and never over a
+# title the developer chose.
+
+echo ""
+echo "── session-title.sh (the session carries the task's name) ──"
+
+ST_REPO="$WORK_DIR/title-repo"
+mkdir -p "$ST_REPO"
+(
+  cd "$ST_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b feat/DE-123_add-user-auth
+) >/dev/null 2>&1
+
+# Feeds a payload to the hook: stdout and stderr to files, exit code returned.
+# The payload is built by the caller, as jq arguments for the fields it sets.
+title_hook_raw() {
+  local filter="$1"; shift
+  jq -n --arg cwd "${ST_CWD:-$ST_REPO}" "$@" "$filter" \
+    | bash "$PLUGIN_HOOKS/session-title.sh" >"$WORK_DIR/title-stdout" 2>"$WORK_DIR/title-stderr"
+}
+title_start() {
+  title_hook_raw '{hook_event_name: "SessionStart", source: $src, session_title: $t, cwd: $cwd}' \
+    --arg src "${1:-startup}" --arg t "${2:-}"
+}
+title_prompt() {
+  title_hook_raw '{hook_event_name: "UserPromptSubmit", prompt: $p, session_title: $t, cwd: $cwd}' \
+    --arg p "$1" --arg t "${2:-}"
+}
+title_of() { jq -r '.hookSpecificOutput.sessionTitle // empty' "$WORK_DIR/title-stdout" 2>/dev/null; }
+title_event() { jq -r '.hookSpecificOutput.hookEventName // empty' "$WORK_DIR/title-stdout" 2>/dev/null; }
+st_checkout() { (cd "$ST_REPO" && git checkout -q -B "$1") >/dev/null 2>&1; }
+
+# ── Test 5 (REQ-5): the title comes from the branch ──
+title_start startup
+assert_eq "SessionStart on a task branch exits 0" "0" "$?"
+assert_eq "with one JSON object on stdout" "1" "$(jq -s 'length' "$WORK_DIR/title-stdout" 2>/dev/null)"
+assert_eq "naming the event" "SessionStart" "$(title_event)"
+assert_eq "and the task with its slug" "DE-123 add-user-auth" "$(title_of)"
+
+title_start resume
+assert_eq "a resumed session gets the same title" "DE-123 add-user-auth" "$(title_of)"
+
+st_checkout 'feat(auth)/DE-123_add-user-auth'
+title_start startup
+assert_eq "a branch with a context gives the same title" "DE-123 add-user-auth" "$(title_of)"
+
+st_checkout feat/DE-124-add-x
+title_start startup
+assert_eq "the legacy dash delimiter gives the slug after it" "DE-124 add-x" "$(title_of)"
+st_checkout feat/DE-123_add-user-auth
+
+# ── Test 6 (REQ-6): a title the developer chose is kept ──
+title_start startup "my refactor"
+assert_eq "a title of the developer's own is never replaced" "" "$(cat "$WORK_DIR/title-stdout")"
+title_start startup "DE-99 old-thing"
+assert_eq "an earlier task title is the hook's own and is replaced" "DE-123 add-user-auth" "$(title_of)"
+title_start startup "DE-123 add-user-auth"
+assert_eq "a title already right is left alone" "" "$(cat "$WORK_DIR/title-stdout")"
+
+# ── Test 7 (REQ-7): the launch prompt names a session opened on next ──
+(cd "$ST_REPO" && git branch -q feat/DE-125_fix-login && git checkout -q -B next) >/dev/null 2>&1
+title_prompt "/dev-setup:sdd DE-125"
+assert_eq "/dev-setup:sdd <id> titles the session from its local branch" "DE-125 fix-login" "$(title_of)"
+assert_eq "naming the event" "UserPromptSubmit" "$(title_event)"
+title_prompt "/dev-setup:quick DE-126"
+assert_eq "with no branch for the id, the title is the id" "DE-126" "$(title_of)"
+title_prompt "/dev-setup:auto-sdd DE-125 --stop review"
+assert_eq "auto-sdd launches one task too" "DE-125 fix-login" "$(title_of)"
+for ST_PROMPT in "/dev-setup:multi-sdd DE-1 DE-2" "explain DE-125" "/dev-setup:sdd" \
+                 "/dev-setup:sdd DE-125x"; do
+  title_prompt "$ST_PROMPT"
+  assert_eq "silent on: $ST_PROMPT" "0:" "$?:$(cat "$WORK_DIR/title-stdout")"
+done
+title_prompt "/dev-setup:sdd DE-125" "my refactor"
+assert_eq "the launch prompt keeps a title of the developer's own" "" "$(cat "$WORK_DIR/title-stdout")"
+title_prompt "/dev-setup:sdd DE-125" "DE-125 fix-login"
+assert_eq "and says nothing when the title is already right" "" "$(cat "$WORK_DIR/title-stdout")"
+
+# ── Test 8 (REQ-8): silent off a task branch, open when something is missing ──
+st_checkout chore/no-task
+title_start startup
+assert_eq "a branch with no task id says nothing" "0:" "$?:$(cat "$WORK_DIR/title-stdout")"
+title_hook_raw '{hook_event_name: "SessionStart", source: "compact", cwd: $cwd}'
+assert_eq "and so does a compact SessionStart" "" "$(cat "$WORK_DIR/title-stdout")"
+st_checkout feat/DE-123_add-user-auth
+
+ST_PAYLOAD=$(jq -n --arg cwd "$ST_REPO" '{hook_event_name: "SessionStart", source: "startup", cwd: $cwd}')
+printf '%s' "$ST_PAYLOAD" | PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$PLUGIN_HOOKS/session-title.sh" \
+  >"$WORK_DIR/title-stdout" 2>/dev/null
+assert_eq "without jq it exits 0 with an empty stdout" "0:" "$?:$(cat "$WORK_DIR/title-stdout")"
+
+mkdir -p "$WORK_DIR/title-not-a-repo"
+ST_CWD="$WORK_DIR/title-not-a-repo" title_start startup
+assert_eq "a cwd outside a repository exits 0 with an empty stdout" "0:" \
+  "$?:$(cat "$WORK_DIR/title-stdout")"
+
+ST_LONELY="$WORK_DIR/title-lonely/hooks"
+mkdir -p "$ST_LONELY"
+cp "$PLUGIN_HOOKS/session-title.sh" "$ST_LONELY/session-title.sh"
+printf '%s' "$ST_PAYLOAD" | env -u CLAUDE_PLUGIN_ROOT bash "$ST_LONELY/session-title.sh" \
+  >"$WORK_DIR/title-stdout" 2>/dev/null
+assert_eq "without the plugin scripts it exits 0 with an empty stdout" "0:" \
+  "$?:$(cat "$WORK_DIR/title-stdout")"
+
+# ── Test 9 (REQ-9): both hooks ship mounted ──
+#
+# Read from the generated hooks.json: a hook that is built but not mounted runs
+# nowhere, and one mounted on the wrong matcher speaks on the wrong event.
+assert_eq "notify.sh is mounted on Notification, matcher permission_prompt" "permission_prompt" \
+  "$(jq -r '[.hooks.Notification[]? | select(any(.hooks[]; .command | endswith("/notify.sh\"")))
+            | .matcher] | join(",")' "$HOOKS_JSON")"
+assert_eq "session-title.sh is mounted on SessionStart startup|resume" "startup|resume" \
+  "$(jq -r '[.hooks.SessionStart[]? | select(any(.hooks[]; .command | endswith("/session-title.sh\"")))
+            | .matcher] | join(",")' "$HOOKS_JSON")"
+assert_eq "and the compact handler is still on-compact.sh, alone" "1" \
+  "$(jq '[.hooks.SessionStart[]? | select(.matcher == "compact")
+          | select(any(.hooks[]; .command | endswith("/on-compact.sh\"")))] | length' "$HOOKS_JSON")"
+assert_eq "session-title.sh is mounted on UserPromptSubmit" "1" \
+  "$(jq '[.hooks.UserPromptSubmit[]? | .hooks[] | select(.command | endswith("/session-title.sh\""))]
+         | length' "$HOOKS_JSON")"
+for ST_HOOK in notify.sh session-title.sh; do
+  assert_eq "$ST_HOOK ships in the built plugin" "true" \
+    "$([ -x "$REPO_ROOT/dist/dev-setup/hooks/scripts/$ST_HOOK" ] && echo true || echo false)"
+  assert_eq "and the manifest lists it" "true" \
+    "$(jq -e --arg h "$ST_HOOK" '.hooks | index($h) != null' \
+         "$REPO_ROOT/templates/dev-setup/manifest.json" >/dev/null && echo true || echo false)"
+done
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 13. review-package.sh: the diff verify and review read, built once (DE-17080)
@@ -3765,6 +4151,112 @@ assert_eq "and its index entry" "1" \
   "$(grep -c '^- \[12\. CLAUDE\.md is gone.*\](#12-' "$IF_MIGRATION")"
 assert_eq "the AGENTS.md script table lists instruction-files.sh with its keys" "true" \
   "$(grep -E '^\| `instruction-files\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'VERSION_OK' && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 16. The flow shows where it is, and what comes next (DE-17077)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The phases of an `sdd` were only in the skill's table, and the reports a flow
+# closes on ended in different ways. Prose assertions, read flattened so that a
+# wrapped sentence still counts. The word budgets these edits must respect are
+# the `validate-plugin.sh --strict` assertion of section 14.
+
+echo ""
+echo "── DE-17077 — the phases on screen, the next command on the last line ──"
+
+PV_INTAKE="$SDD_DIR/sdd/reference/intake.md"
+PV_INTAKE_FLAT="$(flat "$PV_INTAKE")"
+
+# ── Test 10 (REQ-10): the phase list is published at intake ──
+for PV_NEEDLE in TaskCreate TaskUpdate TodoWrite; do
+  assert_contains "intake names the task-list tool $PV_NEEDLE" "$PV_INTAKE_FLAT" "\`$PV_NEEDLE\`"
+done
+for PV_PHASE in Intake Discovery Spec Approval Development Gates; do
+  assert_eq "the phase list holds $PV_PHASE" "1" \
+    "$(grep -cE "^\| $PV_PHASE \| " "$PV_INTAKE")"
+done
+for PV_ROW in '`spec`=Approval — nothing past it' '`development`=Development' \
+              '`review`=Gates — nothing past it' '`commit`=Commit' \
+              '`push`=Commit and push' '`merge-request`=Commit and merge request'; do
+  assert_eq "stop point ${PV_ROW%%=*} ends the list on: ${PV_ROW#*=}" "1" \
+    "$(grep -cxF "| ${PV_ROW%%=*} | ${PV_ROW#*=} |" "$PV_INTAKE")"
+done
+assert_contains "a resume creates the phases already passed completed" "$PV_INTAKE_FLAT" \
+  "On a resume, the phases already passed are created completed"
+assert_contains "each phase is marked in progress, then completed" "$PV_INTAKE_FLAT" \
+  "Mark each phase in progress when it starts and completed when it ends"
+assert_contains "and the chat carries one line between calls at most" "$PV_INTAKE_FLAT" \
+  "Between tool calls, write at most one line of commentary"
+
+# ── Test 12 (REQ-12): the brief routes to quick, the flow never switches down ──
+assert_contains "the brief template carries the Route line" \
+  "$(grep -E '^Route:' "$PV_INTAKE" | tr -s ' ')" "Route: looks like quick — /dev-setup:quick"
+assert_contains "the rule gives the exact line" "$PV_INTAKE_FLAT" \
+  "\`Route: looks like quick — /dev-setup:quick <custom_id>\`"
+assert_contains "and the flow goes on in sdd" "$PV_INTAKE_FLAT" "Then the flow goes on in \`sdd\`"
+assert_contains "never moving itself to a lighter flow" "$PV_INTAKE_FLAT" \
+  "it never moves itself to a lighter flow"
+
+# ── Test 11 (REQ-11): every closing report ends on the next command ──
+PV_STOP="$SDD_DIR/sdd/reference/stop-point.md"
+PV_STOP_BLOCK="$(awk '/^## Ending at a stop point/ { p = 1; next } /^## / { p = 0 } p' "$PV_STOP")"
+PV_STOP_FENCE="$(printf '%s\n' "$PV_STOP_BLOCK" | awk '/^```/ { n++; next } n == 1')"
+assert_contains "the stop-point report's last line is the next command" \
+  "$(printf '%s\n' "$PV_STOP_FENCE" | grep -v '^[[:space:]]*$' | tail -1 | tr -s ' ')" \
+  "Next: /dev-setup:sdd"
+assert_eq "and Resume: is gone from it" "" \
+  "$(printf '%s\n' "$PV_STOP_BLOCK" | grep -F 'Resume:' || true)"
+
+assert_eq "the GitHub reference has the follow-its-CI row" "1" \
+  "$(grep -cF '| Follow its CI | `gh pr checks <n> --watch` |' \
+       "$REPO_ROOT/shared/skills/vcs-ops/reference/github.md")"
+assert_eq "the GitLab one names the branch explicitly" "1" \
+  "$(grep -cF "| Follow its pipeline | \`glab ci status --live --branch '<BRANCH>'\`" \
+       "$REPO_ROOT/shared/skills/vcs-ops/reference/gitlab.md")"
+
+PV_CLOSURE="$SDD_DIR/sdd/reference/closure.md"
+PV_QUICK="$SDD_DIR/quick/SKILL.md"
+PV_OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+for PV_FILE in "$PV_CLOSURE" "$PV_QUICK" "$PV_OUTCOMES"; do
+  PV_NAME="${PV_FILE#"$REPO_ROOT"/templates/dev-setup/.claude/}"
+  assert_contains "$PV_NAME ends on Next: and the host reference's CI command" \
+    "$(flat "$PV_FILE")" "follow-its-CI command"
+  assert_contains "$PV_NAME points at the host reference for it" "$(flat "$PV_FILE")" "host reference"
+  assert_eq "$PV_NAME names no host CI command of its own" "" \
+    "$(grep -nE 'gh pr checks|glab ci' "$PV_FILE" || true)"
+done
+assert_contains "a declined merge request in sdd ends on the resume" \
+  "$(flat "$PV_CLOSURE")" "Declined means declined: report it, leave the branch pushed, and end on \`Next: /dev-setup:sdd <custom_id>\`"
+assert_contains "in quick, on the host reference's open command" \
+  "$(flat "$PV_QUICK")" "(declined: its open command)"
+assert_contains "and in ready-for-mr too" \
+  "$(flat "$PV_OUTCOMES")" "end on \`Next:\` and the host reference's open command"
+
+PV_FAILED="$(awk '/^## failed/ { p = 1; next } /^## / { p = 0 } p' "$PV_OUTCOMES" | tr '\n' ' ' | tr -s ' ')"
+for PV_FORM in '`verify` → `Next: cd "<worktreePath>" && <the command that failed>`' \
+               '`dev` → `Next: cd "<worktreePath>"`' \
+               '`spec` → `Next: /dev-setup:sdd <taskId>`' \
+               '`intake` → `Next: /dev-setup:auto-sdd <taskId>`'; do
+  assert_contains "failed ends on: ${PV_FORM%% →*}" "$PV_FAILED" "$PV_FORM"
+done
+assert_eq "quick/SKILL.md stays within 500 words" "true" \
+  "$([ "$(wc -w < "$PV_QUICK" | tr -d ' ')" -le 500 ] && echo true || echo false)"
+
+# ── Test 13 (REQ-13): the docs say it ──
+#
+# The onboarding cap, checks 14–15 and the "no hook exits 2" grep are asserted
+# where they always were; these are the sentences this task owes the reader.
+PV_ONBOARDING="$(flat "$REPO_ROOT/docs/onboarding.md")"
+for PV_NEEDLE in preferredNotifChannel terminal_bell footerLinksRegexes; do
+  assert_contains "onboarding documents $PV_NEEDLE" "$PV_ONBOARDING" "$PV_NEEDLE"
+done
+assert_contains "as user settings, never the project's" "$PV_ONBOARDING" \
+  "never the project's \`.claude/settings.json\`"
+PV_GUIDE="$(flat "$REPO_ROOT/docs/developer-guide.md")"
+for PV_NEEDLE in notify.sh session-title.sh; do
+  assert_contains "the developer guide names $PV_NEEDLE" "$PV_GUIDE" "\`$PV_NEEDLE\`"
+done
+assert_contains "AGENTS.md lists RECENT_TASKS" "$(cat "$REPO_ROOT/AGENTS.md")" "\`RECENT_TASKS\`"
 
 echo ""
 echo "── frontmatter parseability ──"
