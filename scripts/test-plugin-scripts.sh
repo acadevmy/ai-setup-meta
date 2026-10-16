@@ -4152,6 +4152,51 @@ assert_eq "and its index entry" "1" \
 assert_eq "the AGENTS.md script table lists instruction-files.sh with its keys" "true" \
   "$(grep -E '^\| `instruction-files\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'VERSION_OK' && echo true || echo false)"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 16. The flow shows where it is, and what comes next (DE-17077)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The phases of an `sdd` were only in the skill's table, and the reports a flow
+# closes on ended in different ways. Prose assertions, read flattened so that a
+# wrapped sentence still counts. The word budgets these edits must respect are
+# the `validate-plugin.sh --strict` assertion of section 14.
+
+echo ""
+echo "── DE-17077 — the phases on screen, the next command on the last line ──"
+
+PV_INTAKE="$SDD_DIR/sdd/reference/intake.md"
+PV_INTAKE_FLAT="$(flat "$PV_INTAKE")"
+
+# ── Test 10 (REQ-10): the phase list is published at intake ──
+for PV_NEEDLE in TaskCreate TaskUpdate TodoWrite; do
+  assert_contains "intake names the task-list tool $PV_NEEDLE" "$PV_INTAKE_FLAT" "\`$PV_NEEDLE\`"
+done
+for PV_PHASE in Intake Discovery Spec Approval Development Gates; do
+  assert_eq "the phase list holds $PV_PHASE" "1" \
+    "$(grep -cE "^\| $PV_PHASE \| " "$PV_INTAKE")"
+done
+for PV_ROW in '`spec`=Approval — nothing past it' '`development`=Development' \
+              '`review`=Gates — nothing past it' '`commit`=Commit' \
+              '`push`=Commit and push' '`merge-request`=Commit and merge request'; do
+  assert_eq "stop point ${PV_ROW%%=*} ends the list on: ${PV_ROW#*=}" "1" \
+    "$(grep -cxF "| ${PV_ROW%%=*} | ${PV_ROW#*=} |" "$PV_INTAKE")"
+done
+assert_contains "a resume creates the phases already passed completed" "$PV_INTAKE_FLAT" \
+  "On a resume, the phases already passed are created completed"
+assert_contains "each phase is marked in progress, then completed" "$PV_INTAKE_FLAT" \
+  "Mark each phase in progress when it starts and completed when it ends"
+assert_contains "and the chat carries one line between calls at most" "$PV_INTAKE_FLAT" \
+  "Between tool calls, write at most one line of commentary"
+
+# ── Test 12 (REQ-12): the brief routes to quick, the flow never switches down ──
+assert_contains "the brief template carries the Route line" \
+  "$(grep -E '^Route:' "$PV_INTAKE" | tr -s ' ')" "Route: looks like quick — /dev-setup:quick"
+assert_contains "the rule gives the exact line" "$PV_INTAKE_FLAT" \
+  "\`Route: looks like quick — /dev-setup:quick <custom_id>\`"
+assert_contains "and the flow goes on in sdd" "$PV_INTAKE_FLAT" "Then the flow goes on in \`sdd\`"
+assert_contains "never moving itself to a lighter flow" "$PV_INTAKE_FLAT" \
+  "it never moves itself to a lighter flow"
+
 echo ""
 echo "── frontmatter parseability ──"
 
