@@ -309,8 +309,8 @@ Next steps:
   3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to get started!
 ```
 
-Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, and the
-ones `rules-generation.md` and `mcp-env.md` ask for), plus whatever the step-7b
+Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, 3b — which
+runs after Step 8 here — and the ones `rules-generation.md` and `mcp-env.md` ask for), plus whatever the step-7b
 branch protection reported.
 
 **Terraform note**: if the chosen stack is **Infrastructure / Terraform**, Step 8

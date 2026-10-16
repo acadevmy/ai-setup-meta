@@ -2222,6 +2222,38 @@ assert_contains "sdd says it in its intake step 4" "$SDD_STEP4" "COMMANDS_SOURCE
 assert_contains "sdd-dev keeps skipping a command declared absent" \
   "$(cat "$SDD_DIR/sdd-dev/reference/methodologies.md")" "declared absent"
 
+# REQ-13 and REQ-14: the setup writes the declaration and verifies it. The step
+# is prose the model follows, so what is pinned is that it calls the scripts
+# that do the deterministic part, and that a decline cannot go unreported.
+SETUP_DIR="$REPO_ROOT/templates/dev-setup/setup"
+QC_REF="$SETUP_DIR/reference/quality-commands.md"
+assert_eq "step 3b has its reference" "true" "$([ -f "$QC_REF" ] && echo true || echo false)"
+QC_TEXT=$(cat "$QC_REF" 2>/dev/null)
+assert_contains "3b proposes the candidates the script finds" "$QC_TEXT" "quality-candidates.sh"
+assert_contains "and asks in one AskUserQuestion call" "$QC_TEXT" "AskUserQuestion"
+assert_contains "and runs every declared command once" "$QC_TEXT" 'quality-preflight.sh" --run'
+assert_contains "and hands the declared commands to Steps 4 and 5" "$QC_TEXT" ".stack.json"
+assert_contains "a kind with no candidate is still asked" "$QC_TEXT" "no candidate"
+assert_contains "UPDATE proposes a declaration to a project that has none" "$QC_TEXT" "UPDATE"
+assert_eq "a decline is a DECLINED summary line naming both launchers" "1" \
+  "$(printf '%s\n' "$QC_TEXT" | grep 'DECLINED' | grep 'auto-sdd' | grep -c 'multi-sdd')"
+assert_contains "the setup table routes step 3b to it" \
+  "$(cat "$SETUP_DIR/SKILL.md")" "| 3b |"
+assert_eq "the setup skill stays within its 500-word budget" "true" \
+  "$([ "$(wc -w < "$SETUP_DIR/SKILL.md")" -le 500 ] && echo true || echo false)"
+assert_eq "the manifest ships the reference" "true" \
+  "$(jq '.setup_reference | index("quality-commands.md") != null' "$REPO_ROOT/templates/dev-setup/manifest.json")"
+assert_eq "and the build does" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/skills/setup/reference/quality-commands.md" ] && echo true || echo false)"
+for MODE_REF in existing.md greenfield.md; do
+  assert_contains "the $MODE_REF summary collects 3b's line" \
+    "$(sed -n '/^## Step 9/,$p' "$SETUP_DIR/reference/$MODE_REF")" "3b"
+done
+assert_contains "existing.md lists the new detect-stack keys" \
+  "$(cat "$SETUP_DIR/reference/existing.md")" "COMMANDS_SOURCE"
+assert_eq "check 16 finds every ask of 3b reported" "" \
+  "$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict 2>&1 | grep 'SETUP_ASK_UNREPORTED' | grep 'quality-commands.md' || true)"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 11. task-clock.sh: how long the task took
 # ═══════════════════════════════════════════════════════════════════════════════
