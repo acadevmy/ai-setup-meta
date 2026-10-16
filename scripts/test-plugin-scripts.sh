@@ -4242,6 +4242,22 @@ done
 assert_eq "quick/SKILL.md stays within 500 words" "true" \
   "$([ "$(wc -w < "$PV_QUICK" | tr -d ' ')" -le 500 ] && echo true || echo false)"
 
+# ── Test 13 (REQ-13): the docs say it ──
+#
+# The onboarding cap, checks 14–15 and the "no hook exits 2" grep are asserted
+# where they always were; these are the sentences this task owes the reader.
+PV_ONBOARDING="$(flat "$REPO_ROOT/docs/onboarding.md")"
+for PV_NEEDLE in preferredNotifChannel terminal_bell footerLinksRegexes; do
+  assert_contains "onboarding documents $PV_NEEDLE" "$PV_ONBOARDING" "$PV_NEEDLE"
+done
+assert_contains "as user settings, never the project's" "$PV_ONBOARDING" \
+  "never the project's \`.claude/settings.json\`"
+PV_GUIDE="$(flat "$REPO_ROOT/docs/developer-guide.md")"
+for PV_NEEDLE in notify.sh session-title.sh; do
+  assert_contains "the developer guide names $PV_NEEDLE" "$PV_GUIDE" "\`$PV_NEEDLE\`"
+done
+assert_contains "AGENTS.md lists RECENT_TASKS" "$(cat "$REPO_ROOT/AGENTS.md")" "\`RECENT_TASKS\`"
+
 echo ""
 echo "── frontmatter parseability ──"
 

@@ -242,7 +242,7 @@ status other than 0.
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `review-package.sh --base <ref>` | `PACKAGE`, `MERGE_BASE`, `EMPTY`, `COMMITS`, `FILES`, `CHANGED_LINES`, `SIZE` — the diff `verify` and `review` read, built once: commits, stat and `git diff -U10` of the working tree against `--base`, in one file under the common git directory, named after the branch. `EMPTY` is decided by the diff, never by the commits; `SIZE` is `large` above 300 changed lines or 10 files. It never stages — the caller does |
-| `task-clock.sh --task <id> --start \| --stop`, `task-clock.sh [--task <id>] --status` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON`, `OPEN_TASKS`, `OPEN_COUNT` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why. `--status` reads without writing and, with no task, answers for the whole repository: asking whether work is open must not consume the measurement |
+| `task-clock.sh --task <id> --start \| --stop`, `task-clock.sh [--task <id>] --status` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON`, `OPEN_TASKS`, `OPEN_COUNT`, `RECENT_TASKS` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why. `--status` reads without writing and, with no task, answers for the whole repository: asking whether work is open must not consume the measurement. `RECENT_TASKS` names the clocks stopped less than 300 s ago, so a failed run's `BLOCKED` prompt is still its task |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
 | `instruction-files.sh [--dir <path>]`, `instruction-files.sh --merge <path>` | `SHIMS`, `CUSTOM`, `UNIMPORTED`, `LOCAL`, `ABOVE`, `CLAUDE_VERSION`, `MIN_CLAUDE_VERSION`, `VERSION_OK` — will Claude Code read `AGENTS.md` here (DE-17167). The setup writes no `CLAUDE.md`: Claude Code reads `AGENTS.md` from 2.1.277, and only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the directory or above it. `SHIMS` are the `@AGENTS.md`-only files an earlier setup wrote, which Step 5b removes; `CUSTOM` the team's, moved only on a yes; `VERSION_OK` the client against the `MIN_CLAUDE_VERSION` floor (2.1.281: before it Bedrock and telemetry-off sessions read `CLAUDE.md` only), checked at Step 1. Read-only: `--merge` prints the owning `AGENTS.md` with the file's content appended after its footer, and the setup writes it |
 | `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `ADDED_EXCLUDED` |
@@ -363,6 +363,28 @@ of `templates/<domain>/.claude/settings.json`, rewriting the paths to
 project carries only `permissions` and `sandbox`. So a new hook reaches every
 project on the plugin update, and `migrate-settings.sh` has nothing to do with it —
 which is the one UPDATE-path question a new hook has to answer.
+
+### The developer is called back by name (DE-17077)
+
+Two more hooks follow `post-merge-request.sh` to the letter: they read, report
+and stay quiet. `hooks/notify.sh` is a `Notification` hook on `permission_prompt`
+only: when a task's clock is open here, or was stopped less than five minutes
+ago (`task-clock.sh --status`, `OPEN_TASKS` plus `RECENT_TASKS`), it sends one
+desktop notification titled `dev-setup · <TASK_IDS>` — `osascript` with argv on
+Darwin, `notify-send` on Linux — narrowed to the one the cwd branch names. That
+is how both autonomous outcomes reach the developer by task: `ready-for-mr`
+asks for the merge request with its clock open, `failed` asks for the `BLOCKED`
+move seconds after `--stop`. The clocks are the noise filter and the branch only
+narrows, because every tracked branch carries an id; `agent_needs_input` and
+`agent_completed` are not mounted, since they come from the agent view, already
+named after the session. `hooks/session-title.sh` answers `sessionTitle:
+"<TASK_ID> <slug>"` on `SessionStart` (`startup|resume`) from the branch, and on
+the `UserPromptSubmit` that launches one task (`/dev-setup:sdd|quick|auto-sdd
+<id>`), for the branch cut mid-session; a title that does not start with a task
+id is the developer's and is never replaced. Neither writes state, neither prints
+on a quiet path, and both exit 0 on anything missing. What a person sets —
+`preferredNotifChannel`, `footerLinksRegexes` for clickable ids — is user
+settings, documented in onboarding, and the setup writes neither.
 
 ### The mod is an interface layer (DE-17071)
 
@@ -886,4 +908,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.32.0 — bump the version number on every substantial change*
+*Version: 2.33.0 — bump the version number on every substantial change*
