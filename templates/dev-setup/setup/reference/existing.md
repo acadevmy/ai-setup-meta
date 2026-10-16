@@ -185,8 +185,7 @@ per sub-project.
 Setup complete!
 
 Installed files:
-  - CLAUDE.md             — entry point for Claude Code (imports AGENTS.md)
-  - AGENTS.md             — instructions for AI agents (cross-tool standard)
+  - AGENTS.md             — project instructions, read by Claude Code and every other agent
   - .claude/rules/        — path-scoped governance rules (dev-setup-*.md)
   - REGISTRY.md           — feature and service registry
   - .claude/settings.json — project permissions + Bash sandbox
@@ -215,7 +214,9 @@ Next steps:
 ```
 
 Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, 3b, the
-framework convention checks, and the ones `rules-generation.md` and
+framework convention checks, the instruction-file lines of Step 5b in
+`agents-generation.md` — shims removed, files moved or kept, `CLAUDE.local.md`
+and files above, the client version — and the ones `rules-generation.md` and
 `mcp-env.md` ask for), plus whatever the step-7b branch protection reported.
 
 **In UPDATE mode**, say what happened to `.claude/settings.json` — one of:
@@ -243,7 +244,6 @@ underneath:
 Setup complete! (Multi-project detected: <MONOREPO>)
 
 Files at the root:
-  - CLAUDE.md             — entry point for Claude Code
   - AGENTS.md             — general rules + workspace map
   - .claude/rules/        — path-scoped governance rules (dev-setup-*.md)
   - .claude/settings.json — project permissions + Bash sandbox
@@ -251,7 +251,6 @@ Files at the root:
 Configured sub-projects:
   <sub-project-path>/:
     - AGENTS.md           — stack: <stack>
-    - CLAUDE.md           — local entry point
     - REGISTRY.md         — feature registry
 ```
 
