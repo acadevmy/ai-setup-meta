@@ -2169,6 +2169,50 @@ if [ -f "$AUTO_SDD" ]; then
     "$(grep -n "status: 'needs-human'" "$AUTO_SDD" || true)"
 fi
 
+echo ""
+echo "── the launchers refuse before the board (DE-17535) ──"
+
+# The check is worth something only where it stands: before anything a refused
+# run would leave behind. So what is pinned is its position, on the extracted
+# range, not merely its presence in the file.
+line_of() { printf '%s\n' "$1" | grep -n -F -- "$2" | head -1 | cut -d: -f1; }
+assert_before() {
+  local label="$1" text="$2" first="$3" second="$4" a b
+  a=$(line_of "$text" "$first")
+  b=$(line_of "$text" "$second")
+  if [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ]; then
+    pass "$label"
+  else
+    fail "$label" "expected '$first' (line ${a:-none}) before '$second' (line ${b:-none})"
+  fi
+}
+
+AUTO_STEPS=$(sed -n '/^## 1\. /,/^## 3\. /p' "$SDD_DIR/auto-sdd/SKILL.md")
+QP_CALL="quality-preflight.sh\" --require-declared"
+for NEEDLE in 'BACKLOG' 'fork-point.md' 'status: IN PROGRESS' 'task-clock.sh'; do
+  assert_before "auto-sdd checks its commands before: $NEEDLE" "$AUTO_STEPS" "$QP_CALL" "$NEEDLE"
+done
+assert_contains "and sends any non-zero exit to the outcomes contract" "$AUTO_STEPS" "run-outcomes.md"
+
+OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+NOT_STARTED=$(sed -n '/^## When the run does not start/,$p' "$OUTCOMES")
+assert_contains "the refusal of a SPRINT task is one BLOCKED bail-out" "$NOT_STARTED" "SPRINT → BLOCKED"
+assert_contains "a BACKLOG task is left as found" "$NOT_STARTED" "left as found"
+assert_contains "the refusal names the check" "$NOT_STARTED" "quality-preflight.sh"
+
+MULTI_PRE="$SDD_DIR/multi-sdd/reference/preflight.md"
+MULTI_TEXT=$(cat "$MULTI_PRE")
+assert_before "multi-sdd checks once, before the first task read" "$MULTI_TEXT" "$QP_CALL" "INTENT: read"
+assert_before "and before the triage" "$MULTI_TEXT" "$QP_CALL" "## Triage"
+assert_eq "and its refusal moves no task" "" "$(grep -n 'BLOCKED' "$MULTI_PRE" || true)"
+
+# REQ-15: in an ephemeral session a failed run's branch is pushed, so the work
+# survives the session — and only pushed: the merge request is a decision.
+FAILED_SECTION=$(sed -n '/^## failed/,/^## ready-for-mr/p' "$OUTCOMES")
+assert_contains "a failed run in a cloud session is keyed on CLAUDE_CODE_REMOTE" "$FAILED_SECTION" "CLAUDE_CODE_REMOTE"
+assert_contains "its branch is pushed" "$FAILED_SECTION" 'git push -u origin'
+assert_contains "with no merge request" "$FAILED_SECTION" "no merge request"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 11. task-clock.sh: how long the task took
 # ═══════════════════════════════════════════════════════════════════════════════

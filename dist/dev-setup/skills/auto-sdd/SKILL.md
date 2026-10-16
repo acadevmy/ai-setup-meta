@@ -28,11 +28,19 @@ several.
 ## 1. The task
 
 **With a task id in `$ARGUMENTS`**: `INTENT: read`, `PARAMS: task_id: <id>`.
-`BACKLOG` → the contract's backlog gate.
 
 **Without one**: resolve the list id as the contract describes, then
 `INTENT: next-task`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>` — the
 highest-priority `SPRINT` task.
+
+Before any question or board write:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh" --require-declared --json
+```
+
+Any non-zero exit → no run, per `run-outcomes.md`. `BACKLOG` → the contract's
+backlog gate.
 
 A declined gate or an empty `SPRINT` stops the flow: no run, no board write.
 Otherwise keep `custom_id`, `name`, `description` (verbatim), `url`, `task_id`.
@@ -46,8 +54,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh" --json
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
 ```
 
-The second resolves the base branch; `fork-point.md` holds how to read it and
-the question that confirms it. Ask before the board write below — a run the
+The second resolves the base branch; `fork-point.md` holds how to read and
+confirm it. Ask before the board write below — a run the
 developer walks away from leaves the task where it was.
 
 Then `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`, then
@@ -76,12 +84,11 @@ Workflow({
 ```
 
 `branchType` follows the task: feature → `feat`, bug → `fix`, maintenance →
-`chore`. A command `detect-stack.sh` left empty stays empty — the workflow skips
-it rather than inventing one.
+`chore`.
 
 The harness asks the developer to approve the workflow script before it runs.
 That and the fork point are this flow's two stops — plus step 1's backlog gate
-when it applies. The run then works in the background: wait for its
+when it applies. The run works in the background: wait for its
 notification, never poll.
 
 ## 4. The outcome
