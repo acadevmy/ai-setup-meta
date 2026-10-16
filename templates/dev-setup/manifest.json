@@ -58,6 +58,7 @@
     "task-clock.sh",
     "migrate-settings.sh",
     "render-template.sh",
+    "instruction-files.sh",
     "worktree-info.sh",
     "mr-meta.sh"
   ],
