@@ -234,7 +234,9 @@ status other than 0.
 
 | Script | Returns |
 |---|---|
-| `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `HOOK_MANAGER` |
+| `detect-stack.sh` | `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`, `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`, `LINT_CMD`, `TYPECHECK_CMD`, `COMMANDS_SOURCE`, `PREFLIGHT_CMD`, `HOOK_MANAGER` — the three commands come from the project's `.claude/quality-commands.json` when it exists (`COMMANDS_SOURCE=declared`, a `null` stays empty, a declared `hook_manager` wins), from the per-language heuristics otherwise (`detected`, or `none`). A malformed declaration exits non-zero; `--no-declaration` answers with the heuristics alone. The one reader of that file |
+| `quality-candidates.sh [--dir <path>]` | `LINT_CANDIDATES`, `TYPECHECK_CANDIDATES`, `TEST_CANDIDATES`, `CANDIDATE_COUNT` — what setup step 3b proposes: one `<command>\t<kind>:<path>` line per gate the project already declares, from the CI, the task runners, the package scripts, the docs, and the heuristics last. Root-relative (`cd <dir> && …`), deduplicated, no language rule |
+| `quality-preflight.sh [--require-declared] [--run]` | `READY`, `REASON`, `COMMANDS_SOURCE`, `MISSING`, `PREFLIGHT`, `OUTPUT`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS` — can the project check its own work here. Exit 3 refuses: a rejected or (with the flag) missing declaration, no command, a program not installed, a red declared preflight. `--run` executes each command once (setup 3b); the autonomous launchers call it with `--require-declared` before the board |
 | `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>] [--stop <point>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED`, `STOP_POINT` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket; `--stop` with `--create` saves the stop point beside the task clock, and every later call returns it, so a resumed `sdd` does not ask again |
 | `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
@@ -883,4 +885,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.30.0 — bump the version number on every substantial change*
+*Version: 2.31.0 — bump the version number on every substantial change*

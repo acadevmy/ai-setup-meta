@@ -24,6 +24,7 @@ them.
 - [8. Boilerplate and profiles](#8-boilerplate-and-profiles)
 - [9. Base branch resolution](#9-base-branch-resolution)
 - [10. Meta-repo changes](#10-meta-repo-changes)
+- [11. Autonomous runs need declared quality commands](#11-autonomous-runs-need-declared-quality-commands)
 - [How to migrate a project](#how-to-migrate-a-project)
 - [Post-migration checklist](#post-migration-checklist)
 
@@ -323,6 +324,33 @@ with fixtures, and a CI workflow running both plus `claude plugin validate` and
 
 ---
 
+## 11. Autonomous runs need declared quality commands
+
+**Breaking.** `/dev-setup:auto-sdd` and `/dev-setup:multi-sdd` refuse to start
+on a project with no `.claude/quality-commands.json` — even one whose commands
+`detect-stack.sh` used to find correctly. Run `/dev-setup:setup` once: its
+UPDATE proposes the declaration at step 3b, from the commands your CI, task
+runner, package scripts and README already run, and verifies each one.
+
+Before, the lint, typecheck and test commands were re-derived on every run by
+per-language heuristics, and an empty one meant "the project has none" whether
+or not that was true. On DE-17472 — a Laravel project in `api/`, no rule for it
+— all three came back empty, and an autonomous run went through spec,
+challenge and nineteen commits without running a test, to stop at its last
+phase. Now:
+
+| Before | Now |
+|---|---|
+| commands guessed by `detect-stack.sh` on every run | declared in `.claude/quality-commands.json`, read first; the heuristics only answer when there is no file (`COMMANDS_SOURCE`: `declared`, `detected`, `none`) |
+| an empty command could mean anything | a command the project lacks is `null` with a reason under `absent`; a blank one is rejected |
+| an unverifiable run found out at Verify | `quality-preflight.sh` refuses at launch, in seconds, before the board; the workflow ends at intake with no command at all |
+| a hook tool detection did not know left the commit gate in full mode | `hook_manager` names it (`pre-commit`, `captainhook`, `grumphp`), and the gate defers |
+
+A failed autonomous run in a cloud session now pushes its branch (no merge
+request), so the work survives the session.
+
+---
+
 ## How to migrate a project
 
 **1. Update the plugin.**
@@ -343,13 +371,14 @@ It detects UPDATE mode from `.claude/settings.json` plus either
 `.claude/rules/dev-setup-core.md` or a legacy `CONSTITUTION.md`, and asks before
 it starts.
 
-**4. Answer three questions carefully.**
+**4. Answer four questions carefully.**
 
 | It asks | Answer |
 |---|---|
 | Migrate the pre-sandbox `settings.json`? | **Yes**, unless you have a specific reason. Declining leaves the project without the sandbox, and it will say so |
 | Delete `CONSTITUTION.md`? | Yes, *after* checking whether your team added rules to it. Anything you want to keep goes into a `.claude/rules/<your-name>.md` of your own first |
 | Overwrite `AGENTS.md` / `CLAUDE.md`? | Yes, if you have kept your customisation out of them. If not, copy it somewhere else first |
+| Lint, typecheck and test — and write `.claude/quality-commands.json`? | Pick the commands your CI runs, **None** for a kind the project really lacks, and **Write it**. Declining leaves `auto-sdd` and `multi-sdd` refusing to start, and the summary says so |
 
 **5. What is regenerated, and what is not.**
 
@@ -360,6 +389,7 @@ it starts.
 | `REGISTRY.md`, `.env.example` — after asking; in UPDATE mode they are yours, not artefacts | Dependencies, lock files, source code, `.env` |
 | `.claude/settings.json` — only when it predates the sandbox, and only after you accept the diff | |
 | `.claude/merge-request.json` — written when absent, after asking the merge request language; the catalogue labels missing on the forge are created | `.claude/merge-request.json` once you have one |
+| `.claude/quality-commands.json` — proposed when absent, a rewrite offered when malformed, every command run once | `.claude/quality-commands.json` once you have a valid one — verified, not rewritten |
 
 One edit happens without asking on a file the setup did not write: the
 `.claude/worktrees/` line appended to `.gitignore`. It adds and removes nothing.
@@ -387,6 +417,8 @@ re-opened from `.claude/settings.local.json`.
 - [ ] `.worktreeinclude` exists, and `.gitignore` holds `.claude/worktrees/`.
 - [ ] `.claude/merge-request.json` exists with the language you chose, and its
       labels are on the forge (`gh label list` / `glab label list`).
+- [ ] `.claude/quality-commands.json` exists, and the setup summary shows each
+      declared command `passed` — or you know why one is red.
 - [ ] `CONSTITUTION.md` is deleted, or you know why you kept it.
 - [ ] `AGENTS.md` holds no `{{TODO}}` and no `/project:` command references.
 - [ ] The project's test and dev commands still run — the sandbox applies to

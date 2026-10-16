@@ -2251,6 +2251,19 @@ for MODE_REF in existing.md greenfield.md; do
 done
 assert_contains "existing.md lists the new detect-stack keys" \
   "$(cat "$SETUP_DIR/reference/existing.md")" "COMMANDS_SOURCE"
+# REQ-16: the declaration is documented where a developer and an upgrader look.
+assert_contains "the developer guide documents the declaration" \
+  "$(cat "$REPO_ROOT/docs/developer-guide.md")" ".claude/quality-commands.json"
+assert_contains "and the launcher check" \
+  "$(cat "$REPO_ROOT/docs/developer-guide.md")" "quality-preflight.sh"
+assert_contains "the migration page records the contract change" \
+  "$(cat "$REPO_ROOT/docs/migration-v2-to-v3.md")" "quality-commands.json"
+for NEW_SCRIPT in quality-candidates.sh quality-preflight.sh; do
+  assert_contains "AGENTS.md lists $NEW_SCRIPT" "$(cat "$REPO_ROOT/AGENTS.md")" "\`$NEW_SCRIPT"
+done
+assert_contains "AGENTS.md lists the new detect-stack keys" \
+  "$(grep -F '`detect-stack.sh`' "$REPO_ROOT/AGENTS.md")" "COMMANDS_SOURCE"
+
 assert_eq "check 16 finds every ask of 3b reported" "" \
   "$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict 2>&1 | grep 'SETUP_ASK_UNREPORTED' | grep 'quality-commands.md' || true)"
 
