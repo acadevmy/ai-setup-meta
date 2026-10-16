@@ -1,0 +1,229 @@
+# The drafts and their templates
+
+One file per item, in `.stories/<slug>/<id>.md`, where `<slug>` is a short
+kebab-case name for the run (`trash-bin`). A draft is a YAML frontmatter and a
+markdown body. **The body is exactly what ClickUp receives**; the frontmatter
+is for this flow and never leaves the disk. `validate-story.sh` checks both.
+
+Drafts never reach a commit. Before writing the first one, make sure the
+project ignores the folder — this adds one line and removes nothing:
+
+```bash
+grep -q '^\.stories/' .gitignore 2>/dev/null || printf '\n# Story drafts (dev-setup)\n.stories/\n' >> .gitignore
+```
+
+## Index
+
+- [The frontmatter](#the-frontmatter)
+- [The story language](#the-story-language)
+- [User Story](#user-story)
+- [Epic](#epic)
+- [Task](#task)
+- [Spike](#spike)
+- [Story map](#story-map)
+- [The optional sections](#the-optional-sections)
+- [Titles](#titles)
+
+## The frontmatter
+
+```yaml
+---
+id: US-02
+title: Restore an archived path
+type: US
+products: [shop]
+relations:
+  "EPIC-01":
+    title: "Trash bin"
+    type: EPIC
+    relationType: PARENT
+    reason: "the epic this story belongs to"
+  "US-01":
+    title: "Archive a path"
+    type: US
+    relationType: BLOCKED_BY
+    reason: "there is nothing to restore before a path can be archived"
+---
+```
+
+| Key | Required | Value |
+|---|---|---|
+| `id` | yes | provisional (`US-01`) or the ClickUp custom id (`model.md`) |
+| `title` | yes | short and descriptive, no id in front; the Epic prefix is added at publication |
+| `type` | yes | `US`, `EPIC`, `TASK`, `SPIKE` or `MAP` |
+| `products` | when `product.md` has a product index | the product tags, `[shop]`; an Epic spanning products lists them all |
+| `relations` | no | as above: the key is the referenced id, quoted, at two spaces; its four fields at four spaces. Never on a `MAP` |
+| `page` | `MAP` only, written at publication | `"<doc_id>/<page_id>"` of the page created, so a resumed run updates it instead of creating a second one |
+
+No other key. Omit an optional key rather than leave it empty, and never leave
+a `{{…}}` placeholder. `frontmatter.schema.json` is the formal schema.
+
+## The story language
+
+Section headings stay **in English and in bold** — they are the structure of
+the workspace's ClickUp templates. Everything else is written in the story
+language, `Story language` in `product.md`; without one, the language the
+developer wrote the request in.
+
+| | English | Italian |
+|---|---|---|
+| Connextra | `As a <persona>, I want <goal>, so that <value>.` | `Come <persona>, voglio <obiettivo>, così da <valore>.` |
+| Gherkin | `**Given**` `**When**` `**Then**` `**And**` `**But**` | `**Dato**` `**Quando**` `**Allora**` `**E**` `**Ma**` |
+| Open point | `To confirm: …` | `Da confermare: …` |
+
+## User Story
+
+```markdown
+**User Story**
+As a <persona>, I want <goal>, so that <value>.
+
+**Outcome**
+<what changes for the user once it ships, in one or two sentences>
+
+**Acceptance Criteria**
+**Scenarios**
+
+**Scenario:** <what this scenario illustrates>
+**Given** <a known starting state>
+**And** <another precondition>
+**When** <the one action or event>
+**Then** <an observable, binary outcome>
+
+**Scenario:** <…>
+**Given** <…>
+**When** <…>
+**Then** <…>
+```
+
+Two to five scenarios, each opened by its `**Scenario:**` line, each with one
+`When`. Then the optional sections that have content.
+
+## Epic
+
+```markdown
+**Introduction**
+As a <persona>, I want <macro goal>, so that <value>.
+
+<what the module does and why it exists>
+
+**Product requirement**
+<the capabilities the epic delivers, as a list>
+
+**Technical requirement**
+<constraints, integrations, performance; "None beyond the project defaults" when there are none>
+
+**Design requirement**
+<UX, UI, accessibility, the Figma frames; "No design requirement: backend only" when there is none>
+```
+
+All four sections, always: when one does not apply, say why instead of leaving
+it empty. Then, optionally, **Scope** and the other optional sections. An Epic
+has no scenarios of its own — its stories do.
+
+## Task
+
+```markdown
+**Task Outcome**
+<the verifiable result, never generic>
+
+**Acceptance Criteria**
+- *I know this is true when…*
+- <what will be observable once it is done>
+```
+
+Optionally **Additional Notes**, **Assumptions**, **Risks**, **Resources**.
+A task is SMART (`invest.md`).
+
+## Spike
+
+```markdown
+**Task Outcome**
+<the question to answer, phrased so it can be answered>
+
+**Timebox**
+<the maximum time, e.g. "1 day" — when it runs out the spike closes with what was found>
+
+**Expected output**
+<a documented answer, a recommendation, a revised estimate, a throwaway prototype — never production code>
+
+**Exit criteria**
+- The question has a documented answer
+- The items it blocks can be estimated or revised
+```
+
+## Story map
+
+Only with `--map`, one per run: `MAP-01.md`. The body is the Doc page.
+Reference every item as `TYPE [id] title`, with its provisional id: publication
+turns each reference into a link to the real task.
+
+```markdown
+**Introduction**
+As a <persona>, I want <overall goal>, so that <value>.
+
+**Outcome**
+<the elevator pitch: the base product in two or three sentences>
+
+**Backbone**
+| Activity | 1. EPIC [EPIC-01] <title> | 2. EPIC [EPIC-02] <title> |
+|---|---|---|
+| User tasks | <step><br><step> | <step><br><step> |
+
+**Walking Skeleton**
+- SPIKE [SPIKE-01] <title>: <the technical risk it tests>
+- TASK [TASK-01] <title>: <…>
+
+**Release lanes**
+*Release 1 — MVP.* Objective: <…>. Metrics: <…>.
+- EPIC [EPIC-01] <title>: US [US-01] <title>; US [US-02] <title>
+- EPIC [EPIC-02] <title>: US [US-03] <title>
+
+*Release 2 — <name>.* Objective: <…>.
+- EPIC [EPIC-01] <title>: US [US-04] <title>
+
+**DoR Check**
+- Narrative — <one line: the backbone reads as a fluent story>
+- Vertical — <every lane crosses every epic>
+- Gravity — <each epic's stories are in priority order, no ties>
+- Functional — <the map describes the experience, not the system>
+- Walking skeleton vs MVP — <how they differ here>
+- Elevator pitch — <the base product explained in under sixty seconds>
+```
+
+Every Epic of the run is a column of the backbone; every story sits in a
+lane, under its Epic, in priority order; the walking skeleton lists tasks and
+spikes, never stories. The number of lanes is whatever the plan needs. The
+lanes live here only: no tag or field on the tasks repeats them.
+
+## The optional sections
+
+Include a section only when it has content, in this order, after the type's
+required ones:
+
+| Section | On | Holds |
+|---|---|---|
+| **Scope** | Epic | `In:` and `Out:` lists — the boundaries that stop scope creep |
+| **Story map** | Epic | never in a draft: publication adds it, with the link to the map page, when the run has `--map` |
+| **Design** | Story, Epic | the Figma links, one per line: `- [<frame name>](<url>) — <what it shows>`. Each link points at a frame (`node-id` in the URL), never at the bare file. **When the run has Figma links, every story has this section** with the frames it covers — or `No design: <why>` for a story with no screen. Only links the developer gave or the Figma file returned |
+| **Open points** | all | one `To confirm: …` per unanswered question. **Its presence is what adds the `da dettagliare` tag** |
+| **Additional Notes** | all | refinement details, business logic, constraints the developer stated; `[AI-suggested]` for your own |
+| **Assumptions** | all | what is assumed and needs validating |
+| **Risks** | all | what could go wrong, and who could mitigate it |
+
+The INVEST check is **not** a section: it is a check for whoever writes the
+item, not for whoever builds it, and the reviewer runs it.
+
+## Titles
+
+At publication, `publish.md` builds the ClickUp name from `title`:
+
+| Type | Name | Example |
+|---|---|---|
+| Epic | the title — a noun phrase of three or four words | `Trash bin` |
+| Story under an Epic | `[<Epic title>] <title>` | `[Trash bin] Restore an archived path` |
+| Task under an Epic | `[<Epic title>] <verb> <deliverable>` | `[Trash bin] Add the archived state to paths` |
+| Spike under an Epic | `[<Epic title>] Spike: <question>` | `[Trash bin] Spike: can restores keep the enrolments?` |
+| Standalone story | the title | `Sign up for product updates` |
+
+A title must stand on its own in a notification or a search result: if you
+find yourself referring to an item by its number, the title is not working.
