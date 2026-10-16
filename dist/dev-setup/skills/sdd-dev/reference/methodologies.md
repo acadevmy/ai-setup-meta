@@ -80,8 +80,11 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh --json
 
 `TEST_CMD`, `LINT_CMD` and `TYPECHECK_CMD` hold what this project uses. An
 empty value is a command the project does not define: run nothing for it and
-never substitute one of your own. Say so where the step reports — the `Tests:`
-/ `Linter:` lines of the summary, or `notes` in the autonomous run.
+never substitute one of your own. With `COMMANDS_SOURCE: declared` it is
+declared absent — `.claude/quality-commands.json` gives the reason under
+`absent` — and with `COMMANDS_SOURCE: none` nothing is declared at all. Say
+which where the step reports — the `Tests:` / `Linter:` lines of the summary,
+or `notes` in the autonomous run.
 
 A red test or a lint error stops the step: fix it before announcing the next
 one. Do not carry a failure forward "to fix at the end" — the commit gate will

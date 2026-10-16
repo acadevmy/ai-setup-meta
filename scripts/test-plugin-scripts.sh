@@ -2213,6 +2213,15 @@ assert_contains "a failed run in a cloud session is keyed on CLAUDE_CODE_REMOTE"
 assert_contains "its branch is pushed" "$FAILED_SECTION" 'git push -u origin'
 assert_contains "with no merge request" "$FAILED_SECTION" "no merge request"
 
+# REQ-12: the interactive flows do not stop on it — a person is there — but
+# they say it at the start, not in the closing summary.
+QUICK_STEP1=$(sed -n '/^1\. \*\*The change\.\*\*/,/^2\. \*\*The branch\.\*\*/p' "$SDD_DIR/quick/SKILL.md")
+assert_contains "quick says COMMANDS_SOURCE=none in its first step" "$QUICK_STEP1" "COMMANDS_SOURCE"
+SDD_STEP4=$(sed -n '/^## 4\. /,$p' "$SDD_DIR/sdd/reference/intake.md")
+assert_contains "sdd says it in its intake step 4" "$SDD_STEP4" "COMMANDS_SOURCE"
+assert_contains "sdd-dev keeps skipping a command declared absent" \
+  "$(cat "$SDD_DIR/sdd-dev/reference/methodologies.md")" "declared absent"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 11. task-clock.sh: how long the task took
 # ═══════════════════════════════════════════════════════════════════════════════

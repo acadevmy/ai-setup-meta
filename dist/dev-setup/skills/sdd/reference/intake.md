@@ -136,7 +136,14 @@ section of the ClickUp contract holds the rest.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh" --json
 ```
+
+`COMMANDS_SOURCE: none` from the second means the project declares no quality
+command and detection found none: nothing will lint, type-check or test this
+work. Say so now, in one line — not in the closing summary, where it would be
+news too late — and point at `/dev-setup:setup`, whose step 3b declares them.
+It is not a stop: a person is here to judge the work.
 
 `SPEC` and `SPEC_STATUS` say whether this task has been here before, and that
 decides where the flow actually starts:
