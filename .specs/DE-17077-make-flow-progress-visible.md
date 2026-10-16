@@ -1,6 +1,6 @@
 # Spec: [dev-setup] Make progress visible: notifications, session name, phases and next command [DE-17077]
 
-> Status: approved
+> Status: implemented
 > Task: https://app.clickup.com/t/869fb17f1
 > Branch: `feat/DE-17077_make-flow-progress-visible` (created by `sdd-start.sh` at launch)
 > Created: 2026-10-16
