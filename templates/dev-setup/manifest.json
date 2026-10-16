@@ -67,7 +67,8 @@
     "post-edit.sh",
     "post-merge-request.sh",
     "on-compact.sh",
-    "notify.sh"
+    "notify.sh",
+    "session-title.sh"
   ],
   "mod": [
     "register.ts",

@@ -3035,6 +3035,145 @@ assert_eq "failed stops the clock before the BLOCKED move" "true" \
      | grep -qE '^3\. Stop the clock, then move the task to `BLOCKED`' && echo true || echo false)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 12d. session-title.sh: the session is named after its task (DE-17077)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# `claude --resume` lists sessions by their first prompt. The hook answers
+# `sessionTitle: "<TASK_ID> <slug>"` from the branch at SessionStart, and from
+# the launch prompt of a single-task flow at UserPromptSubmit — and never over a
+# title the developer chose.
+
+echo ""
+echo "── session-title.sh (the session carries the task's name) ──"
+
+ST_REPO="$WORK_DIR/title-repo"
+mkdir -p "$ST_REPO"
+(
+  cd "$ST_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b feat/DE-123_add-user-auth
+) >/dev/null 2>&1
+
+# Feeds a payload to the hook: stdout and stderr to files, exit code returned.
+# The payload is built by the caller, as jq arguments for the fields it sets.
+title_hook_raw() {
+  local filter="$1"; shift
+  jq -n --arg cwd "${ST_CWD:-$ST_REPO}" "$@" "$filter" \
+    | bash "$PLUGIN_HOOKS/session-title.sh" >"$WORK_DIR/title-stdout" 2>"$WORK_DIR/title-stderr"
+}
+title_start() {
+  title_hook_raw '{hook_event_name: "SessionStart", source: $src, session_title: $t, cwd: $cwd}' \
+    --arg src "${1:-startup}" --arg t "${2:-}"
+}
+title_prompt() {
+  title_hook_raw '{hook_event_name: "UserPromptSubmit", prompt: $p, session_title: $t, cwd: $cwd}' \
+    --arg p "$1" --arg t "${2:-}"
+}
+title_of() { jq -r '.hookSpecificOutput.sessionTitle // empty' "$WORK_DIR/title-stdout" 2>/dev/null; }
+title_event() { jq -r '.hookSpecificOutput.hookEventName // empty' "$WORK_DIR/title-stdout" 2>/dev/null; }
+st_checkout() { (cd "$ST_REPO" && git checkout -q -B "$1") >/dev/null 2>&1; }
+
+# ── Test 5 (REQ-5): the title comes from the branch ──
+title_start startup
+assert_eq "SessionStart on a task branch exits 0" "0" "$?"
+assert_eq "with one JSON object on stdout" "1" "$(jq -s 'length' "$WORK_DIR/title-stdout" 2>/dev/null)"
+assert_eq "naming the event" "SessionStart" "$(title_event)"
+assert_eq "and the task with its slug" "DE-123 add-user-auth" "$(title_of)"
+
+title_start resume
+assert_eq "a resumed session gets the same title" "DE-123 add-user-auth" "$(title_of)"
+
+st_checkout 'feat(auth)/DE-123_add-user-auth'
+title_start startup
+assert_eq "a branch with a context gives the same title" "DE-123 add-user-auth" "$(title_of)"
+
+st_checkout feat/DE-124-add-x
+title_start startup
+assert_eq "the legacy dash delimiter gives the slug after it" "DE-124 add-x" "$(title_of)"
+st_checkout feat/DE-123_add-user-auth
+
+# ── Test 6 (REQ-6): a title the developer chose is kept ──
+title_start startup "my refactor"
+assert_eq "a title of the developer's own is never replaced" "" "$(cat "$WORK_DIR/title-stdout")"
+title_start startup "DE-99 old-thing"
+assert_eq "an earlier task title is the hook's own and is replaced" "DE-123 add-user-auth" "$(title_of)"
+title_start startup "DE-123 add-user-auth"
+assert_eq "a title already right is left alone" "" "$(cat "$WORK_DIR/title-stdout")"
+
+# ── Test 7 (REQ-7): the launch prompt names a session opened on next ──
+(cd "$ST_REPO" && git branch -q feat/DE-125_fix-login && git checkout -q -B next) >/dev/null 2>&1
+title_prompt "/dev-setup:sdd DE-125"
+assert_eq "/dev-setup:sdd <id> titles the session from its local branch" "DE-125 fix-login" "$(title_of)"
+assert_eq "naming the event" "UserPromptSubmit" "$(title_event)"
+title_prompt "/dev-setup:quick DE-126"
+assert_eq "with no branch for the id, the title is the id" "DE-126" "$(title_of)"
+title_prompt "/dev-setup:auto-sdd DE-125 --stop review"
+assert_eq "auto-sdd launches one task too" "DE-125 fix-login" "$(title_of)"
+for ST_PROMPT in "/dev-setup:multi-sdd DE-1 DE-2" "explain DE-125" "/dev-setup:sdd" \
+                 "/dev-setup:sdd DE-125x"; do
+  title_prompt "$ST_PROMPT"
+  assert_eq "silent on: $ST_PROMPT" "0:" "$?:$(cat "$WORK_DIR/title-stdout")"
+done
+title_prompt "/dev-setup:sdd DE-125" "my refactor"
+assert_eq "the launch prompt keeps a title of the developer's own" "" "$(cat "$WORK_DIR/title-stdout")"
+title_prompt "/dev-setup:sdd DE-125" "DE-125 fix-login"
+assert_eq "and says nothing when the title is already right" "" "$(cat "$WORK_DIR/title-stdout")"
+
+# ── Test 8 (REQ-8): silent off a task branch, open when something is missing ──
+st_checkout chore/no-task
+title_start startup
+assert_eq "a branch with no task id says nothing" "0:" "$?:$(cat "$WORK_DIR/title-stdout")"
+title_hook_raw '{hook_event_name: "SessionStart", source: "compact", cwd: $cwd}'
+assert_eq "and so does a compact SessionStart" "" "$(cat "$WORK_DIR/title-stdout")"
+st_checkout feat/DE-123_add-user-auth
+
+ST_PAYLOAD=$(jq -n --arg cwd "$ST_REPO" '{hook_event_name: "SessionStart", source: "startup", cwd: $cwd}')
+printf '%s' "$ST_PAYLOAD" | PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$PLUGIN_HOOKS/session-title.sh" \
+  >"$WORK_DIR/title-stdout" 2>/dev/null
+assert_eq "without jq it exits 0 with an empty stdout" "0:" "$?:$(cat "$WORK_DIR/title-stdout")"
+
+mkdir -p "$WORK_DIR/title-not-a-repo"
+ST_CWD="$WORK_DIR/title-not-a-repo" title_start startup
+assert_eq "a cwd outside a repository exits 0 with an empty stdout" "0:" \
+  "$?:$(cat "$WORK_DIR/title-stdout")"
+
+ST_LONELY="$WORK_DIR/title-lonely/hooks"
+mkdir -p "$ST_LONELY"
+cp "$PLUGIN_HOOKS/session-title.sh" "$ST_LONELY/session-title.sh"
+printf '%s' "$ST_PAYLOAD" | env -u CLAUDE_PLUGIN_ROOT bash "$ST_LONELY/session-title.sh" \
+  >"$WORK_DIR/title-stdout" 2>/dev/null
+assert_eq "without the plugin scripts it exits 0 with an empty stdout" "0:" \
+  "$?:$(cat "$WORK_DIR/title-stdout")"
+
+# ── Test 9 (REQ-9): both hooks ship mounted ──
+#
+# Read from the generated hooks.json: a hook that is built but not mounted runs
+# nowhere, and one mounted on the wrong matcher speaks on the wrong event.
+assert_eq "notify.sh is mounted on Notification, matcher permission_prompt" "permission_prompt" \
+  "$(jq -r '[.hooks.Notification[]? | select(any(.hooks[]; .command | endswith("/notify.sh\"")))
+            | .matcher] | join(",")' "$HOOKS_JSON")"
+assert_eq "session-title.sh is mounted on SessionStart startup|resume" "startup|resume" \
+  "$(jq -r '[.hooks.SessionStart[]? | select(any(.hooks[]; .command | endswith("/session-title.sh\"")))
+            | .matcher] | join(",")' "$HOOKS_JSON")"
+assert_eq "and the compact handler is still on-compact.sh, alone" "1" \
+  "$(jq '[.hooks.SessionStart[]? | select(.matcher == "compact")
+          | select(any(.hooks[]; .command | endswith("/on-compact.sh\"")))] | length' "$HOOKS_JSON")"
+assert_eq "session-title.sh is mounted on UserPromptSubmit" "1" \
+  "$(jq '[.hooks.UserPromptSubmit[]? | .hooks[] | select(.command | endswith("/session-title.sh\""))]
+         | length' "$HOOKS_JSON")"
+for ST_HOOK in notify.sh session-title.sh; do
+  assert_eq "$ST_HOOK ships in the built plugin" "true" \
+    "$([ -x "$REPO_ROOT/dist/dev-setup/hooks/scripts/$ST_HOOK" ] && echo true || echo false)"
+  assert_eq "and the manifest lists it" "true" \
+    "$(jq -e --arg h "$ST_HOOK" '.hooks | index($h) != null' \
+         "$REPO_ROOT/templates/dev-setup/manifest.json" >/dev/null && echo true || echo false)"
+done
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 13. review-package.sh: the diff verify and review read, built once (DE-17080)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
