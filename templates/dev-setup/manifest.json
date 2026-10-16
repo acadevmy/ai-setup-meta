@@ -48,6 +48,7 @@
   "plugin_scripts": [
     "common.sh",
     "detect-stack.sh",
+    "quality-candidates.sh",
     "sdd-start.sh",
     "check-prerequisites.sh",
     "review-package.sh",

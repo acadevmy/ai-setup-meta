@@ -869,6 +869,163 @@ git -C "$HM_NONE" add -A
 assert_eq "without a declared hook manager the red declared lint refuses the commit" \
   "deny" "$(decision_of "$(gate "$HM_NONE" 'git commit -m "feat: x"')")"
 
+echo ""
+echo "── quality-candidates.sh (what the setup proposes) ──"
+
+# The candidates come from where a project already declares its gates — CI,
+# task runners, package scripts, docs — and only last from the per-language
+# heuristics. Nothing here knows a language: that is the point (DE-17472).
+candidates() { (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/quality-candidates.sh" --json "$@" 2>/dev/null); }
+cand_key() { local dir="$1" key="$2"; shift 2; candidates "$dir" "$@" | jq -r --arg k "$key" '.[$k]'; }
+TAB=$'\t'
+
+# Asserts a candidate list holds the exact `<command>\t<source>` line.
+assert_line() {
+  local label="$1" haystack="$2" line="$3"
+  if printf '%s\n' "$haystack" | grep -Fxq -- "$line"; then
+    pass "$label"
+  else
+    fail "$label" "expected the line: $line
+  got: $haystack"
+  fi
+}
+
+# One ad-hoc directory per reader, each yielding a command no other reader
+# yields, so a reader that silently stopped working shows up by name.
+CAND="$WORK_DIR/candidates"
+
+mkdir -p "$CAND/run-block/.github/workflows"
+cat > "$CAND/run-block/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Types
+        run: |
+          npm ci
+          npm run check:types
+EOF
+assert_line "a run: | block is read line by line" \
+  "$(cand_key "$CAND/run-block" TYPECHECK_CANDIDATES)" "npm run check:types${TAB}ci:.github/workflows/ci.yml"
+assert_eq "and the install line in it is no gate" "" \
+  "$(candidates "$CAND/run-block" | jq -r '[.LINT_CANDIDATES, .TYPECHECK_CANDIDATES, .TEST_CANDIDATES] | join("\n")' | grep -F 'npm ci' || true)"
+
+mkdir -p "$CAND/step-wd/.github/workflows"
+cat > "$CAND/step-wd/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test
+        working-directory: web
+        run: npm test
+EOF
+assert_line "a step's working-directory is folded into the command" \
+  "$(cand_key "$CAND/step-wd" TEST_CANDIDATES)" "cd web && npm test${TAB}ci:.github/workflows/ci.yml"
+
+mkdir -p "$CAND/job-wd/.github/workflows"
+cat > "$CAND/job-wd/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  svc:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: svc
+    steps:
+      - run: make lint
+EOF
+assert_line "a job's defaults.run.working-directory is folded in too" \
+  "$(cand_key "$CAND/job-wd" LINT_CANDIDATES)" "cd svc && make lint${TAB}ci:.github/workflows/ci.yml"
+
+mkdir -p "$CAND/gitlab"
+cat > "$CAND/gitlab/.gitlab-ci.yml" <<'EOF'
+test:
+  stage: test
+  before_script:
+    - ./gradlew --version
+  script:
+    - ./gradlew test
+EOF
+assert_line "a GitLab script: item" \
+  "$(cand_key "$CAND/gitlab" TEST_CANDIDATES)" "./gradlew test${TAB}ci:.gitlab-ci.yml"
+
+mkdir -p "$CAND/just"
+printf 'set shell := ["bash", "-c"]\n\nlint:\n    cargo clippy\n' > "$CAND/just/justfile"
+assert_line "a justfile recipe" \
+  "$(cand_key "$CAND/just" LINT_CANDIDATES)" "just lint${TAB}runner:justfile"
+
+mkdir -p "$CAND/taskfile"
+printf "version: '3'\n\ntasks:\n  test:\n    cmds:\n      - go test ./...\n" > "$CAND/taskfile/Taskfile.yml"
+assert_line "a Taskfile task" \
+  "$(cand_key "$CAND/taskfile" TEST_CANDIDATES)" "task test${TAB}runner:Taskfile.yml"
+
+mkdir -p "$CAND/composer"
+echo '{"scripts":{"post-install-cmd":"@php artisan key:generate","analyse":"phpstan analyse"}}' > "$CAND/composer/composer.json"
+assert_line "a composer script" \
+  "$(cand_key "$CAND/composer" TYPECHECK_CANDIDATES)" "composer analyse${TAB}scripts:composer.json"
+
+mkdir -p "$CAND/pyproject"
+printf '[project]\nname = "x"\n\n[tool.poe.tasks]\nlint = "ruff check ."\n\n[tool.pdm.scripts]\ntest = "pytest"\n' > "$CAND/pyproject/pyproject.toml"
+assert_line "a poe task" \
+  "$(cand_key "$CAND/pyproject" LINT_CANDIDATES)" "poe lint${TAB}scripts:pyproject.toml"
+assert_line "a pdm script" \
+  "$(cand_key "$CAND/pyproject" TEST_CANDIDATES)" "pdm run test${TAB}scripts:pyproject.toml"
+
+mkdir -p "$CAND/docs"
+printf '# x\n\n```bash\nmake test\n```\n\n```json\n{ "lint": "not a command" }\n```\n' > "$CAND/docs/README.md"
+printf '# Agents\n\n```sh\n$ make lint\n```\n' > "$CAND/docs/AGENTS.md"
+assert_line "a fenced command in README.md" \
+  "$(cand_key "$CAND/docs" TEST_CANDIDATES)" "make test${TAB}docs:README.md"
+assert_line "a fenced command in AGENTS.md" \
+  "$(cand_key "$CAND/docs" LINT_CANDIDATES)" "make lint${TAB}docs:AGENTS.md"
+assert_eq "a JSON block is not read as a command" "" \
+  "$(cand_key "$CAND/docs" LINT_CANDIDATES | grep -F 'not a command' || true)"
+
+mkdir -p "$CAND/go"
+printf 'module example.com/x\n\ngo 1.23\n' > "$CAND/go/go.mod"
+assert_line "the detect-stack heuristics come last" \
+  "$(cand_key "$CAND/go" TEST_CANDIDATES)" "go test ./...${TAB}heuristic:detect-stack.sh"
+
+UM_LINT=$(cand_key "$WORK_DIR/unknown-make" LINT_CANDIDATES)
+assert_line "a stack nobody wrote a rule for still gets its make lint" \
+  "$UM_LINT" "make lint${TAB}ci:.github/workflows/ci.yml"
+assert_eq "once, with the CI source, although the Makefile and the README yield it too" "1" \
+  "$(printf '%s\n' "$UM_LINT" | grep -c '^make lint	')"
+assert_line "and its make test" \
+  "$(cand_key "$WORK_DIR/unknown-make" TEST_CANDIDATES)" "make test${TAB}ci:.github/workflows/ci.yml"
+
+assert_line "package.json scripts, with the package manager's runner" \
+  "$(cand_key "$WORK_DIR/nestjs" LINT_CANDIDATES)" "npm run lint${TAB}scripts:package.json"
+
+LA_DIR_ALL=$(candidates "$WORK_DIR/laravel-api" --dir api \
+  | jq -r '[.LINT_CANDIDATES, .TYPECHECK_CANDIDATES, .TEST_CANDIDATES] | join("\n")')
+assert_line "--dir points the scan at a sub-project and folds it into the command" \
+  "$LA_DIR_ALL" "cd api && composer lint${TAB}scripts:api/composer.json"
+assert_line "every script of it" \
+  "$LA_DIR_ALL" "cd api && composer test${TAB}scripts:api/composer.json"
+
+EMPTY_CAND="$CAND/empty"
+mkdir -p "$EMPTY_CAND"
+assert_eq "an empty directory has no candidate" "0" "$(cand_key "$EMPTY_CAND" CANDIDATE_COUNT)"
+(cd "$EMPTY_CAND" && bash "$PLUGIN_SCRIPTS/quality-candidates.sh" --json) >/dev/null 2>&1
+assert_eq "and that is not an error" "0" "$?"
+
+# REQ-7, the DE-17472 regression: the gates are in a root Makefile and in the CI
+# job `api`. They come out as root commands — no `cd api`, which would run the
+# root Makefile's targets in the wrong directory — and no PHP rule found them.
+LA_LINT=$(cand_key "$WORK_DIR/laravel-api" LINT_CANDIDATES)
+LA_TEST=$(cand_key "$WORK_DIR/laravel-api" TEST_CANDIDATES)
+assert_line "laravel-api: make lint from the CI, at the root" "$LA_LINT" "make lint${TAB}ci:.github/workflows/ci.yml"
+assert_line "laravel-api: make test from the CI, at the root" "$LA_TEST" "make test${TAB}ci:.github/workflows/ci.yml"
+assert_eq "laravel-api: detect-stack still knows no language there" \
+  "unknown" "$(stack_key "$WORK_DIR/laravel-api" LANG)"
+assert_eq "no rule for PHP was added to detect-stack.sh" "" \
+  "$(grep -n -E 'composer\.json|artisan|\.php\b|phpunit|laravel' "$PLUGIN_SCRIPTS/detect-stack.sh" || true)"
+
+assert_eq "the candidates script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/quality-candidates.sh" ] && echo true || echo false)"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. rules/ — the path-scoped rule templates (DE-16477)
 # ═══════════════════════════════════════════════════════════════════════════════
