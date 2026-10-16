@@ -22,6 +22,7 @@ inside a value as `'\''` (`dell'API` → `'dell'\''API'`).
 | MR state | `glab mr view <n> --output json` |
 | Open MRs | `glab mr list --state opened` |
 | Pipeline | `glab ci status` |
+| Follow its pipeline | `glab ci status --live --branch '<BRANCH>'` — the branch explicit: the caller may sit on another checkout |
 | Release | `glab release create v1.2.0 --name "v1.2.0" --notes-file notes.md` (GitLab 16.0+) |
 
 ## MR templates

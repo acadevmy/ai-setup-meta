@@ -4197,6 +4197,51 @@ assert_contains "and the flow goes on in sdd" "$PV_INTAKE_FLAT" "Then the flow g
 assert_contains "never moving itself to a lighter flow" "$PV_INTAKE_FLAT" \
   "it never moves itself to a lighter flow"
 
+# ── Test 11 (REQ-11): every closing report ends on the next command ──
+PV_STOP="$SDD_DIR/sdd/reference/stop-point.md"
+PV_STOP_BLOCK="$(awk '/^## Ending at a stop point/ { p = 1; next } /^## / { p = 0 } p' "$PV_STOP")"
+PV_STOP_FENCE="$(printf '%s\n' "$PV_STOP_BLOCK" | awk '/^```/ { n++; next } n == 1')"
+assert_contains "the stop-point report's last line is the next command" \
+  "$(printf '%s\n' "$PV_STOP_FENCE" | grep -v '^[[:space:]]*$' | tail -1 | tr -s ' ')" \
+  "Next: /dev-setup:sdd"
+assert_eq "and Resume: is gone from it" "" \
+  "$(printf '%s\n' "$PV_STOP_BLOCK" | grep -F 'Resume:' || true)"
+
+assert_eq "the GitHub reference has the follow-its-CI row" "1" \
+  "$(grep -cF '| Follow its CI | `gh pr checks <n> --watch` |' \
+       "$REPO_ROOT/shared/skills/vcs-ops/reference/github.md")"
+assert_eq "the GitLab one names the branch explicitly" "1" \
+  "$(grep -cF "| Follow its pipeline | \`glab ci status --live --branch '<BRANCH>'\`" \
+       "$REPO_ROOT/shared/skills/vcs-ops/reference/gitlab.md")"
+
+PV_CLOSURE="$SDD_DIR/sdd/reference/closure.md"
+PV_QUICK="$SDD_DIR/quick/SKILL.md"
+PV_OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+for PV_FILE in "$PV_CLOSURE" "$PV_QUICK" "$PV_OUTCOMES"; do
+  PV_NAME="${PV_FILE#"$REPO_ROOT"/templates/dev-setup/.claude/}"
+  assert_contains "$PV_NAME ends on Next: and the host reference's CI command" \
+    "$(flat "$PV_FILE")" "follow-its-CI command"
+  assert_contains "$PV_NAME points at the host reference for it" "$(flat "$PV_FILE")" "host reference"
+  assert_eq "$PV_NAME names no host CI command of its own" "" \
+    "$(grep -nE 'gh pr checks|glab ci' "$PV_FILE" || true)"
+done
+assert_contains "a declined merge request in sdd ends on the resume" \
+  "$(flat "$PV_CLOSURE")" "Declined means declined: report it, leave the branch pushed, and end on \`Next: /dev-setup:sdd <custom_id>\`"
+assert_contains "in quick, on the host reference's open command" \
+  "$(flat "$PV_QUICK")" "(declined: its open command)"
+assert_contains "and in ready-for-mr too" \
+  "$(flat "$PV_OUTCOMES")" "end on \`Next:\` and the host reference's open command"
+
+PV_FAILED="$(awk '/^## failed/ { p = 1; next } /^## / { p = 0 } p' "$PV_OUTCOMES" | tr '\n' ' ' | tr -s ' ')"
+for PV_FORM in '`verify` → `Next: cd "<worktreePath>" && <the command that failed>`' \
+               '`dev` → `Next: cd "<worktreePath>"`' \
+               '`spec` → `Next: /dev-setup:sdd <taskId>`' \
+               '`intake` → `Next: /dev-setup:auto-sdd <taskId>`'; do
+  assert_contains "failed ends on: ${PV_FORM%% →*}" "$PV_FAILED" "$PV_FORM"
+done
+assert_eq "quick/SKILL.md stays within 500 words" "true" \
+  "$([ "$(wc -w < "$PV_QUICK" | tr -d ' ')" -le 500 ] && echo true || echo false)"
+
 echo ""
 echo "── frontmatter parseability ──"
 

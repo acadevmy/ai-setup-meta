@@ -121,8 +121,11 @@ Spec:    .specs/DE-123-<slug>.md (implemented)
 Git:     1 commit, not pushed       ← or: staged / uncommitted, from git status
 Task:    IN PROGRESS, clock still running
 
-Resume:  /dev-setup:sdd DE-123
+Next:    /dev-setup:sdd DE-123
 ```
+
+The last line is always `Next:` and the exact command to run next — here the
+resume, which is the same command as the launch.
 
 ## Resuming
 

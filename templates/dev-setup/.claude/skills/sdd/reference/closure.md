@@ -143,7 +143,8 @@ GitLab reference accordingly, so there is nothing to pick here. Target the
 The `ask` rule on `gh pr create` / `glab mr create` is the developer's last
 checkpoint, and it is a permission rule — do not ask for the same confirmation
 in chat first, and do not work around a refusal. Declined means declined: report
-it and leave the branch pushed.
+it, leave the branch pushed, and end on `Next: /dev-setup:sdd <custom_id>` — the
+resume reaches closure 8 again, with the commit and the push already done.
 
 ## 9. Stop the clock and move the task
 
@@ -160,3 +161,8 @@ nothing to report (`REASON` says why): the move goes out without a comment, and
 you say so in one line. Never compose a duration yourself — the work clock
 section of `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` is the rule,
 and an estimate posted as a measurement is the one failure it names.
+
+The final report — the merge request link, the task moved — ends on one line:
+`Next:` and the follow-its-CI command from the host reference `vcs-ops` loaded
+in step 8, with the merge request's number or branch filled in. It is not a
+question: the developer runs it, or asks you to.
