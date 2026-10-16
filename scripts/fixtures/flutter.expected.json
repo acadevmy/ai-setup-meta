@@ -1,4 +1,5 @@
 {
+  "COMMANDS_SOURCE": "detected",
   "FRAMEWORKS": "flutter",
   "HAS_FRONTEND": "false",
   "HAS_INFRA": "false",
@@ -8,6 +9,7 @@
   "LINT_CMD": "dart analyze",
   "MONOREPO": "",
   "PKG_MANAGER": "pub",
+  "PREFLIGHT_CMD": "",
   "SERVICES_GLOB": "",
   "TEST_CMD": "flutter test",
   "TYPECHECK_CMD": "flutter analyze",

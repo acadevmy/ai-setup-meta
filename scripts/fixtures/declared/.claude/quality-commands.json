@@ -1,0 +1,8 @@
+{
+  "lint": "make lint-all",
+  "typecheck": null,
+  "test": "make test-all",
+  "absent": { "typecheck": "the types are checked by the build, not by a separate command" },
+  "preflight": "bin/check-toolchain.sh",
+  "hook_manager": null
+}

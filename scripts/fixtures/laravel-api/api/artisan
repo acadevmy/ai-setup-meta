@@ -1,0 +1,9 @@
+#!/usr/bin/env php
+<?php
+
+// Laravel's console entry point, as the framework scaffolds it. A marker only:
+// the fixture is about where the gates are declared, not about running PHP.
+
+define('LARAVEL_START', microtime(true));
+
+require __DIR__.'/vendor/autoload.php';

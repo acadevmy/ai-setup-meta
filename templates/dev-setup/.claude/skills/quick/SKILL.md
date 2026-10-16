@@ -13,7 +13,7 @@ Branch, change, commit, merge request. **No discovery, no spec, no registry
 pass** — that ceremony outweighs a one-line fix.
 
 **Usage**: `/dev-setup:quick [TASK_ID | description] [--worktree]`. A task id
-(`DE-123`) is read from the board; a plain description needs none.
+is read from the board; a description needs none.
 
 ## The bar
 
@@ -21,7 +21,7 @@ pass** — that ceremony outweighs a one-line fix.
 interface**. Everything else is `sdd`, whose spec is what a reviewer reads the
 diff against.
 
-Check it against the task, then against reality while you work. If the
+Check it against the task, then while you work. If the
 change crosses the bar mid-flight, say what it grew into and let the developer
 choose with `AskUserQuestion`, header `Route`: **Stay in quick** (finish here,
 the merge request carries the reasoning) or **Switch to sdd** (keep the branch,
@@ -37,7 +37,9 @@ feature without a spec, and never abandon a nearly-done change.
    `IN PROGRESS` and start that contract's work clock (`task-clock.sh
    --start`). A `BACKLOG` task first
    passes its backlog gate (declined → stop, task untouched). Without one,
-   `$ARGUMENTS` is the whole input — do not ask for a ticket.
+   `$ARGUMENTS` is the whole input — do not ask for a ticket. On
+   `COMMANDS_SOURCE: none` from `detect-stack.sh --json`, say in one line that
+   nothing will lint or test it.
 
 2. **The branch.** With `--worktree`, first read `BASE_BRANCH` from
    `check-prerequisites.sh` **in the main checkout**, then
@@ -51,10 +53,10 @@ feature without a spec, and never abandon a nearly-done change.
 
    It resolves `BASE_BRANCH` itself — never a hard-coded `main`.
 
-3. **The change itself.** The path-scoped rules load on the files you open.
-   Run the project's test and lint commands on what you touched.
+3. **The change itself.** Run the project's test and lint commands on what
+   you touched.
 
-4. **Commit.** One Conventional Commit, with the custom id when there is one:
+4. **Commit.** One Conventional Commit, with the custom id, if any:
    `fix(auth): reject an expired refresh token [DE-123]`. The commit hook runs
    lint, type check and tests; a denial carries the real output. Fix and commit
    again — `--no-verify` is a deny rule.

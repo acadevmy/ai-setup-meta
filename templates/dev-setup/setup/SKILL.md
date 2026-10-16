@@ -28,7 +28,7 @@ Skills and agents are **not** installed: the plugin provides them.
   `go.mod`, `pubspec.yaml` or `Cargo.toml`, and no source file outside config.
 - **EXISTING** — every other case.
 
-Report the mode before proceeding.
+Report the mode first.
 
 ## The procedure
 
@@ -40,6 +40,7 @@ Run the steps **in this order**, reading only the reference each one names.
 | 2b | Stack selection — ask the developer | GREENFIELD | `greenfield.md` |
 | 2c | VCS detection — which host `origin` belongs to | all | `install.md` |
 | 3 | Install the plugin's resources (3.1–3.9) | all | `install.md` |
+| 3b | Declare and verify the quality commands | all (GREENFIELD: after 8) | `quality-commands.md` |
 | 4 | Render the path-scoped rules | all | `rules-generation.md` |
 | 5, 5b | Generate AGENTS.md and CLAUDE.md | all | `agents-generation.md` |
 | 6, 7 | MCP servers and `.env.example` | all | `mcp-env.md` |
@@ -50,7 +51,7 @@ Run the steps **in this order**, reading only the reference each one names.
 | 9 | Summary — collects the one-line reports of the steps above | all | the mode's |
 
 Each reference is one hop from here. `existing.md` and `greenfield.md` are
-mutually exclusive mode branches: reading both is the cost this split removes.
+mutually exclusive mode branches: never read both.
 
 ## Two rules that hold everywhere
 

@@ -39,16 +39,27 @@ feedback on the merge request, handled like any other.
 
 `{ status: 'failed', stage, reason, output?, branch?, worktreePath? }`
 
-`stage` says where: `intake` (the launcher passed bad arguments — that is a bug
-in the launch call, fix it), `spec`, `dev`, or `verify` (the project lint,
-typecheck or test command came back red).
+`stage` says where: `intake` (the launcher passed bad arguments, or three empty
+quality commands — a bug in the launch call, fix it), `spec`, `dev`, or `verify`
+(the project lint, typecheck or test command came back red).
 
 1. Show `reason` and, when `verify` failed, the `output` as it came — that is the
    real command output, not a summary of it.
-2. Stop the clock, then move the task to `BLOCKED` with the same bail-out call:
-   one `update` naming the stage, the reason and the branch, with the clock's
-   `COMMENT` after the note.
-3. Leave the branch and the worktree alone. They are the debugging material, and
+2. **In an ephemeral session** — `CLAUDE_CODE_REMOTE` is `true`, a cloud session
+   whose disk goes when it ends — a branch left alone is a branch lost: on
+   DE-17472 the branch and the worktree of a failed run vanished with the
+   session. When the outcome carries a `branch`, push it — and open
+   no merge request: a failed run is something to resume, not to review.
+
+   ```bash
+   git push -u origin "<branch>"
+   ```
+
+   Locally nothing changes: the worktree survives and stays on disk.
+3. Stop the clock, then move the task to `BLOCKED` with the same bail-out call:
+   one `update` naming the stage, the reason and the branch — and, when step 2
+   pushed it, that it is on `origin` — with the clock's `COMMENT` after the note.
+4. Leave the branch and the worktree alone. They are the debugging material, and
    deleting them is the one thing that makes the failure unreadable.
 
 A `verify` failure is the one worth resuming rather than relaunching: the spec,
@@ -57,10 +68,15 @@ once the cause is fixed, and only the commands run again.
 
 ## ready-for-mr — push and open it
 
-`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[] }`
+`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[], unverified[] }`
 
-The tests, the linter and the type checker ran green in the worktree, and the
-spec is committed on the branch. Two things are left, and they are the two the
+Every quality command this environment could run ran green in the worktree,
+and the spec is committed on the branch. `unverified` lists the ones it could
+not — `{ kind, command, reason }`: declared by the project, but their program,
+service or runtime is not here (the launcher's `UNAVAILABLE`, or a command that
+exited 126/127 at Verify). A missing toolchain does not stop a run: it goes to
+the end, and the merge request says which checks nobody ran. When every
+command is unverified, `output` is empty and nothing at all was checked. Two things are left, and they are the two the
 workflow deliberately does not do:
 
 ```bash
@@ -95,6 +111,11 @@ Title, language and labels from `mr-meta.sh`, as `vcs-ops` describes —
 `--priority`. Body as `vcs-ops` describes — the template, filled in and short —
 plus what this flow owes a reviewer who was not watching:
 
+- **not verified**, first of all, when `unverified` holds anything: one line
+  per entry — the kind, the command, the reason — and that the run did not
+  prove it. Whoever merges runs those commands, or waits for the CI that
+  does: a green merge request that hides an unrun suite is the defect this
+  section exists to prevent.
 - **the real test output**, in a fenced block: the `output` field, as it came
   back. A reviewer has to see the suite passing without re-running it.
 - **to confirm**, at the top, when `toConfirm` or `deviations` holds anything:
@@ -135,14 +156,37 @@ the session is gone, so is the journal.
 
 ## When the run does not start
 
-Two failures happen before any phase does, and neither is a task problem:
+Three failures happen before any phase does, and none is a task problem:
 
+- **`quality-preflight.sh` refuses** (exit 3) — the project does not say how
+  to check its work: no `.claude/quality-commands.json`, a rejected one, or
+  every command declared absent. A program not installed or a red declared
+  preflight is not a refusal: with `--allow-unavailable` those commands come
+  back in `UNAVAILABLE`, the run starts, and its merge request lists them as
+  not verified. `REASON` says which, `OUTPUT` carries what failed. Nothing has
+  started — no fork-point question, no `IN PROGRESS`, no clock, no `Workflow` —
+  and what happens to the task depends on where it was read:
+  - read in `SPRINT` (`auto-sdd`) → one bail-out call, `SPRINT → BLOCKED`, its
+    note `REASON` and `OUTPUT`: the board says why the task cannot run here;
+  - read in `BACKLOG` (`auto-sdd`) → left as found, and `REASON` and `OUTPUT`
+    shown in chat. The backlog gate never moves a task on the flow's
+    initiative, and the board has no `BACKLOG → BLOCKED` move;
+  - `multi-sdd` → no task is read or touched: the check runs once, before the
+    first read. Print `REASON` and `OUTPUT` and stop, as on `multi-preflight.sh`
+    exit 3.
+
+  The fix belongs to the project, not the task: `/dev-setup:setup` writes or
+  repairs the declaration (step 3b), then launch again. Any other non-zero exit
+  is a broken script — show its stderr and stop, with no board write.
 - **`Workflow "dev-setup:auto-sdd" not found`** — the loaded plugin has no such
   workflow. The usual cause is a stale install shadowing a newer build: check
   that `${CLAUDE_PLUGIN_ROOT}/workflows/auto-sdd.js` exists, and if it does not,
   reinstall or rebuild the plugin. The same script can be launched by path with
   `scriptPath` while that is being fixed.
 - **`status: 'failed', stage: 'intake'`** — the launcher passed bad arguments:
-  a missing `taskId`, `pluginRoot` or `baseBranch`, or a task id that is not a
-  plain identifier. The `reason` names which. Fix the launch call, not the
+  a missing `taskId`, `pluginRoot` or `baseBranch`, a task id that is not a
+  plain identifier, or a `stack` whose three commands are all empty — which the
+  check above refuses first, so seeing it means that check was skipped. A
+  `stack` whose commands are all `unavailable` is not this: it runs, unverified. The
+  `reason` names which, and no agent ran. Fix the launch call, not the
   workflow.

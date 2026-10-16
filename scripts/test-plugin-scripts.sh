@@ -765,6 +765,379 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 6b. The quality commands are a declaration of the project (DE-17535)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# On DE-17472 detection found no stack it knew, returned three empty commands,
+# and every consumer read "empty" as "the project has none": an autonomous run
+# spent its whole budget without running a test. The commands are now declared
+# by the project in `.claude/quality-commands.json`, which detect-stack.sh reads
+# before its heuristics — and "declared absent" is a value, not an empty string.
+
+echo ""
+echo "── detect-stack.sh (the quality-commands declaration) ──"
+
+stack_of() { (cd "$1" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json 2>/dev/null); }
+stack_key() { stack_of "$1" | jq -r --arg k "$2" '.[$k]'; }
+
+# Writes a declaration into a fresh directory under the work directory.
+declare_in() {
+  local dir="$1" json="$2"
+  mkdir -p "$dir/.claude"
+  printf '%s\n' "$json" > "$dir/.claude/quality-commands.json"
+}
+
+# REQ-2: the declaration wins over the heuristics, wholesale. The fixture's
+# package.json has lint and test scripts and a tsconfig.json, so the heuristics
+# would answer `npm run lint`, `npm run test` and `npx tsc --noEmit`.
+assert_eq "a declared lint wins over the package.json script" \
+  "make lint-all" "$(stack_key "$WORK_DIR/declared" LINT_CMD)"
+assert_eq "a declared test wins over the package.json script" \
+  "make test-all" "$(stack_key "$WORK_DIR/declared" TEST_CMD)"
+# REQ-3: null is a decision, not a gap — never filled in from a heuristic.
+assert_eq "a command declared absent stays empty, although tsconfig.json would give one" \
+  "" "$(stack_key "$WORK_DIR/declared" TYPECHECK_CMD)"
+assert_eq "and the source says the commands are declared" \
+  "declared" "$(stack_key "$WORK_DIR/declared" COMMANDS_SOURCE)"
+assert_eq "the declared preflight is reported" \
+  "bin/check-toolchain.sh" "$(stack_key "$WORK_DIR/declared" PREFLIGHT_CMD)"
+
+# REQ-4: without a declaration, "detected" means at least one heuristic
+# command, and "none" means all three are empty — the case that must never
+# reach an autonomous run unnoticed again.
+for NAME in plain-node unknown-make laravel-api; do
+  assert_eq "no declaration and nothing detected is none: $NAME" \
+    "none" "$(stack_key "$WORK_DIR/$NAME" COMMANDS_SOURCE)"
+done
+for NAME in nestjs nextjs flutter monorepo; do
+  assert_eq "no declaration and heuristic commands is detected: $NAME" \
+    "detected" "$(stack_key "$WORK_DIR/$NAME" COMMANDS_SOURCE)"
+done
+LINT_ONLY="$WORK_DIR/lint-only"
+mkdir -p "$LINT_ONLY"
+echo '{"scripts":{"lint":"eslint ."}}' > "$LINT_ONLY/package.json"
+assert_eq "one detected command is enough to be detected" \
+  "detected" "$(stack_key "$LINT_ONLY" COMMANDS_SOURCE)"
+assert_eq "no declaration, no preflight" "" "$(stack_key "$WORK_DIR/nestjs" PREFLIGHT_CMD)"
+for SNAPSHOT in "$FIXTURES"/*.expected.json; do
+  assert_eq "the snapshot carries the two new keys: $(basename "$SNAPSHOT")" "true" \
+    "$(jq 'has("COMMANDS_SOURCE") and has("PREFLIGHT_CMD")' "$SNAPSHOT")"
+done
+
+# REQ-1: a malformed declaration is an error, not a guess. Exit non-zero, the
+# cause on stderr, nothing on stdout — the precedent mr-meta.sh set.
+slug_of() { printf '%s' "$1" | tr -cs 'A-Za-z0-9' '-'; }
+malformed_case() {
+  local label="$1" json="$2" dir out err rc
+  dir="$WORK_DIR/malformed-$(slug_of "$label")"
+  declare_in "$dir" "$json"
+  out=$(cd "$dir" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json 2>"$dir.err")
+  rc=$?
+  err=$(cat "$dir.err")
+  assert_eq "malformed ($label): non-zero exit" "true" "$([ "$rc" -ne 0 ] && echo true || echo false)"
+  assert_eq "malformed ($label): nothing on stdout" "" "$out"
+  assert_eq "malformed ($label): the cause on stderr" "true" "$([ -n "$err" ] && echo true || echo false)"
+}
+
+malformed_case "missing test key" '{"lint":"make lint","typecheck":null,"absent":{"typecheck":"none"}}'
+malformed_case "empty-string lint" '{"lint":"","typecheck":"make types","test":"make test"}'
+malformed_case "null without a reason" '{"lint":"make lint","typecheck":null,"test":"make test"}'
+malformed_case "hook manager with a space" '{"lint":"make lint","typecheck":"make types","test":"make test","hook_manager":"a b"}'
+malformed_case "invalid JSON" '{"lint": "make lint",'
+
+# REQ-5: a declared hook manager is the hook manager, even one no detection
+# rule knows. The gate then stands down to anti-bypass.
+HM_PRECOMMIT="$WORK_DIR/hm-pre-commit"
+declare_in "$HM_PRECOMMIT" '{"lint":"make lint","typecheck":"make types","test":"make test","hook_manager":"pre-commit"}'
+assert_eq "a declared pre-commit is accepted" "pre-commit" "$(stack_key "$HM_PRECOMMIT" HOOK_MANAGER)"
+
+HM_CAPTAIN="$WORK_DIR/hm-captainhook"
+declare_in "$HM_CAPTAIN" '{"lint":"false","typecheck":null,"absent":{"typecheck":"none"},"test":"true","hook_manager":"captainhook"}'
+git_init "$HM_CAPTAIN"
+echo "x" > "$HM_CAPTAIN/x.txt"
+git -C "$HM_CAPTAIN" add -A
+assert_eq "a declared captainhook becomes HOOK_MANAGER" "captainhook" "$(stack_key "$HM_CAPTAIN" HOOK_MANAGER)"
+assert_eq "and the gate delegates: a red declared lint does not refuse the commit" \
+  "none" "$(decision_of "$(gate "$HM_CAPTAIN" 'git commit -m "feat: x"')")"
+
+# The control: the same red lint, no hook manager declared — the gate runs it.
+HM_NONE="$WORK_DIR/hm-none"
+declare_in "$HM_NONE" '{"lint":"false","typecheck":null,"absent":{"typecheck":"none"},"test":"true"}'
+git_init "$HM_NONE"
+echo "x" > "$HM_NONE/x.txt"
+git -C "$HM_NONE" add -A
+assert_eq "without a declared hook manager the red declared lint refuses the commit" \
+  "deny" "$(decision_of "$(gate "$HM_NONE" 'git commit -m "feat: x"')")"
+
+echo ""
+echo "── quality-candidates.sh (what the setup proposes) ──"
+
+# The candidates come from where a project already declares its gates — CI,
+# task runners, package scripts, docs — and only last from the per-language
+# heuristics. Nothing here knows a language: that is the point (DE-17472).
+candidates() { (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/quality-candidates.sh" --json "$@" 2>/dev/null); }
+cand_key() { local dir="$1" key="$2"; shift 2; candidates "$dir" "$@" | jq -r --arg k "$key" '.[$k]'; }
+TAB=$'\t'
+
+# Asserts a candidate list holds the exact `<command>\t<source>` line.
+assert_line() {
+  local label="$1" haystack="$2" line="$3"
+  if printf '%s\n' "$haystack" | grep -Fxq -- "$line"; then
+    pass "$label"
+  else
+    fail "$label" "expected the line: $line
+  got: $haystack"
+  fi
+}
+
+# One ad-hoc directory per reader, each yielding a command no other reader
+# yields, so a reader that silently stopped working shows up by name.
+CAND="$WORK_DIR/candidates"
+
+mkdir -p "$CAND/run-block/.github/workflows"
+cat > "$CAND/run-block/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Types
+        run: |
+          npm ci
+          npm run check:types
+EOF
+assert_line "a run: | block is read line by line" \
+  "$(cand_key "$CAND/run-block" TYPECHECK_CANDIDATES)" "npm run check:types${TAB}ci:.github/workflows/ci.yml"
+assert_eq "and the install line in it is no gate" "" \
+  "$(candidates "$CAND/run-block" | jq -r '[.LINT_CANDIDATES, .TYPECHECK_CANDIDATES, .TEST_CANDIDATES] | join("\n")' | grep -F 'npm ci' || true)"
+
+mkdir -p "$CAND/step-wd/.github/workflows"
+cat > "$CAND/step-wd/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test
+        working-directory: web
+        run: npm test
+EOF
+assert_line "a step's working-directory is folded into the command" \
+  "$(cand_key "$CAND/step-wd" TEST_CANDIDATES)" "cd web && npm test${TAB}ci:.github/workflows/ci.yml"
+
+mkdir -p "$CAND/job-wd/.github/workflows"
+cat > "$CAND/job-wd/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  svc:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: svc
+    steps:
+      - run: make lint
+EOF
+assert_line "a job's defaults.run.working-directory is folded in too" \
+  "$(cand_key "$CAND/job-wd" LINT_CANDIDATES)" "cd svc && make lint${TAB}ci:.github/workflows/ci.yml"
+
+mkdir -p "$CAND/gitlab"
+cat > "$CAND/gitlab/.gitlab-ci.yml" <<'EOF'
+test:
+  stage: test
+  before_script:
+    - ./gradlew --version
+  script:
+    - ./gradlew test
+EOF
+assert_line "a GitLab script: item" \
+  "$(cand_key "$CAND/gitlab" TEST_CANDIDATES)" "./gradlew test${TAB}ci:.gitlab-ci.yml"
+
+mkdir -p "$CAND/just"
+printf 'set shell := ["bash", "-c"]\n\nlint:\n    cargo clippy\n' > "$CAND/just/justfile"
+assert_line "a justfile recipe" \
+  "$(cand_key "$CAND/just" LINT_CANDIDATES)" "just lint${TAB}runner:justfile"
+
+mkdir -p "$CAND/taskfile"
+printf "version: '3'\n\ntasks:\n  test:\n    cmds:\n      - go test ./...\n" > "$CAND/taskfile/Taskfile.yml"
+assert_line "a Taskfile task" \
+  "$(cand_key "$CAND/taskfile" TEST_CANDIDATES)" "task test${TAB}runner:Taskfile.yml"
+
+mkdir -p "$CAND/composer"
+echo '{"scripts":{"post-install-cmd":"@php artisan key:generate","analyse":"phpstan analyse"}}' > "$CAND/composer/composer.json"
+assert_line "a composer script" \
+  "$(cand_key "$CAND/composer" TYPECHECK_CANDIDATES)" "composer analyse${TAB}scripts:composer.json"
+
+mkdir -p "$CAND/pyproject"
+printf '[project]\nname = "x"\n\n[tool.poe.tasks]\nlint = "ruff check ."\n\n[tool.pdm.scripts]\ntest = "pytest"\n' > "$CAND/pyproject/pyproject.toml"
+assert_line "a poe task" \
+  "$(cand_key "$CAND/pyproject" LINT_CANDIDATES)" "poe lint${TAB}scripts:pyproject.toml"
+assert_line "a pdm script" \
+  "$(cand_key "$CAND/pyproject" TEST_CANDIDATES)" "pdm run test${TAB}scripts:pyproject.toml"
+
+mkdir -p "$CAND/docs"
+printf '# x\n\n```bash\nmake test\n```\n\n```json\n{ "lint": "not a command" }\n```\n' > "$CAND/docs/README.md"
+printf '# Agents\n\n```sh\n$ make lint\n```\n' > "$CAND/docs/AGENTS.md"
+assert_line "a fenced command in README.md" \
+  "$(cand_key "$CAND/docs" TEST_CANDIDATES)" "make test${TAB}docs:README.md"
+assert_line "a fenced command in AGENTS.md" \
+  "$(cand_key "$CAND/docs" LINT_CANDIDATES)" "make lint${TAB}docs:AGENTS.md"
+assert_eq "a JSON block is not read as a command" "" \
+  "$(cand_key "$CAND/docs" LINT_CANDIDATES | grep -F 'not a command' || true)"
+
+mkdir -p "$CAND/go"
+printf 'module example.com/x\n\ngo 1.23\n' > "$CAND/go/go.mod"
+assert_line "the detect-stack heuristics come last" \
+  "$(cand_key "$CAND/go" TEST_CANDIDATES)" "go test ./...${TAB}heuristic:detect-stack.sh"
+
+UM_LINT=$(cand_key "$WORK_DIR/unknown-make" LINT_CANDIDATES)
+assert_line "a stack nobody wrote a rule for still gets its make lint" \
+  "$UM_LINT" "make lint${TAB}ci:.github/workflows/ci.yml"
+assert_eq "once, with the CI source, although the Makefile and the README yield it too" "1" \
+  "$(printf '%s\n' "$UM_LINT" | grep -c '^make lint	')"
+assert_line "and its make test" \
+  "$(cand_key "$WORK_DIR/unknown-make" TEST_CANDIDATES)" "make test${TAB}ci:.github/workflows/ci.yml"
+
+assert_line "package.json scripts, with the package manager's runner" \
+  "$(cand_key "$WORK_DIR/nestjs" LINT_CANDIDATES)" "npm run lint${TAB}scripts:package.json"
+
+LA_DIR_ALL=$(candidates "$WORK_DIR/laravel-api" --dir api \
+  | jq -r '[.LINT_CANDIDATES, .TYPECHECK_CANDIDATES, .TEST_CANDIDATES] | join("\n")')
+assert_line "--dir points the scan at a sub-project and folds it into the command" \
+  "$LA_DIR_ALL" "cd api && composer lint${TAB}scripts:api/composer.json"
+assert_line "every script of it" \
+  "$LA_DIR_ALL" "cd api && composer test${TAB}scripts:api/composer.json"
+
+EMPTY_CAND="$CAND/empty"
+mkdir -p "$EMPTY_CAND"
+assert_eq "an empty directory has no candidate" "0" "$(cand_key "$EMPTY_CAND" CANDIDATE_COUNT)"
+(cd "$EMPTY_CAND" && bash "$PLUGIN_SCRIPTS/quality-candidates.sh" --json) >/dev/null 2>&1
+assert_eq "and that is not an error" "0" "$?"
+
+# REQ-7, the DE-17472 regression: the gates are in a root Makefile and in the CI
+# job `api`. They come out as root commands — no `cd api`, which would run the
+# root Makefile's targets in the wrong directory — and no PHP rule found them.
+LA_LINT=$(cand_key "$WORK_DIR/laravel-api" LINT_CANDIDATES)
+LA_TEST=$(cand_key "$WORK_DIR/laravel-api" TEST_CANDIDATES)
+assert_line "laravel-api: make lint from the CI, at the root" "$LA_LINT" "make lint${TAB}ci:.github/workflows/ci.yml"
+assert_line "laravel-api: make test from the CI, at the root" "$LA_TEST" "make test${TAB}ci:.github/workflows/ci.yml"
+assert_eq "laravel-api: detect-stack still knows no language there" \
+  "unknown" "$(stack_key "$WORK_DIR/laravel-api" LANG)"
+assert_eq "no rule for PHP was added to detect-stack.sh" "" \
+  "$(grep -n -E 'composer\.json|artisan|\.php\b|phpunit|laravel' "$PLUGIN_SCRIPTS/detect-stack.sh" || true)"
+
+assert_eq "the candidates script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/quality-candidates.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── quality-preflight.sh (no autonomous run starts without its commands) ──"
+
+# The launchers ask this before the board, the fork point and the workflow. A
+# refusal is exit 3 with the reason, and it costs seconds: nothing but the
+# declared preflight runs unless --run asks for the commands themselves.
+qp() { (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/quality-preflight.sh" --json "$@" 2>/dev/null); }
+qp_key() { local dir="$1" key="$2"; shift 2; qp "$dir" "$@" | jq -r --arg k "$key" '.[$k]'; }
+qp_exit() {
+  (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/quality-preflight.sh" --json "$@" >/dev/null 2>&1)
+  printf '%s' "$?"
+}
+QP="$WORK_DIR/preflight"
+
+mkdir -p "$QP/undeclared"
+assert_eq "no declaration with --require-declared is refused" "3" \
+  "$(qp_exit "$QP/undeclared" --require-declared)"
+assert_contains "and the reason points at the setup" \
+  "$(qp_key "$QP/undeclared" REASON --require-declared)" "/dev-setup:setup"
+assert_eq "and says the run is not ready" "false" "$(qp_key "$QP/undeclared" READY --require-declared)"
+assert_eq "no declaration and nothing detected is refused even without the flag" "3" \
+  "$(qp_exit "$QP/undeclared")"
+
+declare_in "$QP/empty-lint" '{"lint":"","typecheck":null,"absent":{"typecheck":"none"},"test":"true"}'
+assert_eq "a rejected declaration is a refusal, not a crash" "3" "$(qp_exit "$QP/empty-lint")"
+assert_eq "with a JSON object on stdout" "object" "$(qp "$QP/empty-lint" | jq -r 'type')"
+assert_contains "whose reason carries detect-stack's cause" \
+  "$(qp_key "$QP/empty-lint" REASON)" "lint"
+
+declare_in "$QP/all-null" '{"lint":null,"typecheck":null,"test":null,"absent":{"lint":"x","typecheck":"x","test":"x"}}'
+assert_eq "every command declared absent leaves nothing to check with" "3" "$(qp_exit "$QP/all-null")"
+
+declare_in "$QP/missing" '{"lint":"definitely-not-installed-qp lint","typecheck":null,"absent":{"typecheck":"x"},"test":"touch ran"}'
+assert_eq "a command whose program is not installed is refused" "3" "$(qp_exit "$QP/missing")"
+assert_contains "and MISSING names it" \
+  "$(qp_key "$QP/missing" MISSING)" "definitely-not-installed-qp"
+assert_eq "and nothing ran" "false" "$([ -e "$QP/missing/ran" ] && echo true || echo false)"
+
+declare_in "$QP/cd-sub" '{"lint":"CI=1 true","typecheck":null,"absent":{"typecheck":"x"},"test":"cd sub && ./run-tests"}'
+assert_eq "a relative program is looked for in the directory the command enters" "3" \
+  "$(qp_exit "$QP/cd-sub")"
+mkdir -p "$QP/cd-sub/sub"
+printf '#!/bin/sh\nexit 0\n' > "$QP/cd-sub/sub/run-tests"
+chmod +x "$QP/cd-sub/sub/run-tests"
+assert_eq "and found there once it exists (a leading VAR=value is skipped too)" "0" \
+  "$(qp_exit "$QP/cd-sub")"
+
+declare_in "$QP/preflight-red" '{"lint":"true","typecheck":null,"absent":{"typecheck":"x"},"test":"true","preflight":"echo boom; exit 7"}'
+assert_eq "a red declared preflight is refused" "3" "$(qp_exit "$QP/preflight-red")"
+assert_contains "with its output" "$(qp_key "$QP/preflight-red" OUTPUT)" "boom"
+assert_eq "and PREFLIGHT says it failed" "failed" "$(qp_key "$QP/preflight-red" PREFLIGHT)"
+
+# REQ-17: what the environment lacks is not what the project lacks. With
+# --allow-unavailable the launchers get a ready answer that names the commands
+# this machine cannot run, and the run goes on to a merge request that says so.
+QP_ALLOW=$(qp "$QP/missing" --require-declared --allow-unavailable)
+assert_eq "--allow-unavailable: a missing program does not refuse" "0" \
+  "$(qp_exit "$QP/missing" --require-declared --allow-unavailable)"
+assert_eq "its kind comes back unavailable, the others untouched" "lint|unavailable|absent" \
+  "$(printf '%s' "$QP_ALLOW" | jq -r '[.UNAVAILABLE, .LINT_STATUS, .TYPECHECK_STATUS] | join("|")')"
+assert_contains "with the reason the merge request will carry" \
+  "$(printf '%s' "$QP_ALLOW" | jq -r '.UNAVAILABLE_REASON')" "definitely-not-installed-qp"
+assert_eq "and still nothing ran" "false" "$([ -e "$QP/missing/ran" ] && echo true || echo false)"
+QP_ALLOW=$(qp "$QP/preflight-red" --allow-unavailable)
+assert_eq "--allow-unavailable: a red preflight makes every declared command unavailable" \
+  "true|lint test|failed" \
+  "$(printf '%s' "$QP_ALLOW" | jq -r '[.READY, .UNAVAILABLE, .PREFLIGHT] | join("|")')"
+assert_contains "and keeps the preflight's output" "$(printf '%s' "$QP_ALLOW" | jq -r '.OUTPUT')" "boom"
+assert_eq "--run does not run an unavailable command" "unavailable 0" \
+  "$(qp_key "$QP/preflight-red" TEST_STATUS --run --allow-unavailable) $(qp_exit "$QP/preflight-red" --run --allow-unavailable)"
+assert_eq "--allow-unavailable never excuses a missing declaration" "3" \
+  "$(qp_exit "$QP/undeclared" --require-declared --allow-unavailable)"
+assert_eq "nor every command declared absent" "3" "$(qp_exit "$QP/all-null" --allow-unavailable)"
+
+QP_READY="$QP/ready"
+declare_in "$QP_READY" '{"lint":"true","typecheck":null,"absent":{"typecheck":"none"},"test":"touch ran"}'
+assert_eq "a declaration with lint and test and no typecheck is ready" "0" \
+  "$(qp_exit "$QP_READY" --require-declared)"
+assert_eq "READY says so" "true" "$(qp_key "$QP_READY" READY)"
+assert_eq "nothing is missing" "" "$(qp_key "$QP_READY" MISSING)"
+assert_eq "and without --run no command was executed" "false" \
+  "$([ -e "$QP_READY/ran" ] && echo true || echo false)"
+QP_RUN=$(qp "$QP_READY" --run)
+assert_eq "--run runs each command once and reports it" "passed absent passed" \
+  "$(printf '%s' "$QP_RUN" | jq -r '[.LINT_STATUS, .TYPECHECK_STATUS, .TEST_STATUS] | join(" ")')"
+assert_eq "from the repository root" "true" "$([ -e "$QP_READY/ran" ] && echo true || echo false)"
+
+declare_in "$QP/red-test" '{"lint":"true","typecheck":null,"absent":{"typecheck":"x"},"test":"false"}'
+assert_eq "a red test is reported, not refused" "failed 0" \
+  "$(qp_key "$QP/red-test" TEST_STATUS --run) $(qp_exit "$QP/red-test" --run)"
+
+declare_in "$QP/not-started" '{"lint":"true","typecheck":null,"absent":{"typecheck":"x"},"test":"exit 127"}'
+assert_eq "a command that did not start (127) is not-found, and refused" "not-found 3" \
+  "$(qp_key "$QP/not-started" TEST_STATUS --run) $(qp_exit "$QP/not-started" --run)"
+
+assert_eq "an unknown flag is a usage error" "1" "$(qp_exit "$QP_READY" --frobnicate)"
+
+# REQ-7, end to end: the DE-17472 project with its root commands declared
+# passes the setup's verification — no PHP rule, no `cd api`.
+if command -v make >/dev/null 2>&1; then
+  cp -R "$WORK_DIR/laravel-api" "$QP/laravel-api"
+  declare_in "$QP/laravel-api" '{"lint":"make lint","typecheck":null,"absent":{"typecheck":"none"},"test":"make test"}'
+  assert_eq "laravel-api: the declared make lint and make test pass the verification" "passed passed 0" \
+    "$(qp_key "$QP/laravel-api" LINT_STATUS --run) $(qp_key "$QP/laravel-api" TEST_STATUS --run) $(qp_exit "$QP/laravel-api" --run --require-declared)"
+else
+  printf '%s  skip%s  make not found: the laravel-api verification needs it\n' "$DIM" "$NC"
+fi
+
+assert_eq "the preflight script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/quality-preflight.sh" ] && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 7. rules/ — the path-scoped rule templates (DE-16477)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1720,12 +2093,20 @@ async function agent(prompt, opts) {
     return { satisfied: false, reason: key + ' proposal', suggestion: 'change', grounds: 'an ADR' };
   }
   if (label.startsWith('dev:')) return { worktreePath: '/wt', branch: 'b', specPath: 'p', commits: [] };
-  if (label.startsWith('verify:')) return { passed: true, output: 'green' };
+  if (label.startsWith('verify:')) {
+    return { passed: true, output: 'green', notStarted: scenario.notStarted || [] };
+  }
   return null;
 }
 
+// argv[4], when given, overrides the launch arguments. The default stack is a
+// declared project with no type checker: lint and test, typecheck absent.
+const overrides = process.argv[4] ? JSON.parse(process.argv[4]) : {};
 const context = {
-  args: { taskId: 'DE-1', pluginRoot: '/plugin', baseBranch: 'origin/next' },
+  args: Object.assign({
+    taskId: 'DE-1', pluginRoot: '/plugin', baseBranch: 'origin/next',
+    stack: { lint: 'make lint', typecheck: '', test: 'make test' },
+  }, overrides),
   agent,
   parallel: (thunks) => Promise.all(thunks.map((thunk) => thunk())),
   phase() {},
@@ -1734,6 +2115,8 @@ const context = {
 vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', context).then((out) => {
   console.log(JSON.stringify({
     status: out.status,
+    stage: out.stage || '',
+    agents: calls.length,
     reviews: calls.filter((l) => l.startsWith('challenge:')).length,
     revisions: calls.filter((l) => l.startsWith('revise:')).length,
     open: (out.openPoints || []).map((o) => o.lens).join(','),
@@ -1743,15 +2126,21 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     deviations: (out.deviations || []).length,
     grounds: (prompts['revise:DE-1'] || '').includes('grounds: an ADR'),
     devSees: (prompts['dev:DE-1'] || '').includes('the styling ADR forbids it'),
-    devAbsent: /test:\s+\(none\)/.test(prompts['dev:DE-1'] || '')
+    devAbsent: /typecheck:\s+\(none\)/.test(prompts['dev:DE-1'] || '')
       && (prompts['dev:DE-1'] || '').includes('say so in `notes`'),
     precedence: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
       .every((l) => prompts[l].includes('settle it in this')),
+    verified: calls.includes('verify:DE-1'),
+    unverified: (out.unverified || []).map((u) => u.kind + '=' + u.command).join(','),
+    unverifiedReason: (out.unverified || []).map((u) => u.reason).join('|'),
+    devSkips: /lint:\s+make lint\s+\(NOT RUNNABLE HERE/.test(prompts['dev:DE-1'] || '')
+      && (prompts['dev:DE-1'] || '').includes('php is 8.3'),
+    verifySkips: /lint:\s+make lint\s+\(skip\)/.test(prompts['verify:DE-1'] || ''),
   }));
 });
 NODEJS
 
-  sim() { node "$WORK_DIR/workflow-sim.cjs" "$AUTO_SDD" "$1" 2>&1; }
+  sim() { node "$WORK_DIR/workflow-sim.cjs" "$AUTO_SDD" "$1" ${2:+"$2"} 2>&1; }
   field() { printf '%s' "$1" | jq -r ".$2" 2>/dev/null; }
 
   SIM=$(sim '{"simpler":"propose","scope":"propose","testable":"propose"}')
@@ -1776,10 +2165,42 @@ NODEJS
   SIM=$(sim '{}')
   assert_eq "three satisfied reviewers cost three agents and no revision" \
     "3 0 " "$(field "$SIM" reviews) $(field "$SIM" revisions) $(field "$SIM" open)"
-  # The simulation passes no stack, so every command prints as (none): the
-  # dev agent has to be told to skip it and to say so in `notes`, not to wait.
-  assert_eq "with no quality command defined, the dev agent is told to skip it and say so in notes" \
+  # The simulation's project declares no type checker, so typecheck prints as
+  # (none): the dev agent has to be told to skip it and to say so in `notes`,
+  # not to wait — and the run goes on with lint and test (DE-17535, REQ-3).
+  assert_eq "a command declared absent: the dev agent is told to skip it and say so in notes" \
     "true" "$(field "$SIM" devAbsent)"
+  assert_eq "and the run proceeds on the other two" "ready-for-mr" "$(field "$SIM" status)"
+
+  # REQ-9: a run with no command at all could not verify anything, and the
+  # outcome would be certain before the first agent. It ends at intake, free.
+  SIM=$(sim '{}' '{"stack":null}')
+  assert_eq "no stack at all ends at intake" "failed intake" \
+    "$(field "$SIM" status) $(field "$SIM" stage)"
+  assert_eq "without launching a single agent" "0" "$(field "$SIM" agents)"
+  SIM=$(sim '{}' '{"stack":{"lint":"","typecheck":"","test":""}}')
+  assert_eq "three empty commands, as a launcher passes them, end at intake" "failed intake" \
+    "$(field "$SIM" status) $(field "$SIM" stage)"
+  assert_eq "without launching a single agent either" "0" "$(field "$SIM" agents)"
+
+  # REQ-17: a toolchain this environment lacks does not stop the run. The
+  # commands it cannot start are never run, and they travel to the merge request.
+  SIM=$(sim '{}' '{"unavailable":["lint","test"],"unavailableReason":"php is 8.3"}')
+  assert_eq "every command unavailable: the run still reaches the merge request" \
+    "ready-for-mr false" "$(field "$SIM" status) $(field "$SIM" verified)"
+  assert_eq "with each command it could not run in unverified" \
+    "lint=make lint,test=make test" "$(field "$SIM" unverified)"
+  assert_eq "and the dev agent is told not to run them, and why" "true" "$(field "$SIM" devSkips)"
+  SIM=$(sim '{}' '{"unavailable":["lint"],"unavailableReason":"php is 8.3"}')
+  assert_eq "one command unavailable: Verify runs the others and skips it" \
+    "ready-for-mr true true" "$(field "$SIM" status) $(field "$SIM" verified) $(field "$SIM" verifySkips)"
+  assert_eq "and it is reported unverified" "lint=make lint" "$(field "$SIM" unverified)"
+  SIM=$(sim '{"notStarted":["make test"]}')
+  assert_eq "a command that did not start at Verify is unverified, not red" \
+    "ready-for-mr test=make test" "$(field "$SIM" status) $(field "$SIM" unverified)"
+  SIM=$(sim '{}' '{"unavailable":["typecheck","bogus"]}')
+  assert_eq "an unavailable kind with no command, or no kind at all, is ignored" \
+    "ready-for-mr  true" "$(field "$SIM" status) $(field "$SIM" unverified) $(field "$SIM" verified)"
 
   SIM=$(sim '{"simpler":"propose","revise":"dead"}')
   assert_eq "a reviser that returns nothing leaves every proposal open" \
@@ -1796,6 +2217,114 @@ if [ -f "$AUTO_SDD" ]; then
   assert_eq "no path of the workflow returns needs-human" "" \
     "$(grep -n "status: 'needs-human'" "$AUTO_SDD" || true)"
 fi
+
+echo ""
+echo "── the launchers refuse before the board (DE-17535) ──"
+
+# The check is worth something only where it stands: before anything a refused
+# run would leave behind. So what is pinned is its position, on the extracted
+# range, not merely its presence in the file.
+line_of() { printf '%s\n' "$1" | grep -n -F -- "$2" | head -1 | cut -d: -f1; }
+assert_before() {
+  local label="$1" text="$2" first="$3" second="$4" a b
+  a=$(line_of "$text" "$first")
+  b=$(line_of "$text" "$second")
+  if [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ]; then
+    pass "$label"
+  else
+    fail "$label" "expected '$first' (line ${a:-none}) before '$second' (line ${b:-none})"
+  fi
+}
+
+AUTO_STEPS=$(sed -n '/^## 1\. /,/^## 3\. /p' "$SDD_DIR/auto-sdd/SKILL.md")
+QP_CALL="quality-preflight.sh\" --require-declared"
+for NEEDLE in 'BACKLOG' 'fork-point.md' 'status: IN PROGRESS' 'task-clock.sh'; do
+  assert_before "auto-sdd checks its commands before: $NEEDLE" "$AUTO_STEPS" "$QP_CALL" "$NEEDLE"
+done
+assert_contains "and sends any non-zero exit to the outcomes contract" "$AUTO_STEPS" "run-outcomes.md"
+
+OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+NOT_STARTED=$(sed -n '/^## When the run does not start/,$p' "$OUTCOMES")
+assert_contains "the refusal of a SPRINT task is one BLOCKED bail-out" "$NOT_STARTED" "SPRINT → BLOCKED"
+assert_contains "a BACKLOG task is left as found" "$NOT_STARTED" "left as found"
+assert_contains "the refusal names the check" "$NOT_STARTED" "quality-preflight.sh"
+assert_contains "auto-sdd lets an environment without the toolchain through" \
+  "$AUTO_STEPS" "--allow-unavailable"
+assert_contains "and passes what it cannot run to the workflow" \
+  "$(cat "$SDD_DIR/auto-sdd/SKILL.md")" '"unavailable"'
+assert_contains "multi-sdd does the same" "$(cat "$SDD_DIR/multi-sdd/reference/preflight.md")" "--allow-unavailable"
+assert_contains "and its launch passes it on" \
+  "$(cat "$SDD_DIR/multi-sdd/reference/fan-out.md")" '"unavailable"'
+READY_SECTION=$(sed -n '/^## ready-for-mr/,/^## What a run leaves behind/p' "$OUTCOMES")
+assert_contains "ready-for-mr carries the checks nobody ran" "$READY_SECTION" "unverified"
+assert_contains "and the merge request opens with them" "$READY_SECTION" "**not verified**"
+
+MULTI_PRE="$SDD_DIR/multi-sdd/reference/preflight.md"
+MULTI_TEXT=$(cat "$MULTI_PRE")
+assert_before "multi-sdd checks once, before the first task read" "$MULTI_TEXT" "$QP_CALL" "INTENT: read"
+assert_before "and before the triage" "$MULTI_TEXT" "$QP_CALL" "## Triage"
+assert_eq "and its refusal moves no task" "" "$(grep -n 'BLOCKED' "$MULTI_PRE" || true)"
+
+# REQ-15: in an ephemeral session a failed run's branch is pushed, so the work
+# survives the session — and only pushed: the merge request is a decision.
+FAILED_SECTION=$(sed -n '/^## failed/,/^## ready-for-mr/p' "$OUTCOMES")
+assert_contains "a failed run in a cloud session is keyed on CLAUDE_CODE_REMOTE" "$FAILED_SECTION" "CLAUDE_CODE_REMOTE"
+assert_contains "its branch is pushed" "$FAILED_SECTION" 'git push -u origin'
+assert_contains "with no merge request" "$FAILED_SECTION" "no merge request"
+
+# REQ-12: the interactive flows do not stop on it — a person is there — but
+# they say it at the start, not in the closing summary.
+QUICK_STEP1=$(sed -n '/^1\. \*\*The change\.\*\*/,/^2\. \*\*The branch\.\*\*/p' "$SDD_DIR/quick/SKILL.md")
+assert_contains "quick says COMMANDS_SOURCE=none in its first step" "$QUICK_STEP1" "COMMANDS_SOURCE"
+SDD_STEP4=$(sed -n '/^## 4\. /,$p' "$SDD_DIR/sdd/reference/intake.md")
+assert_contains "sdd says it in its intake step 4" "$SDD_STEP4" "COMMANDS_SOURCE"
+assert_contains "sdd-dev keeps skipping a command declared absent" \
+  "$(cat "$SDD_DIR/sdd-dev/reference/methodologies.md")" "declared absent"
+
+# REQ-13 and REQ-14: the setup writes the declaration and verifies it. The step
+# is prose the model follows, so what is pinned is that it calls the scripts
+# that do the deterministic part, and that a decline cannot go unreported.
+SETUP_DIR="$REPO_ROOT/templates/dev-setup/setup"
+QC_REF="$SETUP_DIR/reference/quality-commands.md"
+assert_eq "step 3b has its reference" "true" "$([ -f "$QC_REF" ] && echo true || echo false)"
+QC_TEXT=$(cat "$QC_REF" 2>/dev/null)
+assert_contains "3b proposes the candidates the script finds" "$QC_TEXT" "quality-candidates.sh"
+assert_contains "and asks in one AskUserQuestion call" "$QC_TEXT" "AskUserQuestion"
+assert_contains "and runs every declared command once" "$QC_TEXT" 'quality-preflight.sh" --run'
+assert_contains "and hands the declared commands to Steps 4 and 5" "$QC_TEXT" ".stack.json"
+assert_contains "a kind with no candidate is still asked" "$QC_TEXT" "no candidate"
+assert_contains "UPDATE proposes a declaration to a project that has none" "$QC_TEXT" "UPDATE"
+assert_eq "a decline is a DECLINED summary line naming both launchers" "1" \
+  "$(printf '%s\n' "$QC_TEXT" | grep 'DECLINED' | grep 'auto-sdd' | grep -c 'multi-sdd')"
+assert_contains "the setup table routes step 3b to it" \
+  "$(cat "$SETUP_DIR/SKILL.md")" "| 3b |"
+assert_eq "the setup skill stays within its 500-word budget" "true" \
+  "$([ "$(wc -w < "$SETUP_DIR/SKILL.md")" -le 500 ] && echo true || echo false)"
+assert_eq "the manifest ships the reference" "true" \
+  "$(jq '.setup_reference | index("quality-commands.md") != null' "$REPO_ROOT/templates/dev-setup/manifest.json")"
+assert_eq "and the build does" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/skills/setup/reference/quality-commands.md" ] && echo true || echo false)"
+for MODE_REF in existing.md greenfield.md; do
+  assert_contains "the $MODE_REF summary collects 3b's line" \
+    "$(sed -n '/^## Step 9/,$p' "$SETUP_DIR/reference/$MODE_REF")" "3b"
+done
+assert_contains "existing.md lists the new detect-stack keys" \
+  "$(cat "$SETUP_DIR/reference/existing.md")" "COMMANDS_SOURCE"
+# REQ-16: the declaration is documented where a developer and an upgrader look.
+assert_contains "the developer guide documents the declaration" \
+  "$(cat "$REPO_ROOT/docs/developer-guide.md")" ".claude/quality-commands.json"
+assert_contains "and the launcher check" \
+  "$(cat "$REPO_ROOT/docs/developer-guide.md")" "quality-preflight.sh"
+assert_contains "the migration page records the contract change" \
+  "$(cat "$REPO_ROOT/docs/migration-v2-to-v3.md")" "quality-commands.json"
+for NEW_SCRIPT in quality-candidates.sh quality-preflight.sh; do
+  assert_contains "AGENTS.md lists $NEW_SCRIPT" "$(cat "$REPO_ROOT/AGENTS.md")" "\`$NEW_SCRIPT"
+done
+assert_contains "AGENTS.md lists the new detect-stack keys" \
+  "$(grep -F '`detect-stack.sh`' "$REPO_ROOT/AGENTS.md")" "COMMANDS_SOURCE"
+
+assert_eq "check 16 finds every ask of 3b reported" "" \
+  "$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict 2>&1 | grep 'SETUP_ASK_UNREPORTED' | grep 'quality-commands.md' || true)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 11. task-clock.sh: how long the task took

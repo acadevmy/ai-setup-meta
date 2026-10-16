@@ -239,6 +239,9 @@ It comes back with one of two outcomes:
 | `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section (§9) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
+In a cloud session, whose disk goes with it, a `failed` run's branch is pushed —
+with no merge request — so the work can be picked up from the remote.
+
 It asks you one thing before it starts — which branch the run forks from, the
 ref resolved from the repository offered as the default, the same question
 `/dev-setup:sdd` asks — and it asks it before the task moves on the board, so
@@ -261,6 +264,67 @@ The cap is **five**, and it is a script that enforces it — the sixth task exit
 with the reason. Five is where the review queue becomes the bottleneck: a
 fan-out costs `n` times a single run, and it ends with `n` merge requests for
 one person to read.
+
+### The quality commands your project declares
+
+Which command lints the project, which type-checks it and which runs its tests
+is the project's to say, once, in `.claude/quality-commands.json` — not a guess
+the plugin remakes on every run. Step 3b of the setup writes it: it proposes
+what the project already declares somewhere, asks you to confirm or correct the
+three in one question, and runs each one before it finishes.
+
+```json
+{
+  "lint": "make lint",
+  "typecheck": null,
+  "test": "make test",
+  "absent": { "typecheck": "the project has no type checker" },
+  "preflight": null,
+  "hook_manager": null
+}
+```
+
+| Key | What it decides |
+|---|---|
+| `lint`, `typecheck`, `test` | the command, or `null` when the project has none — with the reason under `absent`. A `null` is a decision: the flows skip that command and run the others |
+| `preflight` | optional: a readiness check the autonomous launchers run before anything else — a script that checks the toolchain, say |
+| `hook_manager` | optional: your hook tool when detection does not know it (`pre-commit`, `captainhook`, `grumphp`); the commit gate defers to it (§5) |
+
+**Every command runs from the repository root.** One that belongs to a
+sub-directory says so: `make -C api lint`, `cd api && composer test`.
+
+**Where the candidates come from**, in order of authority: your CI (the `run:`
+steps of `.github/workflows/`, the `script:` items of `.gitlab-ci.yml`), your
+task runner (`Makefile`, `justfile`, `Taskfile.yml`), your package scripts
+(`package.json`, `composer.json`, `pyproject.toml`), the shell blocks of
+`README.md` and `AGENTS.md`, and only last the per-language heuristics.
+`${CLAUDE_PLUGIN_ROOT}/scripts/quality-candidates.sh --json` shows the list. So a
+stack the plugin has never seen still gets its own gates, with no rule written
+for it.
+
+**Every flow reads the file the same way**, through `detect-stack.sh`, whose
+`COMMANDS_SOURCE` says where the commands came from: `declared` (the file),
+`detected` (no file, the heuristics found something) or `none`. A malformed file
+is an error, never a silent fallback to the guess.
+
+**The autonomous launchers refuse without it.** Before the board, the fork point
+or the workflow, `/dev-setup:auto-sdd` and `/dev-setup:multi-sdd` run
+`${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh --require-declared --allow-unavailable --json`.
+It refuses in seconds — no declaration, a rejected one, every command declared
+absent — and the run never starts:
+a SPRINT task goes to `BLOCKED` with the reason, a BACKLOG task is left as it
+was, and `multi-sdd` touches no task. The fix is the project's: run
+`/dev-setup:setup` and let step 3b write or repair the declaration.
+
+**An environment that cannot run them does not stop the run.** A command whose
+program is not installed, or a red `preflight` — a cloud routine without PHP or
+MySQL, say — is a fact about the machine, not about the project. The launcher
+says which commands are affected and starts anyway; the dev agent writes the
+tests without running those commands, Verify skips them, and the merge request
+opens with a **Not verified** section naming each one and why. Whoever merges
+runs them, or waits for the CI that does.
+`/dev-setup:sdd` and `/dev-setup:quick` do not stop; with `COMMANDS_SOURCE`
+`none` they say at the start that nothing will lint or test the work.
 
 ### The file an unattended run reads
 
@@ -422,15 +486,18 @@ It spawns only on a git commit call: its handler carries the rule
 syntax, so a `git status` never starts it — and it keeps its own check inside,
 for a client that ignores the rule.
 
-**Your project has husky, lefthook, simple-git-hooks or a `core.hooksPath`.**
-Then your own tooling runs the per-commit checks and the hook only refuses the
+**Your project has husky, lefthook, simple-git-hooks or a `core.hooksPath`** —
+or declares another hook tool as `hook_manager` in
+`.claude/quality-commands.json` (pre-commit, captainhook, grumphp: anything
+detection does not recognise). Then your own tooling runs the per-commit checks and the hook only refuses the
 ways around it: `HUSKY=0`, `LEFTHOOK=0`, a `-c core.hooksPath=…` override, a
 `GIT_CONFIG_*` injection. (`--no-verify` and `-n` are separately denied.) A
 commit *message* that happens to mention `HUSKY=0` is not an attempt to set it —
 the scan reads the command with quoted strings removed.
 
 **Your project has no hook manager.** Then the hook is the gate: it runs the
-lint, typecheck and test commands detected from your project and denies the
+lint, typecheck and test commands your project declares (or, with no
+declaration, the ones detected) and denies the
 commit with the tail of the real output as the reason. Not a summary of the
 failure — the failure.
 
@@ -572,6 +639,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
 | `.claude/merge-request.json` — written when absent, after asking the language; missing catalogue labels are created on the forge | `.claude/merge-request.json` once you have one |
+| `.claude/quality-commands.json` — proposed when absent (decline it and the autonomous launchers refuse until you accept it), a rewrite offered when malformed | `.claude/quality-commands.json` once you have a valid one — verified, never rewritten |
 
 The one unasked edit to a file the setup did not write is a single `.gitignore`
 line, `.claude/worktrees/`. It adds, never removes; without it every file of
@@ -696,9 +764,28 @@ invented one is worse than none. Start the next sitting by moving the task to
 
 ### The setup did not detect my stack
 
-Make sure the project root actually holds the marker: `package.json` with the
-dependencies (Next.js, Angular, React, NestJS), `pubspec.yaml` (Flutter), or
-`app.json` with an `expo` key (React Native).
+For the quality commands it does not need to. Step 3b proposes what your CI,
+task runner, package scripts and README already run, whatever the language, and
+asks; a kind with no candidate is still asked, and you type the command. What
+you confirm lands in `.claude/quality-commands.json`, which wins over any
+detection — edit it by hand at any time, and re-run `/dev-setup:setup` to have
+it verified.
+
+The rules and the profiles do depend on detection. For those, make sure the
+project root actually holds the marker: `package.json` with the dependencies
+(Next.js, Angular, React, NestJS), `pubspec.yaml` (Flutter), or `app.json` with
+an `expo` key (React Native).
+
+### An autonomous run refuses to start
+
+`/dev-setup:auto-sdd` or `/dev-setup:multi-sdd` stopped before the board with a
+`quality-preflight.sh` reason. It names the cause: no
+`.claude/quality-commands.json` (a project set up before the declaration
+existed — run `/dev-setup:setup` once), a malformed one, every command declared
+absent. Fix that, and launch again; nothing was started, so there is nothing to
+clean up. A program the environment does not have, or a `preflight` that
+failed, does not land here: the run starts and its merge request lists those
+checks as not verified.
 
 ### A rule I expected did not load
 

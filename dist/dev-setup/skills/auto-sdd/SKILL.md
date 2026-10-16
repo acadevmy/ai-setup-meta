@@ -9,10 +9,9 @@ disable-model-invocation: true
 
 # Auto SDD
 
-The launcher of the `auto-sdd` workflow. The orchestration lives in
-`workflows/auto-sdd.js`, JavaScript the harness runs: its bounds are bounds and
-its control flow never enters the context. What is left is what code cannot
-do — the task, the launch, the outcome.
+The launcher of the `auto-sdd` workflow (`workflows/auto-sdd.js`, run by the
+harness). What is left here is what code cannot do — the task, the launch, the
+outcome.
 
 **Usage**: `/dev-setup:auto-sdd [TASK_ID]`; `multi-sdd` composes it for
 several.
@@ -28,11 +27,19 @@ several.
 ## 1. The task
 
 **With a task id in `$ARGUMENTS`**: `INTENT: read`, `PARAMS: task_id: <id>`.
-`BACKLOG` → the contract's backlog gate.
 
 **Without one**: resolve the list id as the contract describes, then
 `INTENT: next-task`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>` — the
 highest-priority `SPRINT` task.
+
+Before any question or board write:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh" --require-declared --allow-unavailable --json
+```
+
+Any non-zero exit → no run, per `run-outcomes.md`. A non-empty `UNAVAILABLE`
+is not a stop: say in one line what this environment cannot run, and go on. `BACKLOG` → the contract's backlog gate.
 
 A declined gate or an empty `SPRINT` stops the flow: no run, no board write.
 Otherwise keep `custom_id`, `name`, `description` (verbatim), `url`, `task_id`.
@@ -46,9 +53,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh" --json
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
 ```
 
-The second resolves the base branch; `fork-point.md` holds how to read it and
-the question that confirms it. Ask before the board write below — a run the
-developer walks away from leaves the task where it was.
+The second resolves the base branch: confirm it as `fork-point.md` says,
+before the board write below.
 
 Then `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`, then
 the clock:
@@ -70,18 +76,19 @@ Workflow({
     "branchType": "feat",
     "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
     "baseBranch": "<the ref confirmed in step 2>",
-    "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" }
+    "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" },
+    "unavailable": ["<each kind in UNAVAILABLE>"],
+    "unavailableReason": "<UNAVAILABLE_REASON, then OUTPUT>"
   }
 })
 ```
 
 `branchType` follows the task: feature → `feat`, bug → `fix`, maintenance →
-`chore`. A command `detect-stack.sh` left empty stays empty — the workflow skips
-it rather than inventing one.
+`chore`.
 
 The harness asks the developer to approve the workflow script before it runs.
 That and the fork point are this flow's two stops — plus step 1's backlog gate
-when it applies. The run then works in the background: wait for its
+when it applies. The run works in the background: wait for its
 notification, never poll.
 
 ## 4. The outcome
@@ -94,7 +101,7 @@ broke: show the raw result and stop.
 
 - the task moved `SPRINT` → `IN PROGRESS` → `CODE REVIEW` or `BLOCKED`;
 - on `ready-for-mr`, a pushed branch and a merge request carrying the spec,
-  the real test output and what to confirm;
+  the real test output, what was not verified and what to confirm;
 - otherwise the failing output, with the branch and the worktree left in
   place;
 - either way, no edit in the developer checkout.
