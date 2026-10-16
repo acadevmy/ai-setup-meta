@@ -207,10 +207,81 @@ bash scripts/build-plugin.sh dev-setup
 # Validate the plugin
 claude plugin validate dist/dev-setup/
 bash scripts/validate-plugin.sh --strict
-
-# Try it locally
-claude --plugin-dir dist/dev-setup/
 ```
+
+### Testing the plugin locally
+
+The build of a branch — `next` before it reaches `main`, or a feature branch —
+can be tried in a real project beside the plugin installed from the
+marketplace, with nothing released. Every step runs on the built plugin:
+`dist/dev-setup/` is what ships, and the `verify` job fails a PR whose `dist/`
+is not in sync with the sources.
+
+**1. Build and run the suites.** They are the CI jobs, run by hand:
+
+```bash
+bash scripts/build-plugin.sh dev-setup
+bash scripts/validate-plugin.sh --strict    # the static checks on skills, workflows and docs
+bash scripts/test-plugin-scripts.sh         # the plugin scripts and hooks, against scripts/fixtures/
+claude plugin validate dist/dev-setup/      # the manifests, plus the "register.ts calls:" line of the mod
+claude plugin test dist/dev-setup           # the mod's *.test.ts against the engine — no session, sign-in or network
+```
+
+The `calls:` line must hold no call that acts (`$.prompt.submit`, `$.tool.call`,
+`$.turn.abort`, `$.config.set`, `$.env.set`, `$.fs.write`). Mods load from
+Claude Code 2.1.287; on 2.1.285 prefix the two `claude plugin` calls with
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`. CI pins its own CLI version in `ci.yml`,
+so a suite green here and red there is a version difference before anything else.
+
+**2. Load the build under another name.** `dev-setup` is installed from the
+marketplace at managed scope on every team machine, and a `--plugin-dir` of the
+same name is ignored in silence: the installed version loads, and nothing says
+so. So the build is copied and renamed after the branch it comes from —
+`dev-setup-next` for `next`:
+
+```bash
+cp -R dist/dev-setup "${TMPDIR:-/tmp}/dev-setup-next"
+jq '.name = "dev-setup-next"' "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json" > "${TMPDIR:-/tmp}/plugin.json" \
+  && mv "${TMPDIR:-/tmp}/plugin.json" "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json"
+
+# Smoke test, no model turn: the mod prints the catalogue of the six commands
+claude -p --plugin-dir "${TMPDIR:-/tmp}/dev-setup-next" "/dev-setup"
+
+# The real thing, from a project of yours or a throwaway one
+cd path/to/a-project
+claude --plugin-dir "${TMPDIR:-/tmp}/dev-setup-next" --debug
+```
+
+The copy loads whole, beside the installed plugin, and everything it ships
+answers under its own name:
+
+- **the commands** are `/dev-setup-next:<command>` — `setup`, `quick`, `sdd`,
+  `review` and the rest. `${CLAUDE_PLUGIN_ROOT}` resolves to the copy, so the
+  scripts, references and rule templates a skill reaches are the copy's. On a
+  throwaway project, `setup` shows the files the branch generates; on a project
+  already set up, its UPDATE mode shows the migration;
+- **the hooks** in the copy's `hooks.json` are active — the commit gate,
+  post-edit, post-merge-request, on-compact — and so are the installed
+  plugin's: every hook fires twice, once per plugin;
+- **the mod** draws the band above the prompt and answers `/dev-setup status`
+  and the other views. A mod command carries no prefix, so when both plugins
+  ship one, the last loaded wins. `--debug` writes every skipped hook and every
+  refused tree to the log with its reason, and names a module that did not load.
+
+**3. What the copy cannot take over.** Two names are hard-coded in the skills:
+
+- the workflow. `auto-sdd` and `multi-sdd` call `Workflow({"name":
+  "dev-setup:auto-sdd"})`, which resolves to the installed plugin's script. To
+  run the copy's, change that name to `dev-setup-next:auto-sdd` in the copy's
+  two launchers (the `auto-sdd` skill and the fan-out reference of `multi-sdd`)
+  — the harness registers every workflow as `<plugin>:<meta.name>`;
+- the agents. The skills launch `code-reviewer`, `spec-verifier` and `clickup`
+  by bare name, and both plugins ship them: the transcript shows which prefix
+  answered.
+
+A branch is release-ready when the suites are green **and** the session shows
+the behaviour — the suites exercise the scripts and the hooks, never a
+developer's turn.
 
 **Releases are automatic**: [release-please](https://github.com/googleapis/release-please)
 computes the bump from the conventional commits merged into `main`, opens a release PR and —
