@@ -343,7 +343,8 @@ phase. Now:
 |---|---|
 | commands guessed by `detect-stack.sh` on every run | declared in `.claude/quality-commands.json`, read first; the heuristics only answer when there is no file (`COMMANDS_SOURCE`: `declared`, `detected`, `none`) |
 | an empty command could mean anything | a command the project lacks is `null` with a reason under `absent`; a blank one is rejected |
-| an unverifiable run found out at Verify | `quality-preflight.sh` refuses at launch, in seconds, before the board; the workflow ends at intake with no command at all |
+| an unverifiable run found out at Verify | `quality-preflight.sh` refuses at launch, in seconds, before the board, when the project declares nothing; the workflow ends at intake with no command at all |
+| a toolchain missing from the environment surfaced as a red Verify | the run goes on: commands this environment cannot start (`UNAVAILABLE`) are never run, and the merge request opens with the checks nobody ran |
 | a hook tool detection did not know left the commit gate in full mode | `hook_manager` names it (`pre-commit`, `captainhook`, `grumphp`), and the gate defers |
 
 A failed autonomous run in a cloud session now pushes its branch (no merge

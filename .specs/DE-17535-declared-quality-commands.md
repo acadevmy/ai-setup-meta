@@ -98,10 +98,13 @@ check its own work stops at intake, within seconds, before any agent starts.
     - `--require-declared` is set and `COMMANDS_SOURCE` is not `declared`
       (`REASON` names the setup);
     - no command is non-empty;
-    - the first binary of a non-empty command is not found (none of the commands
-      is run);
-    - a declared `preflight` exits non-zero (`OUTPUT` holds the tail of its
-      output).
+    - without `--allow-unavailable`, the first binary of a non-empty command is
+      not found (none of the commands is run);
+    - without `--allow-unavailable`, a declared `preflight` exits non-zero
+      (`OUTPUT` holds the tail of its output).
+  - With `--allow-unavailable` (REQ-17), those last two are not refusals: the
+    affected kinds come back in `UNAVAILABLE`, with `UNAVAILABLE_REASON`, and
+    the answer is ready.
   - It exits 0 when ready, and exits 1 for a bad flag or a missing `jq`.
   - Both checks skip a command that is declared absent.
   - With `--run`, it executes each non-empty command once from the repository
@@ -161,6 +164,24 @@ check its own work stops at intake, within seconds, before any agent starts.
     autonomous launchers refuse to start without a declaration.
   - `AGENTS.md` lists the two new scripts and the new `detect-stack.sh` keys.
   - Checks 14 and 15 of `validate-plugin.sh` stay green.
+- REQ-17 (an environment that cannot run the commands does not stop the run —
+  the developer's decision of 2026-10-16, superseding the task's "Binario
+  mancante blocca il launcher"):
+  - The autonomous launchers call `quality-preflight.sh --require-declared
+    --allow-unavailable`. A missing program makes its kind unavailable; a red
+    declared preflight makes every declared kind unavailable. The launchers say
+    so in one line and pass `unavailable` and `unavailableReason` to the
+    workflow.
+  - The workflow never runs an unavailable command: the dev agent is told not
+    to run it, install anything or substitute a check, and to write the tests
+    anyway; Verify skips it, and lists a command that exits 126/127 in
+    `notStarted`, which is not a red result.
+  - With no runnable command left, the run skips Verify and still returns
+    `ready-for-mr`.
+  - The outcome carries `unverified: [{kind, command, reason}]`, and the merge
+    request opens with a **Not verified** section naming each one.
+  - A project that declares nothing is still refused (REQ-8, REQ-9): "we do not
+    know how to check it" is not "this machine cannot".
 
 ## Technical decisions
 

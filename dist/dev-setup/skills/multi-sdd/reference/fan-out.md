@@ -45,7 +45,9 @@ Workflow({
     "branchType": "feat",
     "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
     "baseBranch": "<the fork point confirmed in phase A>",
-    "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" }
+    "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" },
+    "unavailable": ["<each kind in the intake's UNAVAILABLE>"],
+    "unavailableReason": "<its UNAVAILABLE_REASON, then OUTPUT>"
   }
 })
 ```

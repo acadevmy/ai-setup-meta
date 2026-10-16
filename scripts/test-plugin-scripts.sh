@@ -1078,6 +1078,28 @@ assert_eq "a red declared preflight is refused" "3" "$(qp_exit "$QP/preflight-re
 assert_contains "with its output" "$(qp_key "$QP/preflight-red" OUTPUT)" "boom"
 assert_eq "and PREFLIGHT says it failed" "failed" "$(qp_key "$QP/preflight-red" PREFLIGHT)"
 
+# REQ-17: what the environment lacks is not what the project lacks. With
+# --allow-unavailable the launchers get a ready answer that names the commands
+# this machine cannot run, and the run goes on to a merge request that says so.
+QP_ALLOW=$(qp "$QP/missing" --require-declared --allow-unavailable)
+assert_eq "--allow-unavailable: a missing program does not refuse" "0" \
+  "$(qp_exit "$QP/missing" --require-declared --allow-unavailable)"
+assert_eq "its kind comes back unavailable, the others untouched" "lint|unavailable|absent" \
+  "$(printf '%s' "$QP_ALLOW" | jq -r '[.UNAVAILABLE, .LINT_STATUS, .TYPECHECK_STATUS] | join("|")')"
+assert_contains "with the reason the merge request will carry" \
+  "$(printf '%s' "$QP_ALLOW" | jq -r '.UNAVAILABLE_REASON')" "definitely-not-installed-qp"
+assert_eq "and still nothing ran" "false" "$([ -e "$QP/missing/ran" ] && echo true || echo false)"
+QP_ALLOW=$(qp "$QP/preflight-red" --allow-unavailable)
+assert_eq "--allow-unavailable: a red preflight makes every declared command unavailable" \
+  "true|lint test|failed" \
+  "$(printf '%s' "$QP_ALLOW" | jq -r '[.READY, .UNAVAILABLE, .PREFLIGHT] | join("|")')"
+assert_contains "and keeps the preflight's output" "$(printf '%s' "$QP_ALLOW" | jq -r '.OUTPUT')" "boom"
+assert_eq "--run does not run an unavailable command" "unavailable 0" \
+  "$(qp_key "$QP/preflight-red" TEST_STATUS --run --allow-unavailable) $(qp_exit "$QP/preflight-red" --run --allow-unavailable)"
+assert_eq "--allow-unavailable never excuses a missing declaration" "3" \
+  "$(qp_exit "$QP/undeclared" --require-declared --allow-unavailable)"
+assert_eq "nor every command declared absent" "3" "$(qp_exit "$QP/all-null" --allow-unavailable)"
+
 QP_READY="$QP/ready"
 declare_in "$QP_READY" '{"lint":"true","typecheck":null,"absent":{"typecheck":"none"},"test":"touch ran"}'
 assert_eq "a declaration with lint and test and no typecheck is ready" "0" \
@@ -2071,7 +2093,9 @@ async function agent(prompt, opts) {
     return { satisfied: false, reason: key + ' proposal', suggestion: 'change', grounds: 'an ADR' };
   }
   if (label.startsWith('dev:')) return { worktreePath: '/wt', branch: 'b', specPath: 'p', commits: [] };
-  if (label.startsWith('verify:')) return { passed: true, output: 'green' };
+  if (label.startsWith('verify:')) {
+    return { passed: true, output: 'green', notStarted: scenario.notStarted || [] };
+  }
   return null;
 }
 
@@ -2106,6 +2130,12 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
       && (prompts['dev:DE-1'] || '').includes('say so in `notes`'),
     precedence: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
       .every((l) => prompts[l].includes('settle it in this')),
+    verified: calls.includes('verify:DE-1'),
+    unverified: (out.unverified || []).map((u) => u.kind + '=' + u.command).join(','),
+    unverifiedReason: (out.unverified || []).map((u) => u.reason).join('|'),
+    devSkips: /lint:\s+make lint\s+\(NOT RUNNABLE HERE/.test(prompts['dev:DE-1'] || '')
+      && (prompts['dev:DE-1'] || '').includes('php is 8.3'),
+    verifySkips: /lint:\s+make lint\s+\(skip\)/.test(prompts['verify:DE-1'] || ''),
   }));
 });
 NODEJS
@@ -2153,6 +2183,25 @@ NODEJS
     "$(field "$SIM" status) $(field "$SIM" stage)"
   assert_eq "without launching a single agent either" "0" "$(field "$SIM" agents)"
 
+  # REQ-17: a toolchain this environment lacks does not stop the run. The
+  # commands it cannot start are never run, and they travel to the merge request.
+  SIM=$(sim '{}' '{"unavailable":["lint","test"],"unavailableReason":"php is 8.3"}')
+  assert_eq "every command unavailable: the run still reaches the merge request" \
+    "ready-for-mr false" "$(field "$SIM" status) $(field "$SIM" verified)"
+  assert_eq "with each command it could not run in unverified" \
+    "lint=make lint,test=make test" "$(field "$SIM" unverified)"
+  assert_eq "and the dev agent is told not to run them, and why" "true" "$(field "$SIM" devSkips)"
+  SIM=$(sim '{}' '{"unavailable":["lint"],"unavailableReason":"php is 8.3"}')
+  assert_eq "one command unavailable: Verify runs the others and skips it" \
+    "ready-for-mr true true" "$(field "$SIM" status) $(field "$SIM" verified) $(field "$SIM" verifySkips)"
+  assert_eq "and it is reported unverified" "lint=make lint" "$(field "$SIM" unverified)"
+  SIM=$(sim '{"notStarted":["make test"]}')
+  assert_eq "a command that did not start at Verify is unverified, not red" \
+    "ready-for-mr test=make test" "$(field "$SIM" status) $(field "$SIM" unverified)"
+  SIM=$(sim '{}' '{"unavailable":["typecheck","bogus"]}')
+  assert_eq "an unavailable kind with no command, or no kind at all, is ignored" \
+    "ready-for-mr  true" "$(field "$SIM" status) $(field "$SIM" unverified) $(field "$SIM" verified)"
+
   SIM=$(sim '{"simpler":"propose","revise":"dead"}')
   assert_eq "a reviser that returns nothing leaves every proposal open" \
     "ready-for-mr simpler" "$(field "$SIM" status) $(field "$SIM" open)"
@@ -2199,6 +2248,16 @@ NOT_STARTED=$(sed -n '/^## When the run does not start/,$p' "$OUTCOMES")
 assert_contains "the refusal of a SPRINT task is one BLOCKED bail-out" "$NOT_STARTED" "SPRINT → BLOCKED"
 assert_contains "a BACKLOG task is left as found" "$NOT_STARTED" "left as found"
 assert_contains "the refusal names the check" "$NOT_STARTED" "quality-preflight.sh"
+assert_contains "auto-sdd lets an environment without the toolchain through" \
+  "$AUTO_STEPS" "--allow-unavailable"
+assert_contains "and passes what it cannot run to the workflow" \
+  "$(cat "$SDD_DIR/auto-sdd/SKILL.md")" '"unavailable"'
+assert_contains "multi-sdd does the same" "$(cat "$SDD_DIR/multi-sdd/reference/preflight.md")" "--allow-unavailable"
+assert_contains "and its launch passes it on" \
+  "$(cat "$SDD_DIR/multi-sdd/reference/fan-out.md")" '"unavailable"'
+READY_SECTION=$(sed -n '/^## ready-for-mr/,/^## What a run leaves behind/p' "$OUTCOMES")
+assert_contains "ready-for-mr carries the checks nobody ran" "$READY_SECTION" "unverified"
+assert_contains "and the merge request opens with them" "$READY_SECTION" "**not verified**"
 
 MULTI_PRE="$SDD_DIR/multi-sdd/reference/preflight.md"
 MULTI_TEXT=$(cat "$MULTI_PRE")

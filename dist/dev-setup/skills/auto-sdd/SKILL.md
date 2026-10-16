@@ -9,10 +9,9 @@ disable-model-invocation: true
 
 # Auto SDD
 
-The launcher of the `auto-sdd` workflow. The orchestration lives in
-`workflows/auto-sdd.js`, JavaScript the harness runs: its bounds are bounds and
-its control flow never enters the context. What is left is what code cannot
-do — the task, the launch, the outcome.
+The launcher of the `auto-sdd` workflow (`workflows/auto-sdd.js`, run by the
+harness). What is left here is what code cannot do — the task, the launch, the
+outcome.
 
 **Usage**: `/dev-setup:auto-sdd [TASK_ID]`; `multi-sdd` composes it for
 several.
@@ -36,11 +35,11 @@ highest-priority `SPRINT` task.
 Before any question or board write:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh" --require-declared --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh" --require-declared --allow-unavailable --json
 ```
 
-Any non-zero exit → no run, per `run-outcomes.md`. `BACKLOG` → the contract's
-backlog gate.
+Any non-zero exit → no run, per `run-outcomes.md`. A non-empty `UNAVAILABLE`
+is not a stop: say in one line what this environment cannot run, and go on. `BACKLOG` → the contract's backlog gate.
 
 A declined gate or an empty `SPRINT` stops the flow: no run, no board write.
 Otherwise keep `custom_id`, `name`, `description` (verbatim), `url`, `task_id`.
@@ -54,9 +53,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh" --json
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
 ```
 
-The second resolves the base branch; `fork-point.md` holds how to read and
-confirm it. Ask before the board write below — a run the
-developer walks away from leaves the task where it was.
+The second resolves the base branch: confirm it as `fork-point.md` says,
+before the board write below.
 
 Then `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`, then
 the clock:
@@ -78,7 +76,9 @@ Workflow({
     "branchType": "feat",
     "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
     "baseBranch": "<the ref confirmed in step 2>",
-    "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" }
+    "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" },
+    "unavailable": ["<each kind in UNAVAILABLE>"],
+    "unavailableReason": "<UNAVAILABLE_REASON, then OUTPUT>"
   }
 })
 ```
@@ -101,7 +101,7 @@ broke: show the raw result and stop.
 
 - the task moved `SPRINT` → `IN PROGRESS` → `CODE REVIEW` or `BLOCKED`;
 - on `ready-for-mr`, a pushed branch and a merge request carrying the spec,
-  the real test output and what to confirm;
+  the real test output, what was not verified and what to confirm;
 - otherwise the failing output, with the branch and the worktree left in
   place;
 - either way, no edit in the developer checkout.

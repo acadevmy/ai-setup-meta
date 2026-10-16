@@ -309,12 +309,20 @@ is an error, never a silent fallback to the guess.
 
 **The autonomous launchers refuse without it.** Before the board, the fork point
 or the workflow, `/dev-setup:auto-sdd` and `/dev-setup:multi-sdd` run
-`${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh --require-declared --json`.
+`${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh --require-declared --allow-unavailable --json`.
 It refuses in seconds — no declaration, a rejected one, every command declared
-absent, a program not installed, a red `preflight` — and the run never starts:
+absent — and the run never starts:
 a SPRINT task goes to `BLOCKED` with the reason, a BACKLOG task is left as it
 was, and `multi-sdd` touches no task. The fix is the project's: run
 `/dev-setup:setup` and let step 3b write or repair the declaration.
+
+**An environment that cannot run them does not stop the run.** A command whose
+program is not installed, or a red `preflight` — a cloud routine without PHP or
+MySQL, say — is a fact about the machine, not about the project. The launcher
+says which commands are affected and starts anyway; the dev agent writes the
+tests without running those commands, Verify skips them, and the merge request
+opens with a **Not verified** section naming each one and why. Whoever merges
+runs them, or waits for the CI that does.
 `/dev-setup:sdd` and `/dev-setup:quick` do not stop; with `COMMANDS_SOURCE`
 `none` they say at the start that nothing will lint or test the work.
 
@@ -774,9 +782,10 @@ an `expo` key (React Native).
 `quality-preflight.sh` reason. It names the cause: no
 `.claude/quality-commands.json` (a project set up before the declaration
 existed — run `/dev-setup:setup` once), a malformed one, every command declared
-absent, a program the environment does not have, or a `preflight` that failed,
-with its output. Fix that, and launch again; nothing was started, so there is
-nothing to clean up.
+absent. Fix that, and launch again; nothing was started, so there is nothing to
+clean up. A program the environment does not have, or a `preflight` that
+failed, does not land here: the run starts and its merge request lists those
+checks as not verified.
 
 ### A rule I expected did not load
 

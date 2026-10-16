@@ -68,10 +68,15 @@ once the cause is fixed, and only the commands run again.
 
 ## ready-for-mr — push and open it
 
-`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[] }`
+`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[], unverified[] }`
 
-The tests, the linter and the type checker ran green in the worktree, and the
-spec is committed on the branch. Two things are left, and they are the two the
+Every quality command this environment could run ran green in the worktree,
+and the spec is committed on the branch. `unverified` lists the ones it could
+not — `{ kind, command, reason }`: declared by the project, but their program,
+service or runtime is not here (the launcher's `UNAVAILABLE`, or a command that
+exited 126/127 at Verify). A missing toolchain does not stop a run: it goes to
+the end, and the merge request says which checks nobody ran. When every
+command is unverified, `output` is empty and nothing at all was checked. Two things are left, and they are the two the
 workflow deliberately does not do:
 
 ```bash
@@ -106,6 +111,11 @@ Title, language and labels from `mr-meta.sh`, as `vcs-ops` describes —
 `--priority`. Body as `vcs-ops` describes — the template, filled in and short —
 plus what this flow owes a reviewer who was not watching:
 
+- **not verified**, first of all, when `unverified` holds anything: one line
+  per entry — the kind, the command, the reason — and that the run did not
+  prove it. Whoever merges runs those commands, or waits for the CI that
+  does: a green merge request that hides an unrun suite is the defect this
+  section exists to prevent.
 - **the real test output**, in a fenced block: the `output` field, as it came
   back. A reviewer has to see the suite passing without re-running it.
 - **to confirm**, at the top, when `toConfirm` or `deviations` holds anything:
@@ -148,10 +158,12 @@ the session is gone, so is the journal.
 
 Three failures happen before any phase does, and none is a task problem:
 
-- **`quality-preflight.sh` refuses** (exit 3) — the project cannot check its
-  own work here: no `.claude/quality-commands.json`, a rejected one, every
-  command declared absent, a program not installed, or a red declared
-  preflight. `REASON` says which, `OUTPUT` carries what failed. Nothing has
+- **`quality-preflight.sh` refuses** (exit 3) — the project does not say how
+  to check its work: no `.claude/quality-commands.json`, a rejected one, or
+  every command declared absent. A program not installed or a red declared
+  preflight is not a refusal: with `--allow-unavailable` those commands come
+  back in `UNAVAILABLE`, the run starts, and its merge request lists them as
+  not verified. `REASON` says which, `OUTPUT` carries what failed. Nothing has
   started — no fork-point question, no `IN PROGRESS`, no clock, no `Workflow` —
   and what happens to the task depends on where it was read:
   - read in `SPRINT` (`auto-sdd`) → one bail-out call, `SPRINT → BLOCKED`, its
@@ -174,6 +186,7 @@ Three failures happen before any phase does, and none is a task problem:
 - **`status: 'failed', stage: 'intake'`** — the launcher passed bad arguments:
   a missing `taskId`, `pluginRoot` or `baseBranch`, a task id that is not a
   plain identifier, or a `stack` whose three commands are all empty — which the
-  check above refuses first, so seeing it means that check was skipped. The
+  check above refuses first, so seeing it means that check was skipped. A
+  `stack` whose commands are all `unavailable` is not this: it runs, unverified. The
   `reason` names which, and no agent ran. Fix the launch call, not the
   workflow.

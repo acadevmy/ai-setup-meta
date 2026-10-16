@@ -6,19 +6,32 @@
 # implementation have been paid for: on DE-17472 that was 19 commits and about
 # 145M input tokens for an outcome certain at intake. This script answers the
 # question at intake, in seconds, before the board is touched or an agent
-# starts. The two autonomous launchers ask it with --require-declared; the
-# setup asks it with --run, when it writes the declaration (step 3b).
+# starts. The two autonomous launchers ask it with --require-declared and
+# --allow-unavailable; the setup asks it with --run, when it writes the
+# declaration (step 3b).
+#
+# Two questions, kept apart. "Does the project say how to check its work?" is
+# a project fact, and a no is always a refusal. "Can this environment run
+# those commands?" is a fact about the machine: a cloud routine without PHP or
+# MySQL, say. With --allow-unavailable a no there is not a refusal: the run
+# goes on, the commands that cannot start are reported in UNAVAILABLE, and the
+# merge request says which checks nobody ran.
 #
 # It reads the commands through detect-stack.sh, the one reader of
 # `.claude/quality-commands.json`, and works from the repository root, where
 # every consumer runs them.
 #
 # Usage:
-#   quality-preflight.sh [--json] [--require-declared] [--run]
+#   quality-preflight.sh [--json] [--require-declared] [--allow-unavailable] [--run]
 #
 #   --require-declared  refuse unless the commands come from the declaration
 #                       (COMMANDS_SOURCE=declared): what the autonomous
 #                       launchers require
+#   --allow-unavailable a program not installed, or a red declared preflight,
+#                       does not refuse: the commands it affects are reported
+#                       in UNAVAILABLE and the answer is ready. What the
+#                       autonomous launchers pass: the run proceeds and the
+#                       merge request names the checks it could not run
 #   --run               also run each command once and report how it went;
 #                       a red command is reported, only one that did not
 #                       start (exit 126/127) is refused
@@ -30,10 +43,12 @@
 #   - detect-stack.sh rejects the declaration (REASON carries its cause);
 #   - --require-declared is set and the commands are not declared;
 #   - no command is left to run;
-#   - the program a command starts is not installed (none of them runs). A
-#     leading `VAR=value` and a leading `cd <dir> &&` are skipped; a program
-#     with a `/` must be executable, relative to that directory;
-#   - the declared preflight exits non-zero (OUTPUT holds its tail);
+#   - without --allow-unavailable: the program a command starts is not
+#     installed (none of them runs). A leading `VAR=value` and a leading
+#     `cd <dir> &&` are skipped; a program with a `/` must be executable,
+#     relative to that directory;
+#   - without --allow-unavailable: the declared preflight exits non-zero
+#     (OUTPUT holds its tail);
 #   - with --run, a command did not start.
 #
 # Keys:
@@ -41,10 +56,15 @@
 #   REASON             why not, empty when ready
 #   COMMANDS_SOURCE    declared | detected | none, as detect-stack.sh says
 #   MISSING            one `<kind>: <program>` line per program not found
+#   UNAVAILABLE        with --allow-unavailable, the kinds this environment
+#                      cannot run (`lint test`): a missing program makes its
+#                      own kind unavailable, a red preflight makes every
+#                      declared kind unavailable
+#   UNAVAILABLE_REASON one line per cause, for the merge request
 #   PREFLIGHT          passed | failed | "" (none declared, or not reached)
 #   OUTPUT             the tail of what failed: the preflight, a red command
-#   LINT_STATUS        passed | failed | not-found | absent (declared
-#   TYPECHECK_STATUS     absent) | "" (no command, or not run)
+#   LINT_STATUS        passed | failed | not-found | unavailable | absent
+#   TYPECHECK_STATUS     (declared absent) | "" (no command, or not run)
 #   TEST_STATUS
 #
 # Exit: 0 ready · 3 refused · 1 usage error or no jq
@@ -59,6 +79,7 @@ source "$SCRIPT_DIR/common.sh"
 AS_JSON=false
 REQUIRE_DECLARED=false
 RUN=false
+ALLOW_UNAVAILABLE=false
 
 usage() {
   awk 'NR == 1 { next } /^# ---8<---/ { exit } /^#/ { sub(/^# ?/, ""); print }' \
@@ -70,6 +91,7 @@ while [ $# -gt 0 ]; do
     --json) AS_JSON=true; shift ;;
     --require-declared) REQUIRE_DECLARED=true; shift ;;
     --run) RUN=true; shift ;;
+    --allow-unavailable) ALLOW_UNAVAILABLE=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
@@ -87,6 +109,8 @@ READY=true
 REASON=""
 COMMANDS_SOURCE=""
 MISSING=""
+UNAVAILABLE=""
+UNAVAILABLE_REASON=""
 PREFLIGHT=""
 OUTPUT=""
 LINT_STATUS=""
@@ -98,6 +122,8 @@ finish() {
   json_set REASON "$REASON"
   json_set COMMANDS_SOURCE "$COMMANDS_SOURCE"
   json_set MISSING "$MISSING"
+  json_set UNAVAILABLE "$UNAVAILABLE"
+  json_set UNAVAILABLE_REASON "$UNAVAILABLE_REASON"
   json_set PREFLIGHT "$PREFLIGHT"
   json_set OUTPUT "$OUTPUT"
   json_set LINT_STATUS "$LINT_STATUS"
@@ -120,6 +146,20 @@ refuse() {
 }
 
 tail_of() { printf '%s' "$1" | tail -n "$MAX_OUTPUT_LINES"; }
+
+# Marks a kind as one this environment cannot run, once, with its status.
+mark_unavailable() {
+  case " $UNAVAILABLE " in *" $1 "*) return 0 ;; esac
+  UNAVAILABLE="${UNAVAILABLE:+$UNAVAILABLE }$1"
+  case "$1" in
+    lint) LINT_STATUS="unavailable" ;;
+    typecheck) TYPECHECK_STATUS="unavailable" ;;
+    test) TEST_STATUS="unavailable" ;;
+  esac
+}
+
+add_reason() { UNAVAILABLE_REASON="${UNAVAILABLE_REASON:+$UNAVAILABLE_REASON
+}$1"; }
 
 # ── The commands, from the one reader ─────────────────────────────────────────
 
@@ -220,10 +260,14 @@ for KIND in lint typecheck test; do
   if ! program_found "$START" "$PROGRAM"; then
     MISSING="${MISSING:+$MISSING
 }$KIND: ${PROGRAM:-(none)}"
+    if [ "$ALLOW_UNAVAILABLE" = true ]; then
+      mark_unavailable "$KIND"
+      add_reason "$KIND: \`${PROGRAM:-(none)}\` is not installed in this environment"
+    fi
   fi
 done
 
-if [ -n "$MISSING" ]; then
+if [ -n "$MISSING" ] && [ "$ALLOW_UNAVAILABLE" != true ]; then
   refuse "a quality command starts a program this environment does not have — $(printf '%s' "$MISSING" | tr '\n' ';' | sed 's/;/; /g'). Install it, or fix the command in .claude/quality-commands.json."
 fi
 
@@ -235,9 +279,17 @@ if [ -n "$PREFLIGHT_CMD" ]; then
   if [ "$PREFLIGHT_RC" -ne 0 ]; then
     PREFLIGHT="failed"
     OUTPUT=$(tail_of "$PREFLIGHT_OUT")
-    refuse "the declared preflight failed (exit $PREFLIGHT_RC): $PREFLIGHT_CMD"
+    [ "$ALLOW_UNAVAILABLE" = true ] || \
+      refuse "the declared preflight failed (exit $PREFLIGHT_RC): $PREFLIGHT_CMD"
+    # The preflight speaks for the environment, not for one command: when it
+    # says the toolchain is not here, none of the declared commands can run.
+    [ -z "$LINT_CMD" ] || mark_unavailable lint
+    [ -z "$TYPECHECK_CMD" ] || mark_unavailable typecheck
+    [ -z "$TEST_CMD" ] || mark_unavailable test
+    add_reason "the declared preflight failed (exit $PREFLIGHT_RC): $PREFLIGHT_CMD"
+  else
+    PREFLIGHT="passed"
   fi
-  PREFLIGHT="passed"
 fi
 
 # ── --run: a declared command is an executed command ──────────────────────────
@@ -251,6 +303,7 @@ if [ "$RUN" = true ]; then
       test) CMD="$TEST_CMD" ;;
     esac
     [ -n "$CMD" ] || continue
+    case " $UNAVAILABLE " in *" $KIND "*) continue ;; esac
 
     CMD_OUT=$(bash -c "$CMD" 2>&1)
     CMD_RC=$?

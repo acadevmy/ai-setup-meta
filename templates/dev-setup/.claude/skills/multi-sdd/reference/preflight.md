@@ -23,8 +23,12 @@ Whichever tasks are in it, the project either can check the runs' work here or
 it cannot:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh" --require-declared --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh" --require-declared --allow-unavailable --json
 ```
+
+Keep `UNAVAILABLE`, `UNAVAILABLE_REASON` and `OUTPUT` for the launch: a command
+this environment cannot run does not stop the set — say so in one line, and
+every run reports it as unverified.
 
 Any non-zero exit → print `REASON` and `OUTPUT` and stop. No run starts and no
 task is read or touched — the board stays as `multi-preflight.sh`'s exit 3
