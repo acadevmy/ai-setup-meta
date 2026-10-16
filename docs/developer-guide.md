@@ -634,7 +634,8 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | Regenerated | Left alone |
 |---|---|
 | `.claude/rules/dev-setup-*.md` — overwritten, and any that your stack no longer needs are removed | `.claude/rules/<your-own>.md` |
-| `AGENTS.md`, `CLAUDE.md` — after asking; for `AGENTS.md` the first offer replaces only the plugin-owned tail (agents, commands, where the rules live), quoting the diff, and your sections stay | Git hooks, ESLint, Prettier, CI config |
+| `AGENTS.md` — after asking; the first offer replaces only the plugin-owned tail (agents, commands, where the rules live), quoting the diff, and your sections stay | Git hooks, ESLint, Prettier, CI config |
+| A `CLAUDE.md` holding only `@AGENTS.md` — removed without asking, at the root and in every sub-project; one with your own content is moved into its `AGENTS.md` only on your yes | `CLAUDE.local.md` and any instruction file above the project — reported, never touched |
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
@@ -669,6 +670,18 @@ project's own checks and commit normally.
 If the hook warns on stderr and lets a commit through, `jq` is missing or stack
 detection failed. Install `jq`; the gate is fail-open by design and will not
 tell you twice.
+
+### AGENTS.md is not loading
+
+Run `/memory`: it lists the instruction files the session loaded. Claude Code
+reads `AGENTS.md` only from 2.1.281 on, and only when no `CLAUDE.md`,
+`.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the directory or in one above
+it — a `CLAUDE.local.md` of your own, or a `CLAUDE.md` in the folder that holds
+the repository, is enough to switch it off without an error. The setup lists
+every such file in its summary and touches none it did not write. Move the
+content out, or set **Project instructions** to `claude-md-and-agents-md` in
+`/config` to read both. The built-in AGENTS.md support disabled in `/plugin`,
+and the first session after an upgrade from 2.1.276 or earlier, skip it too.
 
 ### The merge request lists points to confirm
 

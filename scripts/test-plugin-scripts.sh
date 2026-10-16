@@ -3738,6 +3738,34 @@ done
 assert_eq "no shipped agent sets omitClaudeMd" "" \
   "$(grep -l omitClaudeMd "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md || true)"
 
+# ── Test 10 (REQ-10): the floor is declared where the requirements are ──
+IF_MIN="$(bash "$IF_SCRIPT" --json --dir "$IF_TREE" 2>/dev/null | jq -r '.MIN_CLAUDE_VERSION')"
+# The paragraph that opens with $1, on one line.
+if_paragraph() {
+  awk -v start="$1" 'index($0, start) == 1 { f = 1 } f && /^$/ { exit } f' "$2" | tr '\n' ' ' | tr -s ' '
+}
+IF_README_REQ="$(if_paragraph '**Prerequisites**' "$REPO_ROOT/README.md")"
+IF_ONBOARDING_REQ="$(if_paragraph '**You need**' "$REPO_ROOT/docs/onboarding.md")"
+for PAIR in "README.md|$IF_README_REQ" "docs/onboarding.md|$IF_ONBOARDING_REQ"; do
+  assert_eq "${PAIR%%|*} names the floor instruction-files.sh enforces" "$IF_MIN" \
+    "$(printf '%s' "${PAIR#*|}" | grep -oE 'Claude Code [0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^Claude Code //')"
+  assert_contains "${PAIR%%|*} applies it on every machine and runner" "${PAIR#*|}" \
+    "on every machine and runner"
+done
+
+# ── Test 12 (REQ-12): the docs no longer list a CLAUDE.md the setup writes ──
+for DOC in README.md docs/onboarding.md docs/developer-guide.md; do
+  assert_eq "$DOC lists no CLAUDE.md beside AGENTS.md" "" \
+    "$(grep -nF -e '`AGENTS.md`, `CLAUDE.md`' -e 'AGENTS.md, CLAUDE.md' "$REPO_ROOT/$DOC" || true)"
+done
+IF_MIGRATION="$REPO_ROOT/docs/migration-v2-to-v3.md"
+assert_eq "the migration guide has the CLAUDE.md section" "1" \
+  "$(grep -c '^## 12\. CLAUDE\.md is gone' "$IF_MIGRATION")"
+assert_eq "and its index entry" "1" \
+  "$(grep -c '^- \[12\. CLAUDE\.md is gone.*\](#12-' "$IF_MIGRATION")"
+assert_eq "the AGENTS.md script table lists instruction-files.sh with its keys" "true" \
+  "$(grep -E '^\| `instruction-files\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'VERSION_OK' && echo true || echo false)"
+
 echo ""
 echo "── frontmatter parseability ──"
 
