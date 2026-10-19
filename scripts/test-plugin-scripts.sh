@@ -2265,12 +2265,22 @@ assert_before "multi-sdd checks once, before the first task read" "$MULTI_TEXT" 
 assert_before "and before the triage" "$MULTI_TEXT" "$QP_CALL" "## Triage"
 assert_eq "and its refusal moves no task" "" "$(grep -n 'BLOCKED' "$MULTI_PRE" || true)"
 
-# REQ-15: in an ephemeral session a failed run's branch is pushed, so the work
-# survives the session — and only pushed: the merge request is a decision.
+# REQ-15: in an ephemeral session a failed run's work reaches origin, so it
+# survives the session — and only pushed: the merge request is a decision. The
+# board is the report (DE-17159 — the branch of a routine run was lost, and the
+# BLOCKED comment was the only trace), so it says what is missing and why.
 FAILED_SECTION=$(sed -n '/^## failed/,/^## ready-for-mr/p' "$OUTCOMES")
 assert_contains "a failed run in a cloud session is keyed on CLAUDE_CODE_REMOTE" "$FAILED_SECTION" "CLAUDE_CODE_REMOTE"
-assert_contains "its branch is pushed" "$FAILED_SECTION" 'git push -u origin'
+assert_contains "it saves what the worktree holds through the one script past the gate" "$FAILED_SECTION" 'save-failed-run.sh'
+assert_contains "and pushes the branch as it is" "$FAILED_SECTION" 'pushes the branch as it is'
+assert_contains "the spec is saved when no branch holds it" "$FAILED_SECTION" '--spec-file'
+assert_contains "a run that broke is saved the same way" "$FAILED_SECTION" 'stage `broken`'
+assert_contains "and the launcher sends it there" "$(cat "$SDD_DIR/auto-sdd/SKILL.md")" 'stage `broken`'
+assert_contains "even when it holds nothing" "$FAILED_SECTION" 'an empty commit when it'
 assert_contains "with no merge request" "$FAILED_SECTION" "no merge request"
+assert_contains "the dev agent's notes are read" "$FAILED_SECTION" '`notes`'
+assert_contains "the BLOCKED note says what is missing" "$FAILED_SECTION" '**what is missing**'
+assert_contains "and how to resume once the session is gone" "$FAILED_SECTION" '/dev-setup:sdd <taskId>'
 
 # REQ-12: the interactive flows do not stop on it — a person is there — but
 # they say it at the start, not in the closing summary.
@@ -3032,7 +3042,7 @@ assert_eq "ready-for-mr invokes vcs-ops before it stops the clock" "true" \
      && echo true || echo false)"
 assert_eq "failed stops the clock before the BLOCKED move" "true" \
   "$(awk '/^## failed/ { p = 1; next } /^## / { p = 0 } p' "$NT_OUTCOMES" \
-     | grep -qE '^3\. Stop the clock, then move the task to `BLOCKED`' && echo true || echo false)"
+     | grep -qE '^4\. Stop the clock, then move the task to `BLOCKED`' && echo true || echo false)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 12d. session-title.sh: the session is named after its task (DE-17077)
@@ -4257,6 +4267,178 @@ for PV_NEEDLE in notify.sh session-title.sh; do
   assert_contains "the developer guide names $PV_NEEDLE" "$PV_GUIDE" "\`$PV_NEEDLE\`"
 done
 assert_contains "AGENTS.md lists RECENT_TASKS" "$(cat "$REPO_ROOT/AGENTS.md")" "\`RECENT_TASKS\`"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 17. save-failed-run.sh: a failed run's work, past the gates
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# A failed run in a cloud session loses its work with the session, and the
+# project's gates refuse the commit and the push that would save it — the red
+# commands are why the run failed. So the script commits and pushes past the
+# hooks. What is tested is that it saves whatever exists — a worktree, a bare
+# branch, or only the spec — and how narrow it stays: it refuses outside a
+# cloud session and off the task's own branch, never commits without a reason,
+# never forces, and its commit says the hooks were skipped.
+
+echo ""
+echo "── save-failed-run.sh (a failed run's work, past the gates) ──"
+
+SFR_REMOTE="$WORK_DIR/save-failed-run-remote.git"
+SFR_REPO="$WORK_DIR/save-failed-run-repo"
+SFR_BRANCH="feat(notes)/DE-900_unread-filter"
+mkdir -p "$SFR_REPO"
+git init --quiet --bare --template="$EMPTY_GIT_TEMPLATE" "$SFR_REMOTE" >/dev/null 2>&1
+(
+  cd "$SFR_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  git remote add origin "$SFR_REMOTE"
+  echo "base" > base.txt
+  printf '.hooks/\n' > .gitignore
+  git add . && git commit --quiet -m "chore: base"
+  # A project whose every hook refuses — pre-commit, commit-msg and pre-push —
+  # behind a custom hooks path, as husky sets one.
+  mkdir -p .hooks
+  for HOOK in pre-commit commit-msg pre-push; do
+    printf '#!/bin/sh\necho "%s refused" >&2\nexit 1\n' "$HOOK" > ".hooks/$HOOK"
+    chmod +x ".hooks/$HOOK"
+  done
+  git config core.hooksPath "$SFR_REPO/.hooks"
+) >/dev/null 2>&1
+# The run's worktree, on the task's branch, as the dev agent leaves it.
+SFR_TREE="$WORK_DIR/save-failed-run-tree"
+git -C "$SFR_REPO" worktree add --quiet -b "$SFR_BRANCH" "$SFR_TREE" >/dev/null 2>&1
+
+SFR_REASON="$WORK_DIR/save-failed-run-reason.txt"
+printf 'Blocked on the backend: GET /notes has no unread filter yet.\n' > "$SFR_REASON"
+
+sfr() { (cd "$SFR_REPO" && bash "$PLUGIN_SCRIPTS/save-failed-run.sh" --json "$@" 2>/dev/null); }
+sfr_exit() {
+  (cd "$SFR_REPO" && bash "$PLUGIN_SCRIPTS/save-failed-run.sh" --json "$@") >/dev/null 2>&1
+  printf '%s' "$?"
+}
+sfr_tip() { git -C "$SFR_REPO" rev-parse --verify --quiet "refs/heads/$1"; }
+sfr_remote_tip() { git -C "$SFR_REMOTE" rev-parse --verify --quiet "refs/heads/$1"; }
+
+assert_eq "the project's own hooks refuse an ordinary commit" "1" \
+  "$(cd "$SFR_TREE" && echo wip > wip.txt && git add wip.txt && git commit --quiet -m 'wip' >/dev/null 2>&1; echo $?; git reset --quiet; rm -f wip.txt)"
+
+# Outside a cloud session the worktree survives, so the gates stay.
+SFR_BEFORE="$(sfr_tip "$SFR_BRANCH")"
+SFR_LOCAL="$(env -u CLAUDE_CODE_REMOTE bash -c 'cd "$1" && bash "$2" --json --task DE-900 --stage verify --reason-file "$3" 2>/dev/null' _ \
+  "$SFR_REPO" "$PLUGIN_SCRIPTS/save-failed-run.sh" "$SFR_REASON")"
+assert_eq "it refuses outside a cloud session" "false" "$(printf '%s' "$SFR_LOCAL" | jq -r '.SAVED')"
+assert_contains "and says why" "$(printf '%s' "$SFR_LOCAL" | jq -r '.REASON')" "CLAUDE_CODE_REMOTE"
+assert_eq "with exit 3" "3" "$(env -u CLAUDE_CODE_REMOTE bash -c \
+  'cd "$1" && bash "$2" --json --task DE-900 --stage verify --reason-file "$3" >/dev/null 2>&1; echo $?' _ \
+  "$SFR_REPO" "$PLUGIN_SCRIPTS/save-failed-run.sh" "$SFR_REASON")"
+assert_eq "and commits nothing" "$SFR_BEFORE" "$(sfr_tip "$SFR_BRANCH")"
+
+export CLAUDE_CODE_REMOTE=true
+
+# Only the task's own branch.
+assert_eq "it refuses a worktree on another task's branch" "3" \
+  "$(sfr_exit --task DE-901 --stage verify --reason-file "$SFR_REASON" --dir "$SFR_TREE")"
+assert_eq "and with nothing that carries the task, nothing to save" "3" \
+  "$(sfr_exit --task DE-901 --stage verify --reason-file "$SFR_REASON")"
+assert_contains "it says so" \
+  "$(sfr --task DE-901 --stage verify --reason-file "$SFR_REASON" | jq -r '.REASON')" "nothing to save"
+
+# No reason, no commit: a skipped gate has to say why.
+: > "$WORK_DIR/save-failed-run-empty.txt"
+assert_eq "an empty reason is a usage error" "1" \
+  "$(sfr_exit --task DE-900 --stage verify --reason-file "$WORK_DIR/save-failed-run-empty.txt")"
+assert_eq "an unknown stage is a usage error" "1" \
+  "$(sfr_exit --task DE-900 --stage closure --reason-file "$SFR_REASON")"
+assert_eq "and neither commits" "$SFR_BEFORE" "$(sfr_tip "$SFR_BRANCH")"
+
+# 1 — the run's worktree, found from the task id: uncommitted and untracked
+# work, every hook red, pushed as it is.
+(cd "$SFR_TREE" && echo "changed" >> base.txt && echo "new" > notes_filter.dart)
+SFR_SAVED="$(sfr --task DE-900 --stage verify --reason-file "$SFR_REASON")"
+assert_eq "in a cloud session it commits past the red hooks" "true" "$(printf '%s' "$SFR_SAVED" | jq -r '.SAVED')"
+assert_eq "finding the worktree from the task id" "$(cd "$SFR_TREE" && pwd -P)" \
+  "$(cd "$(printf '%s' "$SFR_SAVED" | jq -r '.WORKTREE')" && pwd -P)"
+assert_eq "everything the worktree held" "2" "$(printf '%s' "$SFR_SAVED" | jq -r '.FILES')"
+assert_eq "leaving it clean" "" "$(git -C "$SFR_TREE" status --porcelain)"
+assert_eq "and pushes past the red pre-push hook" "true" "$(printf '%s' "$SFR_SAVED" | jq -r '.PUSHED')"
+assert_eq "the remote has the commit" "$(printf '%s' "$SFR_SAVED" | jq -r '.COMMIT')" "$(sfr_remote_tip "$SFR_BRANCH")"
+SFR_MESSAGE="$(git -C "$SFR_REPO" log -1 --format=%B "refs/heads/$SFR_BRANCH")"
+assert_eq "the subject is fixed and carries the task" \
+  "chore: save the unfinished work of a failed run [DE-900]" "$(printf '%s\n' "$SFR_MESSAGE" | head -1)"
+assert_contains "the body names the stage" "$SFR_MESSAGE" "failed at the verify stage"
+assert_contains "says the hooks were skipped" "$SFR_MESSAGE" "skipped the project's hooks"
+assert_contains "and carries the reason verbatim" "$SFR_MESSAGE" "GET /notes has no unread filter yet"
+
+# Nothing left uncommitted: an empty commit, so the pushed branch still says why.
+SFR_EMPTY="$(printf 'Nothing to save: the dev agent stopped at step 1.\n' \
+  | (cd "$SFR_REPO" && bash "$PLUGIN_SCRIPTS/save-failed-run.sh" --json --task DE-900 --stage dev \
+       --dir "$SFR_TREE" --reason-file - 2>/dev/null))"
+assert_eq "a clean worktree still gets the commit" "0" "$(printf '%s' "$SFR_EMPTY" | jq -r '.FILES')"
+assert_contains "carrying the reason read from stdin" \
+  "$(git -C "$SFR_REPO" log -1 --format=%B "refs/heads/$SFR_BRANCH")" "the dev agent stopped at step 1"
+
+# A remote branch that moved on is reported, never overwritten: the remote is
+# moved to a commit of its own, written with plumbing on the bare repository.
+SFR_OTHER="$(git -C "$SFR_REMOTE" commit-tree "$SFR_BEFORE^{tree}" -p "$SFR_BEFORE" -m "other" 2>/dev/null)"
+git -C "$SFR_REMOTE" update-ref "refs/heads/$SFR_BRANCH" "$SFR_OTHER"
+SFR_REJECTED="$(sfr --task DE-900 --stage verify --reason-file "$SFR_REASON")"
+assert_eq "a diverged remote is not forced: exit 4" "4" \
+  "$(sfr_exit --task DE-900 --stage verify --reason-file "$SFR_REASON")"
+assert_eq "the commit is still saved" "true" "$(printf '%s' "$SFR_REJECTED" | jq -r '.SAVED')"
+assert_eq "not pushed" "false" "$(printf '%s' "$SFR_REJECTED" | jq -r '.PUSHED')"
+assert_eq "with the push's own error" "true" \
+  "$([ -n "$(printf '%s' "$SFR_REJECTED" | jq -r '.PUSH_ERROR')" ] && echo true || echo false)"
+assert_eq "and the remote untouched" "$SFR_OTHER" "$(sfr_remote_tip "$SFR_BRANCH")"
+
+# 2 — a branch with no worktree (the run broke after the dev agent's worktree
+# was removed): an empty commit without a checkout.
+SFR_BARE_BRANCH="feat/DE-910_bare-branch"
+git -C "$SFR_REPO" branch "$SFR_BARE_BRANCH" "$SFR_BEFORE"
+SFR_CHECKOUT_BEFORE="$(git -C "$SFR_REPO" symbolic-ref --short HEAD)"
+SFR_BARE="$(sfr --task DE-910 --stage broken --reason-file "$SFR_REASON")"
+assert_eq "a branch with no worktree is saved" "true" "$(printf '%s' "$SFR_BARE" | jq -r '.SAVED')"
+assert_eq "with no worktree named" "" "$(printf '%s' "$SFR_BARE" | jq -r '.WORKTREE')"
+assert_eq "on top of the branch" "$SFR_BEFORE" "$(git -C "$SFR_REPO" rev-parse "refs/heads/$SFR_BARE_BRANCH^")"
+assert_eq "the session's checkout never moves" "$SFR_CHECKOUT_BEFORE" "$(git -C "$SFR_REPO" symbolic-ref --short HEAD)"
+assert_eq "and it is pushed" "true" "$(printf '%s' "$SFR_BARE" | jq -r '.PUSHED')"
+assert_contains "a broken run says so" "$(git -C "$SFR_REPO" log -1 --format=%B "refs/heads/$SFR_BARE_BRANCH")" \
+  "failed at the broken stage"
+
+# 3 — no branch at all, only the spec the run wrote: a branch of its own.
+SFR_SPEC="$WORK_DIR/save-failed-run-spec.md"
+printf '# DE-920 spec\n\n- REQ-1: the filter shows unread notes only.\n' > "$SFR_SPEC"
+SFR_FROM_SPEC="$(TMPDIR="$WORK_DIR" sfr --task DE-920 --stage dev --reason-file "$SFR_REASON" \
+  --spec-file "$SFR_SPEC" --spec-path .specs/DE-920-unread-filter.md --base "$SFR_BEFORE" \
+  --title "unread filter" --type feat)"
+SFR_SPEC_BRANCH="$(printf '%s' "$SFR_FROM_SPEC" | jq -r '.BRANCH')"
+assert_eq "with only a spec, a branch is created" "true" "$(printf '%s' "$SFR_FROM_SPEC" | jq -r '.CREATED')"
+assert_contains "named for the task" "$SFR_SPEC_BRANCH" "DE-920"
+assert_eq "holding the spec" "$(cat "$SFR_SPEC")" \
+  "$(git -C "$SFR_REPO" show "refs/heads/$SFR_SPEC_BRANCH:.specs/DE-920-unread-filter.md" 2>/dev/null)"
+assert_eq "forked from --base" "$SFR_BEFORE" "$(git -C "$SFR_REPO" rev-parse "refs/heads/$SFR_SPEC_BRANCH^")"
+assert_eq "and pushed" "true" "$(printf '%s' "$SFR_FROM_SPEC" | jq -r '.PUSHED')"
+assert_eq "the session's checkout still never moved" "$SFR_CHECKOUT_BEFORE" "$(git -C "$SFR_REPO" symbolic-ref --short HEAD)"
+assert_eq "a spec path outside the repository is a usage error" "1" \
+  "$(sfr_exit --task DE-921 --stage dev --reason-file "$SFR_REASON" --spec-file "$SFR_SPEC" \
+     --spec-path ../escape.md --base "$SFR_BEFORE" --title "x")"
+
+unset CLAUDE_CODE_REMOTE
+
+# The exception lives in the script only: the gate still refuses the bypass
+# when a model types it.
+assert_contains "the settings template still denies --no-verify" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/settings.json")" '"Bash(git commit *--no-verify*)"'
+SFR_OUTCOMES=$(sed -n '/^## failed/,/^## ready-for-mr/p' "$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md")
+assert_contains "a failed cloud run is saved through it" "$SFR_OUTCOMES" "save-failed-run.sh"
+assert_contains "and its push result reaches the board" "$SFR_OUTCOMES" "PUSH_ERROR"
+assert_contains "the workflow hands a branchless spec over" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd.js")" "markdown: draft.specMarkdown"
+assert_eq "the manifest ships it" "true" \
+  "$(jq -r '.plugin_scripts | index("save-failed-run.sh") != null' "$REPO_ROOT/templates/dev-setup/manifest.json")"
+assert_eq "the AGENTS.md script table lists it with its keys" "true" \
+  "$(grep -E '^\| `save-failed-run\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'PUSHED' && echo true || echo false)"
 
 echo ""
 echo "── frontmatter parseability ──"

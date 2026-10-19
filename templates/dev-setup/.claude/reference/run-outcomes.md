@@ -37,31 +37,76 @@ feedback on the merge request, handled like any other.
 
 ## failed — the spec, the dev step or the commands
 
-`{ status: 'failed', stage, reason, output?, branch?, worktreePath? }`
+`{ status: 'failed', stage, reason, output?, notes?, branch?, baseBranch?, worktreePath?, commits?, spec?, openPoints?, deviations?, toConfirm?, unverified? }`
 
 `stage` says where: `intake` (the launcher passed bad arguments, or three empty
 quality commands — a bug in the launch call, fix it), `spec`, `dev`, or `verify`
 (the project lint, typecheck or test command came back red).
 
-1. Show `reason` and, when `verify` failed, the `output` as it came — that is the
-   real command output, not a summary of it.
-2. **In an ephemeral session** — `CLAUDE_CODE_REMOTE` is `true`, a cloud session
-   whose disk goes when it ends — a branch left alone is a branch lost: on
-   DE-17472 the branch and the worktree of a failed run vanished with the
-   session. When the outcome carries a `branch`, push it — and open
-   no merge request: a failed run is something to resume, not to review.
+**A run that broke** — the workflow came back with neither outcome, or with
+none at all — is handled as a `failed` at stage `broken`: the raw result is its
+`reason`, and in a cloud session step 3 still saves whatever branch carries the
+task.
+
+1. Show `reason`, the dev agent's `notes` when there are any, and, when `verify`
+   failed, the `output` as it came — that is the real command output, not a
+   summary of it. Read `notes` before `reason`: on DE-17159 the dev agent
+   stopped at a gate the spec set — the backend contract did not exist yet —
+   and Verify then failed on a worktree nobody had installed. `reason` said the
+   commands were red; `notes` said why.
+2. Write the report — the note the board gets, and in a cloud session the body
+   of the commit that saves the work — so whoever picks the task up can work
+   from the board and the remote alone:
+   - **why it failed** — the stage and `reason`, in one line;
+   - **what is missing** — what stands between the branch and a merge request,
+     read from `notes` and `output`: the blocker and who has to remove it, the
+     failing command and its error, the steps of the spec's plan with no commit
+     yet. Nothing the outcome does not say: a cause you infer is marked as
+     inferred;
+   - **the failing output** — its tail, as it came, when `verify` failed, or
+     the raw result when the run broke;
+   - **to resume** — fix the cause, check the branch out, and run
+     `/dev-setup:sdd <taskId>`: it starts from the spec and the commits on it.
+3. **In an ephemeral session, save the work and push it.** `CLAUDE_CODE_REMOTE`
+   is `true` in a cloud session — a scheduled routine among them — and its disk
+   goes when it ends: a branch left there is a branch lost, as it was on
+   DE-17472 and DE-17159. Whatever the stage, write the report to a file
+   outside the worktree, then:
 
    ```bash
-   git push -u origin "<branch>"
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/save-failed-run.sh" --task <taskId> \
+     --stage <stage> --reason-file <report file> --json \
+     [--dir "<worktreePath>"]
    ```
 
-   Locally nothing changes: the worktree survives and stays on disk.
-3. Stop the clock, then move the task to `BLOCKED` with the same bail-out call:
-   one `update` naming the stage, the reason and the branch — and, when step 2
-   pushed it, that it is on `origin` — with the clock's `COMMENT` after the note.
-4. Leave the branch and the worktree alone. They are the debugging material, and
+   `--dir` when the outcome carries a `worktreePath`; without it the script
+   finds the worktree or the branch that carries the task id. When the outcome
+   carries `spec.markdown` and no `branch` — the dev agent never made one —
+   write it to a file too and add
+   `--spec-file <that file> --spec-path "<spec.path>" --base "<baseBranch>" --title "<the task title, in English>" --type <branchType>`:
+   the spec and its Challenge are most of what the run paid for.
+
+   The script commits everything the worktree holds — an empty commit when it
+   holds nothing, so the branch itself says why — with the report as the
+   message body, and pushes the branch as it is, past the project's commit and
+   push hooks: they are red, which is why the run failed. It is the one way
+   past the gates, and it keeps that narrow itself: it refuses outside a cloud
+   session and on a branch that does not carry the task id, never forces a
+   push, and its message says the hooks were skipped. Never skip them any other
+   way — no `--no-verify`, no `HUSKY=0`: the `deny` rules and the commit gate
+   still refuse those. Its exit goes into the board note: `0` pushed, `4` saved
+   but not pushed (`PUSH_ERROR` says why), `3` nothing to save (`REASON`), `1`
+   a broken call (its stderr).
+
+   Open no merge request: the task is the report, not a review request.
+   Locally nothing changes: no commit, no push — the worktree survives on disk.
+4. Stop the clock, then move the task to `BLOCKED` with the same bail-out call:
+   one `update` whose note is the report, plus what step 3 did — the branch on
+   `origin` with the commit that saved it, or why it is not there. The clock's
+   `COMMENT` goes after the note.
+5. Leave the branch and the worktree alone. They are the debugging material, and
    deleting them is the one thing that makes the failure unreadable.
-5. End the report on one `Next:` line, the exact command for where it failed:
+6. End the report on one `Next:` line, the exact command for where it failed:
    - `verify` → `Next: cd "<worktreePath>" && <the command that failed>` — the
      red command, run where the code is;
    - `dev` → `Next: cd "<worktreePath>"` — the implementation as it stopped;

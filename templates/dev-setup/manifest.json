@@ -60,7 +60,8 @@
     "render-template.sh",
     "instruction-files.sh",
     "worktree-info.sh",
-    "mr-meta.sh"
+    "mr-meta.sh",
+    "save-failed-run.sh"
   ],
   "hooks": [
     "gate-commit.sh",
