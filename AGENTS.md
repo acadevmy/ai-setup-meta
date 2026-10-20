@@ -632,12 +632,21 @@ $19.34 run) from the three that did not. Cause is not proven — the same
 declarations sat on the same skills in v2.3.1, which never re-keyed, so the
 change from `model: opus` to `effort:` is the other variable in play — but a
 declaration that restricts nothing is not worth keeping while it is a suspect.
-`setup/SKILL.md` keeps its own `allowed-tools`: there the list is real, it
-denies the agent launcher and the network, and setup is one skill at the start
-of a session rather than a transition inside a flow. Its one MCP exception is
-read-only and named tool by tool — the ClickUp Doc pages and the Google Drive
-file reads Step 7e needs to build `product.md` from a document. Nothing that
-writes, and nothing beyond those four.
+
+`allowed-tools` never restricts anything: it pre-approves the tools it lists,
+and every other tool stays callable. `setup/SKILL.md` used to keep its own list
+on the claim that it denied the agent launcher and the network; it did not
+(DE-17061). The setup now declares `disallowed-tools: Agent, WebFetch,
+WebSearch`, the field that does remove tools, and no `model:` — an override
+that either lasts one turn of a multi-turn setup or moves the rest of the
+session to another model. The removal lasts only until the developer's next
+message, and the setup ends its turn at every question, so it guards the first
+turn and nothing more: it is a guard against a stray call, not a boundary. The
+boundary is still the `deny` rules plus the sandbox. `AskUserQuestion` stays
+off that list: the setup's questions are real calls. Its `allowed-tools` names
+the four read-only MCP calls Step 7e makes to build `product.md` from a
+document — the ClickUp Doc pages and the Google Drive file reads — and nothing
+else: a pre-approval, so a read does not ask four times, never a restriction.
 
 Whoever measures the next run: the number to watch is `cache_creation` on the
 request that loads a skill, and the tell is `cache_read` collapsing to the size

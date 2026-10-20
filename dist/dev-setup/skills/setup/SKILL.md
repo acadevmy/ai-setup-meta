@@ -4,12 +4,12 @@ description: Grafts the AI-native workflow onto a project — path-scoped rules,
 user-invocable: true
 disable-model-invocation: true
 disallowed-tools: Agent, WebFetch, WebSearch
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__clickup__clickup_list_document_pages, mcp__clickup__clickup_get_document_pages, mcp__claude_ai_Google_Drive__search_files, mcp__claude_ai_Google_Drive__read_file_content
+allowed-tools: mcp__clickup__clickup_list_document_pages, mcp__clickup__clickup_get_document_pages, mcp__claude_ai_Google_Drive__search_files, mcp__claude_ai_Google_Drive__read_file_content
 ---
 
 # Dev Setup
 
-Everything is bundled; nothing is downloaded. Two roots matter:
+Everything is bundled. Two roots matter:
 
 - `${CLAUDE_SKILL_DIR}/templates/` — the files installed into the project.
 - `${CLAUDE_PLUGIN_ROOT}/scripts/` — the deterministic work. `--json` prints a
@@ -41,16 +41,16 @@ Run the steps **in this order**, reading only the reference each one names.
 |---|---|---|---|
 | 2 | Stack detection (`detect-stack.sh --json`) | EXISTING, UPDATE | `existing.md` |
 | 2b | Stack selection — ask the developer | GREENFIELD | `greenfield.md` |
-| 2c | VCS detection — which host `origin` belongs to | all | `install.md` |
+| 2c | VCS detection — the host of `origin` | all | `install.md` |
 | 3 | Install the plugin's resources (3.1–3.9) | all | `install.md` |
 | 3b | Declare and verify the quality commands | all (GREENFIELD: after 8) | `quality-commands.md` |
 | 4 | Render the path-scoped rules | all | `rules-generation.md` |
 | 5, 5b | Generate AGENTS.md; check the instruction files | all | `agents-generation.md` |
 | 6, 7 | MCP servers and `.env.example` | all | `mcp-env.md` |
-| 7b | Branch protection on the reference branch | github, gitlab | `mcp-env.md` |
-| 7c | `worktree.baseRef`, from the reference branch | all | `mcp-env.md` |
-| 7d | `.claude/auto-dev.json` for unattended runs | all | `mcp-env.md` |
-| 7e | `product.md`, the product context | all | `product-context.md` |
+| 7b | Protect the reference branch | github, gitlab | `mcp-env.md` |
+| 7c | `worktree.baseRef` | all | `mcp-env.md` |
+| 7d | `.claude/auto-dev.json` | all | `mcp-env.md` |
+| 7e | `product.md` | all | `product-context.md` |
 | 8 | Scaffold the project | GREENFIELD | `greenfield.md` |
 | 9 | Summary — the steps' one-line reports | all | the mode's |
 

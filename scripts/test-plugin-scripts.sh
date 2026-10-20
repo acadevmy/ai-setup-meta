@@ -1779,10 +1779,13 @@ setup/reference/mcp-env.md|settings on the host
 HIST_KEPT
 
 # Over the prose the model reads, the three phrases survive only where they
-# state a present fact (fork-point.md, rules-generation.md) or the recognition
-# rule UPDATE applies to an old AGENTS.md (agents-generation.md).
+# state a present fact (fork-point.md, rules-generation.md, the story
+# references) or the recognition rule UPDATE applies to an old AGENTS.md
+# (agents-generation.md).
 assert_eq "the only history phrases left are present-tense facts and the UPDATE recognition rule" \
   "templates/dev-setup/.claude/reference/fork-point.md
+templates/dev-setup/.claude/skills/story/reference/examples.md
+templates/dev-setup/.claude/skills/story/reference/intake.md
 templates/dev-setup/setup/reference/agents-generation.md
 templates/dev-setup/setup/reference/rules-generation.md" \
   "$(cd "$REPO_ROOT" && grep -rln "used to\|no longer\|once cost" \
@@ -1825,8 +1828,8 @@ PUBLIC_SKILLS="$(for S in "$SDD_DIR"/*/SKILL.md "$REPO_ROOT"/shared/skills/*/SKI
 SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
-assert_eq "the surface the check reads is the six public commands" \
-  "auto-sdd multi-sdd quick review sdd setup" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+assert_eq "the surface the check reads is the seven public commands" \
+  "auto-sdd multi-sdd quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
 
 # The names from $2 (one per line) with no row in $1 matching $3, where `@`
 # stands for the name.
@@ -1899,7 +1902,9 @@ for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DEC
 done
 
 # DE-17079 wants the generated file shorter; these fixes may not lengthen it.
-for BUDGET in "$GEN_SINGLE:131" "$GEN_WORKSPACE:136" "$GEN_PROJECT:30"; do
+# The two extra lines are the `story` command and its `story-reviewer` agent,
+# which the surface checks above require.
+for BUDGET in "$GEN_SINGLE:133" "$GEN_WORKSPACE:138" "$GEN_PROJECT:30"; do
   GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
   assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
     "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
@@ -3836,12 +3841,16 @@ assert_eq "no setup reference registers an MCP server with --type url" "false" \
 # rule: `allowed-tools` only pre-approves the tools it lists and restricts none;
 # `disallowed-tools` is the one field that removes a tool, until the developer's
 # next message. So the setup declares the tools it does not need there, and
-# AskUserQuestion is callable because that line does not name it. No `model:`
-# either: an override either lasts one turn of a multi-turn setup, paying two
-# cache re-keys, or silently moves the rest of the session to another model.
+# AskUserQuestion is callable because that line does not name it. Its
+# `allowed-tools` is a pre-approval and nothing more: the four read-only MCP
+# calls Step 7e makes, so a built-in tool listed there would be a claim to
+# restrict it. No `model:` either: an override either lasts one turn of a
+# multi-turn setup, paying two cache re-keys, or silently moves the rest of
+# the session to another model.
 SETUP_FM="$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")"
 SETUP_DISALLOWED="$(printf '%s\n' "$SETUP_FM" | grep '^disallowed-tools:')"
-assert_eq "the setup declares no allowed-tools, which would restrict nothing" "" \
+assert_eq "the setup pre-approves only Step 7e's four read-only MCP calls" \
+  "allowed-tools: mcp__clickup__clickup_list_document_pages, mcp__clickup__clickup_get_document_pages, mcp__claude_ai_Google_Drive__search_files, mcp__claude_ai_Google_Drive__read_file_content" \
   "$(printf '%s\n' "$SETUP_FM" | grep '^allowed-tools:')"
 assert_eq "the setup does not switch the session model" "" \
   "$(printf '%s\n' "$SETUP_FM" | grep '^model:')"
@@ -4204,7 +4213,7 @@ for F in "$TEMPLATE_ROOT/setup/SKILL.md" "$TEMPLATE_ROOT"/setup/reference/*.md \
          "$REPO_ROOT/dist/dev-setup/skills/setup/templates/profiles/nextjs.md"; do
   [ -f "$F" ] && IF_SETUP_DOCS+=("$F")
 done
-assert_eq "the setup docs and their built copies are all there" "18" "${#IF_SETUP_DOCS[@]}"
+assert_eq "the setup docs and their built copies are all there" "20" "${#IF_SETUP_DOCS[@]}"
 while IFS= read -r NEEDLE; do
   [ -n "$NEEDLE" ] || continue
   assert_eq "no setup doc says: $NEEDLE" "" \
