@@ -30,7 +30,8 @@
   "template_agents": [
     "review.md",
     "validate-findings.md",
-    "verify.md"
+    "verify.md",
+    "story-review.md"
   ],
   "template_skills": [
     "auto-sdd",
