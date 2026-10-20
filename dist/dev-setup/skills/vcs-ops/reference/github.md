@@ -19,6 +19,7 @@ inside a value as `'\''` (`dell'API` → `'dell'\''API'`).
 | PR state | `gh pr view <n> --json state,statusCheckRollup,reviewDecision` |
 | Open PRs | `gh pr list --state open` |
 | CI runs | `gh pr checks <n>` |
+| Follow its CI | `gh pr checks <n> --watch` |
 | Release | `gh release create v1.2.0 --title "v1.2.0" --notes-file notes.md` |
 
 Four things that bite:

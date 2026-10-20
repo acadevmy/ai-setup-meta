@@ -1,7 +1,8 @@
 # Intake — task, branch, status, brief
 
 Steps 1 to 4 of the flow: from "start this task" to a working branch with the
-task in progress and the developer looking at the brief. The judgement calls
+task in progress, the developer looking at the brief, and the flow's phases on
+screen as a task list. The judgement calls
 here are two questions — the task and the fork point — and a script does the
 rest. The ClickUp calls follow
 `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`, the fork point
@@ -14,6 +15,7 @@ question here is in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 - [2. The working branch](#2-the-working-branch)
 - [3. Task status, and the clock](#3-task-status-and-the-clock)
 - [4. The brief, and what is already on disk](#4-the-brief-and-what-is-already-on-disk)
+- [The phase list](#the-phase-list)
 
 ## 1. Task selection
 
@@ -163,7 +165,14 @@ the plan up where it left off. Never silently redo development over a diff
 that already exists.
 
 Never re-run discovery over a spec that exists. Say which step you are starting
-from and why, then show the brief:
+from and why, then show the brief.
+
+When the task meets `quick`'s bar — at most three files, and no new component,
+dependency or public interface — the brief says so with the exact command:
+`Route: looks like quick — /dev-setup:quick <custom_id>`. Then the flow goes on
+in `sdd`, as launched: it never moves itself to a lighter flow, and the choice
+stays with the developer, who can stop here and type the command. Under the bar
+or not, nothing is asked. Leave the line out when the task does not meet it.
 
 ```
 Task:     DE-123 — Task title
@@ -172,7 +181,49 @@ Branch:   feat(auth)/DE-123_add-user-auth  (base: origin/next)
 Status:   IN PROGRESS  (clock started 2026-09-18 14:03)
 Spec:     .specs/DE-123-add-user-auth.md (approved) — or "none yet"
 Stop at:  Merge request  (saved — /dev-setup:sdd DE-123 --stop <value> changes it)
+Route:    looks like quick — /dev-setup:quick DE-123   ← only under quick's bar
 
 Description:
 <the task description, as the agent returned it>
 ```
+
+## The phase list
+
+Once the brief is shown, publish the flow's phases as the session's task list,
+so the developer sees where the run is without reading the chat: `TaskCreate`
+for each phase and `TaskUpdate` to move it, or `TodoWrite` with the whole list
+where that is the task-list tool the session has.
+
+The phases are the steps of the flow, with the closure split where the stop
+points split it:
+
+| Phase | Steps |
+|---|---|
+| Intake | 1–4 |
+| Discovery | 5 |
+| Spec | 6 |
+| Approval | 7 |
+| Development | 8 |
+| Gates | closure 1–5 |
+| the commit step, named after the stop point | closure 6, and 7–9 when the stop point reaches them |
+
+The list ends where the saved stop point ends the run — a list promising a
+merge request this run will not open is the opposite of visible:
+
+| Stop point | The list ends on |
+|---|---|
+| `spec` | Approval — nothing past it |
+| `development` | Development |
+| `review` | Gates — nothing past it |
+| `commit` | Commit |
+| `push` | Commit and push |
+| `merge-request` | Commit and merge request |
+
+- **Intake is created completed**: the brief is where it ends.
+- **On a resume, the phases already passed are created completed** — every
+  phase before the step the table in step 4 starts at.
+- **Mark each phase in progress when it starts and completed when it ends**,
+  one in progress at a time. A phase that ends the run — the stop point — is
+  completed before the final report.
+- **Between tool calls, write at most one line of commentary.** The list says
+  where the run is; the chat does not have to.

@@ -61,6 +61,14 @@ quality commands — a bug in the launch call, fix it), `spec`, `dev`, or `verif
    pushed it, that it is on `origin` — with the clock's `COMMENT` after the note.
 4. Leave the branch and the worktree alone. They are the debugging material, and
    deleting them is the one thing that makes the failure unreadable.
+5. End the report on one `Next:` line, the exact command for where it failed:
+   - `verify` → `Next: cd "<worktreePath>" && <the command that failed>` — the
+     red command, run where the code is;
+   - `dev` → `Next: cd "<worktreePath>"` — the implementation as it stopped;
+   - `spec` → `Next: /dev-setup:sdd <taskId>` — the interactive flow writes the
+     spec with the developer;
+   - `intake` → `Next: /dev-setup:auto-sdd <taskId>` — once the launch call is
+     fixed.
 
 A `verify` failure is the one worth resuming rather than relaunching: the spec,
 the Challenge and the whole implementation come back from the journal cache
@@ -89,7 +97,8 @@ reference itself. Open the merge request **against the short name of
 
 The `ask` rule on `gh pr create` / `glab mr create` is what puts a person in
 front of this. It is a permission rule, not something to work around: if the
-developer declines, report that and leave everything in place.
+developer declines, report that, leave everything in place, and end on `Next:`
+and the host reference's open command, filled in for this branch and base.
 
 Finally, stop the clock and let the move carry what the task took:
 
@@ -102,7 +111,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <taskId> --stop --json
 verbatim, or no comment at all when the clock has nothing (`REASON` says why).
 Never write a duration of your own: the work clock section of
 `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` is the rule. Then show
-the merge request link, the branch, the spec path and the commit subjects.
+the merge request link, the branch, the spec path and the commit subjects, and
+end on one line: `Next:` and the follow-its-CI command from the host reference
+`vcs-ops` loaded, filled in with the merge request's number or branch — this
+checkout is not on that branch, so name it. It is not a question: the developer
+runs it, or asks you to.
 
 ## The merge request
 

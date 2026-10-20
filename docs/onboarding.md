@@ -76,6 +76,28 @@ resolved from the repository is the default) and how far to go — once for
 discovery, only about what the task leaves open, and once to approve the spec.
 Then development, the gates, one commit and the merge request.
 
+## Know where a flow is
+
+The phases of an `sdd` show as a task list, the session is named after its
+task in `claude --resume`, every closing report ends on a `Next:` line, and a
+permission prompt during a task sends a desktop notification naming it. Two
+settings are yours, in your **user** settings (`~/.claude/settings.json`) or the
+managed ones, never the project's `.claude/settings.json`, which ignores
+`footerLinksRegexes`:
+
+```json
+{
+  "preferredNotifChannel": "terminal_bell",
+  "footerLinksRegexes": [
+    { "type": "regex", "pattern": "(?<id>DE-\\d+)",
+      "url": "https://app.clickup.com/t/<workspace-id>/{id}", "label": "{id}" }
+  ]
+}
+```
+
+`"terminal_bell"` rings in any terminal — the default `auto` notifies only in
+iTerm2, Ghostty and Kitty. The second entry makes every `DE-123` a ClickUp link.
+
 ## Where to go next
 
 | Question | Read |
