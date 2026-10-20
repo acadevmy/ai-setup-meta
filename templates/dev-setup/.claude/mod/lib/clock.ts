@@ -74,16 +74,33 @@ export function clockRow(clock: OpenClock, nowMs: number): Row {
   return [bold(clock.task), GAP, span('in progress', 'good'), GAP, bold(formatDuration(elapsedMinutes(clock, nowMs)))]
 }
 
-/** What the clock view adds under a clock: when this interval began and what
- * the closed ones add up to. */
-export function clockDetail(clock: OpenClock): Row {
+/** Minutes of the interval in progress alone; null when its start is unknown. */
+export function intervalMinutes(clock: OpenClock, nowMs: number): number | null {
+  return clock.startMs === null ? null : Math.max(0, Math.floor((nowMs - clock.startMs) / 60_000))
+}
+
+/** What the clock view adds under a clock: when this interval began, what it
+ * has run, and what the closed ones add up to. */
+export function clockDetail(clock: OpenClock, nowMs: number): Row {
   const parts: string[] = []
-  if (clock.startMs !== null) parts.push(`since ${formatTime(clock.startMs)}`)
+  const interval = intervalMinutes(clock, nowMs)
+  if (clock.startMs !== null && interval !== null) parts.push(`since ${formatTime(clock.startMs)} (${formatDuration(interval)})`)
   if (clock.sessions > 0) {
-    const earlier = clock.sessions === 1 ? '1 earlier session' : `${clock.sessions} earlier sessions`
+    const earlier = clock.sessions === 1 ? '1 earlier interval' : `${clock.sessions} earlier intervals`
     parts.push(`${earlier}, ${formatDuration(clock.closedMinutes)}`)
   }
   return parts.length > 0 ? [dim(parts.join(' · '))] : []
+}
+
+/** The task a branch names, `<type>(<context>)/<TASK-ID>_<slug>` or any
+ * spelling that carries an id between delimiters; '' when none. */
+export function taskOfBranch(branch: string): string {
+  return /(?:^|[^A-Za-z0-9])([A-Z][A-Z0-9]*-[0-9]+)(?:[^A-Za-z0-9]|$)/.exec(branch)?.[1] ?? ''
+}
+
+/** The tasks stopped less than five minutes ago, from `--status --json` with no task. */
+export function recentTasks(status: ScriptJson): string[] {
+  return (status.RECENT_TASKS ?? '').split(/\s+/).filter((task) => task !== '')
 }
 
 export function clockLine(clock: OpenClock, nowMs: number): string {

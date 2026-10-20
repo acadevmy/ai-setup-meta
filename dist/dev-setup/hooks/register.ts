@@ -14,16 +14,18 @@
 // holds, draw.ts lays it out, and the handlers it gets are closures made here.
 
 import type { EngineInterface, On } from 'claude-code'
-import { clockRow, formatTime, openTasks, toOpenClock } from './lib/clock.ts'
+import { clockRow, formatTime, openTasks, taskOfBranch, toOpenClock } from './lib/clock.ts'
 import type { OpenClock } from './lib/clock.ts'
 import { closurePrompt, closureTask, isMergeRequestCreate, mergeRequestUrl, toolOutputText } from './lib/merge-request.ts'
 import { parseFrontmatter, sortEntries, toEntry, useText } from './lib/catalogue.ts'
 import type { CatalogueEntry } from './lib/catalogue.ts'
-import { addRequest, compactRow, isUsageRecord, newRecord, NO_USAGE, phaseOf, pruneIndex, toIndex, USAGE_INDEX, usageRows, withTask } from './lib/usage.ts'
+import { accrue, addRequest, compactRow, isUsageRecord, newRecord, NO_USAGE, phaseOf, pruneIndex, toIndex, USAGE_INDEX, usageRows, withTask } from './lib/usage.ts'
 import type { Phase, RequestUsage, UsageRecord } from './lib/usage.ts'
 import { addRun, applyNotification, attachMergeRequest, parseNotification, resumePrompt, runFromWorkflowCall } from './lib/runs.ts'
 import type { Run } from './lib/runs.ts'
 import { contextRows, contextWarning, devSetupShare, mcpServerNames } from './lib/context.ts'
+import { parseCommits, parsePorcelain, pathsToStat, sessionChanges } from './lib/session.ts'
+import type { SessionChanges } from './lib/session.ts'
 import { dim, rowsText } from './lib/rows.ts'
 import type { Row } from './lib/rows.ts'
 import { bandIsEmpty, drawBand, drawPane } from './lib/draw.ts'
@@ -39,7 +41,6 @@ import {
   statusRows,
   unknownViewText,
   VIEW_SOURCES,
-  worktreesRows,
 } from './lib/views.ts'
 import type { ScriptOutcome, View } from './lib/views.ts'
 
@@ -63,6 +64,8 @@ type SddRun = {
   readonly phase: Phase | null
   readonly lastCostUsd: number | null
   readonly indexed: boolean
+  /** When the time up to now was last charged to the phase. */
+  readonly tickAt: number
 }
 
 let drawing = false
@@ -73,6 +76,8 @@ let clocks: OpenClock[] = []
 /** What the last full read of the clocks reported, for the clock view. */
 let clockStatus: ScriptOutcome | null = null
 let clockFailures: string[] = []
+/** The task the checked-out branch names, read with the clocks. */
+let branchTask = ''
 let closure: { url: string; tasks: string[] } | null = null
 let view: View = 'commands'
 let viewRows: Row[] = []
@@ -80,6 +85,8 @@ let viewReadAt: number | null = null
 let viewLoad = 0
 let catalogue: CatalogueEntry[] | null = null
 let sdd: SddRun | null = null
+/** The main-thread turns running now: a subagent's run raises no turn.start. */
+const mainTurns = new Set<string>()
 let lastSaved: UsageRecord | null = null
 let runs: Run[] = []
 let contextPercent: number | undefined
@@ -116,9 +123,10 @@ async function readClocks($: Api): Promise<{ status: ScriptOutcome; open: OpenCl
 }
 
 async function readAndApplyClocks($: Api): Promise<void> {
-  const { status, open, failures } = await readClocks($)
+  const [{ status, open, failures }, branch] = await Promise.all([readClocks($), currentBranch($)])
   clockStatus = status
   clockFailures = failures
+  branchTask = taskOfBranch(branch)
   if (!status.ok) return
   const changed = open.length !== clocks.length || open.some((clock, i) => clock.task !== clocks[i]?.task)
   clocks = open
@@ -146,6 +154,51 @@ async function currentBranch($: Api): Promise<string> {
   } catch {
     return ''
   }
+}
+
+/** A read-only git command in the session directory: its stdout, or the failure line. */
+async function git($: Api, args: readonly string[]): Promise<{ ok: true; out: string } | { ok: false; line: string }> {
+  try {
+    const result = await $.process.run(['git', ...args], { cwd: workDir, timeoutMs: SCRIPT_TIMEOUT_MS })
+    if (result.exitCode === 0) return { ok: true, out: result.stdout }
+    return { ok: false, line: failureLine(`git ${args[0] ?? ''}`, result.exitCode, result.stderr) }
+  } catch (error) {
+    return { ok: false, line: failureLine(`git ${args[0] ?? ''}`, null, error instanceof Error ? error.message : String(error)) }
+  }
+}
+
+/** What this session changed, or the line saying why it cannot be told. */
+async function readSessionChanges($: Api): Promise<SessionChanges | string> {
+  const startedAt = await $.session
+    .usage()
+    .then((usage) => usage.startedAt)
+    .catch(() => null)
+  if (startedAt === null) return 'the session start is not known on this client'
+  const since = `--since=@${Math.floor(startedAt / 1000)}`
+  const [root, status, log, files] = await Promise.all([
+    git($, ['rev-parse', '--show-toplevel']),
+    git($, ['status', '--porcelain=v1', '-z', '--untracked-files=all']),
+    git($, ['log', since, '--format=%h%x09%s', 'HEAD']),
+    git($, ['log', since, '--name-only', '--format=', 'HEAD']),
+  ])
+  if (!root.ok) return root.line
+  if (!status.ok) return status.line
+  const top = root.out.trim()
+  const entries = parsePorcelain(status.out)
+  const paths = pathsToStat(entries)
+  const stats = await Promise.all(
+    paths.map((path) =>
+      $.fs
+        .stat(path === '' ? top : `${top}/${path}`)
+        .then((stat) => stat.mtimeMs)
+        .catch(() => null),
+    ),
+  )
+  const mtimes = new Map(paths.map((path, i) => [path, stats[i] ?? null]))
+  // A branch with no commit yet has no log: that is no commit, not a failure.
+  const commits = log.ok ? parseCommits(log.out) : []
+  const committedFiles = files.ok ? files.out.split(/\r?\n/) : []
+  return sessionChanges(startedAt, entries, (path) => mtimes.get(path) ?? null, commits, committedFiles)
 }
 
 async function readText($: Api, path: string): Promise<string> {
@@ -205,20 +258,21 @@ async function loadView($: Api, wanted: View): Promise<Row[]> {
     case 'commands':
       return catalogueRows(await loadCatalogue($))
     case 'clock': {
-      const { status, open, failures } = await readClocks($)
+      const [{ status, open, failures }, branch] = await Promise.all([readClocks($), currentBranch($)])
       clockStatus = status
       clockFailures = failures
+      branchTask = taskOfBranch(branch)
       if (status.ok) clocks = open
-      return clockRows(status, open, failures, await $.clock.now())
+      return clockRows(status, open, failures, await $.clock.now(), branchTask)
     }
-    case 'status':
-      return statusRows(await runScript($, 'check-prerequisites.sh', []), workDir)
-    case 'worktrees':
-      return worktreesRows(await runScript($, 'worktree-info.sh', []))
+    case 'status': {
+      const [branch, changes] = await Promise.all([currentBranch($), readSessionChanges($)])
+      return statusRows(branch, changes)
+    }
     case 'context':
       return contextViewRows($)
     case 'usage': {
-      const shown = sdd?.record ?? (await latestRecord($))
+      const shown = (await liveRecord($)) ?? (await latestRecord($))
       return shown ? usageRows(shown, sdd?.phase ?? null) : [[dim(NO_USAGE)]]
     }
     case 'runs':
@@ -245,13 +299,15 @@ async function paneBody($: Api): Promise<{ body: PaneBody; note: string }> {
       return { body: { kind: 'commands', entries: catalogue ?? [] }, note: '' }
     case 'clock': {
       const status: ScriptOutcome = clockStatus ?? { ok: true, script: 'task-clock.sh', json: {} }
-      return { body: { kind: 'rows', rows: clockRows(status, clocks, clockFailures, await $.clock.now()) }, note: 'refreshed every minute' }
+      return { body: { kind: 'rows', rows: clockRows(status, clocks, clockFailures, await $.clock.now(), branchTask) }, note: 'refreshed every minute' }
     }
     case 'runs':
       return { body: { kind: 'runs', runs, nowMs: await $.clock.now() }, note: '' }
-    case 'usage':
-      if (sdd) return { body: { kind: 'rows', rows: usageRows(sdd.record, sdd.phase) }, note: sdd.phase === null ? 'this session' : 'live' }
+    case 'usage': {
+      const live = await liveRecord($)
+      if (sdd && live) return { body: { kind: 'rows', rows: usageRows(live, sdd.phase) }, note: sdd.phase === null ? 'this session' : 'live' }
       return { body: { kind: 'rows', rows: viewRows }, note: 'the last run of this project' }
+    }
     default:
       return { body: { kind: 'rows', rows: viewRows }, note: readAt }
   }
@@ -286,6 +342,26 @@ async function saveRun($: Api): Promise<void> {
   }
 }
 
+/** The run with the time since its last reading charged to its phase —
+ * as working time while a main-thread turn runs. A closed run is left as it is. */
+function accrued(run: SddRun, now: number): SddRun {
+  if (run.phase === null) return run
+  return { ...run, record: accrue(run.record, run.phase, run.tickAt, now, mainTurns.size > 0), tickAt: now }
+}
+
+/** Charge the time so far, before anything that changes the phase or the turn. */
+async function tick($: Api): Promise<void> {
+  if (!sdd || sdd.phase === null) return
+  const now = await $.clock.now()
+  if (sdd) sdd = accrued(sdd, now)
+}
+
+/** The run as it stands this moment, for a drawing: charged, never saved. */
+async function liveRecord($: Api): Promise<UsageRecord | null> {
+  if (!sdd) return null
+  return accrued(sdd, await $.clock.now()).record
+}
+
 async function observeSkill($: Api, skill: string): Promise<void> {
   const opened = phaseOf(skill, $.plugin.name)
   if (opened === null) return
@@ -296,10 +372,10 @@ async function observeSkill($: Api, skill: string): Promise<void> {
       const fresh = newRecord(`usage:${await $.session.id()}:${now}`, workDir, now)
       const cost = (await $.session.usage()).cost?.usd ?? null
       const only = clocks.length === 1 ? clocks[0] : undefined
-      sdd = { record: only ? withTask(fresh, only.task) : fresh, phase: opened, lastCostUsd: cost, indexed: false }
+      sdd = { record: only ? withTask(fresh, only.task) : fresh, phase: opened, lastCostUsd: cost, indexed: false, tickAt: now }
     } else if (sdd && sdd.phase !== null) {
       // Only an `sdd` run is measured: a sub-skill outside one opens nothing.
-      sdd = { ...sdd, phase: opened }
+      sdd = { ...accrued(sdd, await $.clock.now()), phase: opened }
     } else {
       return
     }
@@ -310,13 +386,19 @@ async function observeSkill($: Api, skill: string): Promise<void> {
   }
 }
 
-async function observeRequest($: Api, usage: RequestUsage | null): Promise<void> {
-  const run = sdd
-  if (!run || run.phase === null) return
+async function observeRequest($: Api, usage: RequestUsage | null, subagent: boolean): Promise<void> {
+  if (!sdd || sdd.phase === null) return
   try {
-    const cost = (await $.session.usage()).cost?.usd
+    const [cost, now] = await Promise.all([$.session.usage().then((figures) => figures.cost?.usd), $.clock.now()])
+    const run = sdd
+    if (!run || run.phase === null) return
+    const charged = accrued(run, now)
     const delta = cost === undefined || run.lastCostUsd === null ? 0 : cost - run.lastCostUsd
-    sdd = { ...run, record: addRequest(run.record, run.phase, usage, delta), lastCostUsd: cost ?? run.lastCostUsd }
+    sdd = {
+      ...charged,
+      record: addRequest(charged.record, run.phase, usage, delta, subagent),
+      lastCostUsd: cost ?? run.lastCostUsd,
+    }
     $.ui.invalidate('ui.render')
   } catch {
     // A request that could not be measured is left out, never held up.
@@ -334,6 +416,7 @@ async function observeBash($: Api, command: string, result: unknown): Promise<vo
     runs = attachMergeRequest(runs, command, url)
     // Every flow ends on its merge request: the sdd run's measurement ends too.
     if (sdd && sdd.phase !== null) {
+      await tick($)
       sdd = { ...sdd, phase: null }
       void saveRun($)
     }
@@ -398,20 +481,25 @@ export function register(on: On): void {
       void refreshClocks($)
       refreshTimer = $.clock.every(REFRESH_MS, () => {
         void refreshClocks($)
+        // The run's time moves on the band even with no clock open.
+        if (sdd && sdd.phase !== null) $.ui.invalidate('ui.render')
       })
     }
     return next(e)
   })
 
   on('session.end', async ($, e, next) => {
+    await tick($)
     await saveRun($)
     refreshTimer?.cancel()
     refreshTimer = null
     clocks = []
     clockStatus = null
     clockFailures = []
+    branchTask = ''
     closure = null
     sdd = null
+    mainTurns.clear()
     runs = []
     contextPercent = undefined
     return next(e)
@@ -461,7 +549,7 @@ export function register(on: On): void {
     const band = {
       clocks: clocks.map((clock) => clockRow(clock, now)),
       closure,
-      usage: sdd && sdd.phase !== null ? compactRow(sdd.record, sdd.phase) : [],
+      usage: sdd && sdd.phase !== null ? compactRow(accrued(sdd, now).record, sdd.phase) : [],
       warning: contextWarning(contextPercent),
     }
     if (bandIsEmpty(band)) return next(e)
@@ -478,8 +566,16 @@ export function register(on: On): void {
     )
   })
 
+  on('turn.start', async ($, e, next) => {
+    await tick($)
+    mainTurns.add(e.turnId)
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     if (!e.agentId) {
+      await tick($)
+      mainTurns.delete(e.turnId)
       if (drawing) void refreshClocks($)
       void saveRun($)
     }
@@ -518,7 +614,7 @@ export function register(on: On): void {
 
   on('turn.step', async function* ($, e, next) {
     const result = yield* next(e)
-    await observeRequest($, result.usage)
+    await observeRequest($, result.usage, e.agentId !== undefined)
     return result
   })
 }

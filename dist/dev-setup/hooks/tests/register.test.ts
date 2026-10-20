@@ -10,10 +10,16 @@ const NOW = new Date(2026, 9, 7, 10, 0).getTime()
 
 type Answer = { exitCode: number; stdout: string; stderr: string }
 
-/** A process.run stub: `<script> <args>` → answer, plus `git` for the branch. */
+/** A process.run stub: `<script> <args>` → answer; `git <args>` from the
+ * table too, the branch `feat/DE-1_x` for any git call it does not hold. */
 function scripts(table: Record<string, Answer | string>, calls: string[] = []) {
   return ($: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
-    if (e.argv[0] === 'git') return { value: { exitCode: 0, stdout: 'feat/DE-1_x\n', stderr: '' } }
+    if (e.argv[0] === 'git') {
+      const answer = table[e.argv.join(' ')]
+      calls.push(`${e.argv.join(' ')} @${e.init?.cwd ?? ''}`)
+      if (answer === undefined) return { value: { exitCode: 0, stdout: 'feat/DE-1_x\n', stderr: '' } }
+      return { value: typeof answer === 'string' ? { exitCode: 0, stdout: answer, stderr: '' } : answer }
+    }
     const script = ROOT_SCRIPTS.exec(e.argv[1] ?? '')?.[1] ?? e.argv.join(' ')
     const key = [script, ...e.argv.slice(2)].join(' ')
     calls.push(`${key} @${e.init?.cwd ?? ''}`)
@@ -85,7 +91,7 @@ function baseline(on: (name: string, ...rest: unknown[]) => unknown, rec: Record
     rec.filled?.push(e.text)
     return { isFilled: true }
   })
-  mock.clock(on, { now: NOW })
+  return mock.clock(on, { now: NOW })
 }
 
 describe('the command', () => {
@@ -97,48 +103,68 @@ describe('the command', () => {
     expect(registered[0]).toMatchObject({ name: 'dev-setup', immediate: true })
   })
 
-  test('off the terminal answers in plain text, from the script, in the session directory', async ($, on) => {
+  test('off the terminal answers in plain text: what this session changed, read with git in the session directory', async ($, on) => {
     const calls: string[] = []
+    const startedAt = NOW - 30 * 60_000
     baseline(on)
+    on('session.usage', () => ({ value: { startedAt, context: { tokens: 1000, window: 200000, percent: 1 }, rateLimits: [] } }))
+    on('fs.stat', ($, e: { path: string }) => {
+      const mtimes: Record<string, number> = { '/repo/src/a.ts': startedAt + 60_000, '/repo/src/old.ts': startedAt - 60_000 }
+      const mtimeMs = mtimes[e.path]
+      return mtimeMs === undefined ? { deny: 'ENOENT' } : { value: { kind: 'file', size: 1, mtimeMs, isLink: false } }
+    })
+    const since = `--since=@${Math.floor(startedAt / 1000)}`
     on(
       'process.run',
       scripts(
-        { 'check-prerequisites.sh --json': '{"BRANCH":"feat/DE-1_x","TASK_ID":"DE-1","BASE_BRANCH":"origin/next","SPEC":"","CHANGED_FILES":"a.ts\\nb.ts"}' },
+        {
+          'git rev-parse --show-toplevel': '/repo\n',
+          'git status --porcelain=v1 -z --untracked-files=all': ' M src/a.ts\0 M src/old.ts\0',
+          [`git log ${since} --format=%h%x09%s HEAD`]: 'abc1234\tfeat: x\n',
+          [`git log ${since} --name-only --format= HEAD`]: '\nsrc/b.ts\n',
+        },
         calls,
       ),
     )
     await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
     const answer = await $.command.run({ command: 'dev-setup', args: 'status', origin: { kind: 'sdk' } })
-    expect((answer.text ?? '').split('\n').map((line) => line.replace(/\s+/g, ' '))).toEqual([
-      'Branch feat/DE-1_x task DE-1',
-      'Base origin/next',
-      'Spec none',
-      'Changed 2 files',
-      ' a.ts',
-      ' b.ts',
+    expect((answer.text ?? '').split('\n').map((line) => line.replace(/\s+/g, ' ').trimEnd())).toEqual([
+      'Branch feat/DE-1_x',
+      'Session since 09:30 1 commit · 2 files',
+      '',
+      'Commits',
+      ' abc1234 feat: x',
+      '',
+      'Not committed 1',
+      ' modified src/a.ts',
+      '',
+      'Committed 1',
+      ' committed src/b.ts',
     ])
-    expect(calls).toEqual(['check-prerequisites.sh --json @/work'])
+    expect(calls.every((call) => call.endsWith('@/work'))).toBe(true)
+    expect(calls.some((call) => call.includes('check-prerequisites.sh'))).toBe(false)
   })
 
   test('an unknown view names the views', async ($, on) => {
     baseline(on)
     await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
     const answer = await $.command.run({ command: 'dev-setup', args: 'weather', origin: { kind: 'sdk' } })
-    expect(answer.text).toContain('Views: clock, status, worktrees, context, usage, runs')
+    expect(answer.text).toContain('Views: clock, status, context, usage, runs')
   })
 
   test('a failing or unfinished script is one line naming it', async ($, on) => {
     baseline(on)
+    on('session.usage', () => ({ value: { startedAt: NOW, context: { tokens: 1000, window: 200000, percent: 1 }, rateLimits: [] } }))
     on('process.run', ($, e: { argv: readonly string[] }) =>
-      e.argv[1]?.endsWith('worktree-info.sh')
+      e.argv[1]?.endsWith('task-clock.sh')
         ? { deny: 'timed out' }
         : { value: { exitCode: 2, stdout: '', stderr: 'fatal: not a git repository\n' } },
     )
     await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
     const status = await $.command.run({ command: 'dev-setup', args: 'status', origin: { kind: 'sdk' } })
-    expect(status.text).toBe('check-prerequisites.sh exited 2: fatal: not a git repository')
-    const worktrees = await $.command.run({ command: 'dev-setup', args: 'worktrees', origin: { kind: 'sdk' } })
-    expect(worktrees.text).toContain('worktree-info.sh did not finish')
+    expect(status.text?.split('\n')[1]).toBe('git rev-parse exited 2: fatal: not a git repository')
+    const clock = await $.command.run({ command: 'dev-setup', args: 'clock', origin: { kind: 'sdk' } })
+    expect(clock.text).toContain('task-clock.sh did not finish')
   })
 
   test('in an interactive session opens the pane and adds nothing to the transcript', async ($, on) => {
@@ -287,10 +313,10 @@ describe('the merge-request button', () => {
 })
 
 describe('per-phase usage', () => {
-  test('charges each request to the phase of the skill last expanded, and passes everything through', async ($, on) => {
+  test('charges each request and the time to the phase of the skill last expanded, and passes everything through', async ($, on) => {
     const saved = new Map<string, unknown>()
     let cost = 1
-    baseline(on)
+    const clock = baseline(on)
     on('process.run', scripts(NONE_OPEN))
     on('session.id', () => ({ value: 's1' }))
     on('session.usage', () => ({ value: { context: { tokens: 1000, window: 200000, percent: 1 }, rateLimits: [], cost: { usd: cost } } }))
@@ -301,6 +327,8 @@ describe('per-phase usage', () => {
     })
     on('store.delete', () => ({ value: undefined }))
     on('skill.prompt', ($, e: { text: string }) => ({ text: e.text }))
+    on('turn.start', ($, e: { turnId: string }) => ({ turnId: e.turnId }))
+    on('turn.complete', () => ({ text: 'ok' }))
     on('turn.step', async function* ($, e: { turnId: string; index: number }) {
       yield { kind: 'text', index: 0, text: 'ok' }
       cost += 0.25
@@ -322,18 +350,36 @@ describe('per-phase usage', () => {
       return item.value
     }
 
+    const complete = (turnId: string) =>
+      $.turn.complete({ turnId, answer: 'ok', durationMs: 0, isAborted: false, reason: 'answer' } as Parameters<typeof $.turn.complete>[0])
+
+    // One turn: intake, then discovery, which asks and ends the turn.
+    await $.turn.start({ text: '/dev-setup:sdd DE-1', turnId: 't1' })
     const expanded = await $.skill.prompt({ skill: 'dev-setup:sdd', text: 'the sdd skill' })
     expect(expanded).toEqual({ text: 'the sdd skill' })
     await step(0)
+    await clock.advance(2 * 60_000)
     await $.skill.prompt({ skill: 'dev-setup:sdd-discovery', text: 'discovery' })
     const last = await step(1)
     expect(last.answer).toBe('ok')
-    await step(2)
+    await clock.advance(60_000)
+    await complete('t1')
+    // The developer takes five minutes to answer; then a subagent works for one.
+    await clock.advance(5 * 60_000)
+    await $.turn.start({ text: 'the answers', turnId: 't2' })
+    const sub = $.turn.step({ turnId: 't2', index: 0, model: 'claude-test', messageCount: 1, agentId: 'a1' })
+    let item = await sub.next()
+    while (item.done !== true) item = await sub.next()
+    await clock.advance(60_000)
+    await complete('t2')
 
     const answer = await $.command.run({ command: 'dev-setup', args: 'usage', origin: { kind: 'sdk' } })
-    const rows = (answer.text ?? '').split('\n')
-    expect(rows.find((row) => row.startsWith('intake'))).toMatch(/^intake\s+1\s+100\s+1\.0k\s+0\s+50\s+\$0\.25$/)
-    expect(rows.find((row) => row.startsWith('discovery'))).toMatch(/^discovery\s+2\s+200\s+2\.0k\s+0\s+100\s+\$0\.50$/)
+    const rows = (answer.text ?? '').split('\n').map((row) => row.replace(/\s+/g, ' ').trimEnd())
+    expect(rows[0]).toBe('sdd usage 3.5k tokens · $0.75 · 9m (4m working, 5m waiting)')
+    expect(rows.find((row) => row.startsWith('intake '))).toBe('intake 2m 2m 1 1.1k ███░░░░░░░ 33% 91% 50 $0.25')
+    expect(rows.find((row) => row.startsWith('discovery '))).toBe('discovery ● 7m 2m 2 2.3k ███████░░░ 67% 91% 100 $0.50')
+    expect(rows).toContain(' subagents 1.1k ███░░░░░░░ 33% 1 request')
+    expect(rows).toContain(' claude-test 3.5k ██████████ 100%')
     expect(saved.get('usage:index')).toEqual([`usage:s1:${NOW}`])
   })
 })
