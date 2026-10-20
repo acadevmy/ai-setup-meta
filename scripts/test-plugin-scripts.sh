@@ -4381,7 +4381,13 @@ assert_contains "carrying the reason read from stdin" \
 
 # A remote branch that moved on is reported, never overwritten: the remote is
 # moved to a commit of its own, written with plumbing on the bare repository.
-SFR_OTHER="$(git -C "$SFR_REMOTE" commit-tree "$SFR_BEFORE^{tree}" -p "$SFR_BEFORE" -m "other" 2>/dev/null)"
+# The bare repository has no identity of its own, and a CI runner has none to
+# guess (macOS derives one from the account): without it commit-tree fails, the
+# remote never diverges and the push succeeds — so the identity is given here,
+# and an empty commit is a failure of the setup, not a pass.
+SFR_OTHER="$(git -C "$SFR_REMOTE" -c user.name=Test -c user.email=test@example.com \
+  commit-tree "$SFR_BEFORE^{tree}" -p "$SFR_BEFORE" -m "other")"
+assert_eq "the remote is moved on by a commit of its own" "true" "$([ -n "$SFR_OTHER" ] && echo true || echo false)"
 git -C "$SFR_REMOTE" update-ref "refs/heads/$SFR_BRANCH" "$SFR_OTHER"
 SFR_REJECTED="$(sfr --task DE-900 --stage verify --reason-file "$SFR_REASON")"
 assert_eq "a diverged remote is not forced: exit 4" "4" \
