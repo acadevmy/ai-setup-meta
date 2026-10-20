@@ -7,11 +7,10 @@ disable-model-invocation: false
 
 # ClickUp operations
 
-ClickUp is where the team's tasks live. This skill is the board's documentation;
-the **calling contract** — the intents, their parameters, the result format and
-how the task list id is resolved — is in
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`, and every ClickUp call
-goes through the `clickup` agent described there.
+This skill is the board's documentation; the **calling contract** — the
+intents, their parameters, the result format and how the task list id is
+resolved — is in `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`, and
+every ClickUp call goes through the `clickup` agent described there.
 
 ## Prerequisites
 
@@ -39,8 +38,7 @@ SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 | DONE | merged |
 | BLOCKED | an automated run gave up; a human has to resolve the blocker |
 
-Two lists use different names for the same stage — `IN REVIEW` and
-`CODE REVIEW`. Ask for `CODE REVIEW` and fall back to `IN REVIEW` when the list
+Two lists name the same stage differently — `IN REVIEW` and `CODE REVIEW`. Ask for `CODE REVIEW` and fall back to `IN REVIEW` when the list
 does not have it.
 
 ## What the operations are for
