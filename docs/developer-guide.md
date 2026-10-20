@@ -254,8 +254,17 @@ It comes back with one of two outcomes:
 | `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section (§9) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
-In a cloud session, whose disk goes with it, a `failed` run's branch is pushed —
-with no merge request — so the work can be picked up from the remote.
+In a cloud session — a scheduled routine included — the disk goes with the
+session, so a `failed` run — or one that broke with no outcome — does not
+leave its work there: whatever the worktree holds is committed and the branch
+is pushed as it is, with no merge request. When the run never made a branch,
+the spec it wrote gets one. That commit and that push are the one way past the
+gates — the commands are red, which is why the run failed — so
+`save-failed-run.sh` makes them, only in a cloud session, only on the task's
+own branch and never forced, with a message that says the hooks were skipped
+and why the run failed. The task goes to `BLOCKED` with the same report: why
+it failed, what is missing, the tail of the failing output, where the branch
+is and how to resume (`/dev-setup:sdd <TASK-ID>` on that branch).
 
 It asks you one thing before it starts — which branch the run forks from, the
 ref resolved from the repository offered as the default, the same question

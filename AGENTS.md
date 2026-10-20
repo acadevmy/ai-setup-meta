@@ -239,6 +239,7 @@ status other than 0.
 | `quality-preflight.sh [--require-declared] [--allow-unavailable] [--run]` | `READY`, `REASON`, `COMMANDS_SOURCE`, `MISSING`, `UNAVAILABLE`, `UNAVAILABLE_REASON`, `PREFLIGHT`, `OUTPUT`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS` — can the project check its own work here. Exit 3 refuses: a rejected or (with the flag) missing declaration, no command, and — without `--allow-unavailable` — a program not installed or a red declared preflight. `--run` executes each command once (setup 3b); the autonomous launchers call it with `--require-declared --allow-unavailable` before the board, so a toolchain the environment lacks makes those commands `UNAVAILABLE` — the run goes on and its merge request lists them as not verified |
 | `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>] [--stop <point>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED`, `STOP_POINT` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket; `--stop` with `--create` saves the stop point beside the task clock, and every later call returns it, so a resumed `sdd` does not ask again |
 | `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this |
+| `save-failed-run.sh --task <id> --stage <spec\|dev\|verify\|broken> --reason-file <path> [--dir <worktree>] [--spec-file <path> --spec-path <path> --base <ref> --title <text>]` | `SAVED`, `COMMIT`, `BRANCH`, `WORKTREE`, `CREATED`, `FILES`, `PUSHED`, `REMOTE`, `PUSH_ERROR`, `REASON` — the one way past the gates: a failed `auto-sdd` run in a cloud session commits what the task's worktree holds (an empty commit when nothing; on a branch with no worktree, without a checkout; with no branch, a new one holding the spec) with the failure report as the body, and pushes it as it is, past the commit and push hooks, never forced. Exit 3 refuses outside `CLAUDE_CODE_REMOTE=true` or with nothing that carries the task id; exit 4 saved but not pushed |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `review-package.sh --base <ref>` | `PACKAGE`, `MERGE_BASE`, `EMPTY`, `COMMITS`, `FILES`, `CHANGED_LINES`, `SIZE` — the diff `verify` and `review` read, built once: commits, stat and `git diff -U10` of the working tree against `--base`, in one file under the common git directory, named after the branch. `EMPTY` is decided by the diff, never by the commits; `SIZE` is `large` above 300 changed lines or 10 files. It never stages — the caller does |
@@ -307,6 +308,18 @@ around it — while an **environment or config** bypass keeps the whole line, be
 `export HUSKY=0 && git commit` sets it from a segment of its own. The full test
 suite is deliberately not the per-commit gate: it belongs at the MR boundary and in
 CI, which stays the final gate.
+
+**One exception, and it is a script.** A failed `auto-sdd` run in a cloud
+session loses its work when the session ends, and the gates refuse the commit
+and the push that would save it — the red commands are why the run failed. On
+DE-17159 the branch of a routine run stayed local and was lost.
+`save-failed-run.sh` commits whatever the run left — the worktree, a bare
+branch, or only the spec — and pushes it as it is, past the project's hooks,
+and keeps that narrow itself: it refuses outside `CLAUDE_CODE_REMOTE=true` and
+on a branch that does not carry the task id, never forces a push, never
+commits without the failure report, and its fixed subject and body say the
+hooks were skipped. The `deny` rules and the anti-bypass mode are untouched: a
+bypass typed by a model is refused as before.
 
 The hook is fail-open — no `jq`, no `detect-stack.sh`, and it warns on stderr and
 lets the call through. It is a quality gate, not a security boundary: the security

@@ -94,14 +94,13 @@ notification, never poll.
 ## 4. The outcome
 
 Exactly one of `ready-for-mr` or `failed`, each handled in
-`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`. Anything else means the run
-broke: show the raw result and stop.
+`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`. Anything else is a
+`failed` at stage `broken`, with the raw result.
 
 ## Expected output
 
 - the task moved `SPRINT` → `IN PROGRESS` → `CODE REVIEW` or `BLOCKED`;
-- on `ready-for-mr`, a pushed branch and a merge request carrying the spec,
-  the real test output, what was not verified and what to confirm;
-- otherwise the failing output, with the branch and the worktree left in
-  place;
+- on `ready-for-mr`, a pushed branch and a merge request;
+- otherwise the failing output, the branch and the worktree left in place —
+  pushed in a cloud session, with what is missing and why on the board;
 - either way, no edit in the developer checkout.

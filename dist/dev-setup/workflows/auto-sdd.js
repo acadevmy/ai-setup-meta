@@ -795,7 +795,10 @@ if (!dev || !dev.branch || !dev.worktreePath) {
     reason: dev
       ? 'the dev agent came back without a branch or a worktree: ' + (dev.notes || 'no reason given')
       : 'the dev agent returned nothing',
-    spec: { path: specPath, reqs: draft.reqs },
+    // No branch holds the spec yet, and the spec plus its Challenge is most of
+    // what the run paid for: the text travels, so a launcher in a cloud
+    // session can commit it before the session and the journal are gone.
+    spec: { path: specPath, reqs: draft.reqs, markdown: draft.specMarkdown },
     openPoints,
     deviations,
     toConfirm,
