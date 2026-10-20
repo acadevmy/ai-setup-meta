@@ -7,12 +7,14 @@
 
 import type { CatalogueEntry } from './catalogue.ts'
 import type { OpenClock, ScriptJson } from './clock.ts'
-import { clockDetail, clockRow, formatDuration } from './clock.ts'
+import { clockDetail, elapsedMinutes, formatDuration, formatTime, recentTasks } from './clock.ts'
+import type { SessionChanges } from './session.ts'
+import { changeLabel } from './session.ts'
 import type { Run, RunState } from './runs.ts'
 import type { Row, Span, Tone } from './rows.ts'
 import { bold, columns, dim, field, GAP, INDENT, rowsText, rowText, span } from './rows.ts'
 
-export const VIEWS = ['commands', 'clock', 'status', 'worktrees', 'context', 'usage', 'runs'] as const
+export const VIEWS = ['commands', 'clock', 'status', 'context', 'usage', 'runs'] as const
 export type View = (typeof VIEWS)[number]
 
 /** The argument names a person types; no argument is the catalogue. */
@@ -22,7 +24,6 @@ export const TAB_LABELS: Readonly<Record<View, string>> = {
   commands: 'Commands',
   clock: 'Clock',
   status: 'Status',
-  worktrees: 'Worktrees',
   context: 'Context',
   usage: 'Usage',
   runs: 'Runs',
@@ -33,10 +34,9 @@ export const TAB_LABELS: Readonly<Record<View, string>> = {
 export const VIEW_SOURCES: Readonly<Record<View, string>> = {
   commands: 'the user-invocable skills of the plugin, read from their SKILL.md',
   clock: 'task-clock.sh --status',
-  status: 'check-prerequisites.sh',
-  worktrees: 'worktree-info.sh',
+  status: 'git, from the moment this session began — a file counts when it was modified after it',
   context: "the session's own figures",
-  usage: 'every model request of the sdd run, charged to the phase in progress',
+  usage: 'every model request and main-thread turn of the sdd run, charged to the phase in progress',
   runs: 'the Workflow calls of this session and their task notifications',
 }
 
@@ -85,14 +85,6 @@ export function failureRow(line: string): Row {
   return [span(line, 'bad')]
 }
 
-function orElse(value: string | undefined, fallback: string): Span {
-  return value && value.trim() !== '' ? span(value) : dim(fallback)
-}
-
-function list(value: string | undefined): string[] {
-  return (value ?? '').split(/\r?\n/).filter((line) => line.trim() !== '')
-}
-
 function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
@@ -100,108 +92,116 @@ function plural(count: number, noun: string): string {
 // ── Clock ─────────────────────────────────────────────────────────────────────
 
 export const NO_CLOCK = 'No task clock is open in this repository.'
+export const CLOCK_HINT = 'A clock starts when a flow moves its task to IN PROGRESS — /dev-setup:sdd, quick or auto-sdd — and stops when the merge request opens.'
 
-export function clockRows(status: ScriptOutcome, clocks: readonly OpenClock[], failures: readonly string[], nowMs: number): Row[] {
+/**
+ * The open clocks, one card each: the task and its total in full strength, the
+ * branch's own task marked, and under it when the interval began and what the
+ * earlier ones add up to. Several clocks get a total line first; the clocks
+ * stopped in the last five minutes — a failed run waiting on its BLOCKED move —
+ * close the view.
+ */
+export function clockRows(
+  status: ScriptOutcome,
+  clocks: readonly OpenClock[],
+  failures: readonly string[],
+  nowMs: number,
+  branchTask = '',
+): Row[] {
   if (!status.ok) return [failureRow(status.line)]
-  if (clocks.length === 0 && failures.length === 0) return [[dim(NO_CLOCK)]]
-  const rows: Row[] = [[bold(clocks.length === 1 ? 'Open task clock' : 'Open task clocks')]]
-  for (const clock of clocks) {
-    rows.push([INDENT, ...clockRow(clock, nowMs)])
-    const detail = clockDetail(clock)
-    if (detail.length > 0) rows.push([INDENT, INDENT, ...detail])
+  const recent = recentTasks(status.json)
+  const rows: Row[] = []
+  if (clocks.length === 0 && failures.length === 0) {
+    rows.push([dim(NO_CLOCK)], [dim(CLOCK_HINT)])
+  } else if (clocks.length > 1) {
+    const total = clocks.reduce((sum, clock) => sum + elapsedMinutes(clock, nowMs), 0)
+    rows.push([bold(plural(clocks.length, 'open clock')), GAP, dim(`${formatDuration(total)} in all`)], [])
   }
+  const cards = columns(
+    clocks.map((clock) => [
+      span(`● ${clock.task}`, 'good', true),
+      span('in progress', 'good'),
+      bold(formatDuration(elapsedMinutes(clock, nowMs))),
+      clock.task === branchTask ? span('← this branch', 'accent') : span(''),
+    ]),
+    ['left', 'left', 'right', 'left'],
+  )
+  clocks.forEach((clock, i) => {
+    if (i > 0) rows.push([])
+    rows.push(cards[i] ?? [])
+    const detail = clockDetail(clock, nowMs)
+    if (detail.length > 0) rows.push([INDENT, INDENT, ...detail])
+  })
   rows.push(...failures.map(failureRow))
+  if (recent.length > 0) rows.push([], [dim('Stopped in the last five minutes'), GAP, span(recent.join(', '))])
   return rows
 }
 
-export function clockView(status: ScriptOutcome, clocks: readonly OpenClock[], failures: readonly string[], nowMs: number): string[] {
-  return rowsText(clockRows(status, clocks, failures, nowMs))
+export function clockView(status: ScriptOutcome, clocks: readonly OpenClock[], failures: readonly string[], nowMs: number, branchTask = ''): string[] {
+  return rowsText(clockRows(status, clocks, failures, nowMs, branchTask))
 }
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
-/** The label column of the status and worktrees views: `Worktrees` is the widest. */
-const LABEL = 9
+/** The label column of the status view: `Session` is the widest. */
+const LABEL = 7
 const MAX_FILES = 15
 
-/** A path under the working directory, shown relative to it. */
-export function relativeTo(cwd: string, path: string): string {
-  const base = cwd.endsWith('/') ? cwd : `${cwd}/`
-  return cwd !== '' && path.startsWith(base) ? path.slice(base.length) : path
+const CHANGE_TONE: Readonly<Record<string, Tone>> = {
+  new: 'good',
+  added: 'good',
+  deleted: 'bad',
+  conflict: 'bad',
+  staged: 'accent',
 }
 
-function specStatusTone(status: string): Tone | undefined {
-  if (status === 'approved' || status === 'implemented') return 'good'
-  if (status === 'draft') return 'warn'
-  return undefined
-}
-
-export function statusRows(outcome: ScriptOutcome, cwd = ''): Row[] {
-  if (!outcome.ok) return [failureRow(outcome.line)]
-  const j = outcome.json
-  const changed = list(j.CHANGED_FILES)
-  const branch: Span[] = [orElse(j.BRANCH, 'not set')]
-  if (j.TASK_ID) branch.push(GAP, dim(`task ${j.TASK_ID}`))
-  const base: Span[] = [orElse(j.BASE_BRANCH, 'not set')]
-  if (j.MERGE_BASE) base.push(GAP, dim(`fork point ${j.MERGE_BASE.slice(0, 8)}`))
-  const spec: Span[] = j.SPEC
-    ? [span(relativeTo(cwd, j.SPEC)), GAP, j.SPEC_STATUS ? span(j.SPEC_STATUS, specStatusTone(j.SPEC_STATUS)) : dim('status not set')]
-    : [dim('none')]
-  const rows: Row[] = [
-    field('Branch', LABEL, ...branch),
-    field('Base', LABEL, ...base),
-    field('Spec', LABEL, ...spec),
-    field('Changed', LABEL, changed.length === 0 ? dim('nothing') : span(plural(changed.length, 'file'))),
-  ]
-  for (const file of changed.slice(0, MAX_FILES)) rows.push([INDENT, dim(file)])
-  if (changed.length > MAX_FILES) rows.push([INDENT, dim(`… ${changed.length - MAX_FILES} more`)])
+/** The files as a `label  path` table, capped at MAX_FILES. */
+function fileRows(files: readonly { label: string; path: string }[]): Row[] {
+  const shown = files.slice(0, MAX_FILES)
+  const rows = columns(
+    shown.map((file) => [span(file.label, CHANGE_TONE[file.label]), span(file.path)]),
+    ['left', 'left'],
+  ).map((row) => [INDENT, ...row])
+  if (files.length > MAX_FILES) rows.push([INDENT, dim(`… ${files.length - MAX_FILES} more`)])
   return rows
 }
 
-export function statusView(outcome: ScriptOutcome, cwd = ''): string[] {
-  return rowsText(statusRows(outcome, cwd))
-}
-
-// ── Worktrees ─────────────────────────────────────────────────────────────────
-
-export function worktreesRows(outcome: ScriptOutcome): Row[] {
-  if (!outcome.ok) return [failureRow(outcome.line)]
-  const j = outcome.json
-  const offset = Number.parseInt(j.PORT_OFFSET ?? '', 10)
-  const rows: Row[] = [
-    [
-      ...field('Here', LABEL, orElse(j.WORKTREE, 'not set')),
-      GAP,
-      dim(`index ${j.WORKTREE_INDEX && j.WORKTREE_INDEX.trim() !== '' ? j.WORKTREE_INDEX : 'not set'} · port offset +${Number.isFinite(offset) ? offset : 0}`),
-    ],
-  ]
-  const worktrees = list(j.WORKTREES)
-  if (worktrees.length === 0) {
-    rows.push(field('Worktrees', LABEL, dim('none')))
-  } else {
-    rows.push([bold('Worktrees')])
-    const table = worktrees.map((row) => {
-      const [path = '', branch = ''] = row.split('\t')
-      return branch.trim() !== '' ? [bold(branch), dim(path)] : [dim('(detached)'), dim(path)]
-    })
-    rows.push(...columns(table, ['left', 'left']).map((row) => [INDENT, ...row]))
+/**
+ * What this session changed: the commits it made, the working-tree changes it
+ * left, the files it committed. Nothing older than the session is shown — the
+ * branch's earlier work is the merge request's business, not this view's.
+ */
+export function statusRows(branch: string, changes: SessionChanges | string): Row[] {
+  const head: Row[] = [field('Branch', LABEL, branch.trim() !== '' ? span(branch) : dim('not set'))]
+  if (typeof changes === 'string') return [...head, failureRow(changes)]
+  const since = `since ${formatTime(changes.startedAt)}`
+  const { commits, uncommitted, committed } = changes
+  if (commits.length === 0 && uncommitted.length === 0 && committed.length === 0) {
+    return [...head, field('Session', LABEL, dim(`${since} · nothing changed yet`))]
   }
-  const overlaps = list(j.OVERLAPS)
-  if (overlaps.length === 0) {
-    rows.push(field('Overlaps', LABEL, dim('none')))
-  } else {
-    rows.push([bold('Overlaps'), GAP, span(`${overlaps.length}`, 'warn', true)])
-    const table = overlaps.map((row) => {
-      const [file = '', branches = ''] = row.split('\t')
-      return [span(file), span(branches.split(',').join(', '), 'warn')]
-    })
-    rows.push(...columns(table, ['left', 'left']).map((row) => [INDENT, ...row]))
+  const files = uncommitted.length + committed.length
+  const rows: Row[] = [
+    ...head,
+    field('Session', LABEL, span(since), GAP, dim(`${plural(commits.length, 'commit')} · ${plural(files, 'file')}`)),
+  ]
+  if (commits.length > 0) {
+    rows.push([], [bold('Commits')])
+    rows.push(...commits.slice(0, MAX_FILES).map((commit): Row => [INDENT, span(commit.sha, 'accent'), GAP, span(commit.subject)]))
+    if (commits.length > MAX_FILES) rows.push([INDENT, dim(`… ${commits.length - MAX_FILES} more`)])
+  }
+  if (uncommitted.length > 0) {
+    rows.push([], [bold('Not committed'), GAP, dim(String(uncommitted.length))])
+    rows.push(...fileRows(uncommitted.map((entry) => ({ label: changeLabel(entry.code), path: entry.path }))))
+  }
+  if (committed.length > 0) {
+    rows.push([], [bold('Committed'), GAP, dim(String(committed.length))])
+    rows.push(...fileRows(committed.map((path) => ({ label: 'committed', path }))))
   }
   return rows
 }
 
-export function worktreesView(outcome: ScriptOutcome): string[] {
-  return rowsText(worktreesRows(outcome))
+export function statusView(branch: string, changes: SessionChanges | string): string[] {
+  return rowsText(statusRows(branch, changes))
 }
 
 // ── Commands ──────────────────────────────────────────────────────────────────

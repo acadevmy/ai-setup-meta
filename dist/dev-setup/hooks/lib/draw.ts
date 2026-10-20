@@ -152,7 +152,7 @@ export type PaneActions = {
   readonly resume: (run: Run) => void
 }
 
-export const PANE_KEYS = '1–7 switch the view · r reloads it · Esc closes'
+export const PANE_KEYS = '1–6 switch the view · r reloads it · Esc closes'
 
 function drawTabs(ui: Ui, active: View, actions: PaneActions): RenderElement {
   const tabs = VIEWS.map((name, i) => {

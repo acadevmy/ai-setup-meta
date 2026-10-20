@@ -411,7 +411,7 @@ the work without a model turn:
 - **the band above the prompt** — the open task clocks (`● DE-123  in progress
   42m`), a button after a created merge request that fills the closure prompt,
   the `sdd` usage per phase while one runs, a warning past 70% of context;
-- **`/dev-setup [clock|status|worktrees|context|usage|runs]`** — one command
+- **`/dev-setup [clock|status|context|usage|runs]`** — one command
   (a mod command is `/<name>`, with no plugin prefix: one command and its views
   is what fits), registered `immediate`. With no argument it is the catalogue of the public commands, read
   at run time from every `user-invocable: true` frontmatter. In an interactive
@@ -451,10 +451,12 @@ another name.
 | Clock in the band | adopt | band tests: open clock, none, other mods' content kept; refresh on start, turn end, `task-clock.sh` calls, every minute | the drawing in a real interactive session |
 | Merge-request button | adopt | same detection as `post-merge-request.sh` (quoted text ignored, URL required, task by delimiter); fills, never sends; the call passes through | a real session |
 | Commit-gate box | drop for now | not built: feasible (a Bash `tool.call` observer reads the gate's deny reason), but that reason already reaches the model and the transcript | — |
-| `/dev-setup` clock, status, worktrees | adopt | answered with no model turn in `claude -p`; plain text off-terminal, pane and `{}` interactive; script failures are one line | `immediate` answering mid-turn |
+| `/dev-setup` clock, status | adopt | answered with no model turn in `claude -p`; plain text off-terminal, pane and `{}` interactive; script failures are one line | `immediate` answering mid-turn |
+| Status scoped to the session | adopt (2026-10-20) | only what changed after `$.session.usage().startedAt`: commits by committer date, working-tree files by mtime (a deleted one by its folder's); read-only git, no script | another process writing the same checkout at the same time is counted as the session's |
+| Worktrees view | drop (2026-10-20) | removed: `worktree-info.sh` already answers the fan-out and `worktree.md`, and a pane tab nobody opened was a seventh tab to read | — |
 | Catalogue | adopt | exactly the `user-invocable: true` skills, read at run time; a new skill appears with no change; "use" fills `/dev-setup:<name> ` | the stops are not in any frontmatter, so it does not show them |
 | Context view | adopt | split read from the session (`breakdown: 'summary'`, Claude Code's estimate); dev-setup share read by name | the total against `/context` at the same moment |
-| Usage per phase | keep experimental | attribution per request on `turn.step`, phase from `skill.prompt`, cost as the growth of the session total | DE-17081's cross-check; phase detection on a full `sdd`; cost per phase is approximate when subagents overlap |
+| Usage per phase | keep experimental | attribution per request on `turn.step`, phase from `skill.prompt`, cost as the growth of the session total; since 2026-10-20 also the time per phase (wall, and working while a main-thread `turn.start`…`turn.complete` runs), tokens split by `agentId` (main thread / subagents) and by the answering model; records saved earlier read as zero time | DE-17081's cross-check; phase detection on a full `sdd`; cost per phase is approximate when subagents overlap |
 | multi-sdd pane | keep experimental | launch from the `Workflow` call, end from the task notification at `prompt.submit`, matched by the background task id | the notification's shape on a real run; a run's phase is not observable, so it is not shown |
 
 The client: mods load from 2.1.287 where the rollout flag is on, and on 2.1.285
@@ -921,4 +923,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.33.0 — bump the version number on every substantial change*
+*Version: 2.34.0 — bump the version number on every substantial change*

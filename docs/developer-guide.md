@@ -77,12 +77,15 @@ state of the work without spending a model turn:
   clock and moves the task to `CODE REVIEW`; while an `sdd` runs, its tokens per
   phase with the phase in progress at full strength, and the cost so far; past
   70% of context, a yellow warning before a long phase compacts it;
-- **`/dev-setup`** — a pane with one tab per view (`1`–`7` switch, `r` reloads,
+- **`/dev-setup`** — a pane with one tab per view (`1`–`6` switch, `r` reloads,
   `Esc` closes). With no argument, the six commands with when to use each and
   what each takes, and a `use` button that puts one in the prompt. `/dev-setup
-  clock`, `status` (branch, task, spec, the changed files), `worktrees` (ports
-  and overlaps), `context` (how full, as a meter, and how much of it the plugin
-  brings), `usage` (the `sdd` in progress, or the last one, per phase) and
+  clock` (one card per open clock — total, current interval, earlier ones, the
+  branch's own task marked — and the clocks stopped in the last five minutes),
+  `status` (what this session changed: its commits, the files it modified and
+  has not committed, the files it committed — nothing the branch carried before
+  the session began), `context` (how full, as a meter, and how much of it the plugin
+  brings), `usage` (the `sdd` in progress, or the last one: per phase the time, the part of it Claude was working and the part it waited for you, the tokens and their share, the cache hit and the cost; then where the tokens went — main thread or subagents, each model, each kind of token) and
   `runs` (this session's `multi-sdd` runs). Its footer names where the figures
   come from and when they were read. It answers at once, even while Claude is
   working, and in the terminal it adds nothing to the conversation; in

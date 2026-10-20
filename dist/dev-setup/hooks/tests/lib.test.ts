@@ -1,15 +1,16 @@
 // lib.test.ts — the mod's pure helpers, without the engine.
 
 import { describe, expect, test } from 'claude-code/testing'
-import { clockDetail, clockLine, elapsedMinutes, formatDuration, formatTime, openTasks, parseLocalStamp, toOpenClock } from '../lib/clock.ts'
+import { clockDetail, clockLine, elapsedMinutes, formatDuration, formatTime, openTasks, parseLocalStamp, recentTasks, taskOfBranch, toOpenClock } from '../lib/clock.ts'
+import { changeLabel, folderOf, parseCommits, parsePorcelain, pathsToStat, sessionChanges } from '../lib/session.ts'
 import { closurePrompt, closureTask, isMergeRequestCreate, mergeRequestUrl, toolOutputText } from '../lib/merge-request.ts'
 import { parseFrontmatter, sortEntries, splitDescription, toEntry, useText } from '../lib/catalogue.ts'
 import type { CatalogueEntry } from '../lib/catalogue.ts'
-import { addRequest, compactLine, compactRow, newRecord, phaseOf, pruneIndex, toIndex, usageTable, withTask } from '../lib/usage.ts'
+import { accrue, addRequest, compactLine, compactRow, formatElapsed, newRecord, phaseOf, pruneIndex, toIndex, usageTable, withTask } from '../lib/usage.ts'
 import { addRun, applyNotification, attachMergeRequest, canResume, parseNotification, resumePrompt, runFromWorkflowCall } from '../lib/runs.ts'
 import type { Run } from '../lib/runs.ts'
 import { contextLines, contextTone, contextWarning, devSetupShare, mcpServerNames } from '../lib/context.ts'
-import { catalogueLines, parseView, relativeTo, runLine, scriptOutcome, statusView, unknownViewText, worktreesView } from '../lib/views.ts'
+import { catalogueLines, clockView, CLOCK_HINT, NO_CLOCK, parseView, runLine, scriptOutcome, statusView, unknownViewText } from '../lib/views.ts'
 import { columns, dim, field, meter, rowText, span } from '../lib/rows.ts'
 import { drawRow, linkable } from '../lib/draw.ts'
 import type { Ui } from '../lib/draw.ts'
@@ -39,8 +40,30 @@ describe('clock', () => {
     expect(elapsedMinutes(clock, AT_10_00)).toBe(72)
     expect(clockLine(clock, AT_10_00)).toBe('DE-1  in progress  1h 12m')
     expect(formatTime(clock.startMs)).toBe('09:18')
-    expect(rowText(clockDetail(clock))).toBe('since 09:18 · 1 earlier session, 30m')
-    expect(rowText(clockDetail({ ...clock, startMs: null, sessions: 0 }))).toBe('')
+    expect(rowText(clockDetail(clock, AT_10_00))).toBe('since 09:18 (42m) · 1 earlier interval, 30m')
+    expect(rowText(clockDetail({ ...clock, startMs: null, sessions: 0 }, AT_10_00))).toBe('')
+  })
+
+  test('the branch names its task between delimiters; recent stops come from RECENT_TASKS', async () => {
+    expect(taskOfBranch('feat(auth)/DE-123_add-login')).toBe('DE-123')
+    expect(taskOfBranch('chore/DE-45-update')).toBe('DE-45')
+    expect(taskOfBranch('main')).toBe('')
+    expect(recentTasks({ RECENT_TASKS: 'DE-9 DE-10' })).toEqual(['DE-9', 'DE-10'])
+    expect(recentTasks({})).toEqual([])
+  })
+
+  test('the clock view is one card per clock, the branch task marked, a total when several', async () => {
+    const one = { task: 'DE-1', startMs: new Date(2026, 9, 7, 9, 18).getTime(), closedMinutes: 30, sessions: 1 }
+    const two = { task: 'DE-22', startMs: new Date(2026, 9, 7, 9, 50).getTime(), closedMinutes: 0, sessions: 0 }
+    const status = scriptOutcome('task-clock.sh', 0, '{"OPEN_TASKS":"DE-1 DE-22","RECENT_TASKS":"DE-9"}', '')
+    const lines = clockView(status, [one, two], [], AT_10_00, 'DE-22')
+    expect(lines[0]).toBe('2 open clocks  1h 22m in all')
+    expect(lines[2]).toBe('● DE-1   in progress  1h 12m')
+    expect(lines[3]).toBe('    since 09:18 (42m) · 1 earlier interval, 30m')
+    expect(lines[5]).toBe('● DE-22  in progress     10m  ← this branch')
+    expect(lines[lines.length - 1]).toBe('Stopped in the last five minutes  DE-9')
+    const none = clockView(scriptOutcome('task-clock.sh', 0, '{"OPEN_TASKS":""}', ''), [], [], AT_10_00)
+    expect(none).toEqual([NO_CLOCK, CLOCK_HINT])
   })
 
   test('durations read like task-clock.sh writes them', async () => {
@@ -155,15 +178,61 @@ describe('usage', () => {
     record = addRequest(record, 'discovery', usage, -1)
     record = addRequest(record, 'spec', null, 0.05)
     record = withTask(record, 'DE-1')
-    expect(record.phases.discovery).toEqual({ requests: 2, input: 20, output: 10, cacheRead: 2000, cacheWrite: 400, costUsd: 0.1 })
+    expect(record.phases.discovery).toMatchObject({ requests: 2, input: 20, output: 10, cacheRead: 2000, cacheWrite: 400, costUsd: 0.1 })
     expect(record.phases.spec?.requests).toBe(1)
     expect(compactLine(record)).toBe('sdd DE-1  discovery 2.4k › spec 0  $0.15')
     // The phase in progress is the one span at full strength.
     expect(compactRow(record, 'spec').filter((cell) => cell.bold).map((cell) => cell.text)).toEqual(['spec 0', '$0.15'])
-    const table = usageTable(record)
-    expect(table[0]).toBe('sdd usage — DE-1')
-    expect(table[1]).toMatch(/^phase\s+requests\s+input\s+cache read\s+cache write\s+output\s+cost$/)
-    expect(table.some((line) => /^total\s+3\s+20\s+2\.0k\s+400\s+10\s+\$0\.15$/.test(line))).toBe(true)
+  })
+
+  test('time is charged to the phase, as working time only while a main turn runs', async () => {
+    let record = newRecord('usage:s1:1', '/w', 1)
+    record = accrue(record, 'discovery', 0, 4 * 60_000, true)
+    record = accrue(record, 'discovery', 4 * 60_000, 10 * 60_000, false)
+    record = accrue(record, 'spec', 10 * 60_000, 10 * 60_000, true)
+    expect(record.phases.discovery).toMatchObject({ wallMs: 10 * 60_000, workMs: 4 * 60_000 })
+    expect(record.phases.spec).toBeUndefined()
+    expect(formatElapsed(45_000)).toBe('45s')
+    expect(formatElapsed(135 * 60_000)).toBe('2h 15m')
+    expect(compactLine(record)).toBe('sdd  discovery 0  $0.00  10m')
+  })
+
+  test('the report: time and tokens per phase, then where the tokens went', async () => {
+    const opus = { input_tokens: 100, output_tokens: 900, cache_read_input_tokens: 8000, cache_creation_input_tokens: 1000, model: 'claude-opus-5-5' }
+    const sonnet = { input_tokens: 0, output_tokens: 1000, cache_read_input_tokens: 9000, cache_creation_input_tokens: 0, model: 'claude-sonnet-5-5' }
+    let record = withTask(newRecord('usage:s1:1', '/w', 1), 'DE-1')
+    record = accrue(record, 'discovery', 0, 3 * 60_000, true)
+    record = accrue(record, 'discovery', 3 * 60_000, 12 * 60_000, false)
+    record = addRequest(record, 'discovery', opus, 0.5)
+    record = accrue(record, 'dev', 12 * 60_000, 20 * 60_000, true)
+    record = addRequest(record, 'dev', opus, 0.5)
+    record = addRequest(record, 'dev', sonnet, 0.25, true)
+    const lines = usageTable(record, 'dev').map((line) => line.replace(/\s+/g, ' ').trimEnd())
+    expect(lines[0]).toBe('sdd usage — DE-1 30.0k tokens · $1.25 · 20m (11m working, 9m waiting)')
+    expect(lines[2]).toBe('phase time working requests tokens share cache hit output cost')
+    expect(lines[3]).toBe('discovery 12m 3m 1 10.0k ███░░░░░░░ 33% 88% 900 $0.50')
+    expect(lines[4]).toBe('dev ● 8m 8m 2 20.0k ███████░░░ 67% 94% 1.9k $0.75')
+    expect(lines[5]).toBe('total 20m 11m 3 30.0k ██████████ 100% 92% 2.8k $1.25')
+    const where = lines.slice(lines.indexOf('Where the tokens went') + 1)
+    expect(where.slice(0, 8)).toEqual([
+      ' main thread 20.0k ███████░░░ 67% 2 requests',
+      ' subagents 10.0k ███░░░░░░░ 33% 1 request',
+      ' by model',
+      ' claude-opus-5-5 20.0k ███████░░░ 67%',
+      ' claude-sonnet-5-5 10.0k ███░░░░░░░ 33%',
+      ' by kind',
+      ' cache read 25.0k ████████░░ 83%',
+      ' cache write 2.0k █░░░░░░░░░ 7%',
+    ])
+    // The columns line up: every token figure ends on the same column.
+    const raw = usageTable(record, 'dev')
+    const ends = raw.filter((line) => /k\s+[█░]/.test(line) && line.startsWith('  ')).map((line) => line.search(/k\s+[█░]/))
+    expect(new Set(ends).size).toBe(1)
+  })
+
+  test('a record saved before time was kept reads as zero time', async () => {
+    const old = { key: 'k', project: '/w', task: '', startedAt: 1, phases: { spec: { requests: 1, input: 10, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0.1 } } }
+    expect(usageTable(old)[0]).toBe('sdd usage  10 tokens · $0.10 · 0s (0s working, 0s waiting)')
   })
 
   test('the index keeps the newest keys and names the dropped ones', async () => {
@@ -286,7 +355,8 @@ describe('views', () => {
     expect(parseView('')).toBe('commands')
     expect(parseView(' Clock ')).toBe('clock')
     expect(parseView('nope')).toBe(null)
-    expect(unknownViewText('nope')).toContain('clock, status, worktrees, context, usage, runs')
+    expect(unknownViewText('nope')).toContain('clock, status, context, usage, runs')
+    expect(parseView('worktrees')).toBe(null)
   })
 
   test('a failed script is one line naming it; JSON that is not JSON says so', async () => {
@@ -295,32 +365,60 @@ describe('views', () => {
       script: 'check-prerequisites.sh',
       line: 'check-prerequisites.sh exited 2: fatal: not a git repository',
     })
-    const garbled = scriptOutcome('worktree-info.sh', 0, 'oops', '')
+    const garbled = scriptOutcome('task-clock.sh', 0, 'oops', '')
     expect(garbled.ok).toBe(false)
   })
 
-  test('empty values read none or not set, never blank', async () => {
-    const status = statusView(scriptOutcome('check-prerequisites.sh', 0, '{"BRANCH":"main","SPEC":"","BASE_BRANCH":"","CHANGED_FILES":""}', ''))
-    expect(status.map((line) => line.replace(/\s+/g, ' '))).toEqual(['Branch main', 'Base not set', 'Spec none', 'Changed nothing'])
-    // The values start on one column, whatever the label.
-    expect(new Set(status.map((line) => line.length - line.replace(/^\S+\s+/, '').length)).size).toBe(1)
-    const withSpec = statusView(scriptOutcome('check-prerequisites.sh', 0, '{"SPEC":"/w/.specs/DE-1-x.md","SPEC_STATUS":"approved"}', ''), '/w')
-    expect(withSpec[2]).toMatch(/^Spec\s+\.specs\/DE-1-x\.md  approved$/)
-    const many = statusView(scriptOutcome('check-prerequisites.sh', 0, `{"CHANGED_FILES":"${Array.from({ length: 17 }, (_, i) => `f${i}.ts`).join('\\n')}"}`, ''))
-    expect(many[3]).toMatch(/^Changed\s+17 files$/)
-    expect(many[4]).toBe('  f0.ts')
-    expect(many[many.length - 1]).toBe('  … 2 more')
-    expect(relativeTo('/w', '/elsewhere/a.md')).toBe('/elsewhere/a.md')
-    const worktrees = worktreesView(
-      scriptOutcome('worktree-info.sh', 0, '{"WORKTREE":"/w","WORKTREE_INDEX":"0","PORT_OFFSET":"0","WORKTREES":"/w\\tmain","OVERLAPS":""}', ''),
-    )
-    expect(worktrees.map((line) => line.replace(/\s+/g, ' '))).toEqual(['Here /w index 0 · port offset +0', 'Worktrees', ' main /w', 'Overlaps none'])
-    const overlapping = worktreesView(
-      scriptOutcome('worktree-info.sh', 0, '{"WORKTREE":"/w","WORKTREES":"/w\\tmain\\n/w2\\t","OVERLAPS":"src/a.ts\\tfeat/x,feat/y"}', ''),
-    )
-    expect(overlapping).toContain('  (detached)  /w2')
-    expect(overlapping.some((line) => /^Overlaps\s+1$/.test(line))).toBe(true)
-    expect(overlapping[overlapping.length - 1]).toBe('  src/a.ts  feat/x, feat/y')
+  test('git status -z is read entry by entry; a rename carries its source, skipped', async () => {
+    const entries = parsePorcelain(' M src/a.ts\0?? src/new/b.ts\0R  src/c.ts\0src/old-c.ts\0 D gone.ts\0')
+    expect(entries).toEqual([
+      { code: ' M', path: 'src/a.ts' },
+      { code: '??', path: 'src/new/b.ts' },
+      { code: 'R ', path: 'src/c.ts' },
+      { code: ' D', path: 'gone.ts' },
+    ])
+    expect(entries.map((entry) => changeLabel(entry.code))).toEqual(['modified', 'new', 'renamed', 'deleted'])
+    expect(changeLabel('M ')).toBe('staged')
+    expect(changeLabel('MM')).toBe('partly staged')
+    expect(folderOf('src/new/b.ts')).toBe('src/new')
+    expect(folderOf('gone.ts')).toBe('')
+    expect(pathsToStat(entries)).toEqual(['src/a.ts', 'src', 'src/new/b.ts', 'src/new', 'src/c.ts', 'gone.ts', ''])
+    expect(parseCommits('abc1234\tfeat: x\n\ndef5678\tfix: y\n')).toEqual([
+      { sha: 'abc1234', subject: 'feat: x' },
+      { sha: 'def5678', subject: 'fix: y' },
+    ])
+  })
+
+  test('only what changed after the session began is the session\'s', async () => {
+    const start = AT_10_00
+    const mtimes: Record<string, number> = { 'old.ts': start - 60_000, 'src/a.ts': start + 60_000, src: start - 1, '': start + 5 }
+    const entries = parsePorcelain(' M old.ts\0 M src/a.ts\0 D src/gone.ts\0 D root-gone.ts\0')
+    const changes = sessionChanges(start, entries, (path) => mtimes[path] ?? null, [{ sha: 'abc1234', subject: 'feat: x' }], ['src/a.ts', 'lib/b.ts', '', 'lib/b.ts'])
+    // old.ts was dirty before the session; src/gone.ts sits in a folder untouched since.
+    expect(changes.uncommitted.map((entry) => entry.path)).toEqual(['src/a.ts', 'root-gone.ts'])
+    // A committed file still dirty is listed once, under the working tree.
+    expect(changes.committed).toEqual(['lib/b.ts'])
+    const lines = statusView('feat/DE-1_x', changes).map((line) => line.replace(/\s+/g, ' ').trimEnd())
+    expect(lines).toEqual([
+      'Branch feat/DE-1_x',
+      'Session since 10:00 1 commit · 3 files',
+      '',
+      'Commits',
+      ' abc1234 feat: x',
+      '',
+      'Not committed 2',
+      ' modified src/a.ts',
+      ' deleted root-gone.ts',
+      '',
+      'Committed 1',
+      ' committed lib/b.ts',
+    ])
+    const quiet = statusView('main', sessionChanges(start, [], () => null, [], []))
+    expect(quiet.map((line) => line.replace(/\s+/g, ' '))).toEqual(['Branch main', 'Session since 10:00 · nothing changed yet'])
+    expect(statusView('', 'git rev-parse exited 128: fatal: not a git repository')).toEqual([
+      'Branch   not set',
+      'git rev-parse exited 128: fatal: not a git repository',
+    ])
   })
 
   test('the catalogue text names each command and ends on the guide', async () => {
