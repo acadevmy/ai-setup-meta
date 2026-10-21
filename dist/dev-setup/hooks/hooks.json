@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh\"",
+            "if": "Bash(*git *commit*)",
             "timeout": 600
           }
         ]
@@ -18,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit.sh\""
           }
         ]
       },
@@ -27,7 +28,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-request.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-request.sh\" gh",
+            "if": "Bash(*gh pr *create*)"
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-request.sh\" glab",
+            "if": "Bash(*glab mr *create*)"
           }
         ]
       }
@@ -38,10 +45,43 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-compact.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-compact.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-title.sh\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-title.sh\""
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh\""
           }
         ]
       }
     ]
-  }
+  },
+  "modules": [
+    "./register.ts"
+  ]
 }

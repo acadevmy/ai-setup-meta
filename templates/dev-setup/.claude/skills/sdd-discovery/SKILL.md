@@ -18,12 +18,12 @@ conversation. Invoked on its own, it takes a task id.
 
 ## Before you start
 
-- **`reference/question-bank.md`** — how to ask (closed-first, worked examples),
-  the four phases to cover, how hard to push, and the exact shape of the
-  Discovery Summary. Read it before the first question.
+- **`reference/question-bank.md`** — draft first, the question budget, how to
+  ask (closed-first, a worked example), the four phases to cover, and the
+  exact shape of the Discovery Summary. Read it before the first question.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — the rule for every
-  interactive step: after you ask, the turn ends. This interview is the case it
-  was written for.
+  interactive step: up to four related questions in one call, and after you
+  ask, the turn ends.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — only when a task
   id has to be resolved.
 
@@ -53,17 +53,15 @@ Priority: <priority>
 Description from task:
 <description>
 
-Let's start the discovery phase. I'll ask you some questions to thoroughly
-understand what needs to be implemented. Answer with whatever level of detail
-you prefer. If you don't have an answer for something yet, just say "to be defined".
+Already covered by the task: <one line per phase it answers>
+Asking only about the gaps.
 ```
 
 ### 4. Run the interview
 
-Work through the four phases of `question-bank.md`, one question at a time,
-`AskUserQuestion` every time, ending your turn after each. Stop when the phases
-are covered, when the developer says they are done, or at the 10–12 question
-soft cap.
+Draft the Discovery Summary from the task and the project context first, then
+ask what the draft leaves open, within the budget in `question-bank.md`. End
+the turn on each call.
 
 ### 5. Write the Discovery Summary
 
@@ -77,6 +75,6 @@ be generated. Invoked on its own, ask whether to proceed to the spec.
 
 ## Expected output
 
-- an interview of at most 10–12 questions, each answered by the developer;
+- questions only on what the task left open, within the budget;
 - a structured Discovery Summary in the conversation context;
 - gray areas documented explicitly.

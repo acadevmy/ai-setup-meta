@@ -20,6 +20,17 @@
 # The full test suite is not the per-commit gate by design: it belongs at the MR
 # boundary (the workflow's verify phase) and in CI, which stays the final gate.
 #
+# The handler that mounts this hook carries `"if": "Bash(*git *commit*)"`
+# (DE-17064): `is_git_commit` below, written in permission-rule syntax, so the
+# harness spawns the gate on a git commit call only — a `git status` no longer
+# pays for a process and a jq parse. The rule reads `*git *commit*` rather than
+# `git commit*` on purpose: a global flag before the subcommand (`git -c
+# core.hooksPath=… commit`) and the `env` prefix are exactly the forms the
+# anti-bypass mode exists to refuse, and a form the hook acts on that the rule
+# never spawned would be a silent gap. The regex stays the decision: a client
+# that ignores `if`, and a compound command the harness cannot narrow, still
+# reach it.
+#
 # Fail-open: when the hook cannot do its job (no jq, detect-stack.sh missing) it
 # warns on stderr and lets the call through. The deny rules in settings.json
 # cover `--no-verify`/`-n` at the permission layer regardless of this hook, and

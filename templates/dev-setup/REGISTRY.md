@@ -1,7 +1,7 @@
 # REGISTRY.md — Structured project index
 
 > Concise registry of reusable components, adopted patterns, and architectural decisions.
-> Claude Code reads this at the start of each session for immediate context.
+> Read it before adding something that may already exist.
 > Automatically updated by `/dev-setup:review`.
 
 ## Conventions

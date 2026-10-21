@@ -62,30 +62,30 @@ and say so: the spec saying Zod while the code uses class-validator is a
 
 ## The result block
 
+Short by contract: the counts say how much matched, and only what fell short
+is listed.
+
 ```
 ---VERIFY-RESULT---
 STATUS: pass | fail | pass-with-warnings
-
-COMPLETENESS:
-  Requirements:
-  - REQ-1: <status> — <brief evidence or what's missing>
-  - REQ-2: <status> — <brief evidence or what's missing>
-  Tests:
-  - Test 1: <found|not-found> — <test file:line or what's missing>
-  - Test 2: <found|not-found> — <test file:line or what's missing>
-
-CORRECTNESS:
-  Expected files touched: <N>/<total>
-  Missing: <files listed in Impact but not in the diff, or "none">
-  Unexpected: <files in the diff but not in Impact, or "none">
-  Dependencies: <all added | the missing ones>
-
-COHERENCE:
-  - "<decision>": <followed|not-found|diverged — actual: ...>
-
+COUNTS: requirements <covered>/<total> · tests <found>/<total> · decisions <followed>/<total> · Impact files <touched>/<total>
+GAPS:
+  - REQ-<N>: <partial|not-found> — <file>:<line> that shows it, or what is missing
+  - Test <N>: not-found — <what is missing>
+  - Missing: <file listed in Impact, absent from the diff>
+  - Unexpected: <file>:<line> — <why it is not support for a listed change>
+  - Dependency: <name> — not added to <manifest>
+  - Decision "<decision>": <not-found|diverged — actual: ...> — <file>:<line>, or what is missing
 SUMMARY: <one-line overall assessment>
 ---END---
 ```
+
+- Every `GAPS` entry names its id and either the `<file>:<line>` that shows it
+  or what is missing.
+- Covered requirements, found tests and followed decisions are not listed:
+  `COUNTS` already says how many there are, and a list of what matches is read
+  by nobody.
+- A **pass** is `STATUS`, `COUNTS` and `SUMMARY`, with no `GAPS` line.
 
 ## Classifying the status
 

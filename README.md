@@ -35,7 +35,7 @@ The agent reads the project and adapts what it installs:
 - **Existing project**: it grafts on the AI workflow only (path-scoped rules, AGENTS.md, skills, MCP) without touching your tooling
 - **New project (greenfield)**: full setup with quality tools, stack profile and MCP
 
-**Prerequisites**: `git`, the `claude` CLI. Optional: the `gh` CLI (for the ClickUp MCP and greenfield work).
+**Prerequisites**: `git`, the `claude` CLI — Claude Code 2.1.281 or later on every machine and runner that works on the project: it reads `AGENTS.md` as the project instructions, and the setup writes no `CLAUDE.md`. Optional: the `gh` CLI (for the ClickUp MCP and greenfield work).
 
 ### Session context cost
 
@@ -115,7 +115,7 @@ were literal copies of the skill bodies.
 │  /dev-setup:setup                                           │
 │  → Detects the mode (UPDATE/GREENFIELD/EXISTING)            │
 │  → Auto-detects the stack                                   │
-│  → Generates .claude/rules/, AGENTS.md, CLAUDE.md, REGISTRY │
+│  → Generates .claude/rules/, AGENTS.md, REGISTRY.md         │
 │  → Registers only the MCPs the stack uses (Step 6)          │
 │  → Skills available through the plugin                      │
 └─────────────────────────────────────────────────────────────┘
@@ -145,8 +145,9 @@ ai-setup-meta/
 │       │   ├── settings.json           # Permissions + sandbox + hooks (source)
 │       │   ├── settings.user.json      # User-scope snippet: credential masking
 │       │   ├── hooks/                  # gate-commit, post-edit, on-compact
+│       │   ├── mod/                    # The mod: the band and /dev-setup, no rule (register.ts, lib/, tests/)
 │       │   ├── scripts/                # The deterministic steps (bash + jq, --json)
-│       │   ├── agents/                 # review — the one domain agent left
+│       │   ├── agents/                 # code-reviewer, spec-verifier, finding-validator
 │       │   ├── reference/              # Contracts shared by several skills
 │       │   ├── skills/                 # 10 workflow skills (SKILL.md + reference/)
 │       │   └── workflows/              # auto-sdd.js — the autonomous run, as code
@@ -160,10 +161,10 @@ ai-setup-meta/
 │   └── dev-setup/               # Claude Code plugin
 │       ├── .claude-plugin/      # Plugin manifest
 │       ├── skills/              # 13 skills (10 from the template + 2 shared + setup)
-│       ├── agents/              # 2 agents (review + the shared clickup)
+│       ├── agents/              # 4 agents (3 from the template + the shared clickup)
 │       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
 │       ├── workflows/           # dev-setup:auto-sdd
-│       └── hooks/               # hooks.json + hooks/scripts/
+│       └── hooks/               # hooks.json + hooks/scripts/ + the mod (register.ts, lib/, tests/)
 ├── scripts/
 │   ├── build-plugin.sh          # Orchestrator: reads the manifest, calls the builder
 │   ├── builders/
@@ -206,10 +207,81 @@ bash scripts/build-plugin.sh dev-setup
 # Validate the plugin
 claude plugin validate dist/dev-setup/
 bash scripts/validate-plugin.sh --strict
-
-# Try it locally
-claude --plugin-dir dist/dev-setup/
 ```
+
+### Testing the plugin locally
+
+The build of a branch — `next` before it reaches `main`, or a feature branch —
+can be tried in a real project beside the plugin installed from the
+marketplace, with nothing released. Every step runs on the built plugin:
+`dist/dev-setup/` is what ships, and the `verify` job fails a PR whose `dist/`
+is not in sync with the sources.
+
+**1. Build and run the suites.** They are the CI jobs, run by hand:
+
+```bash
+bash scripts/build-plugin.sh dev-setup
+bash scripts/validate-plugin.sh --strict    # the static checks on skills, workflows and docs
+bash scripts/test-plugin-scripts.sh         # the plugin scripts and hooks, against scripts/fixtures/
+claude plugin validate dist/dev-setup/      # the manifests, plus the "register.ts calls:" line of the mod
+claude plugin test dist/dev-setup           # the mod's *.test.ts against the engine — no session, sign-in or network
+```
+
+The `calls:` line must hold no call that acts (`$.prompt.submit`, `$.tool.call`,
+`$.turn.abort`, `$.config.set`, `$.env.set`, `$.fs.write`). Mods load from
+Claude Code 2.1.287; on 2.1.285 prefix the two `claude plugin` calls with
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`. CI pins its own CLI version in `ci.yml`,
+so a suite green here and red there is a version difference before anything else.
+
+**2. Load the build under another name.** `dev-setup` is installed from the
+marketplace at managed scope on every team machine, and a `--plugin-dir` of the
+same name is ignored in silence: the installed version loads, and nothing says
+so. So the build is copied and renamed after the branch it comes from —
+`dev-setup-next` for `next`:
+
+```bash
+cp -R dist/dev-setup "${TMPDIR:-/tmp}/dev-setup-next"
+jq '.name = "dev-setup-next"' "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json" > "${TMPDIR:-/tmp}/plugin.json" \
+  && mv "${TMPDIR:-/tmp}/plugin.json" "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json"
+
+# Smoke test, no model turn: the mod prints the catalogue of the six commands
+claude -p --plugin-dir "${TMPDIR:-/tmp}/dev-setup-next" "/dev-setup"
+
+# The real thing, from a project of yours or a throwaway one
+cd path/to/a-project
+claude --plugin-dir "${TMPDIR:-/tmp}/dev-setup-next" --debug
+```
+
+The copy loads whole, beside the installed plugin, and everything it ships
+answers under its own name:
+
+- **the commands** are `/dev-setup-next:<command>` — `setup`, `quick`, `sdd`,
+  `review` and the rest. `${CLAUDE_PLUGIN_ROOT}` resolves to the copy, so the
+  scripts, references and rule templates a skill reaches are the copy's. On a
+  throwaway project, `setup` shows the files the branch generates; on a project
+  already set up, its UPDATE mode shows the migration;
+- **the hooks** in the copy's `hooks.json` are active — the commit gate,
+  post-edit, post-merge-request, on-compact — and so are the installed
+  plugin's: every hook fires twice, once per plugin;
+- **the mod** draws the band above the prompt and answers `/dev-setup status`
+  and the other views. A mod command carries no prefix, so when both plugins
+  ship one, the last loaded wins. `--debug` writes every skipped hook and every
+  refused tree to the log with its reason, and names a module that did not load.
+
+**3. What the copy cannot take over.** Two names are hard-coded in the skills:
+
+- the workflow. `auto-sdd` and `multi-sdd` call `Workflow({"name":
+  "dev-setup:auto-sdd"})`, which resolves to the installed plugin's script. To
+  run the copy's, change that name to `dev-setup-next:auto-sdd` in the copy's
+  two launchers (the `auto-sdd` skill and the fan-out reference of `multi-sdd`)
+  — the harness registers every workflow as `<plugin>:<meta.name>`;
+- the agents. The skills launch `code-reviewer`, `spec-verifier` and `clickup`
+  by bare name, and both plugins ship them: the transcript shows which prefix
+  answered.
+
+A branch is release-ready when the suites are green **and** the session shows
+the behaviour — the suites exercise the scripts and the hooks, never a
+developer's turn.
 
 **Releases are automatic**: [release-please](https://github.com/googleapis/release-please)
 computes the bump from the conventional commits merged into `main`, opens a release PR and —
@@ -245,7 +317,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 |---|---|
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
 | `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
-| `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify → review → one commit → PR |
+| `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify ∥ review on one diff package → one commit → PR |
 | `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd.js`) writes the spec, has three reviewers improve it against the project architecture, develops in an isolated worktree and runs the project real quality commands. It returns `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
 | `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |
 | `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
@@ -360,5 +432,7 @@ merge request, so the person reviewing it reads both sides instead.
 
 | Agent | Role |
 |---|---|
-| **review** | Code review against `.claude/rules/`, updates the REGISTRY |
+| **code-reviewer** | Code review against `.claude/rules/`, proposes the REGISTRY entries |
+| **spec-verifier** | The branch's diff against its approved spec: requirements, tests, Impact list |
+| **finding-validator** | Re-checks every blocking review finding against the cited line before it counts |
 | **clickup** | Generic ClickUp CRUD (MCP passthrough) |

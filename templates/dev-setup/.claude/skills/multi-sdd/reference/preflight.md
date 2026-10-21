@@ -18,6 +18,23 @@ ends.
 
 ## The intake
 
+**First, the commands — once for the whole set**, before any task is read.
+Whichever tasks are in it, the project either can check the runs' work here or
+it cannot:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh" --require-declared --allow-unavailable --json
+```
+
+Keep `UNAVAILABLE`, `UNAVAILABLE_REASON` and `OUTPUT` for the launch: a command
+this environment cannot run does not stop the set — say so in one line, and
+every run reports it as unverified.
+
+Any non-zero exit → print `REASON` and `OUTPUT` and stop. No run starts and no
+task is read or touched — the board stays as `multi-preflight.sh`'s exit 3
+leaves it. `${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`, "When the run
+does not start", says what fixes it.
+
 **Ids on the command line.** Read each one through the `clickup` agent —
 `INTENT: read`, `PARAMS: task_id: <id>`, per
 `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`. Keep `custom_id`, `name`,

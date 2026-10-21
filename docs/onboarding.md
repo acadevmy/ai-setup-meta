@@ -3,8 +3,10 @@
 One page. Four steps. Everything else is in
 [developer-guide.md](./developer-guide.md).
 
-**You need**: `git`, the `claude` CLI, and `gh` (GitHub repos) or `glab` (GitLab
-repos) already authenticated.
+**You need**: `git`, the `claude` CLI — Claude Code 2.1.281 or later, on every
+machine and runner that works on the project — and `gh` (GitHub repos) or `glab`
+(GitLab repos) already authenticated. The setup stops on an older client: it
+writes no `CLAUDE.md`, and an older Claude Code does not read `AGENTS.md`.
 
 ## 1. Add the marketplace, install the plugin
 
@@ -36,7 +38,7 @@ this plugin has configured before. Then it writes:
 |---|---|
 | The rules the harness loads by file type | `.claude/rules/dev-setup-*.md` |
 | Permissions, Bash sandbox, quality gate | `.claude/settings.json` |
-| Project context for any agent | `AGENTS.md`, `CLAUDE.md` |
+| Project context for any agent, Claude Code included | `AGENTS.md` |
 | What already exists in the project | `REGISTRY.md` |
 | The pull request template, in the language you pick | `.github/PULL_REQUEST_TEMPLATE.md` or `.gitlab/merge_request_templates/Default.md` |
 | The merge request language and labels — yours to edit | `.claude/merge-request.json` |
@@ -69,9 +71,32 @@ interface:
 /dev-setup:sdd DE-124
 ```
 
-It asks which branch to fork from (the base resolved from the repository is
-the default), then discovery, a technical spec you approve, development, the
-gates, one commit and the merge request.
+It stops three times: once at launch — which branch to fork from (the base
+resolved from the repository is the default) and how far to go — once for
+discovery, only about what the task leaves open, and once to approve the spec.
+Then development, the gates, one commit and the merge request.
+
+## Know where a flow is
+
+The phases of an `sdd` show as a task list, the session is named after its
+task in `claude --resume`, every closing report ends on a `Next:` line, and a
+permission prompt during a task sends a desktop notification naming it. Two
+settings are yours, in your **user** settings (`~/.claude/settings.json`) or the
+managed ones, never the project's `.claude/settings.json`, which ignores
+`footerLinksRegexes`:
+
+```json
+{
+  "preferredNotifChannel": "terminal_bell",
+  "footerLinksRegexes": [
+    { "type": "regex", "pattern": "(?<id>DE-\\d+)",
+      "url": "https://app.clickup.com/t/<workspace-id>/{id}", "label": "{id}" }
+  ]
+}
+```
+
+`"terminal_bell"` rings in any terminal — the default `auto` notifies only in
+iTerm2, Ghostty and Kitty. The second entry makes every `DE-123` a ClickUp link.
 
 ## Where to go next
 

@@ -37,19 +37,83 @@ feedback on the merge request, handled like any other.
 
 ## failed — the spec, the dev step or the commands
 
-`{ status: 'failed', stage, reason, output?, branch?, worktreePath? }`
+`{ status: 'failed', stage, reason, output?, notes?, branch?, baseBranch?, worktreePath?, commits?, spec?, openPoints?, deviations?, toConfirm?, unverified? }`
 
-`stage` says where: `intake` (the launcher passed bad arguments — that is a bug
-in the launch call, fix it), `spec`, `dev`, or `verify` (the project lint,
-typecheck or test command came back red).
+`stage` says where: `intake` (the launcher passed bad arguments, or three empty
+quality commands — a bug in the launch call, fix it), `spec`, `dev`, or `verify`
+(the project lint, typecheck or test command came back red).
 
-1. Show `reason` and, when `verify` failed, the `output` as it came — that is the
-   real command output, not a summary of it.
-2. Stop the clock, then move the task to `BLOCKED` with the same bail-out call:
-   one `update` naming the stage, the reason and the branch, with the clock's
-   `COMMENT` after the note.
-3. Leave the branch and the worktree alone. They are the debugging material, and
+**A run that broke** — the workflow came back with neither outcome, or with
+none at all — is handled as a `failed` at stage `broken`: the raw result is its
+`reason`, and in a cloud session step 3 still saves whatever branch carries the
+task.
+
+1. Show `reason`, the dev agent's `notes` when there are any, and, when `verify`
+   failed, the `output` as it came — that is the real command output, not a
+   summary of it. Read `notes` before `reason`: on DE-17159 the dev agent
+   stopped at a gate the spec set — the backend contract did not exist yet —
+   and Verify then failed on a worktree nobody had installed. `reason` said the
+   commands were red; `notes` said why.
+2. Write the report — the note the board gets, and in a cloud session the body
+   of the commit that saves the work — so whoever picks the task up can work
+   from the board and the remote alone:
+   - **why it failed** — the stage and `reason`, in one line;
+   - **what is missing** — what stands between the branch and a merge request,
+     read from `notes` and `output`: the blocker and who has to remove it, the
+     failing command and its error, the steps of the spec's plan with no commit
+     yet. Nothing the outcome does not say: a cause you infer is marked as
+     inferred;
+   - **the failing output** — its tail, as it came, when `verify` failed, or
+     the raw result when the run broke;
+   - **to resume** — fix the cause, check the branch out, and run
+     `/dev-setup:sdd <taskId>`: it starts from the spec and the commits on it.
+3. **In an ephemeral session, save the work and push it.** `CLAUDE_CODE_REMOTE`
+   is `true` in a cloud session — a scheduled routine among them — and its disk
+   goes when it ends: a branch left there is a branch lost, as it was on
+   DE-17472 and DE-17159. Whatever the stage, write the report to a file
+   outside the worktree, then:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/save-failed-run.sh" --task <taskId> \
+     --stage <stage> --reason-file <report file> --json \
+     [--dir "<worktreePath>"]
+   ```
+
+   `--dir` when the outcome carries a `worktreePath`; without it the script
+   finds the worktree or the branch that carries the task id. When the outcome
+   carries `spec.markdown` and no `branch` — the dev agent never made one —
+   write it to a file too and add
+   `--spec-file <that file> --spec-path "<spec.path>" --base "<baseBranch>" --title "<the task title, in English>" --type <branchType>`:
+   the spec and its Challenge are most of what the run paid for.
+
+   The script commits everything the worktree holds — an empty commit when it
+   holds nothing, so the branch itself says why — with the report as the
+   message body, and pushes the branch as it is, past the project's commit and
+   push hooks: they are red, which is why the run failed. It is the one way
+   past the gates, and it keeps that narrow itself: it refuses outside a cloud
+   session and on a branch that does not carry the task id, never forces a
+   push, and its message says the hooks were skipped. Never skip them any other
+   way — no `--no-verify`, no `HUSKY=0`: the `deny` rules and the commit gate
+   still refuse those. Its exit goes into the board note: `0` pushed, `4` saved
+   but not pushed (`PUSH_ERROR` says why), `3` nothing to save (`REASON`), `1`
+   a broken call (its stderr).
+
+   Open no merge request: the task is the report, not a review request.
+   Locally nothing changes: no commit, no push — the worktree survives on disk.
+4. Stop the clock, then move the task to `BLOCKED` with the same bail-out call:
+   one `update` whose note is the report, plus what step 3 did — the branch on
+   `origin` with the commit that saved it, or why it is not there. The clock's
+   `COMMENT` goes after the note.
+5. Leave the branch and the worktree alone. They are the debugging material, and
    deleting them is the one thing that makes the failure unreadable.
+6. End the report on one `Next:` line, the exact command for where it failed:
+   - `verify` → `Next: cd "<worktreePath>" && <the command that failed>` — the
+     red command, run where the code is;
+   - `dev` → `Next: cd "<worktreePath>"` — the implementation as it stopped;
+   - `spec` → `Next: /dev-setup:sdd <taskId>` — the interactive flow writes the
+     spec with the developer;
+   - `intake` → `Next: /dev-setup:auto-sdd <taskId>` — once the launch call is
+     fixed.
 
 A `verify` failure is the one worth resuming rather than relaunching: the spec,
 the Challenge and the whole implementation come back from the journal cache
@@ -57,10 +121,15 @@ once the cause is fixed, and only the commands run again.
 
 ## ready-for-mr — push and open it
 
-`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[] }`
+`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[], unverified[] }`
 
-The tests, the linter and the type checker ran green in the worktree, and the
-spec is committed on the branch. Two things are left, and they are the two the
+Every quality command this environment could run ran green in the worktree,
+and the spec is committed on the branch. `unverified` lists the ones it could
+not — `{ kind, command, reason }`: declared by the project, but their program,
+service or runtime is not here (the launcher's `UNAVAILABLE`, or a command that
+exited 126/127 at Verify). A missing toolchain does not stop a run: it goes to
+the end, and the merge request says which checks nobody ran. When every
+command is unverified, `output` is empty and nothing at all was checked. Two things are left, and they are the two the
 workflow deliberately does not do:
 
 ```bash
@@ -73,7 +142,8 @@ reference itself. Open the merge request **against the short name of
 
 The `ask` rule on `gh pr create` / `glab mr create` is what puts a person in
 front of this. It is a permission rule, not something to work around: if the
-developer declines, report that and leave everything in place.
+developer declines, report that, leave everything in place, and end on `Next:`
+and the host reference's open command, filled in for this branch and base.
 
 Finally, stop the clock and let the move carry what the task took:
 
@@ -86,7 +156,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <taskId> --stop --json
 verbatim, or no comment at all when the clock has nothing (`REASON` says why).
 Never write a duration of your own: the work clock section of
 `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` is the rule. Then show
-the merge request link, the branch, the spec path and the commit subjects.
+the merge request link, the branch, the spec path and the commit subjects, and
+end on one line: `Next:` and the follow-its-CI command from the host reference
+`vcs-ops` loaded, filled in with the merge request's number or branch — this
+checkout is not on that branch, so name it. It is not a question: the developer
+runs it, or asks you to.
 
 ## The merge request
 
@@ -95,6 +169,11 @@ Title, language and labels from `mr-meta.sh`, as `vcs-ops` describes —
 `--priority`. Body as `vcs-ops` describes — the template, filled in and short —
 plus what this flow owes a reviewer who was not watching:
 
+- **not verified**, first of all, when `unverified` holds anything: one line
+  per entry — the kind, the command, the reason — and that the run did not
+  prove it. Whoever merges runs those commands, or waits for the CI that
+  does: a green merge request that hides an unrun suite is the defect this
+  section exists to prevent.
 - **the real test output**, in a fenced block: the `output` field, as it came
   back. A reviewer has to see the suite passing without re-running it.
 - **to confirm**, at the top, when `toConfirm` or `deviations` holds anything:
@@ -135,14 +214,37 @@ the session is gone, so is the journal.
 
 ## When the run does not start
 
-Two failures happen before any phase does, and neither is a task problem:
+Three failures happen before any phase does, and none is a task problem:
 
+- **`quality-preflight.sh` refuses** (exit 3) — the project does not say how
+  to check its work: no `.claude/quality-commands.json`, a rejected one, or
+  every command declared absent. A program not installed or a red declared
+  preflight is not a refusal: with `--allow-unavailable` those commands come
+  back in `UNAVAILABLE`, the run starts, and its merge request lists them as
+  not verified. `REASON` says which, `OUTPUT` carries what failed. Nothing has
+  started — no fork-point question, no `IN PROGRESS`, no clock, no `Workflow` —
+  and what happens to the task depends on where it was read:
+  - read in `SPRINT` (`auto-sdd`) → one bail-out call, `SPRINT → BLOCKED`, its
+    note `REASON` and `OUTPUT`: the board says why the task cannot run here;
+  - read in `BACKLOG` (`auto-sdd`) → left as found, and `REASON` and `OUTPUT`
+    shown in chat. The backlog gate never moves a task on the flow's
+    initiative, and the board has no `BACKLOG → BLOCKED` move;
+  - `multi-sdd` → no task is read or touched: the check runs once, before the
+    first read. Print `REASON` and `OUTPUT` and stop, as on `multi-preflight.sh`
+    exit 3.
+
+  The fix belongs to the project, not the task: `/dev-setup:setup` writes or
+  repairs the declaration (step 3b), then launch again. Any other non-zero exit
+  is a broken script — show its stderr and stop, with no board write.
 - **`Workflow "dev-setup:auto-sdd" not found`** — the loaded plugin has no such
   workflow. The usual cause is a stale install shadowing a newer build: check
   that `${CLAUDE_PLUGIN_ROOT}/workflows/auto-sdd.js` exists, and if it does not,
   reinstall or rebuild the plugin. The same script can be launched by path with
   `scriptPath` while that is being fixed.
 - **`status: 'failed', stage: 'intake'`** — the launcher passed bad arguments:
-  a missing `taskId`, `pluginRoot` or `baseBranch`, or a task id that is not a
-  plain identifier. The `reason` names which. Fix the launch call, not the
+  a missing `taskId`, `pluginRoot` or `baseBranch`, a task id that is not a
+  plain identifier, or a `stack` whose three commands are all empty — which the
+  check above refuses first, so seeing it means that check was skipped. A
+  `stack` whose commands are all `unavailable` is not this: it runs, unverified. The
+  `reason` names which, and no agent ran. Fix the launch call, not the
   workflow.

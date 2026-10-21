@@ -1,16 +1,44 @@
 # The discovery question bank
 
 How to ask, what to ask, and what the interview has to produce. The interview
-rules that are not specific to discovery — one question at a time, end the turn
-after asking — are in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
+rules that are not specific to discovery — one call at a time, up to four
+related questions in it, end the turn after asking — are in
+`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 
 ## Index
 
+- [Draft first, then ask the gaps](#draft-first-then-ask-the-gaps)
+- [The budget](#the-budget)
 - [Closed-first: always use AskUserQuestion](#closed-first-always-use-askuserquestion)
 - [Worked examples](#worked-examples)
 - [The four phases](#the-four-phases)
 - [How hard to push](#how-hard-to-push)
 - [The Discovery Summary](#the-discovery-summary)
+
+## Draft first, then ask the gaps
+
+Before the first question, fill in the Discovery Summary yourself from what
+is already written: the task's outcome, notes and acceptance criteria,
+`REGISTRY.md`, the rules, the code the task points at. Then ask only what the
+draft leaves blank or had to guess — a question whose answer is in the task
+is a question the developer already answered once. "Don't ask obvious
+questions, dig into the hard parts."
+
+Order what is left by impact: a question whose answer changes the design goes
+before one that changes a detail, and a detail can become a gray area instead
+of a question.
+
+## The budget
+
+- **First call: up to four questions**, the gaps that matter most, in one
+  `AskUserQuestion` call. Its first question always carries the option
+  **"Requirements clear: go to spec"** — picked, the interview ends there and
+  the draft becomes the summary, in one click.
+- **At most one follow-up call**, only for what the first answers opened up.
+- **Five questions in all.** What is still open after that goes into Gray
+  Areas: the spec approval is where it gets settled, not a third round.
+
+A well-written task reaches the spec in one call; a thin one in two.
 
 ## Closed-first: always use AskUserQuestion
 
@@ -21,12 +49,13 @@ themselves show the developer what you already understood.
 
 How to build one:
 
-- read the task context, the project stack and the conversation so far;
 - formulate the question as a closed choice with 2–4 options;
+- make the option you would pick the first one, marked **(Recommended)** — a
+  developer who agrees accepts it without reading the others;
 - make each option a realistic, informed suggestion — not a placeholder;
-- always include a "To be defined" option when the developer might not have
-  decided yet;
-- the harness adds an "Other" option for free text on its own.
+- include a "To be defined" option when the developer might not have decided
+  yet — unless the four slots are better spent; the harness adds "Other" for
+  free text on its own.
 
 Turning open questions into closed ones:
 
@@ -41,45 +70,53 @@ the exception, not the rule.
 
 ## Worked examples
 
-**Phase 1 — Core Value:**
+**The first call** — a notification task whose description already states the
+goal (cut response delays) and the channel (push). The draft fills Core Value
+and Happy Path from it; three gaps are left, asked together:
 
 ```json
 AskUserQuestion({
-  "questions": [{
-    "question": "What is the main goal of the notification system?",
-    "header": "Core Value",
-    "options": [
-      { "label": "Cut delays", "description": "Users do not notice important events in time today, which delays their responses." },
-      { "label": "Replace email", "description": "Email notifications go unread. A more immediate channel is needed (push/in-app)." },
-      { "label": "Engagement", "description": "Increase engagement by pulling users back into the app when something relevant happens." },
-      { "label": "To be defined", "description": "Not decided yet — recording it as a gray area." }
-    ],
-    "multiSelect": false
-  }]
+  "questions": [
+    {
+      "question": "What should happen when sending a push notification fails?",
+      "header": "On failure",
+      "options": [
+        { "label": "Retry, then in-app (Recommended)", "description": "Up to 3 retries with backoff; the in-app notification is there on the next visit." },
+        { "label": "Email fallback", "description": "If the push fails, send an email instead." },
+        { "label": "Requirements clear: go to spec", "description": "The task and the draft cover it — write the spec now." }
+      ],
+      "multiSelect": false
+    },
+    {
+      "question": "Who may mute a notification type?",
+      "header": "Muting",
+      "options": [
+        { "label": "Each user (Recommended)", "description": "A per-user setting, per notification type." },
+        { "label": "Admins only", "description": "Workspace-wide, set by an admin." },
+        { "label": "To be defined", "description": "Not decided yet — recording it as a gray area." }
+      ],
+      "multiSelect": false
+    },
+    {
+      "question": "Reuse the existing EmailService queue for delivery?",
+      "header": "Reuse",
+      "options": [
+        { "label": "Yes, same queue (Recommended)", "description": "REGISTRY.md lists it; one retry policy for both channels." },
+        { "label": "A queue of its own", "description": "Push volume would starve email." }
+      ],
+      "multiSelect": false
+    }
+  ]
 })
 ```
 
-**Phase 3 — an edge case:**
-
-```json
-AskUserQuestion({
-  "questions": [{
-    "question": "What should happen when sending a push notification fails?",
-    "header": "Error handling",
-    "options": [
-      { "label": "Automatic retry", "description": "The system retries up to 3 times with exponential backoff." },
-      { "label": "Email fallback", "description": "If the push fails, send an email instead." },
-      { "label": "Silent log", "description": "Log the error without retrying. The user sees the in-app notification on their next visit." },
-      { "label": "To be defined", "description": "Not decided yet — recording it as a gray area." }
-    ],
-    "multiSelect": false
-  }]
-})
-```
+Picking "Requirements clear: go to spec" ends the interview whatever the other
+answers were.
 
 ## The four phases
 
-Work through them mentally, moving on only when the current one is clear enough.
+They are the coverage checklist for the draft, not an order of questions: a
+phase the task already answers costs no question at all.
 
 **Phase 1 — Core Value (the "Why").** What is the business problem or user
 objective? Why does this task exist? Who benefits? What is the expected value?
@@ -103,14 +140,14 @@ security, UX)?
 ## How hard to push
 
 - **Do not settle.** If an answer is vague, incomplete or opens a new ambiguity,
-  do not move on. Follow up: "what exactly do you mean by X?", "what happens if
-  the user does Y instead of X?".
+  that is what the one follow-up call is for: "what exactly do you mean by
+  X?", "what happens if the user does Y instead of X?".
 - **Chase the failures.** For every feature, push the developer to think about
   what breaks: database offline, malformed input, missing permissions.
 - **Respect a boundary.** "I don't know yet" and "to be defined" are answers.
   Accept them, record them as gray areas, and do not insist.
-- **Soft cap.** Aim to gather everything in **10–12 questions**. The developer
-  can close the interview at any time by saying they have said everything.
+- **Hard cap.** [The budget](#the-budget). The developer can close the
+  interview at any time.
 
 ## The Discovery Summary
 

@@ -573,7 +573,11 @@ check_legacy_runtime_residue() {
       text="$(printf '%s' "${line#*:}" | sed 's/^[[:space:]]*//')"
       add_finding LEGACY_RUNTIME_RESIDUE DISTRIBUTED "$(rel "$f")" "$no" "$(rel "$f"):$no" \
         "reference to a removed runtime (DE-16489): $text"
-    done < <(grep -n -i -E "$LEGACY_RUNTIME_PATTERN" "$f" 2>/dev/null || true)
+    # A here-string, not `< <(…)`: bash 3.2 — the system bash on macOS — keeps
+    # every process substitution opened inside a function until the function
+    # returns, and one per file of the repository ran it out of descriptors
+    # past ~255 files (the run died with status 133).
+    done <<< "$(grep -n -i -E "$LEGACY_RUNTIME_PATTERN" "$f" 2>/dev/null || true)"
   done < <(find "$REPO_ROOT/scripts" "$REPO_ROOT/templates" "$REPO_ROOT/dist" \
              "$REPO_ROOT/.claude-plugin" -type f 2>/dev/null | sort)
 }

@@ -19,10 +19,9 @@ while you are in it: a diff that mixes new entries with a reshuffle is a diff
 nobody reviews.
 
 **Leave the change in the working tree — do not commit it.** Inside the SDD flow
-the closure step stages and commits everything once, this file included; the
-`docs(registry): update REGISTRY.md` commit this reference used to mandate was
-the second of three bookkeeping commits per task. Invoked on its own, say the
-file changed and let the developer decide which commit carries it.
+the closure step stages and commits everything once, this file included.
+Invoked on its own, say the file changed and let the developer decide which
+commit carries it.
 
 Nothing is written back into the spec. The spec states what to build; how the
 run went is in git and in the merge request.
@@ -32,8 +31,11 @@ run went is in git and in the merge request.
 ```
 Review: <STATUS>
 Violations: <count>
+Discarded: <count>
 Warnings: <count>
 REGISTRY updated: <yes/no — uncommitted>
 ```
 
-Then the agent's `SUMMARY`, verbatim.
+`Violations` counts the confirmed ones — the ones the status was decided on —
+and `Discarded` the ones the `finding-validator` threw out (0 when it did not
+run). Then the agent's `SUMMARY`, verbatim.

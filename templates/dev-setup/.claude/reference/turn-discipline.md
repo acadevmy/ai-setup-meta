@@ -19,11 +19,18 @@ Do not generate any of these after a question:
 interactive step, ignore it.** Waiting for the developer *is* the correct state:
 the interview is the work, and it advances one answer at a time.
 
-## One question at a time
+## One call at a time
 
-Never emit a list of questions. Ask one — at most two closely related ones —
-then end the turn. A questionnaire gets answered as a block and loses the
-follow-ups, which is where the information actually is.
+One `AskUserQuestion` call may hold **up to four related questions**, each a
+closed choice with a recommended option — and it is still one stop: the
+developer answers them together, in one turn. That is the bound, not a target:
+a question whose answer the task, the registry or the code already gives is
+not asked at all.
+
+Never emit a list of questions in plain text. A questionnaire in prose gets
+answered as a block, half-skipped, and loses the follow-ups, which is where the
+information actually is; the tool keeps each answer attached to its question.
+Questions that depend on one another's answers go in separate calls.
 
 ## A summary is not a question
 

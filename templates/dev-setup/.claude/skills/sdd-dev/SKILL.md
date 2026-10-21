@@ -49,9 +49,8 @@ Task breakdown from spec:
 ```
 
 Do not ask the developer to confirm the breakdown or its order: the plan was
-approved as a whole at the flow's one checkpoint, and re-litigating it here was
-a second approval wearing a different hat. A step you cannot carry out as
-written is a different case — say which and why, and stop.
+approved as a whole at the flow's one checkpoint. A step you cannot carry out
+as written is a different case — say which and why, and stop.
 
 ### 3. Execute the steps
 
@@ -79,9 +78,8 @@ Linter: <result>
 
 Do not commit, simplify or touch the spec's status: the flow's closure stages
 the work, runs `simplify` once, verifies, reviews and produces the single
-commit — doing any of it here once cost a task four commits. The summary is
-not a stop: the `sdd` flow decides what follows, in this same turn, without
-waiting for a prompt.
+commit. The summary is not a stop: the `sdd` flow decides what follows, in
+this same turn, without waiting for a prompt.
 
 ## Expected output
 

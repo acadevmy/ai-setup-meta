@@ -19,7 +19,9 @@ goes through the `clickup` agent described there.
   `claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp`
 - each developer authenticates with their own ClickUp account (guest accounts
   work)
-- every operation works on a specific `list_id` — there is no global `TEAM_ID`
+- every operation works on a specific `list_id` — there is no global `TEAM_ID`;
+  list configured at install time: `${user_config.CLICKUP_SETUP_LIST_ID}`
+  (empty or unexpanded = not configured)
 
 ## The workflow
 

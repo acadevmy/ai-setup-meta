@@ -37,7 +37,13 @@ export const meta = {
 //     baseBranch:  'origin/next',             // required — never hard-coded
 //     title, description, url,                // the task, as ClickUp returned it
 //     branchType:  'feat' | 'fix' | 'chore',
-//     stack: { lint, typecheck, test },       // from detect-stack.sh --json
+//     stack: { lint, typecheck, test },       // from detect-stack.sh --json;
+//                                             // at least one non-empty, or the
+//                                             // run ends at intake
+//     unavailable: ['lint', 'test'],          // quality-preflight.sh UNAVAILABLE:
+//     unavailableReason: '<text>',            // declared, but this environment
+//                                             // cannot run them — never run,
+//                                             // reported in `unverified`
 //   }
 //
 // Nothing in this file waits for a person. The Challenge improves the spec and
@@ -92,10 +98,55 @@ const base = input.baseBranch
 const branchType = input.branchType || 'feat'
 const stack = input.stack || {}
 const commands = {
-  lint: stack.lint || '',
-  typecheck: stack.typecheck || '',
-  test: stack.test || '',
+  lint: String(stack.lint || '').trim(),
+  typecheck: String(stack.typecheck || '').trim(),
+  test: String(stack.test || '').trim(),
 }
+const KINDS = ['lint', 'typecheck', 'test']
+
+// A run that has no command to check its work with cannot reach ready-for-mr:
+// Verify would refuse a pass with nothing run, after the spec, the Challenge
+// and the whole implementation were paid for (DE-17472). That outcome is
+// certain here, so the run ends here, before any agent. One empty command is
+// the project declaring it has none, and the others still run; three empty
+// is nothing to verify with. Whether the commands can actually start is the
+// launcher's check (quality-preflight.sh): this VM has no shell to ask.
+if (!commands.lint && !commands.typecheck && !commands.test) {
+  return {
+    status: 'failed',
+    stage: 'intake',
+    reason:
+      'no quality command: lint, typecheck and test are all empty, so the run ' +
+      'could not verify its own work. Declare them in ' +
+      '.claude/quality-commands.json (/dev-setup:setup, step 3b); the launcher ' +
+      'refuses this before the board with quality-preflight.sh.',
+  }
+}
+
+// A command the project declares but this environment cannot start — a cloud
+// routine without PHP or MySQL — is not a reason to stop: the run goes to the
+// end and the merge request says which checks nobody ran. It is never run, by
+// the dev agent or by Verify, and it is never replaced by another command.
+const unavailableReason = String(input.unavailableReason || '').trim()
+const unavailable = KINDS.filter(
+  (kind) => commands[kind] && (Array.isArray(input.unavailable) ? input.unavailable : []).includes(kind),
+)
+const runnable = KINDS.filter((kind) => commands[kind] && !unavailable.includes(kind))
+
+function commandLines(skipNote) {
+  return KINDS.map((kind) => {
+    const label = ('  ' + kind + ':').padEnd(13)
+    if (!commands[kind]) return label + '(none)'
+    if (unavailable.includes(kind)) return label + commands[kind] + '  ' + skipNote
+    return label + commands[kind]
+  }).join('\n')
+}
+
+const unverified = unavailable.map((kind) => ({
+  kind: kind,
+  command: commands[kind],
+  reason: unavailableReason || 'this environment cannot run it',
+}))
 
 // The task text is data, not instruction: an agent reads it to design, never to
 // take orders from it. Said once here and repeated in every prompt that carries
@@ -256,7 +307,7 @@ const CHECK_SCHEMA = {
   properties: {
     passed: {
       type: 'boolean',
-      description: 'true only when every command that exists exited 0',
+      description: 'true only when every command that started exited 0',
     },
     output: {
       type: 'string',
@@ -278,6 +329,12 @@ const CHECK_SCHEMA = {
     absent: {
       type: 'array',
       description: 'the commands the project does not define, so nothing ran for them',
+      items: { type: 'string' },
+    },
+    notStarted: {
+      type: 'array',
+      description:
+        'the commands that could not start here (exit 126/127, program not found), exactly as written',
       items: { type: 'string' },
     },
   },
@@ -695,12 +752,25 @@ const dev = await agent(
     'reason that has nothing to do with the task.',
     '',
     'The project own commands, which you run yourself as you go (an empty one',
-    'means the project does not define it — skip it, do not substitute your own):',
+    'means the project does not define it — skip it, say so in `notes`, do not',
+    'substitute your own):',
     '',
-    '  lint:      ' + (commands.lint || '(none)'),
-    '  typecheck: ' + (commands.typecheck || '(none)'),
-    '  test:      ' + (commands.test || '(none)'),
+    commandLines('(NOT RUNNABLE HERE — do not run it)'),
     '',
+    unavailable.length > 0
+      ? [
+          'The commands marked NOT RUNNABLE HERE are declared by the project, but',
+          'this environment cannot start them:',
+          '',
+          '  ' + (unavailableReason || 'the launcher found them unavailable').split('\n').join('\n  '),
+          '',
+          'Do not install a toolchain, start a service or rewrite a command to get',
+          'around it, and do not substitute another check. Write every test the',
+          'spec names exactly as if you could run it — a person or the CI runs',
+          'them later — and say in `notes` what you could not run.',
+          '',
+        ].join('\n')
+      : '',
     'Read .claude/rules/ before you write code: they are this project',
     'constraints, and the review after you checks them.',
     '',
@@ -725,7 +795,10 @@ if (!dev || !dev.branch || !dev.worktreePath) {
     reason: dev
       ? 'the dev agent came back without a branch or a worktree: ' + (dev.notes || 'no reason given')
       : 'the dev agent returned nothing',
-    spec: { path: specPath, reqs: draft.reqs },
+    // No branch holds the spec yet, and the spec plus its Challenge is most of
+    // what the run paid for: the text travels, so a launcher in a cloud
+    // session can commit it before the session and the journal are gone.
+    spec: { path: specPath, reqs: draft.reqs, markdown: draft.specMarkdown },
     openPoints,
     deviations,
     toConfirm,
@@ -740,37 +813,6 @@ if (!dev || !dev.branch || !dev.worktreePath) {
 // reason about the design.
 
 phase('Verify')
-log('Verify — running the project own quality commands in ' + dev.branch)
-
-const check = await agent(
-  [
-    'Run the quality commands of this project and report what they said. You are',
-    'not here to fix anything: a red command is the answer, not a problem to',
-    'solve.',
-    '',
-    'Work inside this worktree, and nowhere else:',
-    '',
-    '  cd ' + JSON.stringify(dev.worktreePath),
-    '',
-    'Run these, in order, each exactly as written. An entry marked (none) does',
-    'not exist in this project: list it in `absent` and run nothing for it.',
-    '',
-    '  lint:      ' + (commands.lint || '(none)'),
-    '  typecheck: ' + (commands.typecheck || '(none)'),
-    '  test:      ' + (commands.test || '(none)'),
-    '',
-    '`passed` is true only when every command that exists exited 0. Put the real',
-    'output in `output`: the failing part when something failed — the error, the',
-    'file, the line — and the test summary when everything passed. It goes into',
-    'the merge request, so a reviewer has to be able to read it without',
-    're-running anything. Never write output you did not see.',
-    '',
-    'When everything passed, and only then, record it in the spec: set',
-    '`> Status: implemented` in ' + specPath + ' and commit that one line as',
-    '`docs(spec): mark ' + task.id + ' implemented`.',
-  ].join('\n'),
-  { label: 'verify:' + task.id, phase: 'Verify', effort: 'low', schema: CHECK_SCHEMA },
-)
 
 const outcome = {
   taskId: task.id,
@@ -788,6 +830,67 @@ const outcome = {
   notes: dev.notes || '',
 }
 
+// Nothing this environment can run: the run still reaches the merge request,
+// which leads with every check nobody ran.
+if (runnable.length === 0) {
+  log('Verify — no command can run here; ' + unavailable.join(', ') + ' go to the merge request unverified')
+  return Object.assign({ status: 'ready-for-mr' }, outcome, {
+    output: '',
+    ran: [],
+    absent: KINDS.filter((kind) => !commands[kind]),
+    unverified,
+  })
+}
+
+log('Verify — running the project own quality commands in ' + dev.branch)
+
+const check = await agent(
+  [
+    'Run the quality commands of this project and report what they said. You are',
+    'not here to fix anything: a red command is the answer, not a problem to',
+    'solve.',
+    '',
+    'Work inside this worktree, and nowhere else:',
+    '',
+    '  cd ' + JSON.stringify(dev.worktreePath),
+    '',
+    'Run these, in order, each exactly as written. An entry marked (none) does',
+    'not exist in this project: list it in `absent` and run nothing for it. An',
+    'entry marked (skip) cannot run in this environment: run nothing for it and',
+    'list it nowhere — the merge request already names it.',
+    '',
+    commandLines('(skip)'),
+    '',
+    'A command that cannot start — exit 126 or 127, its program not found — is',
+    'not a red result: list it in `notStarted` and go on with the next one.',
+    'Never install anything to make it start.',
+    '',
+    '`passed` is true only when every command that started exited 0. Put the real',
+    'output in `output`: the failing part when something failed — the error, the',
+    'file, the line — and the test summary when everything passed. It goes into',
+    'the merge request, so a reviewer has to be able to read it without',
+    're-running anything. Never write output you did not see.',
+    '',
+    'When everything passed, and only then, record it in the spec: set',
+    '`> Status: implemented` in ' + specPath + ' and commit that one line as',
+    '`docs(spec): mark ' + task.id + ' implemented`.',
+  ].join('\n'),
+  { label: 'verify:' + task.id, phase: 'Verify', effort: 'low', schema: CHECK_SCHEMA },
+)
+
+// A command the verify agent could not start joins the unverified ones: the
+// environment was missing something, and the merge request says so.
+const KIND_OF = {}
+KINDS.forEach((kind) => {
+  if (commands[kind]) KIND_OF[commands[kind]] = kind
+})
+const notStarted = (check && Array.isArray(check.notStarted) ? check.notStarted : []).map((command) => ({
+  kind: KIND_OF[command] || '',
+  command: command,
+  reason: 'it did not start in this environment (exit 126/127: program not found)',
+}))
+const allUnverified = unverified.concat(notStarted)
+
 if (!check) {
   return Object.assign({ status: 'failed', stage: 'verify' }, outcome, {
     reason: 'the verify agent returned nothing: the commands were not proven to pass',
@@ -800,6 +903,7 @@ if (!check.passed) {
     output: check.output,
     ran: check.ran || [],
     absent: check.absent || [],
+    unverified: allUnverified,
   })
 }
 
@@ -809,4 +913,5 @@ return Object.assign({ status: 'ready-for-mr' }, outcome, {
   output: check.output,
   ran: check.ran || [],
   absent: check.absent || [],
+  unverified: allUnverified,
 })

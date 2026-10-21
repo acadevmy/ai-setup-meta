@@ -7,6 +7,7 @@
 # Usage:
 #   sdd-start.sh --task DE-123 [--type feat] [--context auth] [--title "add refresh token"] [--json]
 #   sdd-start.sh --task DE-123 --create            # also creates the branch
+#   sdd-start.sh --task DE-123 --stop push --create  # and saves the stop point
 #   sdd-start.sh --type fix --title "typo in the login copy" --create
 #
 #   --task <id>     task identifier, e.g. DE-123. Required unless --title is
@@ -21,6 +22,10 @@
 #                   caller knows better than the local HEAD in a fresh worktree,
 #                   which the harness branches from the remote default — `main`
 #                   on plenty of projects whose work targets `next`.
+#   --stop <point>  the stop point the developer chose for this task: spec |
+#                   development | review | commit | push | merge-request.
+#                   Saved by --create only, beside the task clock, so a
+#                   resumed run reads it back instead of asking. Requires --task
 #   --create        create and check out the branch (off by default: the script
 #                   only reports, so a caller can show the plan first)
 #   --json          emit a flat JSON object
@@ -34,9 +39,12 @@
 #                 otherwise resolved from the repository
 #   BRANCH_EXISTS true when BRANCH is already present locally
 #   CREATED       true when --create actually created the branch
+#   STOP_POINT    the stop point saved for this task — empty when none was
+#                 ever saved (a branch cut before DE-17076): then ask
 #
-# Exits non-zero with neither --task nor --title, outside a repository, or when
-# --create cannot produce the branch.
+# Exits non-zero with neither --task nor --title, outside a repository, on an
+# invalid --stop, or when --create cannot produce the branch or save the stop
+# point.
 
 set -uo pipefail
 
@@ -51,6 +59,7 @@ BRANCH_TYPE="feat"
 TASK_TITLE=""
 CONTEXT=""
 FORCED_BASE=""
+STOP_POINT_ARG=""
 DO_CREATE=false
 AS_JSON=false
 
@@ -71,10 +80,13 @@ while [ $# -gt 0 ]; do
     --base)
       [ $# -ge 2 ] || die "--base requires a ref"
       FORCED_BASE="$2"; shift 2 ;;
+    --stop)
+      [ $# -ge 2 ] || die "--stop requires a value"
+      STOP_POINT_ARG="$2"; shift 2 ;;
     --create) DO_CREATE=true; shift ;;
     --json) AS_JSON=true; shift ;;
     -h|--help)
-      sed -n '2,39p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+      sed -n '2,47p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
       exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
@@ -88,6 +100,14 @@ case "$BRANCH_TYPE" in
   feat|fix|chore|docs|refactor|perf|test) ;;
   *) die "invalid --type '$BRANCH_TYPE': use feat|fix|chore|docs|refactor|perf|test" ;;
 esac
+
+STOP_POINTS="spec development review commit push merge-request"
+case "$STOP_POINT_ARG" in
+  ''|spec|development|review|commit|push|merge-request) ;;
+  *) die "invalid --stop '$STOP_POINT_ARG': use one of $STOP_POINTS" ;;
+esac
+[ -z "$STOP_POINT_ARG" ] || [ -n "$TASK_ID" ] \
+  || die "--stop requires --task: the stop point is kept per task"
 
 VCS=$(detect_vcs)
 [ "$VCS" = "git" ] || die "not inside a git repository: SDD needs version control"
@@ -147,7 +167,9 @@ if [ "$DO_CREATE" = true ]; then
     git checkout "$BRANCH" >/dev/null 2>&1 || die "cannot check out the existing branch $BRANCH"
   else
     if [ -n "$BASE_BRANCH" ]; then
-      git checkout -b "$BRANCH" "$BASE_BRANCH" >/dev/null 2>&1 \
+      # --no-track: a remote base would otherwise write branch.<name>.* into
+      # .git/config, which the sandbox protects — `git push -u` sets it later.
+      git checkout --no-track -b "$BRANCH" "$BASE_BRANCH" >/dev/null 2>&1 \
         || die "cannot create $BRANCH from $BASE_BRANCH"
     else
       git checkout -b "$BRANCH" >/dev/null 2>&1 \
@@ -155,6 +177,22 @@ if [ "$DO_CREATE" = true ]; then
     fi
     CREATED=true
   fi
+fi
+
+# ── Stop point ────────────────────────────────────────────────────────────────
+#
+# Beside the clock, in state_dir (common.sh). Written on --create only, so the
+# report-only call stays read-only; --create on an existing branch with --stop
+# is how a resumed run replaces it.
+
+STOP_POINT=""
+if [ -n "$TASK_ID" ]; then
+  STOP_FILE="$(state_dir stop-point)/$TASK_ID" || die "cannot resolve the git directory"
+  if [ "$DO_CREATE" = true ] && [ -n "$STOP_POINT_ARG" ]; then
+    { mkdir -p "${STOP_FILE%/*}" && printf '%s\n' "$STOP_POINT_ARG" > "$STOP_FILE"; } 2>/dev/null \
+      || die "cannot save the stop point in $STOP_FILE"
+  fi
+  [ -f "$STOP_FILE" ] && read -r STOP_POINT < "$STOP_FILE"
 fi
 
 # ── Output ────────────────────────────────────────────────────────────────────
@@ -166,6 +204,7 @@ json_set VCS "$VCS"
 json_set BASE_BRANCH "$BASE_BRANCH"
 json_set BRANCH_EXISTS "$BRANCH_EXISTS"
 json_set CREATED "$CREATED"
+json_set STOP_POINT "$STOP_POINT"
 
 if [ "$AS_JSON" = true ]; then
   json_emit

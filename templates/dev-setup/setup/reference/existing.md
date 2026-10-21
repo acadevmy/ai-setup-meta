@@ -29,9 +29,17 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh --json > .claude/.stack.json
 
 It returns `LANG`, `FRAMEWORKS`, `PKG_MANAGER`, `VCS`, `MONOREPO`,
 `HAS_FRONTEND`, `HAS_MOBILE`, `HAS_INFRA`, `SERVICES_GLOB`, `TEST_CMD`,
-`LINT_CMD`, `TYPECHECK_CMD` and `HOOK_MANAGER`. A missing value is the empty
-string, never a message, so test for emptiness. `--dir <path>` inspects a
-sub-directory, which is what the multi-project section below uses.
+`LINT_CMD`, `TYPECHECK_CMD`, `COMMANDS_SOURCE`, `PREFLIGHT_CMD` and
+`HOOK_MANAGER`. A missing value is the empty string, never a message, so test
+for emptiness. `--dir <path>` inspects a sub-directory, which is what the
+multi-project section below uses.
+
+The three commands come from `.claude/quality-commands.json` when the project
+declares them (`COMMANDS_SOURCE: declared`), and are only the heuristics' guess
+otherwise (`detected`, or `none`). Step 3b writes or verifies that declaration
+and rewrites this file, so Step 4 reads the declared commands. A malformed
+declaration makes the call fail: keep its stderr for 3b, write the file with
+`detect-stack.sh --json --no-declaration`, and let 3b offer the rewrite.
 
 Keep the file: Step 4 renders the rules from it, and 4.3 deletes it. It is a
 scratch file — do not commit it, do not add it to `.gitignore`.
@@ -177,8 +185,7 @@ per sub-project.
 Setup complete!
 
 Installed files:
-  - CLAUDE.md             — entry point for Claude Code (imports AGENTS.md)
-  - AGENTS.md             — instructions for AI agents (cross-tool standard)
+  - AGENTS.md             — project instructions, read by Claude Code and every other agent
   - .claude/rules/        — path-scoped governance rules (dev-setup-*.md)
   - REGISTRY.md           — feature and service registry
   - .claude/settings.json — project permissions + Bash sandbox
@@ -206,8 +213,10 @@ Next steps:
   3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to start a ClickUp task
 ```
 
-Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, the
-framework convention checks, and the ones `rules-generation.md` and
+Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, 3b, the
+framework convention checks, the instruction-file lines of Step 5b in
+`agents-generation.md` — shims removed, files moved or kept, `CLAUDE.local.md`
+and files above, the client version — and the ones `rules-generation.md` and
 `mcp-env.md` ask for), plus whatever the step-7b branch protection reported.
 
 **In UPDATE mode**, say what happened to `.claude/settings.json` — one of:
@@ -235,7 +244,6 @@ underneath:
 Setup complete! (Multi-project detected: <MONOREPO>)
 
 Files at the root:
-  - CLAUDE.md             — entry point for Claude Code
   - AGENTS.md             — general rules + workspace map
   - .claude/rules/        — path-scoped governance rules (dev-setup-*.md)
   - .claude/settings.json — project permissions + Bash sandbox
@@ -243,7 +251,6 @@ Files at the root:
 Configured sub-projects:
   <sub-project-path>/:
     - AGENTS.md           — stack: <stack>
-    - CLAUDE.md           — local entry point
     - REGISTRY.md         — feature registry
 ```
 

@@ -36,8 +36,8 @@ Runs the meta-repo's two static gates. They are the same commands CI runs
 
 - `--strict` — ignore the baseline and show the repo's real state.
 - `--json` — machine-readable output (UPPER_SNAKE keys) for other scripts.
-- `--update-baseline` — rewrite the baseline. **Only** for debt that has been accepted
-  explicitly: the baseline shrinks with the PRs of the chain, it does not grow.
+- `--update-baseline` — rewrite the baseline. The baseline is empty and stays
+  that way (`AGENTS.md` § "The baseline of known failures").
 
 ## Rules
 

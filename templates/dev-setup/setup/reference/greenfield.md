@@ -202,8 +202,8 @@ Read the profile from `${CLAUDE_SKILL_DIR}/templates/profiles/` (already read at
 - create the `apps/web/` and `apps/api/` structure
 - apply the web-frontend profile in `apps/web/`, the backend-node profile in
   `apps/api/`
-- generate `AGENTS.md`, `CLAUDE.md` and `REGISTRY.md` per sub-project, and the
-  workspace template at the root (see `agents-generation.md`)
+- generate `AGENTS.md` and `REGISTRY.md` per sub-project, and the workspace
+  template at the root (see `agents-generation.md`) — no `CLAUDE.md`
 
 ### 8.6 — CI/CD workflow
 
@@ -279,8 +279,7 @@ npm-debug.log*
 Setup complete!
 
 Project configuration:
-  - CLAUDE.md               — entry point for Claude Code (imports AGENTS.md)
-  - AGENTS.md               — instructions for AI agents (cross-tool standard)
+  - AGENTS.md               — project instructions, read by Claude Code and every other agent
   - .claude/rules/          — path-scoped governance rules (dev-setup-*.md)
   - REGISTRY.md             — feature and service registry
   - .claude/settings.json   — project permissions + Bash sandbox
@@ -309,9 +308,10 @@ Next steps:
   3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to get started!
 ```
 
-Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, and the
-ones `rules-generation.md` and `mcp-env.md` ask for), plus whatever the step-7b
-branch protection reported.
+Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, 3b — which
+runs after Step 8 here — the instruction-file lines of Step 5b in
+`agents-generation.md`, and the ones `rules-generation.md` and `mcp-env.md` ask
+for), plus whatever the step-7b branch protection reported.
 
 **Terraform note**: if the chosen stack is **Infrastructure / Terraform**, Step 8
 generated no Terraform boilerplate. The developer must create `main.tf`,

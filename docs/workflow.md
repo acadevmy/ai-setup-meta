@@ -61,10 +61,10 @@ parent PR's branch, when the chain is stacked)
          ▼
   Conventional commit subject (feat:/fix:/feat!:/docs:/…) +
   push the branch + open a PR against next
-  - ci.yml runs four jobs, build-verify.yml checks that dist/ is in sync
+  - ci.yml runs five jobs, build-verify.yml checks that dist/ is in sync
          │
          ▼
-  Review + squash-merge into next (all five jobs green)
+  Review + squash-merge into next (all six jobs green)
          │
          ▼
   next → main, when a release is wanted
@@ -112,7 +112,7 @@ one does in detail.
 
 ## What CI checks
 
-Five jobs, on every PR to `main` or `next` and on every push to those branches.
+Six jobs, on every PR to `main` or `next` and on every push to those branches.
 Nothing lands with one of them red.
 
 | Job | Workflow | Checks |
@@ -121,6 +121,7 @@ Nothing lands with one of them red.
 | `shellcheck` | `ci.yml` | Every `*.sh` under `scripts/`, `templates/`, `dist/`, at `--severity=warning` |
 | `static-checks` | `ci.yml` | Manifest references, plus the static checks in `scripts/validate-plugin.sh` |
 | `bash-tests` | `ci.yml` | `scripts/test-plugin-scripts.sh`: the plugin scripts and hooks against their fixtures |
+| `mod-tests` | `ci.yml` | `claude plugin test dist/dev-setup`: the mod's hooks and helpers, with no session or network |
 | `verify` | `build-verify.yml` | `dist/` is in sync with `templates/`, `shared/` and the build scripts |
 
 **The documentation is one of the things `static-checks` checks.** Every command,

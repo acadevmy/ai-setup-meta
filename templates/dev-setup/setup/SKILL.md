@@ -1,26 +1,27 @@
 ---
 name: setup
 description: Grafts the AI-native workflow onto a project — path-scoped rules, AGENTS.md, MCP servers, Bash sandbox, branch protection. Use when a project must be configured for AI agents for the first time, or when one the plugin already configured must be updated to the current template.
-model: opus
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+disallowed-tools: Agent, WebFetch, WebSearch
 ---
 
 # Dev Setup
 
-Everything is bundled in the plugin — nothing is downloaded. Two roots matter:
+Everything is bundled; nothing is downloaded. Two roots matter:
 
-- `${CLAUDE_SKILL_DIR}/templates/` — the files installed into the project; each
-  reference names the ones it uses.
-- `${CLAUDE_PLUGIN_ROOT}/scripts/` — the deterministic work, done by scripts
-  instead of re-derived from prose. One contract: `--json` prints a flat object
-  with `UPPER_SNAKE` keys, a missing value is the empty string, diagnostics go
-  to stderr.
+- `${CLAUDE_SKILL_DIR}/templates/` — the files installed into the project.
+- `${CLAUDE_PLUGIN_ROOT}/scripts/` — the deterministic work. `--json` prints a
+  flat object with `UPPER_SNAKE` keys; a missing value is the empty string.
 
 Skills and agents are **not** installed: the plugin provides them.
 
-## Step 1 — Detect the mode
+## Step 1 — Check the client, detect the mode
+
+First run `instruction-files.sh --json`. On `VERSION_OK=false`, **stop before
+any write**, naming `CLAUDE_VERSION` and `MIN_CLAUDE_VERSION`: with no
+`CLAUDE.md`, an older client reads no project instructions. An empty
+`VERSION_OK` goes on; Step 5b reports it.
 
 - **UPDATE** — `.claude/settings.json` exists *and* the project has
   `.claude/rules/dev-setup-core.md` or a legacy `CONSTITUTION.md`. Ask "Setup
@@ -29,7 +30,7 @@ Skills and agents are **not** installed: the plugin provides them.
   `go.mod`, `pubspec.yaml` or `Cargo.toml`, and no source file outside config.
 - **EXISTING** — every other case.
 
-Report the mode before proceeding.
+Report the mode first.
 
 ## The procedure
 
@@ -41,24 +42,24 @@ Run the steps **in this order**, reading only the reference each one names.
 | 2b | Stack selection — ask the developer | GREENFIELD | `greenfield.md` |
 | 2c | VCS detection — which host `origin` belongs to | all | `install.md` |
 | 3 | Install the plugin's resources (3.1–3.9) | all | `install.md` |
+| 3b | Declare and verify the quality commands | all (GREENFIELD: after 8) | `quality-commands.md` |
 | 4 | Render the path-scoped rules | all | `rules-generation.md` |
-| 5, 5b | Generate AGENTS.md and CLAUDE.md | all | `agents-generation.md` |
+| 5, 5b | Generate AGENTS.md; check the instruction files | all | `agents-generation.md` |
 | 6, 7 | MCP servers and `.env.example` | all | `mcp-env.md` |
 | 7b | Branch protection on the reference branch | github, gitlab | `mcp-env.md` |
 | 7c | `worktree.baseRef`, from the reference branch | all | `mcp-env.md` |
 | 7d | `.claude/auto-dev.json` for unattended runs | all | `mcp-env.md` |
 | 8 | Scaffold the project | GREENFIELD | `greenfield.md` |
-| 9 | Summary — collects the one-line reports of the steps above | all | the mode's |
+| 9 | Summary — the steps' one-line reports | all | the mode's |
 
-Each reference is one hop from here. `existing.md` and `greenfield.md` are
-mutually exclusive mode branches: reading both is the cost this split removes.
+`existing.md` and `greenfield.md` are mutually exclusive: never read both.
 
 ## Two rules that hold everywhere
 
-- **Never write `.env` — and no setup step reads it.** Step 3.2 denies writes
-  at both levels; every step works on `.env.example`. A step that appears to
-  require the real file is wrong — report it.
-- **Ask before overwriting.** Conflict detection runs before every write. The
-  one exception is `.claude/rules/dev-setup-*.md` in UPDATE mode: those are
-  generated artefacts, and `rules-generation.md` holds the prefix contract that
-  makes overwriting them safe.
+- **Never write `.env` — and no setup step reads it.** Step 3.2 denies writes;
+  every step works on `.env.example`. A step that appears to need the real
+  file is wrong — report it.
+- **Ask before overwriting.** Conflict detection runs before every write. Two
+  exceptions: `.claude/rules/dev-setup-*.md` in UPDATE mode (the prefix
+  contract is in `rules-generation.md`), and a `CLAUDE.md` holding only
+  `@AGENTS.md`, which Step 5b removes in every mode.

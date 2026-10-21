@@ -52,6 +52,10 @@ For every entry in `manifest.workflows`:
   and opens with `export const meta = {` — the plugin loader skips anything else
   without saying so.
 
+For every entry in `manifest.mod`:
+- Verify that `<TEMPLATE_PATH>/.claude/mod/<name>` exists, and that `register.ts`
+  is one of the entries — the builder declares `./register.ts` as the module.
+
 If even one file is missing, the check FAILs.
 
 ### Check 2: rule templates present
@@ -81,7 +85,7 @@ If any pattern turns up in a non-example file, the check FAILs.
 
 Verify that `<TEMPLATE_PATH>/.gitignore` contains at least:
 - `.env.local`
-- `.env*.local`
+- `.env.*.local`
 - `node_modules/`
 - `.claude/todos.md`
 

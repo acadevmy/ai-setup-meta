@@ -106,6 +106,43 @@ assert_contains() {
   esac
 }
 
+# The harness cannot run the harness's own hook matcher. The permissions
+# reference gives one rule for the shapes the plugin uses — every `*` stands for
+# any text, including none, and leading `VAR=value` assignments are stripped
+# before matching — and bash pattern matching on the text between `Bash(` and
+# `)` is that rule. Each segment of a compound command is checked on its own,
+# as the hooks reference describes (DE-17064). The proxy does not strip quoted
+# strings, so a `;`, `&` or `|` inside quotes splits a segment here where the
+# hooks' own scan would not: keep the tables to shapes with no delimiter inside
+# quotes.
+if_matches() {
+  local rule="$1" command="$2" glob segment
+  glob="${rule#Bash(}"
+  glob="${glob%)}"
+  while IFS= read -r segment; do
+    segment="${segment#"${segment%%[![:space:]]*}"}"
+    while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+ ]]; do
+      segment="${segment#"${BASH_REMATCH[0]}"}"
+    done
+    # shellcheck disable=SC2053
+    [[ "$segment" == $glob ]] && return 0
+  done <<EOF
+$(printf '%s\n' "$command" | tr ';&|' '\n\n\n')
+EOF
+  return 1
+}
+
+# True when at least one of the newline-separated rules spawns the command.
+rules_match() {
+  local rules="$1" command="$2" rule
+  while IFS= read -r rule; do
+    [ -n "$rule" ] && if_matches "$rule" "$command" && return 0
+  done <<EOF
+$rules
+EOF
+  return 1
+}
+
 command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 1; }
 
 # ── Git environment ───────────────────────────────────────────────────────────
@@ -413,6 +450,42 @@ assert_eq "--create forks from the --base ref" \
   "$(cd "$SANDBOX" && git rev-parse feat/DE-5 2>/dev/null)"
 (cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-5) >/dev/null 2>&1
 
+# --create never sets up tracking: from a remote base it would write
+# branch.<name>.* into .git/config, which the Claude Code sandbox protects, and
+# the branch would not be cut at all. `git push -u` sets the upstream later.
+(cd "$SANDBOX" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=branch.autoSetupMerge GIT_CONFIG_VALUE_0=always \
+  bash "$PLUGIN_SCRIPTS/sdd-start.sh" --task DE-5 --base main --create --json) >/dev/null 2>&1
+assert_eq "--create cuts the branch without tracking its base" "" \
+  "$(cd "$SANDBOX" && git config --get branch.feat/DE-5.merge)"
+(cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-5) >/dev/null 2>&1
+
+# ── --stop: the stop point survives the session (DE-17076) ──
+#
+# Chosen once at launch and read back on resume, so a resumed run does not ask
+# it again. It sits beside the clock, in the common git directory.
+assert_eq "nothing saved, nothing reported" \
+  "" "$(sdd_start --task DE-6 --json | jq -r '.STOP_POINT')"
+
+assert_eq "a report-only call with --stop writes nothing" \
+  "" "$(sdd_start --task DE-6 --stop push --json | jq -r '.STOP_POINT')"
+
+sdd_start --task DE-6 --stop push --create --json >/dev/null 2>&1
+assert_eq "--create --stop saves the stop point, read back on resume" \
+  "push" "$(sdd_start --task DE-6 --json | jq -r '.STOP_POINT')"
+assert_eq "the stop point sits in the common git directory" \
+  "push" "$(cd "$SANDBOX" && cat "$(git rev-parse --git-common-dir)/dev-setup/stop-point/DE-6" 2>/dev/null)"
+
+assert_eq "--create --stop on the existing branch replaces it" \
+  "commit" "$(sdd_start --task DE-6 --stop commit --create --json | jq -r '.STOP_POINT')"
+
+sdd_start --task DE-6 --stop banana --json >/dev/null 2>&1
+assert_eq "an invalid stop point is refused" "1" "$?"
+
+sdd_start --type fix --title "Typo" --stop push --json >/dev/null 2>&1
+assert_eq "--stop without --task is refused" "1" "$?"
+(cd "$SANDBOX" && git checkout --quiet feat/DE-999-my-work && git branch --quiet -D feat/DE-6 \
+  && rm -rf "$(git rev-parse --git-common-dir)/dev-setup/stop-point") >/dev/null 2>&1
+
 # The task id is read back out of the branch name in both conventions: the
 # current feat(auth)/DE-123_slug, and feat/DE-123-slug for a branch cut before it.
 (cd "$SANDBOX" && git checkout --quiet -b "feat(auth)/DE-999_my-work") >/dev/null 2>&1
@@ -603,6 +676,32 @@ assert_eq "HUSKY=0 exported in an earlier segment is refused" \
 assert_eq "with husky the gate runs no check of its own" \
   "none" "$(decision_of "$(gate "$WORK_DIR/nextjs" 'git commit -m "feat: something"')")"
 
+# ── The `if` rule: the gate spawns only on a git commit call (DE-17064) ──
+#
+# The handler carries `"if": "Bash(*git *commit*)"`, which is `is_git_commit`
+# written in permission-rule syntax, so the harness never spawns the gate on a
+# `git status`. Asserted on the generated hooks.json rather than the template:
+# a builder that dropped the key would fail here.
+HOOKS_JSON="$REPO_ROOT/dist/dev-setup/hooks/hooks.json"
+GATE_HANDLERS="$(jq -c '[.hooks.PreToolUse[] | select(.matcher == "Bash")
+  | .hooks[] | select(.command | endswith("/gate-commit.sh\""))]' "$HOOKS_JSON")"
+assert_eq "the gate is mounted once as a PreToolUse hook on Bash" "1" \
+  "$(printf '%s' "$GATE_HANDLERS" | jq 'length')"
+GATE_RULE="$(printf '%s' "$GATE_HANDLERS" | jq -r '.[0].if // ""')"
+assert_eq "and spawns on a git commit call only" "Bash(*git *commit*)" "$GATE_RULE"
+assert_eq "keeping its timeout" "600" \
+  "$(printf '%s' "$GATE_HANDLERS" | jq -r '.[0].timeout // ""')"
+
+for CMD in 'git status' 'git log --format=%H -1' 'npm test' 'echo "about to commit"'; do
+  assert_eq "the rule leaves alone: $CMD" "false" \
+    "$(if_matches "$GATE_RULE" "$CMD" && echo true || echo false)"
+done
+for CMD in 'git commit -m "x"' 'git commit' 'git -c core.hooksPath=/dev/null commit -m "x"' \
+           'git -C dir commit -m "x"' 'HUSKY=0 git commit -m "x"' 'env HUSKY=0 git commit -m "x"'; do
+  assert_eq "the rule spawns on: $CMD" "true" \
+    "$(if_matches "$GATE_RULE" "$CMD" && echo true || echo false)"
+done
+
 # ── Full-gate mode ──
 make_gate_project() {
   local dir="$1" test_exit="$2"
@@ -639,9 +738,404 @@ if command -v npm >/dev/null 2>&1; then
   git -C "$EMPTY_PROJECT" commit --quiet -m "chore: base"
   assert_eq "nothing staged, no suite run" \
     "none" "$(decision_of "$(gate "$EMPTY_PROJECT" 'git commit -m "feat: thing"')")"
+
+  # The internal filter stays, for a client that ignores `if` and for the
+  # compound commands the harness cannot narrow — and it is asserted where a
+  # spawn would show. A gate that reached the checks here would deny (the
+  # suite is red), so silence and exit 0 prove the filter, not an empty stack.
+  RED_STATUS_OUT=$(gate "$RED_PROJECT" 'git status')
+  RED_STATUS_RC=$?
+  assert_eq "git status in a red project: no decision" "none" "$(decision_of "$RED_STATUS_OUT")"
+  assert_eq "git status in a red project: empty stdout" "" "$RED_STATUS_OUT"
+  assert_eq "git status in a red project: exit 0" "0" "$RED_STATUS_RC"
+
+  # Every shape the hook acts on is one the rule spawns. A form the gate denies
+  # that the rule never starts would be a silent gap: the rule is
+  # `*git *commit*` rather than `git commit*` precisely for `git -c … commit`
+  # and the `env` prefix, which the gate refuses today.
+  for CMD in 'git commit -m "x"' 'git -c core.hooksPath=/dev/null commit -m "x"' \
+             'HUSKY=0 git commit -m "x"' 'env HUSKY=0 git commit -m "x"' \
+             'export HUSKY=0 && git commit -m "x"'; do
+    assert_eq "the gate acts on: $CMD" "deny" "$(decision_of "$(gate "$RED_PROJECT" "$CMD")")"
+    assert_eq "and the rule spawns it: $CMD" "true" \
+      "$(if_matches "$GATE_RULE" "$CMD" && echo true || echo false)"
+  done
 else
   echo "  ${DIM}npm not found: full-gate execution tests skipped${NC}"
 fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6b. The quality commands are a declaration of the project (DE-17535)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# On DE-17472 detection found no stack it knew, returned three empty commands,
+# and every consumer read "empty" as "the project has none": an autonomous run
+# spent its whole budget without running a test. The commands are now declared
+# by the project in `.claude/quality-commands.json`, which detect-stack.sh reads
+# before its heuristics — and "declared absent" is a value, not an empty string.
+
+echo ""
+echo "── detect-stack.sh (the quality-commands declaration) ──"
+
+stack_of() { (cd "$1" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json 2>/dev/null); }
+stack_key() { stack_of "$1" | jq -r --arg k "$2" '.[$k]'; }
+
+# Writes a declaration into a fresh directory under the work directory.
+declare_in() {
+  local dir="$1" json="$2"
+  mkdir -p "$dir/.claude"
+  printf '%s\n' "$json" > "$dir/.claude/quality-commands.json"
+}
+
+# REQ-2: the declaration wins over the heuristics, wholesale. The fixture's
+# package.json has lint and test scripts and a tsconfig.json, so the heuristics
+# would answer `npm run lint`, `npm run test` and `npx tsc --noEmit`.
+assert_eq "a declared lint wins over the package.json script" \
+  "make lint-all" "$(stack_key "$WORK_DIR/declared" LINT_CMD)"
+assert_eq "a declared test wins over the package.json script" \
+  "make test-all" "$(stack_key "$WORK_DIR/declared" TEST_CMD)"
+# REQ-3: null is a decision, not a gap — never filled in from a heuristic.
+assert_eq "a command declared absent stays empty, although tsconfig.json would give one" \
+  "" "$(stack_key "$WORK_DIR/declared" TYPECHECK_CMD)"
+assert_eq "and the source says the commands are declared" \
+  "declared" "$(stack_key "$WORK_DIR/declared" COMMANDS_SOURCE)"
+assert_eq "the declared preflight is reported" \
+  "bin/check-toolchain.sh" "$(stack_key "$WORK_DIR/declared" PREFLIGHT_CMD)"
+
+# REQ-4: without a declaration, "detected" means at least one heuristic
+# command, and "none" means all three are empty — the case that must never
+# reach an autonomous run unnoticed again.
+for NAME in plain-node unknown-make laravel-api; do
+  assert_eq "no declaration and nothing detected is none: $NAME" \
+    "none" "$(stack_key "$WORK_DIR/$NAME" COMMANDS_SOURCE)"
+done
+for NAME in nestjs nextjs flutter monorepo; do
+  assert_eq "no declaration and heuristic commands is detected: $NAME" \
+    "detected" "$(stack_key "$WORK_DIR/$NAME" COMMANDS_SOURCE)"
+done
+LINT_ONLY="$WORK_DIR/lint-only"
+mkdir -p "$LINT_ONLY"
+echo '{"scripts":{"lint":"eslint ."}}' > "$LINT_ONLY/package.json"
+assert_eq "one detected command is enough to be detected" \
+  "detected" "$(stack_key "$LINT_ONLY" COMMANDS_SOURCE)"
+assert_eq "no declaration, no preflight" "" "$(stack_key "$WORK_DIR/nestjs" PREFLIGHT_CMD)"
+for SNAPSHOT in "$FIXTURES"/*.expected.json; do
+  assert_eq "the snapshot carries the two new keys: $(basename "$SNAPSHOT")" "true" \
+    "$(jq 'has("COMMANDS_SOURCE") and has("PREFLIGHT_CMD")' "$SNAPSHOT")"
+done
+
+# REQ-1: a malformed declaration is an error, not a guess. Exit non-zero, the
+# cause on stderr, nothing on stdout — the precedent mr-meta.sh set.
+slug_of() { printf '%s' "$1" | tr -cs 'A-Za-z0-9' '-'; }
+malformed_case() {
+  local label="$1" json="$2" dir out err rc
+  dir="$WORK_DIR/malformed-$(slug_of "$label")"
+  declare_in "$dir" "$json"
+  out=$(cd "$dir" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json 2>"$dir.err")
+  rc=$?
+  err=$(cat "$dir.err")
+  assert_eq "malformed ($label): non-zero exit" "true" "$([ "$rc" -ne 0 ] && echo true || echo false)"
+  assert_eq "malformed ($label): nothing on stdout" "" "$out"
+  assert_eq "malformed ($label): the cause on stderr" "true" "$([ -n "$err" ] && echo true || echo false)"
+}
+
+malformed_case "missing test key" '{"lint":"make lint","typecheck":null,"absent":{"typecheck":"none"}}'
+malformed_case "empty-string lint" '{"lint":"","typecheck":"make types","test":"make test"}'
+malformed_case "null without a reason" '{"lint":"make lint","typecheck":null,"test":"make test"}'
+malformed_case "hook manager with a space" '{"lint":"make lint","typecheck":"make types","test":"make test","hook_manager":"a b"}'
+malformed_case "invalid JSON" '{"lint": "make lint",'
+
+# REQ-5: a declared hook manager is the hook manager, even one no detection
+# rule knows. The gate then stands down to anti-bypass.
+HM_PRECOMMIT="$WORK_DIR/hm-pre-commit"
+declare_in "$HM_PRECOMMIT" '{"lint":"make lint","typecheck":"make types","test":"make test","hook_manager":"pre-commit"}'
+assert_eq "a declared pre-commit is accepted" "pre-commit" "$(stack_key "$HM_PRECOMMIT" HOOK_MANAGER)"
+
+HM_CAPTAIN="$WORK_DIR/hm-captainhook"
+declare_in "$HM_CAPTAIN" '{"lint":"false","typecheck":null,"absent":{"typecheck":"none"},"test":"true","hook_manager":"captainhook"}'
+git_init "$HM_CAPTAIN"
+echo "x" > "$HM_CAPTAIN/x.txt"
+git -C "$HM_CAPTAIN" add -A
+assert_eq "a declared captainhook becomes HOOK_MANAGER" "captainhook" "$(stack_key "$HM_CAPTAIN" HOOK_MANAGER)"
+assert_eq "and the gate delegates: a red declared lint does not refuse the commit" \
+  "none" "$(decision_of "$(gate "$HM_CAPTAIN" 'git commit -m "feat: x"')")"
+
+# The control: the same red lint, no hook manager declared — the gate runs it.
+HM_NONE="$WORK_DIR/hm-none"
+declare_in "$HM_NONE" '{"lint":"false","typecheck":null,"absent":{"typecheck":"none"},"test":"true"}'
+git_init "$HM_NONE"
+echo "x" > "$HM_NONE/x.txt"
+git -C "$HM_NONE" add -A
+assert_eq "without a declared hook manager the red declared lint refuses the commit" \
+  "deny" "$(decision_of "$(gate "$HM_NONE" 'git commit -m "feat: x"')")"
+
+echo ""
+echo "── quality-candidates.sh (what the setup proposes) ──"
+
+# The candidates come from where a project already declares its gates — CI,
+# task runners, package scripts, docs — and only last from the per-language
+# heuristics. Nothing here knows a language: that is the point (DE-17472).
+candidates() { (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/quality-candidates.sh" --json "$@" 2>/dev/null); }
+cand_key() { local dir="$1" key="$2"; shift 2; candidates "$dir" "$@" | jq -r --arg k "$key" '.[$k]'; }
+TAB=$'\t'
+
+# Asserts a candidate list holds the exact `<command>\t<source>` line.
+assert_line() {
+  local label="$1" haystack="$2" line="$3"
+  if printf '%s\n' "$haystack" | grep -Fxq -- "$line"; then
+    pass "$label"
+  else
+    fail "$label" "expected the line: $line
+  got: $haystack"
+  fi
+}
+
+# One ad-hoc directory per reader, each yielding a command no other reader
+# yields, so a reader that silently stopped working shows up by name.
+CAND="$WORK_DIR/candidates"
+
+mkdir -p "$CAND/run-block/.github/workflows"
+cat > "$CAND/run-block/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Types
+        run: |
+          npm ci
+          npm run check:types
+EOF
+assert_line "a run: | block is read line by line" \
+  "$(cand_key "$CAND/run-block" TYPECHECK_CANDIDATES)" "npm run check:types${TAB}ci:.github/workflows/ci.yml"
+assert_eq "and the install line in it is no gate" "" \
+  "$(candidates "$CAND/run-block" | jq -r '[.LINT_CANDIDATES, .TYPECHECK_CANDIDATES, .TEST_CANDIDATES] | join("\n")' | grep -F 'npm ci' || true)"
+
+mkdir -p "$CAND/step-wd/.github/workflows"
+cat > "$CAND/step-wd/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test
+        working-directory: web
+        run: npm test
+EOF
+assert_line "a step's working-directory is folded into the command" \
+  "$(cand_key "$CAND/step-wd" TEST_CANDIDATES)" "cd web && npm test${TAB}ci:.github/workflows/ci.yml"
+
+mkdir -p "$CAND/job-wd/.github/workflows"
+cat > "$CAND/job-wd/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  svc:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: svc
+    steps:
+      - run: make lint
+EOF
+assert_line "a job's defaults.run.working-directory is folded in too" \
+  "$(cand_key "$CAND/job-wd" LINT_CANDIDATES)" "cd svc && make lint${TAB}ci:.github/workflows/ci.yml"
+
+mkdir -p "$CAND/gitlab"
+cat > "$CAND/gitlab/.gitlab-ci.yml" <<'EOF'
+test:
+  stage: test
+  before_script:
+    - ./gradlew --version
+  script:
+    - ./gradlew test
+EOF
+assert_line "a GitLab script: item" \
+  "$(cand_key "$CAND/gitlab" TEST_CANDIDATES)" "./gradlew test${TAB}ci:.gitlab-ci.yml"
+
+mkdir -p "$CAND/just"
+printf 'set shell := ["bash", "-c"]\n\nlint:\n    cargo clippy\n' > "$CAND/just/justfile"
+assert_line "a justfile recipe" \
+  "$(cand_key "$CAND/just" LINT_CANDIDATES)" "just lint${TAB}runner:justfile"
+
+mkdir -p "$CAND/taskfile"
+printf "version: '3'\n\ntasks:\n  test:\n    cmds:\n      - go test ./...\n" > "$CAND/taskfile/Taskfile.yml"
+assert_line "a Taskfile task" \
+  "$(cand_key "$CAND/taskfile" TEST_CANDIDATES)" "task test${TAB}runner:Taskfile.yml"
+
+mkdir -p "$CAND/composer"
+echo '{"scripts":{"post-install-cmd":"@php artisan key:generate","analyse":"phpstan analyse"}}' > "$CAND/composer/composer.json"
+assert_line "a composer script" \
+  "$(cand_key "$CAND/composer" TYPECHECK_CANDIDATES)" "composer analyse${TAB}scripts:composer.json"
+
+mkdir -p "$CAND/pyproject"
+printf '[project]\nname = "x"\n\n[tool.poe.tasks]\nlint = "ruff check ."\n\n[tool.pdm.scripts]\ntest = "pytest"\n' > "$CAND/pyproject/pyproject.toml"
+assert_line "a poe task" \
+  "$(cand_key "$CAND/pyproject" LINT_CANDIDATES)" "poe lint${TAB}scripts:pyproject.toml"
+assert_line "a pdm script" \
+  "$(cand_key "$CAND/pyproject" TEST_CANDIDATES)" "pdm run test${TAB}scripts:pyproject.toml"
+
+mkdir -p "$CAND/docs"
+printf '# x\n\n```bash\nmake test\n```\n\n```json\n{ "lint": "not a command" }\n```\n' > "$CAND/docs/README.md"
+printf '# Agents\n\n```sh\n$ make lint\n```\n' > "$CAND/docs/AGENTS.md"
+assert_line "a fenced command in README.md" \
+  "$(cand_key "$CAND/docs" TEST_CANDIDATES)" "make test${TAB}docs:README.md"
+assert_line "a fenced command in AGENTS.md" \
+  "$(cand_key "$CAND/docs" LINT_CANDIDATES)" "make lint${TAB}docs:AGENTS.md"
+assert_eq "a JSON block is not read as a command" "" \
+  "$(cand_key "$CAND/docs" LINT_CANDIDATES | grep -F 'not a command' || true)"
+
+mkdir -p "$CAND/go"
+printf 'module example.com/x\n\ngo 1.23\n' > "$CAND/go/go.mod"
+assert_line "the detect-stack heuristics come last" \
+  "$(cand_key "$CAND/go" TEST_CANDIDATES)" "go test ./...${TAB}heuristic:detect-stack.sh"
+
+UM_LINT=$(cand_key "$WORK_DIR/unknown-make" LINT_CANDIDATES)
+assert_line "a stack nobody wrote a rule for still gets its make lint" \
+  "$UM_LINT" "make lint${TAB}ci:.github/workflows/ci.yml"
+assert_eq "once, with the CI source, although the Makefile and the README yield it too" "1" \
+  "$(printf '%s\n' "$UM_LINT" | grep -c '^make lint	')"
+assert_line "and its make test" \
+  "$(cand_key "$WORK_DIR/unknown-make" TEST_CANDIDATES)" "make test${TAB}ci:.github/workflows/ci.yml"
+
+assert_line "package.json scripts, with the package manager's runner" \
+  "$(cand_key "$WORK_DIR/nestjs" LINT_CANDIDATES)" "npm run lint${TAB}scripts:package.json"
+
+LA_DIR_ALL=$(candidates "$WORK_DIR/laravel-api" --dir api \
+  | jq -r '[.LINT_CANDIDATES, .TYPECHECK_CANDIDATES, .TEST_CANDIDATES] | join("\n")')
+assert_line "--dir points the scan at a sub-project and folds it into the command" \
+  "$LA_DIR_ALL" "cd api && composer lint${TAB}scripts:api/composer.json"
+assert_line "every script of it" \
+  "$LA_DIR_ALL" "cd api && composer test${TAB}scripts:api/composer.json"
+
+EMPTY_CAND="$CAND/empty"
+mkdir -p "$EMPTY_CAND"
+assert_eq "an empty directory has no candidate" "0" "$(cand_key "$EMPTY_CAND" CANDIDATE_COUNT)"
+(cd "$EMPTY_CAND" && bash "$PLUGIN_SCRIPTS/quality-candidates.sh" --json) >/dev/null 2>&1
+assert_eq "and that is not an error" "0" "$?"
+
+# REQ-7, the DE-17472 regression: the gates are in a root Makefile and in the CI
+# job `api`. They come out as root commands — no `cd api`, which would run the
+# root Makefile's targets in the wrong directory — and no PHP rule found them.
+LA_LINT=$(cand_key "$WORK_DIR/laravel-api" LINT_CANDIDATES)
+LA_TEST=$(cand_key "$WORK_DIR/laravel-api" TEST_CANDIDATES)
+assert_line "laravel-api: make lint from the CI, at the root" "$LA_LINT" "make lint${TAB}ci:.github/workflows/ci.yml"
+assert_line "laravel-api: make test from the CI, at the root" "$LA_TEST" "make test${TAB}ci:.github/workflows/ci.yml"
+assert_eq "laravel-api: detect-stack still knows no language there" \
+  "unknown" "$(stack_key "$WORK_DIR/laravel-api" LANG)"
+assert_eq "no rule for PHP was added to detect-stack.sh" "" \
+  "$(grep -n -E 'composer\.json|artisan|\.php\b|phpunit|laravel' "$PLUGIN_SCRIPTS/detect-stack.sh" || true)"
+
+assert_eq "the candidates script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/quality-candidates.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── quality-preflight.sh (no autonomous run starts without its commands) ──"
+
+# The launchers ask this before the board, the fork point and the workflow. A
+# refusal is exit 3 with the reason, and it costs seconds: nothing but the
+# declared preflight runs unless --run asks for the commands themselves.
+qp() { (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/quality-preflight.sh" --json "$@" 2>/dev/null); }
+qp_key() { local dir="$1" key="$2"; shift 2; qp "$dir" "$@" | jq -r --arg k "$key" '.[$k]'; }
+qp_exit() {
+  (cd "$1" && shift && bash "$PLUGIN_SCRIPTS/quality-preflight.sh" --json "$@" >/dev/null 2>&1)
+  printf '%s' "$?"
+}
+QP="$WORK_DIR/preflight"
+
+mkdir -p "$QP/undeclared"
+assert_eq "no declaration with --require-declared is refused" "3" \
+  "$(qp_exit "$QP/undeclared" --require-declared)"
+assert_contains "and the reason points at the setup" \
+  "$(qp_key "$QP/undeclared" REASON --require-declared)" "/dev-setup:setup"
+assert_eq "and says the run is not ready" "false" "$(qp_key "$QP/undeclared" READY --require-declared)"
+assert_eq "no declaration and nothing detected is refused even without the flag" "3" \
+  "$(qp_exit "$QP/undeclared")"
+
+declare_in "$QP/empty-lint" '{"lint":"","typecheck":null,"absent":{"typecheck":"none"},"test":"true"}'
+assert_eq "a rejected declaration is a refusal, not a crash" "3" "$(qp_exit "$QP/empty-lint")"
+assert_eq "with a JSON object on stdout" "object" "$(qp "$QP/empty-lint" | jq -r 'type')"
+assert_contains "whose reason carries detect-stack's cause" \
+  "$(qp_key "$QP/empty-lint" REASON)" "lint"
+
+declare_in "$QP/all-null" '{"lint":null,"typecheck":null,"test":null,"absent":{"lint":"x","typecheck":"x","test":"x"}}'
+assert_eq "every command declared absent leaves nothing to check with" "3" "$(qp_exit "$QP/all-null")"
+
+declare_in "$QP/missing" '{"lint":"definitely-not-installed-qp lint","typecheck":null,"absent":{"typecheck":"x"},"test":"touch ran"}'
+assert_eq "a command whose program is not installed is refused" "3" "$(qp_exit "$QP/missing")"
+assert_contains "and MISSING names it" \
+  "$(qp_key "$QP/missing" MISSING)" "definitely-not-installed-qp"
+assert_eq "and nothing ran" "false" "$([ -e "$QP/missing/ran" ] && echo true || echo false)"
+
+declare_in "$QP/cd-sub" '{"lint":"CI=1 true","typecheck":null,"absent":{"typecheck":"x"},"test":"cd sub && ./run-tests"}'
+assert_eq "a relative program is looked for in the directory the command enters" "3" \
+  "$(qp_exit "$QP/cd-sub")"
+mkdir -p "$QP/cd-sub/sub"
+printf '#!/bin/sh\nexit 0\n' > "$QP/cd-sub/sub/run-tests"
+chmod +x "$QP/cd-sub/sub/run-tests"
+assert_eq "and found there once it exists (a leading VAR=value is skipped too)" "0" \
+  "$(qp_exit "$QP/cd-sub")"
+
+declare_in "$QP/preflight-red" '{"lint":"true","typecheck":null,"absent":{"typecheck":"x"},"test":"true","preflight":"echo boom; exit 7"}'
+assert_eq "a red declared preflight is refused" "3" "$(qp_exit "$QP/preflight-red")"
+assert_contains "with its output" "$(qp_key "$QP/preflight-red" OUTPUT)" "boom"
+assert_eq "and PREFLIGHT says it failed" "failed" "$(qp_key "$QP/preflight-red" PREFLIGHT)"
+
+# REQ-17: what the environment lacks is not what the project lacks. With
+# --allow-unavailable the launchers get a ready answer that names the commands
+# this machine cannot run, and the run goes on to a merge request that says so.
+QP_ALLOW=$(qp "$QP/missing" --require-declared --allow-unavailable)
+assert_eq "--allow-unavailable: a missing program does not refuse" "0" \
+  "$(qp_exit "$QP/missing" --require-declared --allow-unavailable)"
+assert_eq "its kind comes back unavailable, the others untouched" "lint|unavailable|absent" \
+  "$(printf '%s' "$QP_ALLOW" | jq -r '[.UNAVAILABLE, .LINT_STATUS, .TYPECHECK_STATUS] | join("|")')"
+assert_contains "with the reason the merge request will carry" \
+  "$(printf '%s' "$QP_ALLOW" | jq -r '.UNAVAILABLE_REASON')" "definitely-not-installed-qp"
+assert_eq "and still nothing ran" "false" "$([ -e "$QP/missing/ran" ] && echo true || echo false)"
+QP_ALLOW=$(qp "$QP/preflight-red" --allow-unavailable)
+assert_eq "--allow-unavailable: a red preflight makes every declared command unavailable" \
+  "true|lint test|failed" \
+  "$(printf '%s' "$QP_ALLOW" | jq -r '[.READY, .UNAVAILABLE, .PREFLIGHT] | join("|")')"
+assert_contains "and keeps the preflight's output" "$(printf '%s' "$QP_ALLOW" | jq -r '.OUTPUT')" "boom"
+assert_eq "--run does not run an unavailable command" "unavailable 0" \
+  "$(qp_key "$QP/preflight-red" TEST_STATUS --run --allow-unavailable) $(qp_exit "$QP/preflight-red" --run --allow-unavailable)"
+assert_eq "--allow-unavailable never excuses a missing declaration" "3" \
+  "$(qp_exit "$QP/undeclared" --require-declared --allow-unavailable)"
+assert_eq "nor every command declared absent" "3" "$(qp_exit "$QP/all-null" --allow-unavailable)"
+
+QP_READY="$QP/ready"
+declare_in "$QP_READY" '{"lint":"true","typecheck":null,"absent":{"typecheck":"none"},"test":"touch ran"}'
+assert_eq "a declaration with lint and test and no typecheck is ready" "0" \
+  "$(qp_exit "$QP_READY" --require-declared)"
+assert_eq "READY says so" "true" "$(qp_key "$QP_READY" READY)"
+assert_eq "nothing is missing" "" "$(qp_key "$QP_READY" MISSING)"
+assert_eq "and without --run no command was executed" "false" \
+  "$([ -e "$QP_READY/ran" ] && echo true || echo false)"
+QP_RUN=$(qp "$QP_READY" --run)
+assert_eq "--run runs each command once and reports it" "passed absent passed" \
+  "$(printf '%s' "$QP_RUN" | jq -r '[.LINT_STATUS, .TYPECHECK_STATUS, .TEST_STATUS] | join(" ")')"
+assert_eq "from the repository root" "true" "$([ -e "$QP_READY/ran" ] && echo true || echo false)"
+
+declare_in "$QP/red-test" '{"lint":"true","typecheck":null,"absent":{"typecheck":"x"},"test":"false"}'
+assert_eq "a red test is reported, not refused" "failed 0" \
+  "$(qp_key "$QP/red-test" TEST_STATUS --run) $(qp_exit "$QP/red-test" --run)"
+
+declare_in "$QP/not-started" '{"lint":"true","typecheck":null,"absent":{"typecheck":"x"},"test":"exit 127"}'
+assert_eq "a command that did not start (127) is not-found, and refused" "not-found 3" \
+  "$(qp_key "$QP/not-started" TEST_STATUS --run) $(qp_exit "$QP/not-started" --run)"
+
+assert_eq "an unknown flag is a usage error" "1" "$(qp_exit "$QP_READY" --frobnicate)"
+
+# REQ-7, end to end: the DE-17472 project with its root commands declared
+# passes the setup's verification — no PHP rule, no `cd api`.
+if command -v make >/dev/null 2>&1; then
+  cp -R "$WORK_DIR/laravel-api" "$QP/laravel-api"
+  declare_in "$QP/laravel-api" '{"lint":"make lint","typecheck":null,"absent":{"typecheck":"none"},"test":"make test"}'
+  assert_eq "laravel-api: the declared make lint and make test pass the verification" "passed passed 0" \
+    "$(qp_key "$QP/laravel-api" LINT_STATUS --run) $(qp_key "$QP/laravel-api" TEST_STATUS --run) $(qp_exit "$QP/laravel-api" --run --require-declared)"
+else
+  printf '%s  skip%s  make not found: the laravel-api verification needs it\n' "$DIM" "$NC"
+fi
+
+assert_eq "the preflight script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/quality-preflight.sh" ] && echo true || echo false)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. rules/ — the path-scoped rule templates (DE-16477)
@@ -832,7 +1326,8 @@ assert_eq "an unblocked settings is then left alone" "3" "$?"
 # `gh` and `glab` run outside the sandbox: inside it, on macOS, they cannot
 # verify a TLS certificate and every call fails. A project sandboxed before the entry existed
 # gets it on UPDATE — added next to the team's own entries, nothing else touched.
-assert_eq "the merged settings excludes gh and glab from the sandbox" '["gh","glab"]' \
+assert_eq "the merged settings excludes gh, glab and the push to origin from the sandbox" \
+  '["gh *","glab *","git push origin *","git push -u origin *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/merged.json")"
 
 jq '.sandbox.excludedCommands = ["docker"]' "$MIG_DIR/merged.json" > "$MIG_DIR/no-gh.json"
@@ -843,9 +1338,10 @@ EXCL_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
 
 assert_eq "a sandboxed settings without gh is migrated" "excluded-commands-added" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .REASON)"
-assert_eq "the report names the added entries" "gh,glab" \
+assert_eq "the report names the added entries" "gh *,glab *,git push origin *,git push -u origin *" \
   "$(printf '%s' "$EXCL_REPORT" | jq -r .ADDED_EXCLUDED)"
-assert_eq "they are added after the team's own entries" '["docker","gh","glab"]' \
+assert_eq "they are added after the team's own entries" \
+  '["docker","gh *","glab *","git push origin *","git push -u origin *"]' \
   "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/with-gh.json")"
 assert_eq "nothing else changes on the excluded-commands pass" "true" \
   "$(jq -n --slurpfile a "$MIG_DIR/no-gh.json" --slurpfile b "$MIG_DIR/with-gh.json" '
@@ -854,6 +1350,55 @@ assert_eq "nothing else changes on the excluded-commands pass" "true" \
 bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/with-gh.json" \
   --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
 assert_eq "a settings with gh excluded is then left alone" "3" "$?"
+
+# 3.3.0 shipped bare "gh" and "glab". Entries match like Bash(...) rules, so a
+# pattern with no wildcard matches the command with no arguments only, and
+# `gh pr view 12` stayed sandboxed (invictus-monorepo). The bare entry is
+# replaced by its ` *` form, the team's other entries kept.
+jq '.sandbox.excludedCommands = ["docker", "gh", "glab"]' "$MIG_DIR/merged.json" > "$MIG_DIR/bare-gh.json"
+BARE_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/bare-gh.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/fixed-gh.json" --json 2>/dev/null)
+assert_eq "a bare gh entry is replaced by gh *" \
+  '["docker","gh *","glab *","git push origin *","git push -u origin *"]' \
+  "$(jq -c '.sandbox.excludedCommands' "$MIG_DIR/fixed-gh.json")"
+assert_eq "and the report names what it replaced" "gh,glab" \
+  "$(printf '%s' "$BARE_REPORT" | jq -r .RETIRED_EXCLUDED)"
+
+# Pushing leaves the sandbox — an SSH origin cannot be reached from inside it —
+# but only towards origin. `allow` carries `Bash(git *)` and there is no `ask`
+# on a push, so a bare `git push *` would send an unsandboxed push to any URL
+# with no allowlist and no prompt. origin itself lives in .git/config, which
+# the sandbox protects.
+assert_eq "no exclusion lets a push leave the sandbox towards an arbitrary URL" "" \
+  "$(jq -r '.sandbox.excludedCommands[] | select(startswith("git push") and (contains(" origin ") | not))' "$SETTINGS_TEMPLATE")"
+assert_contains "the template denies a push to a protected branch with -u" \
+  "$(jq -r '.permissions.deny[]' "$SETTINGS_TEMPLATE")" "Bash(git push * origin next*)"
+
+# Outside the sandbox the deny rules are the only boundary, so on UPDATE an
+# exclusion never arrives without the template's denies that guard it — and a
+# project that already has the exclusion gets the guards it lacks.
+jq '.sandbox.excludedCommands = ["gh *", "glab *"]
+    | .permissions.deny |= map(select(startswith("Bash(git push * origin ") | not))' \
+  "$MIG_DIR/merged.json" > "$MIG_DIR/no-push.json"
+GUARD_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/no-push.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/with-push.json" --json 2>/dev/null)
+assert_eq "the push exclusion is added" "git push origin *,git push -u origin *" \
+  "$(printf '%s' "$GUARD_REPORT" | jq -r .ADDED_EXCLUDED)"
+assert_eq "with the push denies that guard it" "4" \
+  "$(printf '%s' "$GUARD_REPORT" | jq -r .ADDED_DENY)"
+assert_contains "the -u push to next is denied after UPDATE" \
+  "$(jq -r '.permissions.deny[]' "$MIG_DIR/with-push.json")" "Bash(git push * origin next*)"
+assert_eq "no deny unrelated to an excluded command is added" "" \
+  "$(jq -n --slurpfile a "$MIG_DIR/no-push.json" --slurpfile b "$MIG_DIR/with-push.json" -r '
+     ($b[0].permissions.deny - $a[0].permissions.deny)[] | select(startswith("Bash(git push") | not)')"
+
+jq '.permissions.deny |= map(select(startswith("Bash(git push * origin ") | not))' \
+  "$MIG_DIR/with-push.json" > "$MIG_DIR/unguarded.json"
+assert_eq "an exclusion already there still gets its guards" "excluded-commands-guarded" \
+  "$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unguarded.json" \
+       --template "$SETTINGS_TEMPLATE" --json 2>/dev/null | jq -r .REASON)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)
@@ -1107,6 +1652,23 @@ assert_contains "quick is started by a person, never inferred" \
 assert_contains "quick declares no spec and no discovery" \
   "$(cat "$QUICK")" "No discovery, no spec"
 
+# Discovery asks the gaps only, in one call of up to four questions, and a
+# resume reads the saved stop point instead of asking it again (DE-17076).
+assert_contains "discovery offers the one-click way to the spec" \
+  "$(cat "$SDD_DIR/sdd-discovery/reference/question-bank.md")" "Requirements clear: go to spec"
+assert_eq "no 10–12 question cap and no one-question-at-a-time left in discovery" "" \
+  "$(grep -rln "10–12\|one question at a time" "$SDD_DIR/sdd-discovery" || true)"
+assert_contains "turn discipline bounds a call at four related questions" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/turn-discipline.md")" "up to four related questions"
+assert_eq "sdd no longer promises two stops" "" \
+  "$(grep -ln "Two stops" "$SDD_DIR/sdd/SKILL.md" || true)"
+assert_eq "a resumed run no longer asks the stop point again" "" \
+  "$(grep -ln "Nothing writes it down" "$SDD_DIR/sdd/reference/stop-point.md" || true)"
+assert_contains "intake saves the stop point on --create" \
+  "$(cat "$SDD_DIR/sdd/reference/intake.md")" "--stop <the chosen stop point> --create"
+assert_contains "the worktree path saves it too" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/worktree.md")" "--stop <the chosen stop point>] --create"
+
 # The routing bar is in both descriptions, so /help alone answers which to use.
 for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do
   assert_contains "the routing bar is in $(basename "$(dirname "$SURFACE")")'s description" \
@@ -1122,6 +1684,200 @@ for SURFACE in "$QUICK" "$SDD_DIR/sdd/SKILL.md"; do
   assert_eq "$NAME says to enter the worktree, not just to pass --base" "true" \
     "$(grep -rqE 'enter the worktree' "$SURFACE" "$(dirname "$SURFACE")/reference" 2>/dev/null \
        && echo true || echo false)"
+done
+
+echo ""
+echo "── DE-17128 — sdd-dev aligned with the stops and the script, no history in the instructions ──"
+
+# Prose assertions read the file with its newlines folded: a sentence markdown
+# wraps still counts, and a removed phrase cannot pass because an edit wrapped it.
+flat() { tr '\n' ' ' < "$1" | tr -s ' '; }
+frontmatter_of() { sed -n '2,/^---$/p' "$1"; }
+
+METH="$SDD_DIR/sdd-dev/reference/methodologies.md"
+INSTALL="$REPO_ROOT/templates/dev-setup/setup/reference/install.md"
+TEMPLATE_ROOT="$REPO_ROOT/templates/dev-setup"
+
+# The scenarios go into the test names, never in front of the developer: the
+# flow's stops are declared in sdd/SKILL.md and the autonomous run has nobody
+# to answer one more.
+assert_eq "nothing under sdd-dev presents the scenarios to the developer" "" \
+  "$(grep -rln 'Present the scenarios' "$SDD_DIR/sdd-dev" || true)"
+assert_contains "the scenarios are written into the test names" \
+  "$(flat "$METH")" "into the test names before implementing them"
+
+# No per-stack table: detect-stack.sh is the one source of the commands, and a
+# table restating it drifted the moment the script changed.
+assert_eq "methodologies.md carries no per-stack command table" "" \
+  "$(grep -n '^|' "$METH" || true)"
+assert_eq "and names none of the commands the table held" "" \
+  "$(grep -nE 'npm test|ruff check|go test|cargo test|flutter test' "$METH" || true)"
+assert_contains "it points at detect-stack.sh" "$(flat "$METH")" "detect-stack.sh --json"
+
+# One rule for an empty command, in both flows: run nothing, substitute
+# nothing, report it where the step reports.
+assert_eq "nothing under sdd-dev asks which commands to use" "" \
+  "$(grep -rn 'ask the developer which commands\|If both come back empty' "$SDD_DIR/sdd-dev" || true)"
+assert_contains "an empty command is never substituted" \
+  "$(flat "$METH")" "never substitute one of your own"
+assert_contains "and is reported in notes on the autonomous run" \
+  "$(flat "$METH")" '`notes`'
+
+# The rule stays, the story goes. A sentence that narrates what the flow used
+# to do is a sentence the model can re-perform.
+while IFS='|' read -r HIST_FILE HIST_PHRASE; do
+  [ -n "$HIST_FILE" ] || continue
+  assert_eq "$(basename "$HIST_FILE") tells no history: $HIST_PHRASE" "" \
+    "$(flat "$TEMPLATE_ROOT/$HIST_FILE" | grep -o "$HIST_PHRASE" || true)"
+done <<'HIST_GONE'
+.claude/skills/sdd-dev/SKILL.md|second approval wearing
+.claude/skills/sdd-dev/SKILL.md|once cost a task four commits
+.claude/skills/sdd/reference/closure.md|this flow used to mandate
+.claude/skills/sdd/reference/closure.md|no longer calls it
+.claude/skills/sdd-spec/reference/spec-template.md|this template used to carry
+.claude/skills/review/reference/registry-updates.md|this reference used to mandate
+setup/reference/mcp-env.md|used to be two bullets
+HIST_GONE
+
+while IFS='|' read -r HIST_FILE HIST_PHRASE; do
+  [ -n "$HIST_FILE" ] || continue
+  assert_contains "$(basename "$HIST_FILE") keeps the rule: $HIST_PHRASE" \
+    "$(flat "$TEMPLATE_ROOT/$HIST_FILE")" "$HIST_PHRASE"
+done <<'HIST_KEPT'
+.claude/skills/sdd-dev/SKILL.md|Do not ask the developer to confirm the breakdown
+.claude/skills/sdd-dev/SKILL.md|Do not commit, simplify or touch the spec's status
+.claude/skills/sdd/reference/closure.md|the gates run before the commit, and there is one commit
+.claude/skills/sdd/reference/closure.md|This is the only place `simplify` runs in the flow
+.claude/skills/sdd-spec/reference/spec-template.md|Nothing in here records how the run went
+.claude/skills/review/reference/registry-updates.md|Leave the change in the working tree — do not commit it
+setup/reference/mcp-env.md|settings on the host
+HIST_KEPT
+
+# Over the prose the model reads, the three phrases survive only where they
+# state a present fact (fork-point.md, rules-generation.md) or the recognition
+# rule UPDATE applies to an old AGENTS.md (agents-generation.md).
+assert_eq "the only history phrases left are present-tense facts and the UPDATE recognition rule" \
+  "templates/dev-setup/.claude/reference/fork-point.md
+templates/dev-setup/setup/reference/agents-generation.md
+templates/dev-setup/setup/reference/rules-generation.md" \
+  "$(cd "$REPO_ROOT" && grep -rln "used to\|no longer\|once cost" \
+       templates/dev-setup/.claude/skills templates/dev-setup/.claude/reference \
+       templates/dev-setup/.claude/agents templates/dev-setup/setup 2>/dev/null | LC_ALL=C sort)"
+
+# The verbatim-write rule keeps its constraint and gains its reason; the bold
+# IMPORTANT goes. Pinned on its own, so a regression names the file.
+INSTALL_BLOCK="$(sed -n '/^### 3.2 /,/^### 3.2b/p' "$INSTALL" | tr '\n' ' ' | tr -s ' ')"
+assert_eq "no shouted IMPORTANT in the verbatim-write rule" "" \
+  "$(printf '%s' "$INSTALL_BLOCK" | grep -o '\*\*IMPORTANT\*\*' || true)"
+assert_contains "the verbatim-write rule is kept" "$INSTALL_BLOCK" "exactly as received"
+assert_contains "and states its reason" "$INSTALL_BLOCK" "read them back"
+assert_eq "install.md carries no history phrase" "" \
+  "$(grep -n 'used to\|no longer\|once cost' "$INSTALL" || true)"
+
+assert_eq "sdd-dev/SKILL.md stays inside the 500-word budget" "true" \
+  "$([ "$(wc -w < "$SDD_DIR/sdd-dev/SKILL.md" | tr -d ' ')" -le 500 ] && echo true || echo false)"
+
+echo ""
+echo "── DE-17130 — the generated AGENTS.md describes the plugin that ships it ──"
+
+# The AGENTS.md the setup writes into a project is read in every session of
+# that project, so its tables are pinned to the plugin's own surface rather
+# than to a list kept here: a public command is a `user-invocable: true`
+# skill, an agent is the `name:` of a file under agents/. A row for something
+# that does not exist and no row for something that does are both red.
+GEN_SINGLE="$TEMPLATE_ROOT/AGENTS.template.md"
+GEN_WORKSPACE="$TEMPLATE_ROOT/AGENTS.workspace-template.md"
+GEN_PROJECT="$TEMPLATE_ROOT/AGENTS.project-template.md"
+GEN_REGISTRY="$TEMPLATE_ROOT/REGISTRY.md"
+AGENTS_GEN="$TEMPLATE_ROOT/setup/reference/agents-generation.md"
+
+PUBLIC_SKILLS="$(for S in "$SDD_DIR"/*/SKILL.md "$REPO_ROOT"/shared/skills/*/SKILL.md \
+                          "$TEMPLATE_ROOT/setup/SKILL.md"; do
+    FM="$(frontmatter_of "$S")"
+    printf '%s\n' "$FM" | grep -q '^user-invocable: true' || continue
+    printf '%s\n' "$FM" | sed -n 's/^name:[[:space:]]*//p'
+  done | LC_ALL=C sort)"
+SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
+    frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
+  done | LC_ALL=C sort -u)"
+assert_eq "the surface the check reads is the six public commands" \
+  "auto-sdd multi-sdd quick review sdd setup" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+
+# The names from $2 (one per line) with no row in $1 matching $3, where `@`
+# stands for the name.
+missing_rows() {
+  local file="$1" names="$2" pattern="$3" name missing=""
+  while IFS= read -r name; do
+    grep -q "${pattern//@/$name}" "$file" || missing="$missing $name"
+  done <<<"$names"
+  printf '%s' "${missing# }"
+}
+agents_table_rows() {
+  awk '/^## Available agents/{f=1; next} /^## /{f=0} f && /^\| \*\*/' "$1" | grep -c .
+}
+
+for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE"; do
+  NAME="$(basename "$GEN")"
+  assert_eq "$NAME lists every public command" "" \
+    "$(missing_rows "$GEN" "$PUBLIC_SKILLS" '^| `/dev-setup:@')"
+  assert_eq "$NAME lists no command the plugin does not expose" \
+    "$(printf '%s\n' "$PUBLIC_SKILLS" | grep -c .)" "$(grep -c '^| `/dev-setup:' "$GEN")"
+  assert_eq "$NAME lists every shipped agent by its frontmatter name" "" \
+    "$(missing_rows "$GEN" "$SHIPPED_AGENTS" '^| \*\*@\*\* |')"
+  assert_eq "$NAME names no agent that does not exist" \
+    "$(printf '%s\n' "$SHIPPED_AGENTS" | grep -c .)" "$(agents_table_rows "$GEN")"
+  assert_contains "$NAME carries quick's bar" "$(grep '^| `/dev-setup:quick' "$GEN")" "three files"
+
+  # The stops are named, never counted: a count went stale once already.
+  FLAT_GEN="$(flat "$GEN")"
+  assert_contains "$NAME names the stops and closes the list" "$FLAT_GEN" \
+    "for your approval of the spec — nowhere else"
+  assert_eq "$NAME promises no checkpoint between phases" "false" \
+    "$(printf '%s' "$FLAT_GEN" | grep -q 'each checkpoint' && echo true || echo false)"
+  assert_eq "$NAME keeps git conventions out of the rules row" "false" \
+    "$(grep '^| Rules on the code' "$GEN" | grep -q 'git' && echo true || echo false)"
+  assert_contains "$NAME sends them to vcs-ops" "$(grep '^| Branch, commit' "$GEN")" '`vcs-ops`'
+done
+
+# Nothing loads the registry at session start — Claude Code reads AGENTS.md,
+# which imports nothing — so no generated file may say it is read then.
+for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE" "$GEN_PROJECT" "$GEN_REGISTRY"; do
+  assert_eq "$(basename "$GEN") never asks for the registry at session start" "false" \
+    "$(flat "$GEN" | grep -qi 'start of each session\|start of a new session' && echo true || echo false)"
+done
+for GEN in "$GEN_PROJECT" "$GEN_REGISTRY"; do
+  assert_contains "$(basename "$GEN") says when the registry is read" \
+    "$(flat "$GEN")" "before adding something that may already exist"
+done
+
+# A placeholder the template declares and the reference does not fill is a
+# render-template.sh failure on the first multi-project setup.
+DOCUMENTED_VARS="$(grep -o '{{[A-Z_]*}}' "$AGENTS_GEN" | LC_ALL=C sort -u)"
+for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE" "$GEN_PROJECT"; do
+  DECLARED_VARS="$(bash "$PLUGIN_SCRIPTS/render-template.sh" --in "$GEN" --list 2>/dev/null)"
+  UNDOCUMENTED=""
+  while IFS= read -r VAR; do
+    [ -n "$VAR" ] || continue
+    printf '%s\n' "$DOCUMENTED_VARS" | grep -qxF "{{$VAR}}" || UNDOCUMENTED="$UNDOCUMENTED $VAR"
+  done <<<"$DECLARED_VARS"
+  assert_eq "every placeholder of $(basename "$GEN") is one agents-generation.md fills" "" "${UNDOCUMENTED# }"
+  [ "$GEN" = "$GEN_PROJECT" ] || continue
+  assert_contains "the sub-project template carries the type-check" "$DECLARED_VARS" "TYPECHECK_COMMAND"
+done
+
+# UPDATE carries the whole plugin-owned tail, and says what it did with it.
+FLAT_AGEN="$(flat "$AGENTS_GEN")"
+assert_contains "UPDATE compares the tail from its heading" "$FLAT_AGEN" '`## Available agents`'
+assert_contains "and the sub-project tail from its own" "$FLAT_AGEN" '`## Project registry`'
+for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DECLINED" "AGENTS.md already current"; do
+  assert_contains "the offer reports: $LINE" "$FLAT_AGEN" "$LINE"
+done
+
+# DE-17079 wants the generated file shorter; these fixes may not lengthen it.
+for BUDGET in "$GEN_SINGLE:131" "$GEN_WORKSPACE:136" "$GEN_PROJECT:30"; do
+  GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
+  assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
+    "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
 done
 
 
@@ -1337,12 +2093,20 @@ async function agent(prompt, opts) {
     return { satisfied: false, reason: key + ' proposal', suggestion: 'change', grounds: 'an ADR' };
   }
   if (label.startsWith('dev:')) return { worktreePath: '/wt', branch: 'b', specPath: 'p', commits: [] };
-  if (label.startsWith('verify:')) return { passed: true, output: 'green' };
+  if (label.startsWith('verify:')) {
+    return { passed: true, output: 'green', notStarted: scenario.notStarted || [] };
+  }
   return null;
 }
 
+// argv[4], when given, overrides the launch arguments. The default stack is a
+// declared project with no type checker: lint and test, typecheck absent.
+const overrides = process.argv[4] ? JSON.parse(process.argv[4]) : {};
 const context = {
-  args: { taskId: 'DE-1', pluginRoot: '/plugin', baseBranch: 'origin/next' },
+  args: Object.assign({
+    taskId: 'DE-1', pluginRoot: '/plugin', baseBranch: 'origin/next',
+    stack: { lint: 'make lint', typecheck: '', test: 'make test' },
+  }, overrides),
   agent,
   parallel: (thunks) => Promise.all(thunks.map((thunk) => thunk())),
   phase() {},
@@ -1351,6 +2115,8 @@ const context = {
 vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', context).then((out) => {
   console.log(JSON.stringify({
     status: out.status,
+    stage: out.stage || '',
+    agents: calls.length,
     reviews: calls.filter((l) => l.startsWith('challenge:')).length,
     revisions: calls.filter((l) => l.startsWith('revise:')).length,
     open: (out.openPoints || []).map((o) => o.lens).join(','),
@@ -1360,13 +2126,21 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     deviations: (out.deviations || []).length,
     grounds: (prompts['revise:DE-1'] || '').includes('grounds: an ADR'),
     devSees: (prompts['dev:DE-1'] || '').includes('the styling ADR forbids it'),
+    devAbsent: /typecheck:\s+\(none\)/.test(prompts['dev:DE-1'] || '')
+      && (prompts['dev:DE-1'] || '').includes('say so in `notes`'),
     precedence: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
       .every((l) => prompts[l].includes('settle it in this')),
+    verified: calls.includes('verify:DE-1'),
+    unverified: (out.unverified || []).map((u) => u.kind + '=' + u.command).join(','),
+    unverifiedReason: (out.unverified || []).map((u) => u.reason).join('|'),
+    devSkips: /lint:\s+make lint\s+\(NOT RUNNABLE HERE/.test(prompts['dev:DE-1'] || '')
+      && (prompts['dev:DE-1'] || '').includes('php is 8.3'),
+    verifySkips: /lint:\s+make lint\s+\(skip\)/.test(prompts['verify:DE-1'] || ''),
   }));
 });
 NODEJS
 
-  sim() { node "$WORK_DIR/workflow-sim.cjs" "$AUTO_SDD" "$1" 2>&1; }
+  sim() { node "$WORK_DIR/workflow-sim.cjs" "$AUTO_SDD" "$1" ${2:+"$2"} 2>&1; }
   field() { printf '%s' "$1" | jq -r ".$2" 2>/dev/null; }
 
   SIM=$(sim '{"simpler":"propose","scope":"propose","testable":"propose"}')
@@ -1391,6 +2165,42 @@ NODEJS
   SIM=$(sim '{}')
   assert_eq "three satisfied reviewers cost three agents and no revision" \
     "3 0 " "$(field "$SIM" reviews) $(field "$SIM" revisions) $(field "$SIM" open)"
+  # The simulation's project declares no type checker, so typecheck prints as
+  # (none): the dev agent has to be told to skip it and to say so in `notes`,
+  # not to wait — and the run goes on with lint and test (DE-17535, REQ-3).
+  assert_eq "a command declared absent: the dev agent is told to skip it and say so in notes" \
+    "true" "$(field "$SIM" devAbsent)"
+  assert_eq "and the run proceeds on the other two" "ready-for-mr" "$(field "$SIM" status)"
+
+  # REQ-9: a run with no command at all could not verify anything, and the
+  # outcome would be certain before the first agent. It ends at intake, free.
+  SIM=$(sim '{}' '{"stack":null}')
+  assert_eq "no stack at all ends at intake" "failed intake" \
+    "$(field "$SIM" status) $(field "$SIM" stage)"
+  assert_eq "without launching a single agent" "0" "$(field "$SIM" agents)"
+  SIM=$(sim '{}' '{"stack":{"lint":"","typecheck":"","test":""}}')
+  assert_eq "three empty commands, as a launcher passes them, end at intake" "failed intake" \
+    "$(field "$SIM" status) $(field "$SIM" stage)"
+  assert_eq "without launching a single agent either" "0" "$(field "$SIM" agents)"
+
+  # REQ-17: a toolchain this environment lacks does not stop the run. The
+  # commands it cannot start are never run, and they travel to the merge request.
+  SIM=$(sim '{}' '{"unavailable":["lint","test"],"unavailableReason":"php is 8.3"}')
+  assert_eq "every command unavailable: the run still reaches the merge request" \
+    "ready-for-mr false" "$(field "$SIM" status) $(field "$SIM" verified)"
+  assert_eq "with each command it could not run in unverified" \
+    "lint=make lint,test=make test" "$(field "$SIM" unverified)"
+  assert_eq "and the dev agent is told not to run them, and why" "true" "$(field "$SIM" devSkips)"
+  SIM=$(sim '{}' '{"unavailable":["lint"],"unavailableReason":"php is 8.3"}')
+  assert_eq "one command unavailable: Verify runs the others and skips it" \
+    "ready-for-mr true true" "$(field "$SIM" status) $(field "$SIM" verified) $(field "$SIM" verifySkips)"
+  assert_eq "and it is reported unverified" "lint=make lint" "$(field "$SIM" unverified)"
+  SIM=$(sim '{"notStarted":["make test"]}')
+  assert_eq "a command that did not start at Verify is unverified, not red" \
+    "ready-for-mr test=make test" "$(field "$SIM" status) $(field "$SIM" unverified)"
+  SIM=$(sim '{}' '{"unavailable":["typecheck","bogus"]}')
+  assert_eq "an unavailable kind with no command, or no kind at all, is ignored" \
+    "ready-for-mr  true" "$(field "$SIM" status) $(field "$SIM" unverified) $(field "$SIM" verified)"
 
   SIM=$(sim '{"simpler":"propose","revise":"dead"}')
   assert_eq "a reviser that returns nothing leaves every proposal open" \
@@ -1407,6 +2217,124 @@ if [ -f "$AUTO_SDD" ]; then
   assert_eq "no path of the workflow returns needs-human" "" \
     "$(grep -n "status: 'needs-human'" "$AUTO_SDD" || true)"
 fi
+
+echo ""
+echo "── the launchers refuse before the board (DE-17535) ──"
+
+# The check is worth something only where it stands: before anything a refused
+# run would leave behind. So what is pinned is its position, on the extracted
+# range, not merely its presence in the file.
+line_of() { printf '%s\n' "$1" | grep -n -F -- "$2" | head -1 | cut -d: -f1; }
+assert_before() {
+  local label="$1" text="$2" first="$3" second="$4" a b
+  a=$(line_of "$text" "$first")
+  b=$(line_of "$text" "$second")
+  if [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ]; then
+    pass "$label"
+  else
+    fail "$label" "expected '$first' (line ${a:-none}) before '$second' (line ${b:-none})"
+  fi
+}
+
+AUTO_STEPS=$(sed -n '/^## 1\. /,/^## 3\. /p' "$SDD_DIR/auto-sdd/SKILL.md")
+QP_CALL="quality-preflight.sh\" --require-declared"
+for NEEDLE in 'BACKLOG' 'fork-point.md' 'status: IN PROGRESS' 'task-clock.sh'; do
+  assert_before "auto-sdd checks its commands before: $NEEDLE" "$AUTO_STEPS" "$QP_CALL" "$NEEDLE"
+done
+assert_contains "and sends any non-zero exit to the outcomes contract" "$AUTO_STEPS" "run-outcomes.md"
+
+OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+NOT_STARTED=$(sed -n '/^## When the run does not start/,$p' "$OUTCOMES")
+assert_contains "the refusal of a SPRINT task is one BLOCKED bail-out" "$NOT_STARTED" "SPRINT → BLOCKED"
+assert_contains "a BACKLOG task is left as found" "$NOT_STARTED" "left as found"
+assert_contains "the refusal names the check" "$NOT_STARTED" "quality-preflight.sh"
+assert_contains "auto-sdd lets an environment without the toolchain through" \
+  "$AUTO_STEPS" "--allow-unavailable"
+assert_contains "and passes what it cannot run to the workflow" \
+  "$(cat "$SDD_DIR/auto-sdd/SKILL.md")" '"unavailable"'
+assert_contains "multi-sdd does the same" "$(cat "$SDD_DIR/multi-sdd/reference/preflight.md")" "--allow-unavailable"
+assert_contains "and its launch passes it on" \
+  "$(cat "$SDD_DIR/multi-sdd/reference/fan-out.md")" '"unavailable"'
+READY_SECTION=$(sed -n '/^## ready-for-mr/,/^## What a run leaves behind/p' "$OUTCOMES")
+assert_contains "ready-for-mr carries the checks nobody ran" "$READY_SECTION" "unverified"
+assert_contains "and the merge request opens with them" "$READY_SECTION" "**not verified**"
+
+MULTI_PRE="$SDD_DIR/multi-sdd/reference/preflight.md"
+MULTI_TEXT=$(cat "$MULTI_PRE")
+assert_before "multi-sdd checks once, before the first task read" "$MULTI_TEXT" "$QP_CALL" "INTENT: read"
+assert_before "and before the triage" "$MULTI_TEXT" "$QP_CALL" "## Triage"
+assert_eq "and its refusal moves no task" "" "$(grep -n 'BLOCKED' "$MULTI_PRE" || true)"
+
+# REQ-15: in an ephemeral session a failed run's work reaches origin, so it
+# survives the session — and only pushed: the merge request is a decision. The
+# board is the report (DE-17159 — the branch of a routine run was lost, and the
+# BLOCKED comment was the only trace), so it says what is missing and why.
+FAILED_SECTION=$(sed -n '/^## failed/,/^## ready-for-mr/p' "$OUTCOMES")
+assert_contains "a failed run in a cloud session is keyed on CLAUDE_CODE_REMOTE" "$FAILED_SECTION" "CLAUDE_CODE_REMOTE"
+assert_contains "it saves what the worktree holds through the one script past the gate" "$FAILED_SECTION" 'save-failed-run.sh'
+assert_contains "and pushes the branch as it is" "$FAILED_SECTION" 'pushes the branch as it is'
+assert_contains "the spec is saved when no branch holds it" "$FAILED_SECTION" '--spec-file'
+assert_contains "a run that broke is saved the same way" "$FAILED_SECTION" 'stage `broken`'
+assert_contains "and the launcher sends it there" "$(cat "$SDD_DIR/auto-sdd/SKILL.md")" 'stage `broken`'
+assert_contains "even when it holds nothing" "$FAILED_SECTION" 'an empty commit when it'
+assert_contains "with no merge request" "$FAILED_SECTION" "no merge request"
+assert_contains "the dev agent's notes are read" "$FAILED_SECTION" '`notes`'
+assert_contains "the BLOCKED note says what is missing" "$FAILED_SECTION" '**what is missing**'
+assert_contains "and how to resume once the session is gone" "$FAILED_SECTION" '/dev-setup:sdd <taskId>'
+
+# REQ-12: the interactive flows do not stop on it — a person is there — but
+# they say it at the start, not in the closing summary.
+QUICK_STEP1=$(sed -n '/^1\. \*\*The change\.\*\*/,/^2\. \*\*The branch\.\*\*/p' "$SDD_DIR/quick/SKILL.md")
+assert_contains "quick says COMMANDS_SOURCE=none in its first step" "$QUICK_STEP1" "COMMANDS_SOURCE"
+SDD_STEP4=$(sed -n '/^## 4\. /,$p' "$SDD_DIR/sdd/reference/intake.md")
+assert_contains "sdd says it in its intake step 4" "$SDD_STEP4" "COMMANDS_SOURCE"
+assert_contains "sdd-dev keeps skipping a command declared absent" \
+  "$(cat "$SDD_DIR/sdd-dev/reference/methodologies.md")" "declared absent"
+
+# REQ-13 and REQ-14: the setup writes the declaration and verifies it. The step
+# is prose the model follows, so what is pinned is that it calls the scripts
+# that do the deterministic part, and that a decline cannot go unreported.
+SETUP_DIR="$REPO_ROOT/templates/dev-setup/setup"
+QC_REF="$SETUP_DIR/reference/quality-commands.md"
+assert_eq "step 3b has its reference" "true" "$([ -f "$QC_REF" ] && echo true || echo false)"
+QC_TEXT=$(cat "$QC_REF" 2>/dev/null)
+assert_contains "3b proposes the candidates the script finds" "$QC_TEXT" "quality-candidates.sh"
+assert_contains "and asks in one AskUserQuestion call" "$QC_TEXT" "AskUserQuestion"
+assert_contains "and runs every declared command once" "$QC_TEXT" 'quality-preflight.sh" --run'
+assert_contains "and hands the declared commands to Steps 4 and 5" "$QC_TEXT" ".stack.json"
+assert_contains "a kind with no candidate is still asked" "$QC_TEXT" "no candidate"
+assert_contains "UPDATE proposes a declaration to a project that has none" "$QC_TEXT" "UPDATE"
+assert_eq "a decline is a DECLINED summary line naming both launchers" "1" \
+  "$(printf '%s\n' "$QC_TEXT" | grep 'DECLINED' | grep 'auto-sdd' | grep -c 'multi-sdd')"
+assert_contains "the setup table routes step 3b to it" \
+  "$(cat "$SETUP_DIR/SKILL.md")" "| 3b |"
+assert_eq "the setup skill stays within its 500-word budget" "true" \
+  "$([ "$(wc -w < "$SETUP_DIR/SKILL.md")" -le 500 ] && echo true || echo false)"
+assert_eq "the manifest ships the reference" "true" \
+  "$(jq '.setup_reference | index("quality-commands.md") != null' "$REPO_ROOT/templates/dev-setup/manifest.json")"
+assert_eq "and the build does" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/skills/setup/reference/quality-commands.md" ] && echo true || echo false)"
+for MODE_REF in existing.md greenfield.md; do
+  assert_contains "the $MODE_REF summary collects 3b's line" \
+    "$(sed -n '/^## Step 9/,$p' "$SETUP_DIR/reference/$MODE_REF")" "3b"
+done
+assert_contains "existing.md lists the new detect-stack keys" \
+  "$(cat "$SETUP_DIR/reference/existing.md")" "COMMANDS_SOURCE"
+# REQ-16: the declaration is documented where a developer and an upgrader look.
+assert_contains "the developer guide documents the declaration" \
+  "$(cat "$REPO_ROOT/docs/developer-guide.md")" ".claude/quality-commands.json"
+assert_contains "and the launcher check" \
+  "$(cat "$REPO_ROOT/docs/developer-guide.md")" "quality-preflight.sh"
+assert_contains "the migration page records the contract change" \
+  "$(cat "$REPO_ROOT/docs/migration-v2-to-v3.md")" "quality-commands.json"
+for NEW_SCRIPT in quality-candidates.sh quality-preflight.sh; do
+  assert_contains "AGENTS.md lists $NEW_SCRIPT" "$(cat "$REPO_ROOT/AGENTS.md")" "\`$NEW_SCRIPT"
+done
+assert_contains "AGENTS.md lists the new detect-stack keys" \
+  "$(grep -F '`detect-stack.sh`' "$REPO_ROOT/AGENTS.md")" "COMMANDS_SOURCE"
+
+assert_eq "check 16 finds every ask of 3b reported" "" \
+  "$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict 2>&1 | grep 'SETUP_ASK_UNREPORTED' | grep 'quality-commands.md' || true)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 11. task-clock.sh: how long the task took
@@ -1567,6 +2495,42 @@ assert_eq "and leaves nothing open in the repository" "0" \
 assert_eq "--status still measures nothing on a clock nobody started" "no-start-stamp" \
   "$(clock --task DE-705 --status | jq -r '.REASON')"
 
+# ── RECENT_TASKS: a clock stopped a moment ago is still the task in play (DE-17077) ──
+#
+# A failed run stops its clock and then asks for the BLOCKED move: the
+# notification hook has to name that task for the few seconds in between, and
+# it can only ask the reader that consumes nothing.
+CLOCK_RECENT_REPO="$WORK_DIR/clock-recent-repo"
+mkdir -p "$CLOCK_RECENT_REPO"
+git_init "$CLOCK_RECENT_REPO" >/dev/null 2>&1
+recent_clock() { (cd "$CLOCK_RECENT_REPO" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
+
+recent_clock --task DE-710 --start >/dev/null
+recent_clock --task DE-710 --stop >/dev/null
+recent_clock --task DE-711 --start >/dev/null
+CLOCK_RECENT_DIR="$CLOCK_RECENT_REPO/.git/dev-setup/task-clock"
+CLOCK_AGED=$(date +%s)
+{
+  printf 'start\t%s\t%s\n' "$((CLOCK_AGED - 1200))" "2026-10-16 09:00"
+  printf 'stop\t%s\t%s\t%s\n' "$((CLOCK_AGED - 600))" "2026-10-16 09:10" "10"
+} > "$CLOCK_RECENT_DIR/DE-712.log"
+
+CLOCK_RECENT=$(recent_clock --status)
+assert_eq "a task stopped seconds ago is in RECENT_TASKS" "DE-710" \
+  "$(printf '%s' "$CLOCK_RECENT" | jq -r '.RECENT_TASKS')"
+assert_eq "and not in OPEN_TASKS, which holds only the open one" "DE-711" \
+  "$(printf '%s' "$CLOCK_RECENT" | jq -r '.OPEN_TASKS')"
+assert_eq "an open task is never recent, a stop 600 s old is not either" "false" \
+  "$(printf '%s' "$CLOCK_RECENT" | jq -r '.RECENT_TASKS' | grep -qE 'DE-711|DE-712' && echo true || echo false)"
+assert_eq "--status with a task reports the same RECENT_TASKS" "DE-710" \
+  "$(recent_clock --task DE-711 --status | jq -r '.RECENT_TASKS')"
+
+CLOCK_RECENT_BEFORE=$(cat "$CLOCK_RECENT_DIR"/*.log | cksum)
+recent_clock --status >/dev/null
+recent_clock --task DE-710 --status >/dev/null
+assert_eq "and reading it leaves every log byte-identical" "$CLOCK_RECENT_BEFORE" \
+  "$(cat "$CLOCK_RECENT_DIR"/*.log | cksum)"
+
 # ── Both ends, in every flow ──
 #
 # A clock started and never read is a file nobody looks at; a clock read and
@@ -1636,24 +2600,36 @@ mkdir -p "$MR_REPO"
 
 MR_URL_GH="https://github.com/acme/repo/pull/12"
 
-# Feeds a PostToolUse payload to the hook and prints its stderr — which is the
-# channel that reaches the model on this event.
+# The handlers that mount the hook, read from the generated hooks.json: the
+# `if` rules below are what the harness spawns it on (DE-17064).
+MR_HANDLERS="$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Bash")
+  | .hooks[] | select(.command | contains("/post-merge-request.sh\""))]' "$HOOKS_JSON")"
+MR_RULES="$(printf '%s' "$MR_HANDLERS" | jq -r '.[].if // ""')"
+
+# Feeds a PostToolUse payload to the hook and prints what it tells the model:
+# the `additionalContext` of the JSON object on its stdout, which is the channel
+# the hooks reference gives this event (DE-17064). Nothing on stdout, nothing
+# printed.
 mr_hook() {
+  local command="$1" response="$2" out
+  out=$(jq -n --arg c "$command" --arg r "$response" --arg cwd "$MR_REPO" \
+    '{tool_name: "Bash", tool_input: {command: $c}, tool_response: $r, cwd: $cwd}' \
+    | bash "$PLUGIN_HOOKS/post-merge-request.sh" 2>/dev/null)
+  [ -n "$out" ] || return 0
+  printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // empty'
+}
+
+# The raw run: stdout and stderr to files, the hook's exit code returned.
+mr_hook_raw() {
   local command="$1" response="$2"
   jq -n --arg c "$command" --arg r "$response" --arg cwd "$MR_REPO" \
     '{tool_name: "Bash", tool_input: {command: $c}, tool_response: $r, cwd: $cwd}' \
-    | { bash "$PLUGIN_HOOKS/post-merge-request.sh" >/dev/null; } 2>&1
+    | bash "$PLUGIN_HOOKS/post-merge-request.sh" >"$WORK_DIR/mr-stdout" 2>"$WORK_DIR/mr-stderr"
 }
 
 mr_clock() { (cd "$MR_REPO" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
 
 # ── Quiet by default ──
-assert_eq "a command that is not a merge request is ignored" "" \
-  "$(mr_hook 'git status' "$MR_URL_GH")"
-
-assert_eq "a quoted mention of the command is not the command" "" \
-  "$(mr_hook 'git commit -m "explain how gh pr create works"' "$MR_URL_GH")"
-
 assert_eq "a merge request that was not created says nothing" "" \
   "$(mr_hook 'gh pr create --fill' 'error: pull request create failed')"
 
@@ -1661,9 +2637,23 @@ assert_eq "a merge request that was not created says nothing" "" \
 # see this hook at all.
 assert_eq "no open clock, no reminder" "" \
   "$(mr_hook 'gh pr create --fill' "$MR_URL_GH")"
+mr_hook_raw 'gh pr create --fill' "$MR_URL_GH"
+assert_eq "and the quiet path exits 0" "0" "$?"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/mr-stdout")"
 
 # ── With a task in progress ──
 mr_clock --task DE-810 --start >/dev/null
+
+# The internal filter stays, for a client that ignores `if`, and it is asserted
+# where an unfiltered hook would speak: the URL is in the response and DE-810's
+# clock is open, so only the scan keeps these two quiet.
+assert_eq "a command that is not a merge request is ignored" "" \
+  "$(mr_hook 'git status' "$MR_URL_GH")"
+assert_eq "a quoted mention of the command is not the command" "" \
+  "$(mr_hook 'git commit -m "explain how gh pr create works"' "$MR_URL_GH")"
+mr_hook_raw 'git status' "$MR_URL_GH"
+assert_eq "and the filtered call exits 0" "0" "$?"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/mr-stdout")"
 
 MR_FIRED=$(mr_hook 'gh pr create --title "feat: thing [DE-810]" --base next' "$MR_URL_GH")
 
@@ -1675,16 +2665,33 @@ assert_contains "and for the board" "$MR_FIRED" "CODE REVIEW"
 assert_contains "citing the contract that holds the call" \
   "$MR_FIRED" "reference/clickup-contract.md"
 
-# Exit 2 is what puts stderr in front of the model on PostToolUse. The merge
-# request was created either way: the hook reports, it does not undo.
-jq -n --arg cwd "$MR_REPO" \
-  '{tool_name: "Bash", tool_input: {command: "gh pr create --fill"}, tool_response: "https://github.com/acme/repo/pull/12", cwd: $cwd}' \
-  | bash "$PLUGIN_HOOKS/post-merge-request.sh" >/dev/null 2>&1
-assert_eq "it reports through exit 2" "2" "$?"
+# The reminder is additionalContext with exit 0: on PostToolUse that is the
+# channel the hooks reference gives a hook with something to tell the model,
+# and it arrives as context rather than as a hook error. The merge request was
+# created either way: the hook reports, it does not undo.
+mr_hook_raw 'gh pr create --fill' "$MR_URL_GH"
+assert_eq "it reports through additionalContext and exits 0" "0" "$?"
+assert_eq "stdout is one JSON object" "1" "$(jq -s 'length' "$WORK_DIR/mr-stdout" 2>/dev/null)"
+assert_eq "naming the event" "PostToolUse" \
+  "$(jq -r '.hookSpecificOutput.hookEventName // empty' "$WORK_DIR/mr-stdout" 2>/dev/null)"
+assert_eq "and nothing goes to stderr" "" "$(cat "$WORK_DIR/mr-stderr")"
 
 assert_contains "glab is the same event" \
   "$(mr_hook 'glab mr create --fill' 'https://gitlab.com/g/p/-/merge_requests/7')" \
   "DE-810 is still IN PROGRESS"
+
+# Every shape the scan accepts is one a rule spawns: the hook speaks on it with
+# the clock open, and at least one `if` rule matches it. A form the hook acts
+# on that no rule started would be a silent gap — the rules read `*gh pr
+# *create*`, not `gh pr create*`, for `--repo=` before the subcommand and the
+# `env` prefix.
+for CMD in 'gh pr create --fill' 'gh pr --repo=acme/repo create --fill' \
+           'env GH_REPO=acme/repo gh pr create --fill' 'glab mr --repo=g/p create --fill'; do
+  assert_contains "the hook acts on: $CMD" \
+    "$(mr_hook "$CMD" "$MR_URL_GH")" "DE-810 is still IN PROGRESS"
+  assert_eq "and a rule spawns it: $CMD" "true" \
+    "$(rules_match "$MR_RULES" "$CMD" && echo true || echo false)"
+done
 
 # The measurement belongs to whoever posts it. A hook that stopped the clock
 # would close the interval in a session that may never reach the board.
@@ -1726,10 +2733,32 @@ assert_contains "and the hook refuses to choose" "$MR_AMBIGUOUS" "Do not guess"
 # built but not mounted runs nowhere.
 assert_eq "the hook ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/hooks/scripts/post-merge-request.sh" ] && echo true || echo false)"
-assert_eq "and is mounted as a PostToolUse hook on Bash" "true" \
-  "$(jq -e '[.hooks.PostToolUse[] | select(.matcher == "Bash")
-            | .hooks[].command | select(endswith("/post-merge-request.sh"))] | length == 1' \
-       "$REPO_ROOT/dist/dev-setup/hooks/hooks.json" >/dev/null 2>&1 && echo true || echo false)"
+# One rule per handler, and `gh pr create` shares no literal with `glab mr
+# create` that a single rule could hold — so two handlers, one host each
+# (DE-17064). Read from the generated hooks.json: a builder that dropped the
+# key would fail here.
+assert_eq "and is mounted as a PostToolUse hook on Bash, one handler per host" "2" \
+  "$(printf '%s' "$MR_HANDLERS" | jq 'length')"
+# The harness deduplicates identical hook commands, and nothing says `if` is
+# part of the key: two handlers with one command string could collapse into one
+# and the GitLab creation would never spawn the hook. The trailing argument
+# (`gh` / `glab`), which the script never reads, keeps them distinct.
+assert_eq "with two distinct command strings, so neither is deduplicated away" "2" \
+  "$(printf '%s' "$MR_HANDLERS" | jq '[.[].command] | unique | length')"
+assert_eq "each spawning on one host's merge-request creation" \
+  "Bash(*gh pr *create*) Bash(*glab mr *create*)" \
+  "$(printf '%s\n' "$MR_RULES" | LC_ALL=C sort | paste -sd' ' -)"
+
+for CMD in 'git status' 'gh pr view 12 --json body' 'glab mr list'; do
+  assert_eq "no rule spawns: $CMD" "false" \
+    "$(rules_match "$MR_RULES" "$CMD" && echo true || echo false)"
+done
+for CMD in 'gh pr create --fill' 'gh pr --repo=acme/repo create --fill' \
+           'env GH_REPO=acme/repo gh pr create --fill' \
+           'glab mr create --fill' 'glab mr --repo=g/p create --fill'; do
+  assert_eq "a rule spawns: $CMD" "true" \
+    "$(rules_match "$MR_RULES" "$CMD" && echo true || echo false)"
+done
 
 # The skill that actually opens a merge request is the one place the obligation
 # is certain to be loaded when it happens.
@@ -1737,6 +2766,800 @@ assert_contains "vcs-ops says the merge request does not end the task" \
   "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "does not end the task"
 assert_contains "citing the contract that holds both calls" \
   "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "reference/clickup-contract.md"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12b. post-edit.sh: the formatter's report arrives as context (DE-17064)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Same channel as the merge-request hook: a formatter that fails on the file
+# just written is work still to do on it, and the model learns it from
+# `additionalContext`, not from a hook error.
+
+echo ""
+echo "── post-edit.sh (the report is context, not an error) ──"
+
+# A project whose prettier fails, and one whose prettier passes. The fake
+# binaries are what find_bin walks up to — nothing is installed here, and a
+# passing eslint keeps a developer's own copy higher up out of the answer. The
+# failing one prints 45 numbered lines before its marker: the report keeps the
+# last 40, as the gate's MAX_OUTPUT_LINES does.
+make_edit_project() {
+  local dir="$1" exit_code="$2"
+  mkdir -p "$dir/node_modules/.bin"
+  printf 'const a = 1\n' > "$dir/a.ts"
+  printf '#!/bin/sh\nseq 1 45 | sed "s/^/LINE_/"\necho PRETTIER_MARKER\nexit %s\n' "$exit_code" \
+    > "$dir/node_modules/.bin/prettier"
+  printf '#!/bin/sh\nexit 0\n' > "$dir/node_modules/.bin/eslint"
+  chmod +x "$dir/node_modules/.bin/prettier" "$dir/node_modules/.bin/eslint"
+}
+
+# Feeds an Edit payload for the project's a.ts: stdout and stderr to files, the
+# hook's exit code returned.
+edit_hook_raw() {
+  local dir="$1"
+  jq -n --arg f "$dir/a.ts" '{tool_name: "Edit", tool_input: {file_path: $f}}' \
+    | bash "$PLUGIN_HOOKS/post-edit.sh" >"$WORK_DIR/edit-stdout" 2>"$WORK_DIR/edit-stderr"
+}
+
+EDIT_RED="$WORK_DIR/post-edit-red"
+make_edit_project "$EDIT_RED" 1
+edit_hook_raw "$EDIT_RED"
+assert_eq "a failing formatter still exits 0" "0" "$?"
+assert_eq "and reports through one JSON object" "1" \
+  "$(jq -s 'length' "$WORK_DIR/edit-stdout" 2>/dev/null)"
+assert_eq "naming the event" "PostToolUse" \
+  "$(jq -r '.hookSpecificOutput.hookEventName // empty' "$WORK_DIR/edit-stdout" 2>/dev/null)"
+EDIT_CONTEXT="$(jq -r '.hookSpecificOutput.additionalContext // empty' "$WORK_DIR/edit-stdout" 2>/dev/null)"
+assert_contains "whose context says what failed" "$EDIT_CONTEXT" "prettier failed on"
+assert_contains "with the tool's own output" "$EDIT_CONTEXT" "PRETTIER_MARKER"
+assert_eq "and nothing on stderr" "" "$(cat "$WORK_DIR/edit-stderr")"
+# 46 lines of output, 40 kept: LINE_7 is the first that survives the tail.
+assert_contains "the tail of the output is kept" "$EDIT_CONTEXT" "LINE_7"
+assert_eq "and the head is not" "false" \
+  "$(printf '%s\n' "$EDIT_CONTEXT" | grep -qx 'LINE_6' && echo true || echo false)"
+
+EDIT_GREEN="$WORK_DIR/post-edit-green"
+make_edit_project "$EDIT_GREEN" 0
+edit_hook_raw "$EDIT_GREEN"
+assert_eq "a passing formatter exits 0" "0" "$?"
+assert_eq "and says nothing" "" "$(cat "$WORK_DIR/edit-stdout")"
+
+# ── No hook exits 2 ──
+#
+# A hook that reports uses additionalContext; a hook that refuses uses the
+# PreToolUse decision object. A comment may still name the old channel, code
+# may not: the grep reads each line up to its first `#`.
+assert_eq "no hook script exits 2 in code" "" \
+  "$(grep -lE '^[^#]*(^|[^[:alnum:]_])exit[[:space:]]+2([^[:digit:]]|$)' "$PLUGIN_HOOKS"/*.sh \
+     | sed "s|^$REPO_ROOT/||")"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12c. notify.sh: the developer is called back with the task id (DE-17077)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Claude Code's own notification says "Claude needs your permission", not for
+# which task. The hook adds one that names it — and only when a task of this
+# plugin is in play here (an open or just-stopped clock): a hook that speaks on
+# every prompt would be switched off within the week. The notifiers and `uname`
+# are stubs, so both delivery paths are asserted on any host.
+
+echo ""
+echo "── notify.sh (a permission prompt names its task) ──"
+
+NOTIFY_BIN="$WORK_DIR/notify-bin"
+NOTIFY_CALLS="$WORK_DIR/notify-calls"
+export NOTIFY_CALLS
+mkdir -p "$NOTIFY_BIN"
+cat > "$NOTIFY_BIN/uname" <<'STUB'
+#!/bin/sh
+printf '%s\n' "${STUB_OS:-Linux}"
+STUB
+# One line per call: the notifier's name, then each argument after a tab.
+for NOTIFIER in osascript notify-send; do
+  cat > "$NOTIFY_BIN/$NOTIFIER" <<'STUB'
+#!/bin/sh
+{ printf '%s' "$(basename "$0")"; for a in "$@"; do printf '\t%s' "$a"; done; printf '\n'; } >> "$NOTIFY_CALLS"
+exit "${STUB_NOTIFY_EXIT:-0}"
+STUB
+done
+chmod +x "$NOTIFY_BIN"/*
+
+NT_REPO="$WORK_DIR/notify-repo"
+mkdir -p "$NT_REPO"
+(
+  cd "$NT_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b chore/no-task
+) >/dev/null 2>&1
+
+NT_MESSAGE="Claude needs your permission to use Bash"
+
+# Feeds a Notification payload to the hook with the stubs first on PATH: stdout
+# and stderr to files, the calls to $NOTIFY_CALLS, the hook's exit code returned.
+notify_hook_raw() {
+  local type="$1" message="$2" cwd="${3:-$NT_REPO}"
+  : > "$NOTIFY_CALLS"
+  jq -n --arg t "$type" --arg m "$message" --arg cwd "$cwd" \
+    '{hook_event_name: "Notification", notification_type: $t, message: $m, cwd: $cwd}' \
+    | PATH="$NOTIFY_BIN:$PATH" bash "$PLUGIN_HOOKS/notify.sh" \
+      >"$WORK_DIR/notify-stdout" 2>"$WORK_DIR/notify-stderr"
+}
+notify_count() { grep -c . "$NOTIFY_CALLS" 2>/dev/null || true; }
+# The title is the first argument of either notifier: notify-send's first,
+# osascript's first after the script.
+notify_title() { awk -F'\t' '{ print ($1 == "osascript") ? $(NF-1) : $2 }' "$NOTIFY_CALLS"; }
+nt_clock() { (cd "${NT_CLOCK_CWD:-$NT_REPO}" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
+
+# ── Test 2 (REQ-2): nothing in play, nothing said ──
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "no task branch and no clock: exit 0" "0" "$?"
+assert_eq "and no notifier is invoked" "0" "$(notify_count)"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/notify-stdout")"
+
+(cd "$NT_REPO" && git checkout -q -b feat/DE-900_thing) >/dev/null 2>&1
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "a task branch with no clock is not a signal" "0" "$(notify_count)"
+
+# ── Test 1 (REQ-1): a permission prompt with a task in play ──
+nt_clock --task DE-900 --start >/dev/null
+
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "an open clock makes a permission prompt one notification" "1" "$(notify_count)"
+assert_eq "through notify-send on Linux" "notify-send" "$(cut -f1 "$NOTIFY_CALLS")"
+assert_eq "titled with the task" "dev-setup · DE-900" "$(cut -f2 "$NOTIFY_CALLS")"
+assert_eq "with the prompt's message as the body" "$NT_MESSAGE" "$(cut -f3 "$NOTIFY_CALLS")"
+assert_eq "and stdout stays empty" "" "$(cat "$WORK_DIR/notify-stdout")"
+
+STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "on Darwin it is one osascript call" "osascript" \
+  "$(cut -f1 "$NOTIFY_CALLS")$( [ "$(notify_count)" = 1 ] || echo ' (not one call)')"
+assert_eq "whose argv carries the title as its own argument" "dev-setup · DE-900" \
+  "$(awk -F'\t' '{ print $(NF-1) }' "$NOTIFY_CALLS")"
+assert_eq "and the body as the next one" "$NT_MESSAGE" \
+  "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
+assert_eq "never interpolated into the script" "false" \
+  "$(awk -F'\t' '{ for (i = 2; i < NF - 1; i++) print $i }' "$NOTIFY_CALLS" \
+     | grep -q 'DE-900' && echo true || echo false)"
+
+NT_QUOTED="Claude needs \"your\" permission to use Bash's tool"
+STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_QUOTED"
+assert_eq "a message with quotes arrives verbatim in argv" "$NT_QUOTED" \
+  "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
+
+# ── Test 2 (REQ-2): every other notification type is left alone ──
+for NT_TYPE in idle_prompt auth_success agent_needs_input agent_completed; do
+  STUB_OS=Linux notify_hook_raw "$NT_TYPE" "$NT_MESSAGE"
+  assert_eq "$NT_TYPE says nothing, even with a task open" "0:" \
+    "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+done
+
+# ── Test 3 (REQ-3): it fails open ──
+NOJQ_BIN="$WORK_DIR/notify-nojq-bin"
+mkdir -p "$NOJQ_BIN"
+for NT_TOOL in bash git sed grep cat dirname head tr; do
+  ln -sf "$(command -v "$NT_TOOL")" "$NOJQ_BIN/$NT_TOOL"
+done
+ln -sf "$NOTIFY_BIN/uname" "$NOJQ_BIN/uname"
+ln -sf "$NOTIFY_BIN/notify-send" "$NOJQ_BIN/notify-send"
+NT_PAYLOAD=$(jq -n --arg cwd "$NT_REPO" --arg m "$NT_MESSAGE" \
+  '{hook_event_name: "Notification", notification_type: "permission_prompt", message: $m, cwd: $cwd}')
+: > "$NOTIFY_CALLS"
+printf '%s' "$NT_PAYLOAD" | STUB_OS=Linux PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$PLUGIN_HOOKS/notify.sh" \
+  >"$WORK_DIR/notify-stdout" 2>/dev/null
+assert_eq "without jq it exits 0" "0" "$?"
+assert_eq "with an empty stdout and no call" "0:" \
+  "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+NT_LONELY="$WORK_DIR/notify-lonely/hooks"
+mkdir -p "$NT_LONELY"
+cp "$PLUGIN_HOOKS/notify.sh" "$NT_LONELY/notify.sh"
+: > "$NOTIFY_CALLS"
+printf '%s' "$NT_PAYLOAD" | STUB_OS=Linux PATH="$NOTIFY_BIN:$PATH" env -u CLAUDE_PLUGIN_ROOT \
+  bash "$NT_LONELY/notify.sh" >"$WORK_DIR/notify-stdout" 2>/dev/null
+assert_eq "without the plugin scripts it exits 0" "0" "$?"
+assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+STUB_OS=Plan9 notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "an unsupported OS exits 0" "0" "$?"
+assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+mkdir -p "$WORK_DIR/notify-not-a-repo"
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$WORK_DIR/notify-not-a-repo"
+assert_eq "a cwd outside a repository exits 0" "0" "$?"
+assert_eq "and invokes nothing" "0" "$(notify_count)"
+
+STUB_OS=Linux STUB_NOTIFY_EXIT=1 notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "a failing notifier still exits 0" "0" "$?"
+assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/notify-stdout")"
+nt_clock --task DE-900 --stop >/dev/null
+
+# ── Test 4 (REQ-4): the launcher's order, replayed on its checkout ──
+#
+# An autonomous run is launched from the developer checkout, on a branch with
+# no task id. ready-for-mr asks for the merge request with the clock still
+# open; failed stops the clock and then asks for the BLOCKED move.
+NT4_REPO="$WORK_DIR/notify-launcher-repo"
+mkdir -p "$NT4_REPO"
+(
+  cd "$NT4_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b next
+) >/dev/null 2>&1
+
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-901 --start >/dev/null
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "ready-for-mr: the open clock names the run from a branch with no id" \
+  "1:dev-setup · DE-901" "$(notify_count):$(notify_title)"
+
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-902 --start >/dev/null
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "two runs in flight, nothing narrowing: both are named" \
+  "1:dev-setup · DE-901 DE-902" "$(notify_count):$(notify_title)"
+assert_eq "and the hook stops neither clock" "true true" \
+  "$(NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-901 --status | jq -r '.RUNNING') $(NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-902 --status | jq -r '.RUNNING')"
+
+(cd "$NT4_REPO" && git checkout -q -b feat/DE-901_thing) >/dev/null 2>&1
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "a branch naming one of them narrows to it" \
+  "1:dev-setup · DE-901" "$(notify_count):$(notify_title)"
+(cd "$NT4_REPO" && git checkout -q next) >/dev/null 2>&1
+
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-901 --stop >/dev/null
+NT_CLOCK_CWD="$NT4_REPO" nt_clock --task DE-902 --stop >/dev/null
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "failed: the BLOCKED prompt after --stop still names them" \
+  "1:dev-setup · DE-901 DE-902" "$(notify_count):$(notify_title)"
+
+NT4_CLOCKS="$NT4_REPO/.git/dev-setup/task-clock"
+NT4_NOW=$(date +%s)
+for NT_TASK in DE-901 DE-902; do
+  {
+    printf 'start\t%s\t%s\n' "$((NT4_NOW - 1200))" "2026-10-16 09:00"
+    printf 'stop\t%s\t%s\t%s\n' "$((NT4_NOW - 600))" "2026-10-16 09:10" "10"
+  } > "$NT4_CLOCKS/$NT_TASK.log"
+done
+STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
+assert_eq "a stop 600 s old is no longer in play: exit 0" "0" "$?"
+assert_eq "no call, empty stdout" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+
+# The two halves rest on the order of run-outcomes.md: ready-for-mr opens the
+# merge request before it stops the clock, failed stops it before the BLOCKED
+# move. Reordering either changes which half the clocks name, silently.
+NT_OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+NT_READY=$(awk '/^## ready-for-mr/ { p = 1; next } /^## / { p = 0 } p' "$NT_OUTCOMES")
+NT_VCS_LINE=$(printf '%s\n' "$NT_READY" | grep -n 'Then invoke `vcs-ops`' | head -1 | cut -d: -f1)
+NT_STOP_LINE=$(printf '%s\n' "$NT_READY" | grep -n -- '--task <taskId> --stop' | head -1 | cut -d: -f1)
+assert_eq "ready-for-mr invokes vcs-ops before it stops the clock" "true" \
+  "$([ -n "$NT_VCS_LINE" ] && [ -n "$NT_STOP_LINE" ] && [ "$NT_VCS_LINE" -lt "$NT_STOP_LINE" ] \
+     && echo true || echo false)"
+assert_eq "failed stops the clock before the BLOCKED move" "true" \
+  "$(awk '/^## failed/ { p = 1; next } /^## / { p = 0 } p' "$NT_OUTCOMES" \
+     | grep -qE '^4\. Stop the clock, then move the task to `BLOCKED`' && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12d. session-title.sh: the session is named after its task (DE-17077)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# `claude --resume` lists sessions by their first prompt. The hook answers
+# `sessionTitle: "<TASK_ID> <slug>"` from the branch at SessionStart, and from
+# the launch prompt of a single-task flow at UserPromptSubmit — and never over a
+# title the developer chose.
+
+echo ""
+echo "── session-title.sh (the session carries the task's name) ──"
+
+ST_REPO="$WORK_DIR/title-repo"
+mkdir -p "$ST_REPO"
+(
+  cd "$ST_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+  git checkout -q -b feat/DE-123_add-user-auth
+) >/dev/null 2>&1
+
+# Feeds a payload to the hook: stdout and stderr to files, exit code returned.
+# The payload is built by the caller, as jq arguments for the fields it sets.
+title_hook_raw() {
+  local filter="$1"; shift
+  jq -n --arg cwd "${ST_CWD:-$ST_REPO}" "$@" "$filter" \
+    | bash "$PLUGIN_HOOKS/session-title.sh" >"$WORK_DIR/title-stdout" 2>"$WORK_DIR/title-stderr"
+}
+title_start() {
+  title_hook_raw '{hook_event_name: "SessionStart", source: $src, session_title: $t, cwd: $cwd}' \
+    --arg src "${1:-startup}" --arg t "${2:-}"
+}
+title_prompt() {
+  title_hook_raw '{hook_event_name: "UserPromptSubmit", prompt: $p, session_title: $t, cwd: $cwd}' \
+    --arg p "$1" --arg t "${2:-}"
+}
+title_of() { jq -r '.hookSpecificOutput.sessionTitle // empty' "$WORK_DIR/title-stdout" 2>/dev/null; }
+title_event() { jq -r '.hookSpecificOutput.hookEventName // empty' "$WORK_DIR/title-stdout" 2>/dev/null; }
+st_checkout() { (cd "$ST_REPO" && git checkout -q -B "$1") >/dev/null 2>&1; }
+
+# ── Test 5 (REQ-5): the title comes from the branch ──
+title_start startup
+assert_eq "SessionStart on a task branch exits 0" "0" "$?"
+assert_eq "with one JSON object on stdout" "1" "$(jq -s 'length' "$WORK_DIR/title-stdout" 2>/dev/null)"
+assert_eq "naming the event" "SessionStart" "$(title_event)"
+assert_eq "and the task with its slug" "DE-123 add-user-auth" "$(title_of)"
+
+title_start resume
+assert_eq "a resumed session gets the same title" "DE-123 add-user-auth" "$(title_of)"
+
+st_checkout 'feat(auth)/DE-123_add-user-auth'
+title_start startup
+assert_eq "a branch with a context gives the same title" "DE-123 add-user-auth" "$(title_of)"
+
+st_checkout feat/DE-124-add-x
+title_start startup
+assert_eq "the legacy dash delimiter gives the slug after it" "DE-124 add-x" "$(title_of)"
+st_checkout feat/DE-123_add-user-auth
+
+# ── Test 6 (REQ-6): a title the developer chose is kept ──
+title_start startup "my refactor"
+assert_eq "a title of the developer's own is never replaced" "" "$(cat "$WORK_DIR/title-stdout")"
+title_start startup "DE-99 old-thing"
+assert_eq "an earlier task title is the hook's own and is replaced" "DE-123 add-user-auth" "$(title_of)"
+title_start startup "DE-123 add-user-auth"
+assert_eq "a title already right is left alone" "" "$(cat "$WORK_DIR/title-stdout")"
+
+# ── Test 7 (REQ-7): the launch prompt names a session opened on next ──
+(cd "$ST_REPO" && git branch -q feat/DE-125_fix-login && git checkout -q -B next) >/dev/null 2>&1
+title_prompt "/dev-setup:sdd DE-125"
+assert_eq "/dev-setup:sdd <id> titles the session from its local branch" "DE-125 fix-login" "$(title_of)"
+assert_eq "naming the event" "UserPromptSubmit" "$(title_event)"
+title_prompt "/dev-setup:quick DE-126"
+assert_eq "with no branch for the id, the title is the id" "DE-126" "$(title_of)"
+title_prompt "/dev-setup:auto-sdd DE-125 --stop review"
+assert_eq "auto-sdd launches one task too" "DE-125 fix-login" "$(title_of)"
+for ST_PROMPT in "/dev-setup:multi-sdd DE-1 DE-2" "explain DE-125" "/dev-setup:sdd" \
+                 "/dev-setup:sdd DE-125x"; do
+  title_prompt "$ST_PROMPT"
+  assert_eq "silent on: $ST_PROMPT" "0:" "$?:$(cat "$WORK_DIR/title-stdout")"
+done
+title_prompt "/dev-setup:sdd DE-125" "my refactor"
+assert_eq "the launch prompt keeps a title of the developer's own" "" "$(cat "$WORK_DIR/title-stdout")"
+title_prompt "/dev-setup:sdd DE-125" "DE-125 fix-login"
+assert_eq "and says nothing when the title is already right" "" "$(cat "$WORK_DIR/title-stdout")"
+
+# ── Test 8 (REQ-8): silent off a task branch, open when something is missing ──
+st_checkout chore/no-task
+title_start startup
+assert_eq "a branch with no task id says nothing" "0:" "$?:$(cat "$WORK_DIR/title-stdout")"
+title_hook_raw '{hook_event_name: "SessionStart", source: "compact", cwd: $cwd}'
+assert_eq "and so does a compact SessionStart" "" "$(cat "$WORK_DIR/title-stdout")"
+st_checkout feat/DE-123_add-user-auth
+
+ST_PAYLOAD=$(jq -n --arg cwd "$ST_REPO" '{hook_event_name: "SessionStart", source: "startup", cwd: $cwd}')
+printf '%s' "$ST_PAYLOAD" | PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$PLUGIN_HOOKS/session-title.sh" \
+  >"$WORK_DIR/title-stdout" 2>/dev/null
+assert_eq "without jq it exits 0 with an empty stdout" "0:" "$?:$(cat "$WORK_DIR/title-stdout")"
+
+mkdir -p "$WORK_DIR/title-not-a-repo"
+ST_CWD="$WORK_DIR/title-not-a-repo" title_start startup
+assert_eq "a cwd outside a repository exits 0 with an empty stdout" "0:" \
+  "$?:$(cat "$WORK_DIR/title-stdout")"
+
+ST_LONELY="$WORK_DIR/title-lonely/hooks"
+mkdir -p "$ST_LONELY"
+cp "$PLUGIN_HOOKS/session-title.sh" "$ST_LONELY/session-title.sh"
+printf '%s' "$ST_PAYLOAD" | env -u CLAUDE_PLUGIN_ROOT bash "$ST_LONELY/session-title.sh" \
+  >"$WORK_DIR/title-stdout" 2>/dev/null
+assert_eq "without the plugin scripts it exits 0 with an empty stdout" "0:" \
+  "$?:$(cat "$WORK_DIR/title-stdout")"
+
+# ── Test 9 (REQ-9): both hooks ship mounted ──
+#
+# Read from the generated hooks.json: a hook that is built but not mounted runs
+# nowhere, and one mounted on the wrong matcher speaks on the wrong event.
+assert_eq "notify.sh is mounted on Notification, matcher permission_prompt" "permission_prompt" \
+  "$(jq -r '[.hooks.Notification[]? | select(any(.hooks[]; .command | endswith("/notify.sh\"")))
+            | .matcher] | join(",")' "$HOOKS_JSON")"
+assert_eq "session-title.sh is mounted on SessionStart startup|resume" "startup|resume" \
+  "$(jq -r '[.hooks.SessionStart[]? | select(any(.hooks[]; .command | endswith("/session-title.sh\"")))
+            | .matcher] | join(",")' "$HOOKS_JSON")"
+assert_eq "and the compact handler is still on-compact.sh, alone" "1" \
+  "$(jq '[.hooks.SessionStart[]? | select(.matcher == "compact")
+          | select(any(.hooks[]; .command | endswith("/on-compact.sh\"")))] | length' "$HOOKS_JSON")"
+assert_eq "session-title.sh is mounted on UserPromptSubmit" "1" \
+  "$(jq '[.hooks.UserPromptSubmit[]? | .hooks[] | select(.command | endswith("/session-title.sh\""))]
+         | length' "$HOOKS_JSON")"
+for ST_HOOK in notify.sh session-title.sh; do
+  assert_eq "$ST_HOOK ships in the built plugin" "true" \
+    "$([ -x "$REPO_ROOT/dist/dev-setup/hooks/scripts/$ST_HOOK" ] && echo true || echo false)"
+  assert_eq "and the manifest lists it" "true" \
+    "$(jq -e --arg h "$ST_HOOK" '.hooks | index($h) != null' \
+         "$REPO_ROOT/templates/dev-setup/manifest.json" >/dev/null && echo true || echo false)"
+done
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 13. review-package.sh: the diff verify and review read, built once (DE-17080)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The closure used to build the diff twice — once per agent. The package is one
+# file both agents read. Three properties matter: it holds the working tree
+# (staged and unstaged, because nothing is committed at closure time), EMPTY is
+# decided by the diff and never by the commits, and an invalid range fails
+# without leaving a package behind.
+
+echo ""
+echo "── review-package.sh (the review diff, built once) ──"
+
+RP_ERR_FILE="$WORK_DIR/review-package.stderr"
+# Runs the script in a directory; sets RP_OUT, RP_ERR and RP_EXIT.
+rp_run() {
+  local dir="$1"
+  shift
+  RP_OUT=$(cd "$dir" && bash "$PLUGIN_SCRIPTS/review-package.sh" "$@" 2>"$RP_ERR_FILE")
+  RP_EXIT=$?
+  RP_ERR=$(cat "$RP_ERR_FILE" 2>/dev/null)
+}
+rp_key() { printf '%s' "$RP_OUT" | jq -r --arg k "$1" '.[$k]'; }
+# The physical path of a directory, or nothing: /tmp is a symlink on macOS.
+phys_dir() { (cd "$1" 2>/dev/null && pwd -P); }
+
+RP_REPO="$WORK_DIR/review-package-repo"
+mkdir -p "$RP_REPO"
+(
+  cd "$RP_REPO" || exit 1
+  git_init .
+  git symbolic-ref HEAD refs/heads/main
+  git config user.email "test@example.com"
+  git config user.name "Test"
+
+  echo "base" > base.txt
+  for i in $(seq -w 1 30); do echo "row-$i"; done > data.txt
+  git add . && git commit --quiet -m "chore: base"
+
+  git checkout --quiet -b next
+  for i in 1 2 3; do
+    echo "next change $i" > "next-$i.txt"
+    git add . && git commit --quiet -m "feat: next change $i"
+  done
+
+  git checkout --quiet -b 'feat(x)/DE-999_work'
+  sed 's/^row-15$/row-15 changed by the branch/' data.txt > data.tmp && mv data.tmp data.txt
+  git add data.txt && git commit --quiet -m "feat: branch work on data"
+
+  # The closure's own state: one new file staged, one tracked file edited after
+  # the staging (what simplify leaves behind), nothing of it committed.
+  echo "staged content" > staged.txt
+  git add staged.txt
+  echo "appended-unstaged" >> base.txt
+) >/dev/null 2>&1
+
+RP_BASE=$(cd "$RP_REPO" && git merge-base HEAD next)
+RP_STATUS_BEFORE=$(cd "$RP_REPO" && git status --porcelain)
+
+# ── Test 1 (REQ-1): what the package holds ──
+rp_run "$RP_REPO" --base "$RP_BASE" --json
+RP_JSON_1="$RP_OUT"
+RP_PKG_1=$(rp_key PACKAGE)
+assert_eq "review-package: a branch with work exits 0" "0" "$RP_EXIT"
+assert_eq "and is not empty" "false" "$(rp_key EMPTY)"
+assert_eq "the package lives under the common git directory" \
+  "$(phys_dir "$RP_REPO/.git")/dev-setup/review-package" \
+  "$(phys_dir "$(dirname "$RP_PKG_1")")"
+assert_eq "and is named after the slugified branch" "true" \
+  "$(basename "$RP_PKG_1" | grep -q '^feat-x-de-999-work' && echo true || echo false)"
+assert_eq "the script stages nothing" "$RP_STATUS_BEFORE" \
+  "$(cd "$RP_REPO" && git status --porcelain)"
+
+RP_CONTENT=$(cat "$RP_PKG_1" 2>/dev/null)
+assert_contains "the package lists the branch's commit" "$RP_CONTENT" "feat: branch work on data"
+assert_eq "and none of the base branch's" "false" \
+  "$(printf '%s' "$RP_CONTENT" | grep -q 'next change' && echo true || echo false)"
+assert_contains "it carries the stat" "$RP_CONTENT" "3 files changed"
+assert_contains "it carries the staged new file" "$RP_CONTENT" "+staged content"
+assert_contains "and the unstaged edit to a tracked file" "$RP_CONTENT" "+appended-unstaged"
+assert_eq "ten lines of context reach row 5" "true" \
+  "$(printf '%s\n' "$RP_CONTENT" | grep -qx ' row-05' && echo true || echo false)"
+assert_eq "and stop before row 4" "false" \
+  "$(printf '%s\n' "$RP_CONTENT" | grep -qx ' row-04' && echo true || echo false)"
+assert_eq "COMMITS counts the branch's own commits" "1" "$(rp_key COMMITS)"
+assert_eq "FILES counts the changed files" "3" "$(rp_key FILES)"
+assert_eq "CHANGED_LINES is insertions plus deletions" \
+  "$(cd "$RP_REPO" && git diff --numstat "$RP_BASE" | awk '{ s += $1 + $2 } END { print s }')" \
+  "$(rp_key CHANGED_LINES)"
+assert_eq "a few lines in three files are small" "small" "$(rp_key SIZE)"
+
+# ── Test 5 (REQ-1): the script contract ──
+assert_eq "the keys are exactly the documented ones" \
+  "PACKAGE,MERGE_BASE,EMPTY,COMMITS,FILES,CHANGED_LINES,SIZE" \
+  "$(printf '%s' "$RP_JSON_1" | jq -r 'keys_unsorted | join(",")')"
+assert_eq "and every value is a string" "string" \
+  "$(printf '%s' "$RP_JSON_1" | jq -r '[.[] | type] | unique | join(",")')"
+assert_eq "MERGE_BASE is the resolved --base" \
+  "$(cd "$RP_REPO" && git rev-parse "$RP_BASE")" \
+  "$(printf '%s' "$RP_JSON_1" | jq -r '.MERGE_BASE')"
+
+# A second run on the same branch overwrites the package with what is there now.
+(cd "$RP_REPO" && sed 's/^row-20$/row-20 first edit/' data.txt > data.tmp && mv data.tmp data.txt)
+rp_run "$RP_REPO" --base "$RP_BASE" --json
+(cd "$RP_REPO" && sed 's/^row-20 first edit$/row-20 second edit/' data.txt > data.tmp && mv data.tmp data.txt)
+rp_run "$RP_REPO" --base "$RP_BASE" --json
+assert_eq "a rerun returns the same package" "$RP_PKG_1" "$(rp_key PACKAGE)"
+RP_CONTENT=$(cat "$RP_PKG_1" 2>/dev/null)
+assert_contains "and the package holds the current change" "$RP_CONTENT" "+row-20 second edit"
+assert_eq "not the one before it" "false" \
+  "$(printf '%s' "$RP_CONTENT" | grep -q 'row-20 first edit' && echo true || echo false)"
+
+# Two branches — two worktrees — get two packages.
+(cd "$RP_REPO" && git checkout --quiet -b 'feat(y)/DE-998_other') >/dev/null 2>&1
+rp_run "$RP_REPO" --base "$RP_BASE" --json
+RP_PKG_OTHER=$(rp_key PACKAGE)
+assert_eq "another branch gets another package" "true" \
+  "$([ -n "$RP_PKG_OTHER" ] && [ "$RP_PKG_OTHER" != "$RP_PKG_1" ] && echo true || echo false)"
+assert_eq "and the first branch's package stays" "true" \
+  "$([ -f "$RP_PKG_1" ] && echo true || echo false)"
+
+# ── Test 2 (REQ-2): no change, no package ──
+(
+  cd "$RP_REPO" || exit 1
+  git checkout --quiet 'feat(x)/DE-999_work'
+  git add -A && git commit --quiet -m "feat: the rest of the work"
+) >/dev/null 2>&1
+rp_run "$RP_REPO" --base HEAD --json
+assert_eq "a clean tree against HEAD exits 0" "0" "$RP_EXIT"
+assert_eq "and is empty" "true" "$(rp_key EMPTY)"
+assert_eq "with no package" "" "$(rp_key PACKAGE)"
+assert_eq "no size" "" "$(rp_key SIZE)"
+assert_eq "no file" "0" "$(rp_key FILES)"
+assert_eq "and no changed line" "0" "$(rp_key CHANGED_LINES)"
+assert_eq "the stale package of the branch is removed" "false" \
+  "$([ -e "$RP_PKG_1" ] && echo true || echo false)"
+assert_eq "another branch's package is left alone" "true" \
+  "$([ -f "$RP_PKG_OTHER" ] && echo true || echo false)"
+
+# ── Test 2b (REQ-2): staged work and no commit is the closure's state ──
+(
+  cd "$RP_REPO" || exit 1
+  git checkout --quiet -b 'feat/DE-997_staged'
+  echo "only staged" > only-staged.txt
+  git add only-staged.txt
+) >/dev/null 2>&1
+rp_run "$RP_REPO" --base HEAD --json
+assert_eq "staged work with no commit is not empty" "false" "$(rp_key EMPTY)"
+assert_eq "COMMITS is reported, not used to decide" "0" "$(rp_key COMMITS)"
+assert_eq "the staged file is counted" "1" "$(rp_key FILES)"
+assert_contains "and is in the package" "$(cat "$(rp_key PACKAGE)" 2>/dev/null)" "+only staged"
+
+# ── Test 2c (REQ-2): a commit and its revert change nothing ──
+(
+  cd "$RP_REPO" || exit 1
+  git commit --quiet -m "feat: staged work"
+  git checkout --quiet -b 'feat/DE-996_revert'
+) >/dev/null 2>&1
+RP_BEFORE=$(cd "$RP_REPO" && git rev-parse HEAD)
+(
+  cd "$RP_REPO" || exit 1
+  echo "short-lived" > short-lived.txt
+  git add short-lived.txt && git commit --quiet -m "feat: short-lived"
+  git revert --no-edit HEAD
+) >/dev/null 2>&1
+rp_run "$RP_REPO" --base "$RP_BEFORE" --json
+assert_eq "commits whose sum is nothing are empty" "true" "$(rp_key EMPTY)"
+assert_eq "and leave no package file" "" \
+  "$(find "$(cd "$RP_REPO" && phys_dir "$(git rev-parse --git-common-dir)")/dev-setup/review-package" \
+       -name 'feat-de-996-revert*' 2>/dev/null)"
+
+# ── Test 3 (REQ-3): an invalid range fails without a package ──
+RP_PKG_DIR="$(phys_dir "$RP_REPO/.git")/dev-setup/review-package"
+RP_LISTING_BEFORE=$(ls -1 "$RP_PKG_DIR" 2>/dev/null)
+(cd "$RP_REPO" && echo "pending" > pending.txt && git add pending.txt) >/dev/null 2>&1
+
+rp_run "$RP_REPO" --base does-not-exist --json
+assert_eq "an unknown --base exits non-zero" "true" "$([ "$RP_EXIT" -ne 0 ] && echo true || echo false)"
+assert_eq "and prints nothing on stdout" "" "$RP_OUT"
+assert_contains "and names the ref" "$RP_ERR" "does-not-exist"
+
+rp_run "$RP_REPO" --json
+assert_eq "a missing --base exits non-zero" "true" "$([ "$RP_EXIT" -ne 0 ] && echo true || echo false)"
+assert_eq "and prints nothing on stdout" "" "$RP_OUT"
+assert_contains "and names --base" "$RP_ERR" "--base"
+
+rp_run "$RP_REPO" --base HEAD --bogus
+assert_eq "an unknown argument exits non-zero" "true" "$([ "$RP_EXIT" -ne 0 ] && echo true || echo false)"
+assert_eq "and prints nothing on stdout" "" "$RP_OUT"
+assert_contains "and names it" "$RP_ERR" "--bogus"
+
+RP_NOT_A_REPO="$WORK_DIR/review-package-not-a-repo"
+mkdir -p "$RP_NOT_A_REPO"
+rp_run "$RP_NOT_A_REPO" --base HEAD --json
+assert_eq "a run outside a repository exits non-zero" "true" "$([ "$RP_EXIT" -ne 0 ] && echo true || echo false)"
+assert_eq "and prints nothing on stdout" "" "$RP_OUT"
+assert_contains "and names git" "$RP_ERR" "git"
+
+assert_eq "no invalid run wrote a package" "$RP_LISTING_BEFORE" "$(ls -1 "$RP_PKG_DIR" 2>/dev/null)"
+
+# ── Test 4 (REQ-4): the size thresholds ──
+RP_SIZE_REPO="$WORK_DIR/review-package-size"
+mkdir -p "$RP_SIZE_REPO"
+(
+  cd "$RP_SIZE_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  echo "base" > base.txt
+  git add . && git commit --quiet -m "chore: base"
+) >/dev/null 2>&1
+
+# Stages a fresh change of $1 lines in one file, or one line in each of $2 files.
+rp_size_of() {
+  (
+    cd "$RP_SIZE_REPO" || exit 1
+    git reset --quiet --hard HEAD
+    if [ "$1" -gt 0 ]; then
+      seq 1 "$1" > lines.txt
+    else
+      for i in $(seq 1 "$2"); do echo "one" > "file-$i.txt"; done
+    fi
+    git add -A
+  ) >/dev/null 2>&1
+  rp_run "$RP_SIZE_REPO" --base HEAD --json
+  rp_key SIZE
+}
+assert_eq "300 changed lines are small" "small" "$(rp_size_of 300 0)"
+assert_eq "301 changed lines are large" "large" "$(rp_size_of 301 0)"
+assert_eq "10 files are small" "small" "$(rp_size_of 0 10)"
+assert_eq "11 files are large" "large" "$(rp_size_of 0 11)"
+assert_contains "the line threshold is a named constant" \
+  "$(cat "$PLUGIN_SCRIPTS/review-package.sh")" "LARGE_CHANGED_LINES=300"
+assert_contains "the file threshold is a named constant" \
+  "$(cat "$PLUGIN_SCRIPTS/review-package.sh")" "LARGE_FILES=10"
+
+# ── Test 6 (REQ-12): it ships ──
+assert_eq "the manifest lists review-package.sh" "true" \
+  "$(jq -e '.plugin_scripts | index("review-package.sh") != null' \
+       "$REPO_ROOT/templates/dev-setup/manifest.json" >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "review-package.sh ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/review-package.sh" ] && echo true || echo false)"
+assert_eq "the AGENTS.md script table names it with its keys" "true" \
+  "$(grep -E '^\| `review-package\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'CHANGED_LINES' && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 14. verify and review: one package, short answers (DE-17080)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The agents read the package and cannot rebuild the diff: the proof is that
+# they have no Bash, not a sentence asking them not to. Both answer short — the
+# problems, never the list of what is fine.
+
+echo ""
+echo "── verify and review read one package and answer short ──"
+
+AGENTS_SRC="$REPO_ROOT/templates/dev-setup/.claude/agents"
+SKILLS_SRC="$REPO_ROOT/templates/dev-setup/.claude/skills"
+
+# ── Test 7 (REQ-5): no agent can regenerate the diff ──
+assert_eq "no agent runs git diff" "" \
+  "$(grep -l 'git diff' "$AGENTS_SRC"/*.md 2>/dev/null)"
+for AGENT_FILE in verify.md review.md; do
+  assert_eq "$AGENT_FILE has no Bash in its tools" "false" \
+    "$(frontmatter_of "$AGENTS_SRC/$AGENT_FILE" | grep '^tools:' | grep -q 'Bash' && echo true || echo false)"
+  assert_contains "$AGENT_FILE takes PACKAGE as input" \
+    "$(cat "$AGENTS_SRC/$AGENT_FILE")" "- **PACKAGE**"
+done
+
+# ── Test 9 (REQ-8, REQ-9): the reviewer's model and its short contract ──
+REVIEW_FM="$(frontmatter_of "$AGENTS_SRC/review.md")"
+VERIFY_FM="$(frontmatter_of "$AGENTS_SRC/verify.md")"
+assert_contains "code-reviewer defaults to opus" "$REVIEW_FM" "model: opus"
+assert_contains "at high effort" "$REVIEW_FM" "effort: high"
+assert_eq "and never max" "false" \
+  "$(printf '%s' "$REVIEW_FM" | grep -q 'effort: max' && echo true || echo false)"
+assert_contains "spec-verifier stays on opus" "$VERIFY_FM" "model: opus"
+assert_contains "at high effort" "$VERIFY_FM" "effort: high"
+REVIEW_AGENT="$(cat "$AGENTS_SRC/review.md")"
+assert_contains "the review contract caps warnings at 5" "$REVIEW_AGENT" "at most 5"
+assert_contains "a violation carries file, line and proof" "$REVIEW_AGENT" \
+  "] <file>:<line> — <why it blocks> — proof: <how to show it>"
+assert_contains "a warning carries file and line" "$REVIEW_AGENT" \
+  "  - <file>:<line> — <suggestion>"
+assert_contains "a remark with no file and line is not reported" "$REVIEW_AGENT" \
+  "cannot be tied to a file and line is not reported"
+assert_contains "the answer never lists what is fine" "$REVIEW_AGENT" "never lists what is fine"
+
+# ── Test 14 (REQ-13): the verify answer is counts plus gaps ──
+CHECKS_MD="$(cat "$SKILLS_SRC/verify/reference/checks.md")"
+assert_contains "the verify block counts" "$CHECKS_MD" \
+  "COUNTS: requirements <covered>/<total> · tests <found>/<total> · decisions <followed>/<total> · Impact files <touched>/<total>"
+assert_contains "and lists the gaps" "$CHECKS_MD" "GAPS:"
+assert_eq "the per-item COMPLETENESS list is gone" "false" \
+  "$(printf '%s' "$CHECKS_MD" | grep -q 'COMPLETENESS:' && echo true || echo false)"
+assert_contains "what matches is not listed" "$CHECKS_MD" \
+  "Covered requirements, found tests and followed decisions are not listed"
+assert_eq "the verify skill no longer promises a list of what matches" "false" \
+  "$(grep -q 'an explicit list of what matches' "$SKILLS_SRC/verify/SKILL.md" && echo true || echo false)"
+
+# ── Test 9 (REQ-8): only a large change is promoted ──
+REVIEW_SKILL="$(cat "$SKILLS_SRC/review/SKILL.md")"
+assert_eq "the review skill passes model: fable on a large SIZE" "true" \
+  "$(printf '%s\n' "$REVIEW_SKILL" | grep 'model: fable' | grep -q '`large`' && echo true || echo false)"
+
+# ── Test 10 (REQ-10, REQ-12): the validator exists and ships ──
+VALIDATOR="$AGENTS_SRC/validate-findings.md"
+VALIDATOR_FM="$(frontmatter_of "$VALIDATOR" 2>/dev/null)"
+assert_contains "the validator is named finding-validator" "$VALIDATOR_FM" "name: finding-validator"
+assert_contains "it runs on sonnet" "$VALIDATOR_FM" "model: sonnet"
+assert_contains "at medium effort" "$VALIDATOR_FM" "effort: medium"
+assert_eq "and has no Bash either" "false" \
+  "$(printf '%s\n' "$VALIDATOR_FM" | grep '^tools:' | grep -q 'Bash' && echo true || echo false)"
+VALIDATOR_BODY="$(cat "$VALIDATOR" 2>/dev/null)"
+for NEEDLE in "---VALIDATION-RESULT---" "CONFIRMED:" "DISCARDED:"; do
+  assert_contains "the validator returns $NEEDLE" "$VALIDATOR_BODY" "$NEEDLE"
+done
+assert_contains "the review skill launches the validator" "$REVIEW_SKILL" \
+  'Launch the `finding-validator` agent'
+assert_contains "the final report counts the discarded findings" \
+  "$(cat "$SKILLS_SRC/review/reference/registry-updates.md")" "Discarded: <count>"
+assert_eq "the manifest lists validate-findings.md" "true" \
+  "$(jq -e '.template_agents | index("validate-findings.md") != null' \
+       "$REPO_ROOT/templates/dev-setup/manifest.json" >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "the validator ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/agents/validate-findings.md" ] && echo true || echo false)"
+
+# ── Test 11 (REQ-10): what counts, and what an error means ──
+assert_contains "an entry without file:line is discarded" "$VALIDATOR_BODY" \
+  'An entry without `file:line` is discarded'
+assert_contains "the review status is decided on CONFIRMED" "$REVIEW_SKILL" \
+  'The status is decided on `CONFIRMED`'
+assert_contains "with no validation block every violation stands" "$REVIEW_SKILL" \
+  'no `---VALIDATION-RESULT---` block, every violation stands'
+assert_contains "and the validator is not launched for nothing" "$REVIEW_SKILL" \
+  'With no violations, the validator is not launched'
+
+# ── Test 8 (REQ-5, REQ-6): the closure packages once and runs both checks ──
+CLOSURE="$SKILLS_SRC/sdd/reference/closure.md"
+assert_eq "the closure builds the package exactly once" "1" \
+  "$(grep -o 'review-package\.sh' "$CLOSURE" | wc -l | tr -d ' ')"
+# Step 3 is the block between its heading and step 4's.
+CLOSURE_STEP3="$(sed -n '/^## 3\. /,/^## 4\. /p' "$CLOSURE")"
+line_of() { printf '%s\n' "$1" | grep -nF -- "$2" | head -1 | cut -d: -f1; }
+STAGE_AT="$(line_of "$CLOSURE_STEP3" 'git add -A')"
+PACKAGE_AT="$(line_of "$CLOSURE_STEP3" 'review-package.sh')"
+assert_eq "step 3 stages before it packages" "true" \
+  "$([ -n "$STAGE_AT" ] && [ -n "$PACKAGE_AT" ] && [ "$STAGE_AT" -lt "$PACKAGE_AT" ] && echo true || echo false)"
+CLOSURE_MD="$(cat "$CLOSURE")"
+assert_contains "both skills get the one package" "$CLOSURE_MD" \
+  'Invoke the `verify` and `review` skills in the same turn, each with `PACKAGE` and `SIZE`'
+assert_contains "and both agents launch in one message" "$CLOSURE_MD" \
+  'launch `spec-verifier` and `code-reviewer` in one message'
+assert_contains "an empty change stops the closure" "$CLOSURE_MD" \
+  '`EMPTY=true` stops the closure: nothing to verify or review'
+OUTCOME_1="$(line_of "$CLOSURE_MD" '1. **verify fail** → back to development')"
+OUTCOME_2="$(line_of "$CLOSURE_MD" '2. otherwise **review fail** → fix the `CONFIRMED` violations and rerun from step 3')"
+OUTCOME_3="$(line_of "$CLOSURE_MD" '3. otherwise **verify pass-with-warnings** → show the warnings and ask')"
+OUTCOME_4="$(line_of "$CLOSURE_MD" '4. otherwise → step 5')"
+assert_eq "the two results are read in one order" "true" \
+  "$([ -n "$OUTCOME_1" ] && [ -n "$OUTCOME_2" ] && [ -n "$OUTCOME_3" ] && [ -n "$OUTCOME_4" ] \
+       && [ "$OUTCOME_1" -lt "$OUTCOME_2" ] && [ "$OUTCOME_2" -lt "$OUTCOME_3" ] \
+       && [ "$OUTCOME_3" -lt "$OUTCOME_4" ] && echo true || echo false)"
+assert_contains "the developer guide runs the two checks in parallel" \
+  "$(cat "$REPO_ROOT/docs/developer-guide.md")" "verify ∥ review"
+
+# ── Test 12 (REQ-7): invoked on their own, the skills build the package ──
+for SKILL_NAME in verify review; do
+  SKILL_BODY="$(cat "$SKILLS_SRC/$SKILL_NAME/SKILL.md")"
+  assert_contains "$SKILL_NAME accepts a PACKAGE from its caller" "$SKILL_BODY" 'With a `PACKAGE` given'
+  assert_contains "$SKILL_NAME builds one otherwise" "$SKILL_BODY" \
+    'review-package.sh" --base <MERGE_BASE> --json'
+  assert_contains "$SKILL_NAME launches no agent on an empty change" "$SKILL_BODY" \
+    '`EMPTY=true` means there is nothing to'
+done
+bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict >/dev/null 2>&1
+assert_eq "the static checks pass, word budgets included" "0" "$?"
 
 echo ""
 echo "══ DE-16488 — the documentation cannot go stale in silence ══"
@@ -1867,11 +3690,761 @@ assert_eq "no setup reference registers an MCP server with --type url" "false" \
   "$(grep -rq -- '--type url' "$REPO_ROOT/templates/dev-setup/setup" \
        "$REPO_ROOT/dist/dev-setup/skills/setup" && echo true || echo false)"
 
-# The asks in the setup are real tool calls: the skill has to be allowed to make
-# them. `install.md` alone instructs three of them.
-assert_contains "the setup skill may call AskUserQuestion" \
-  "$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")" \
-  "AskUserQuestion"
+# The asks in the setup are real AskUserQuestion calls — `install.md` alone
+# instructs three of them — so nothing may take that tool away. The documented
+# rule: `allowed-tools` only pre-approves the tools it lists and restricts none;
+# `disallowed-tools` is the one field that removes a tool, until the developer's
+# next message. So the setup declares the tools it does not need there, and
+# AskUserQuestion is callable because that line does not name it. No `model:`
+# either: an override either lasts one turn of a multi-turn setup, paying two
+# cache re-keys, or silently moves the rest of the session to another model.
+SETUP_FM="$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")"
+SETUP_DISALLOWED="$(printf '%s\n' "$SETUP_FM" | grep '^disallowed-tools:')"
+assert_eq "the setup declares no allowed-tools, which would restrict nothing" "" \
+  "$(printf '%s\n' "$SETUP_FM" | grep '^allowed-tools:')"
+assert_eq "the setup does not switch the session model" "" \
+  "$(printf '%s\n' "$SETUP_FM" | grep '^model:')"
+for TOOL in Agent WebFetch WebSearch; do
+  assert_contains "the setup removes $TOOL through disallowed-tools" "$SETUP_DISALLOWED" "$TOOL"
+done
+assert_eq "and leaves AskUserQuestion callable" "false" \
+  "$(printf '%s' "$SETUP_DISALLOWED" | grep -q 'AskUserQuestion' && echo true || echo false)"
+
+echo ""
+echo "══ DE-17061 — what the claude.dev analysis found ══"
+
+# REQ-3. `gh *` / `glab *` in excludedCommands only helps a call that has no
+# `$(…)`, no subshell, no `cd` and no redirect: any of them keeps the whole call
+# sandboxed, where on macOS it fails TLS verification. So every merge-request
+# form in the references passes literal values, single-quoted — never a
+# substitution and never a double-quoted string a filled title could turn into
+# one. Pinned on the source and on the shipped copy.
+for VCS_DIR in "$REPO_ROOT/shared/skills/vcs-ops/reference" \
+               "$REPO_ROOT/dist/dev-setup/skills/vcs-ops/reference"; do
+  WHERE="${VCS_DIR#"$REPO_ROOT"/}"
+  assert_eq "$WHERE: no merge-request row carries a \$ or a double-quoted value" "" \
+    "$(grep -hE '^\|' "$VCS_DIR/github.md" "$VCS_DIR/gitlab.md" \
+         | grep -E 'gh pr create|glab mr create|--description' | grep -E '[$"]')"
+  assert_eq "$WHERE: gitlab.md suggests no \$(cat body.md) and no double-quoted description" "" \
+    "$(grep -nF -e '$(cat body.md)' -e '--description "' "$VCS_DIR/gitlab.md")"
+  for NEEDLE in "--base '<BASE_BRANCH>'" "--head '<BRANCH>'" "--title '<TITLE>'" "'\\''"; do
+    assert_contains "$WHERE: github.md passes $NEEDLE" "$(cat "$VCS_DIR/github.md")" "$NEEDLE"
+  done
+  for NEEDLE in "--source-branch '<BRANCH>'" "--target-branch '<BASE_BRANCH>'" "--title '<TITLE>'" "'\\''"; do
+    assert_contains "$WHERE: gitlab.md passes $NEEDLE" "$(cat "$VCS_DIR/gitlab.md")" "$NEEDLE"
+  done
+done
+
+# REQ-4. A `userConfig` value reaches a plugin in two ways only: substituted as
+# `${user_config.KEY}` in the body of a skill or an agent, and exported to hooks
+# as CLAUDE_PLUGIN_OPTION_<KEY>. Bash and Read see neither, so the contract may
+# not send a flow to "read the plugin's userConfig" — the clickup skill states
+# the value, and the contract points there.
+for F in "templates/dev-setup/.claude/reference/clickup-contract.md" \
+         "templates/dev-setup/setup/reference/mcp-env.md" \
+         "dist/dev-setup/reference/clickup-contract.md" \
+         "dist/dev-setup/skills/setup/reference/mcp-env.md"; do
+  assert_eq "$F does not send a flow to read the plugin's userConfig" "false" \
+    "$(grep -qF "plugin's \`userConfig\`" "$REPO_ROOT/$F" && echo true || echo false)"
+done
+for F in "shared/skills/clickup/SKILL.md" "dist/dev-setup/skills/clickup/SKILL.md"; do
+  assert_contains "$F states the install-time list id" \
+    "$(cat "$REPO_ROOT/$F")" '${user_config.CLICKUP_SETUP_LIST_ID}'
+done
+assert_contains "the contract resolves the list id through the clickup skill" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/clickup-contract.md")" \
+  "list configured at install time"
+
+# A placeholder naming a key the manifest does not declare is never substituted:
+# the model would read the literal text. Every one must name a declared key.
+undeclared_user_config() {
+  local declared
+  declared="$(jq -r '.userConfig // {} | keys[]' "$REPO_ROOT/dist/dev-setup/.claude-plugin/plugin.json")"
+  grep -rhoE '\$\{user_config\.[A-Za-z0-9_]+\}' "$@" 2>/dev/null \
+    | sed -E 's/^\$\{user_config\.//; s/\}$//' | LC_ALL=C sort -u \
+    | while IFS= read -r KEY; do
+        printf '%s\n' "$declared" | grep -qxF "$KEY" || printf '%s\n' "$KEY"
+      done
+}
+assert_eq "every \${user_config.KEY} in a shipped skill or agent is declared" "" \
+  "$(undeclared_user_config "$REPO_ROOT/dist/dev-setup/skills" "$REPO_ROOT/dist/dev-setup/agents")"
+UC_PROBE="$WORK_DIR/user-config-probe"
+mkdir -p "$UC_PROBE"
+printf 'List: ${user_config.CLICKUP_SETUP_LIST_ID}, team: ${user_config.NOT_DECLARED}\n' \
+  > "$UC_PROBE/SKILL.md"
+assert_eq "and the check catches an undeclared key" "NOT_DECLARED" \
+  "$(undeclared_user_config "$UC_PROBE")"
+
+# REQ-6. AGENTS.md is the ground truth for an agent, so it may not credit the
+# setup with a boundary its frontmatter does not draw.
+AGENTS_MD="$(cat "$REPO_ROOT/AGENTS.md")"
+assert_eq "AGENTS.md no longer says allowed-tools denies the agent launcher" "false" \
+  "$(printf '%s' "$AGENTS_MD" | grep -q 'denies the agent launcher and the network' && echo true || echo false)"
+assert_contains "AGENTS.md describes the setup's disallowed-tools" "$AGENTS_MD" "disallowed-tools"
+assert_eq "the AGENTS.md version footer moved past 2.25.0" "false" \
+  "$(printf '%s' "$AGENTS_MD" | grep -q '^\*Version: 2\.25\.0 ' && echo true || echo false)"
+
+# DE-17064. The hooks changed channel and filter, and the two pages that
+# describe them have to say so: AGENTS.md is the ground truth for an agent, the
+# developer guide is what a person reads when the gate or the reminder behaves
+# differently from what they expected.
+assert_eq "AGENTS.md no longer calls exit 2 the channel" "false" \
+  "$(printf '%s' "$AGENTS_MD" | grep -q 'Exit 2 is the channel' && echo true || echo false)"
+assert_contains "AGENTS.md names additionalContext as the channel" "$AGENTS_MD" "additionalContext"
+assert_contains "and the gate's if rule" "$AGENTS_MD" 'Bash(*git *commit*)'
+DEV_GUIDE_MD="$(cat "$REPO_ROOT/docs/developer-guide.md")"
+assert_contains "the developer guide names the gate's if rule" "$DEV_GUIDE_MD" 'Bash(*git *commit*)'
+assert_contains "and says the reminder arrives as context" "$DEV_GUIDE_MD" "additionalContext"
+
+# REQ-8. A skill launches an agent by its frontmatter `name:`, not by its file
+# name: review.md is `code-reviewer`, verify.md is `spec-verifier`. A name that
+# resolves to no agent sends the launcher looking for one that does not exist.
+AGENT_NAMES="$SHIPPED_AGENTS"
+UNKNOWN_AGENTS="$(grep -rhoE 'Launch the `[^`]+` agent' \
+    "$REPO_ROOT/templates/dev-setup/.claude/skills" "$REPO_ROOT/shared/skills" \
+  | sed -E 's/^Launch the `//; s/` agent$//' | LC_ALL=C sort -u \
+  | while IFS= read -r NAME; do
+      printf '%s\n' "$AGENT_NAMES" | grep -qxF "$NAME" || printf '%s\n' "$NAME"
+    done)"
+assert_eq "every \"Launch the \`<name>\` agent\" names an agent's frontmatter name" "" "$UNKNOWN_AGENTS"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 15. instruction-files.sh: which instruction file Claude Code reads (DE-17167)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Claude Code reads AGENTS.md only when no CLAUDE.md, .claude/CLAUDE.md or
+# CLAUDE.local.md sits in the directory or above it. Telling the one-line shim
+# the setup used to write from a CLAUDE.md the team wrote is the step that can
+# destroy instructions, so it is a script with fixtures, not prose.
+
+echo ""
+echo "── instruction-files.sh (which instruction file Claude Code reads) ──"
+
+IF_SCRIPT="$PLUGIN_SCRIPTS/instruction-files.sh"
+
+# One `<key>` of the JSON object, as lines.
+if_key() { printf '%s' "$1" | jq -r --arg k "$2" '.[$k] // "<missing>"'; }
+
+# Every file under a tree with its checksum, plus every path: a run that wrote,
+# removed or created anything changes it.
+if_tree_sum() {
+  (cd "$1" && { find . -print | LC_ALL=C sort; find . -type f -exec cksum {} + | LC_ALL=C sort; })
+}
+
+# ── Test 1 (REQ-2): shims, custom files, local files ──
+IF_TREE="$WORK_DIR/if-scan"
+mkdir -p "$IF_TREE/apps/web" "$IF_TREE/apps/api" "$IF_TREE/apps/admin/.claude" \
+  "$IF_TREE/libs/ui" "$IF_TREE/apps/x" "$IF_TREE/node_modules/pkg" \
+  "$IF_TREE/.claude/worktrees/DE-1"
+for D in "" apps/web apps/api apps/admin apps/x node_modules/pkg .claude/worktrees/DE-1; do
+  printf '# Agents\n' > "$IF_TREE/${D:+$D/}AGENTS.md"
+done
+printf '@AGENTS.md\n' > "$IF_TREE/CLAUDE.md"
+printf '@AGENTS.md  \r\n\n' > "$IF_TREE/apps/web/CLAUDE.md"
+printf '@AGENTS.md\nUse pnpm.' > "$IF_TREE/apps/api/CLAUDE.md"
+printf 'Be terse.' > "$IF_TREE/apps/admin/.claude/CLAUDE.md"
+printf 'Notes' > "$IF_TREE/libs/ui/CLAUDE.md"
+printf '\n@AGENTS.md' > "$IF_TREE/apps/x/CLAUDE.md"
+printf 'my local notes\n' > "$IF_TREE/CLAUDE.local.md"
+printf '@AGENTS.md\n' > "$IF_TREE/node_modules/pkg/CLAUDE.md"
+printf '@AGENTS.md\n' > "$IF_TREE/.claude/worktrees/DE-1/CLAUDE.md"
+
+IF_SUM_BEFORE="$(if_tree_sum "$IF_TREE")"
+IF_OUT="$(bash "$IF_SCRIPT" --json --dir "$IF_TREE" 2>/dev/null)"
+IF_ALL="$(for K in SHIMS CUSTOM UNIMPORTED LOCAL; do if_key "$IF_OUT" "$K"; echo; done)"
+
+assert_eq "SHIMS is exactly the files that hold only @AGENTS.md" \
+  "CLAUDE.md
+apps/web/CLAUDE.md" "$(if_key "$IF_OUT" SHIMS)"
+assert_eq "CUSTOM is every other CLAUDE.md that shadows an AGENTS.md" \
+  "apps/admin/.claude/CLAUDE.md
+apps/api/CLAUDE.md
+apps/x/CLAUDE.md" "$(if_key "$IF_OUT" CUSTOM)"
+assert_eq "UNIMPORTED is the custom file with no @AGENTS.md line" \
+  "apps/admin/.claude/CLAUDE.md" "$(if_key "$IF_OUT" UNIMPORTED)"
+assert_eq "LOCAL is the CLAUDE.local.md" "CLAUDE.local.md" "$(if_key "$IF_OUT" LOCAL)"
+assert_eq "nothing under node_modules/ or .claude/worktrees/ is listed" "false" \
+  "$(printf '%s' "$IF_ALL" | grep -q 'node_modules\|worktrees' && echo true || echo false)"
+assert_eq "a CLAUDE.md with no AGENTS.md beside it is in no list" "false" \
+  "$(printf '%s' "$IF_ALL" | grep -q 'libs/ui' && echo true || echo false)"
+
+# ── Test 2 (REQ-3): the files above the project ──
+# Only the lines under the fixture base are asserted: in CI the meta-repo's own
+# CLAUDE.md sits above the repo-local work directory.
+IF_BASE="$WORK_DIR/if-above"
+mkdir -p "$IF_BASE/parent/proj" "$IF_BASE/.claude"
+printf '# Agents\n' > "$IF_BASE/parent/proj/AGENTS.md"
+printf 'local\n' > "$IF_BASE/parent/CLAUDE.local.md"
+printf 'above\n' > "$IF_BASE/CLAUDE.md"
+printf 'user\n' > "$IF_BASE/.claude/CLAUDE.md"
+IF_ABOVE="$(HOME="$IF_BASE" bash "$IF_SCRIPT" --json --dir "$IF_BASE/parent/proj" 2>/dev/null \
+  | jq -r '.ABOVE')"
+# The lines of stdin under the directory $1. A function, not a `case` inside
+# `$(…)`: bash 3.2 misparses the pattern's `)` there.
+if_lines_under() {
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      "$1"/*) printf '%s\n' "$line" ;;
+    esac
+  done
+}
+IF_ABOVE_UNDER="$(printf '%s\n' "$IF_ABOVE" | if_lines_under "$IF_BASE" | LC_ALL=C sort)"
+assert_eq "ABOVE lists the CLAUDE.md and CLAUDE.local.md above the project" \
+  "$(printf '%s\n%s' "$IF_BASE/CLAUDE.md" "$IF_BASE/parent/CLAUDE.local.md" | LC_ALL=C sort)" \
+  "$IF_ABOVE_UNDER"
+assert_eq "ABOVE never lists the user's ~/.claude/CLAUDE.md" "false" \
+  "$(printf '%s\n' "$IF_ABOVE" | grep -qxF "$IF_BASE/.claude/CLAUDE.md" && echo true || echo false)"
+
+IF_BASE2="$WORK_DIR/if-above2"
+mkdir -p "$IF_BASE2/proj"
+IF_ABOVE2="$(bash "$IF_SCRIPT" --json --dir "$IF_BASE2/proj" 2>/dev/null | jq -r '.ABOVE')"
+assert_eq "with no instruction file above, ABOVE names nothing there" "false" \
+  "$(printf '%s\n' "$IF_ABOVE2" | grep -q "^$IF_BASE2/" && echo true || echo false)"
+
+# ── Test 3 (REQ-4): the client version, compared per component ──
+IF_BIN="$WORK_DIR/if-bin"
+mkdir -p "$IF_BIN"
+# shellcheck disable=SC2016
+printf '#!/bin/sh\ncat "$(dirname "$0")/version.txt"\n' > "$IF_BIN/claude"
+chmod +x "$IF_BIN/claude"
+if_version_ok() {
+  printf '%s\n' "$1" > "$IF_BIN/version.txt"
+  PATH="$IF_BIN:$PATH" bash "$IF_SCRIPT" --json --dir "$IF_TREE" 2>/dev/null \
+    | jq -r '"\(.VERSION_OK)|\(.CLAUDE_VERSION)|\(.MIN_CLAUDE_VERSION)"'
+}
+for V in 2.1.281 2.1.300 2.2.0 2.1.1000; do
+  assert_eq "claude $V is at or above the floor" "true|$V|2.1.281" \
+    "$(if_version_ok "$V (Claude Code)")"
+done
+assert_eq "claude 2.1.280 is below the floor" "false|2.1.280|2.1.281" "$(if_version_ok "2.1.280")"
+for V in 2.1.28 2.1.29 2.1.99; do
+  assert_eq "claude $V is below the floor (numeric, not string, comparison)" \
+    "false|$V|2.1.281" "$(if_version_ok "$V (Claude Code)")"
+done
+assert_eq "an output with no version leaves VERSION_OK empty" "||2.1.281" "$(if_version_ok "garbage")"
+
+# No claude at all: a PATH of the system directories plus the two programs the
+# script needs that may live elsewhere.
+IF_NOBIN="$WORK_DIR/if-nobin"
+mkdir -p "$IF_NOBIN"
+for P in jq git; do
+  ln -sf "$(command -v "$P")" "$IF_NOBIN/$P"
+done
+if [ -x /usr/bin/claude ] || [ -x /bin/claude ]; then
+  pass "no claude on PATH: skipped, a claude is installed in a system directory"
+else
+  assert_eq "no claude on PATH leaves VERSION_OK and CLAUDE_VERSION empty" "||2.1.281" \
+    "$(PATH="$IF_NOBIN:/usr/bin:/bin" "$BASH" "$IF_SCRIPT" --json --dir "$IF_TREE" 2>/dev/null \
+      | jq -r '"\(.VERSION_OK)|\(.CLAUDE_VERSION)|\(.MIN_CLAUDE_VERSION)"')"
+fi
+
+# ── Test 4 (REQ-5): the script contract ──
+assert_eq "--json prints exactly the eight keys" \
+  "ABOVE,CLAUDE_VERSION,CUSTOM,LOCAL,MIN_CLAUDE_VERSION,SHIMS,UNIMPORTED,VERSION_OK" \
+  "$(printf '%s' "$IF_OUT" | jq -r 'keys | join(",")' 2>/dev/null)"
+assert_eq "every value is a string" "true" \
+  "$(printf '%s' "$IF_OUT" | jq -r '[.[] | type] | unique == ["string"]' 2>/dev/null)"
+assert_eq "stdout holds the object and nothing else" "1" \
+  "$(printf '%s' "$IF_OUT" | jq -s 'length' 2>/dev/null)"
+IF_MISSING_OUT="$(bash "$IF_SCRIPT" --json --dir "$WORK_DIR/if-does-not-exist" 2>"$WORK_DIR/if-err")"
+IF_MISSING_RC=$?
+assert_eq "a --dir that does not exist exits non-zero" "true" \
+  "$([ "$IF_MISSING_RC" -ne 0 ] && echo true || echo false)"
+assert_eq "with nothing on stdout" "" "$IF_MISSING_OUT"
+assert_eq "and says why on stderr" "true" "$([ -s "$WORK_DIR/if-err" ] && echo true || echo false)"
+assert_eq "a run leaves the scanned tree byte-identical" "$IF_SUM_BEFORE" "$(if_tree_sum "$IF_TREE")"
+
+# ── Test 8b (REQ-8): --merge moves a custom CLAUDE.md into its AGENTS.md ──
+IF_MERGE="$WORK_DIR/if-merge"
+mkdir -p "$IF_MERGE/apps/api" "$IF_MERGE/apps/admin/.claude" "$IF_MERGE/apps/team" \
+  "$IF_MERGE/apps/x" "$IF_MERGE/libs/ui"
+cp "$REPO_ROOT/templates/dev-setup/AGENTS.template.md" "$IF_MERGE/AGENTS.md"
+printf 'Be terse.\n' > "$IF_MERGE/CLAUDE.md"
+cp "$REPO_ROOT/templates/dev-setup/AGENTS.project-template.md" "$IF_MERGE/apps/api/AGENTS.md"
+printf '@AGENTS.md\nUse pnpm.' > "$IF_MERGE/apps/api/CLAUDE.md"
+printf '# Admin\n\nAdmin rules.\n' > "$IF_MERGE/apps/admin/AGENTS.md"
+printf '\nKeep it short.\n\n' > "$IF_MERGE/apps/admin/.claude/CLAUDE.md"
+printf '# Team\n\nWritten by the team, no footer.' > "$IF_MERGE/apps/team/AGENTS.md"
+printf 'Team note.\n' > "$IF_MERGE/apps/team/CLAUDE.md"
+printf '# X\n' > "$IF_MERGE/apps/x/AGENTS.md"
+printf '\n@AGENTS.md' > "$IF_MERGE/apps/x/CLAUDE.md"
+printf 'Notes' > "$IF_MERGE/libs/ui/CLAUDE.md"
+IF_MERGE_SUM="$(if_tree_sum "$IF_MERGE")"
+
+# Writes the merge of <path> to <out>; prints the exit status.
+if_merge() {
+  bash "$IF_SCRIPT" --merge "$1" --dir "$IF_MERGE" > "$2" 2>/dev/null
+  echo $?
+}
+# True when <out> starts with <agents> byte for byte.
+if_has_prefix() {
+  local n
+  n=$(wc -c < "$1" | tr -d ' ')
+  head -c "$n" "$2" | cmp -s - "$1" && echo true || echo false
+}
+if_line_of() { grep -nF "$1" "$2" | tail -1 | cut -d: -f1; }
+IF_HEADING="## Instructions moved from CLAUDE.md"
+
+# A sub-project file: the section goes after the footer, so the tail the UPDATE
+# offer compares — `## Project registry` to the footer — is unchanged.
+IF_M="$WORK_DIR/if-merge-api.md"
+assert_eq "--merge on a custom CLAUDE.md exits 0" "0" "$(if_merge apps/api/CLAUDE.md "$IF_M")"
+assert_eq "the output starts with the sub-project AGENTS.md byte for byte" "true" \
+  "$(if_has_prefix "$IF_MERGE/apps/api/AGENTS.md" "$IF_M")"
+assert_eq "the moved section comes after the *Generated by: footer" "true" \
+  "$([ "$(if_line_of "$IF_HEADING" "$IF_M")" -gt "$(if_line_of '*Generated by:' "$IF_M")" ] \
+     && echo true || echo false)"
+assert_eq "the CLAUDE.md content follows the heading" "Use pnpm." \
+  "$(awk -v h="$IF_HEADING" '$0 == h { f = 1; next } f && NF { print; exit }' "$IF_M")"
+assert_eq "no @AGENTS.md line is moved" "0" "$(grep -cx '@AGENTS.md' "$IF_M")"
+assert_eq "the sub-project tail is unchanged" \
+  "$(sed -n '/^## Project registry/,/^\*Generated by:/p' "$IF_MERGE/apps/api/AGENTS.md")" \
+  "$(sed -n '/^## Project registry/,/^\*Generated by:/p' "$IF_M")"
+
+IF_M="$WORK_DIR/if-merge-root.md"
+assert_eq "--merge on the root CLAUDE.md exits 0" "0" "$(if_merge CLAUDE.md "$IF_M")"
+assert_eq "the output starts with the root AGENTS.md byte for byte" "true" \
+  "$(if_has_prefix "$IF_MERGE/AGENTS.md" "$IF_M")"
+assert_eq "the root tail is unchanged" \
+  "$(sed -n '/^## Available agents/,/^\*Generated by:/p' "$IF_MERGE/AGENTS.md")" \
+  "$(sed -n '/^## Available agents/,/^\*Generated by:/p' "$IF_M")"
+assert_contains "and the root content is moved" "$(cat "$IF_M")" "$IF_HEADING
+
+Be terse."
+
+IF_M="$WORK_DIR/if-merge-admin.md"
+assert_eq "--merge on a .claude/CLAUDE.md exits 0" "0" "$(if_merge apps/admin/.claude/CLAUDE.md "$IF_M")"
+assert_eq "it is built from the AGENTS.md of the parent of .claude/" "true" \
+  "$(if_has_prefix "$IF_MERGE/apps/admin/AGENTS.md" "$IF_M")"
+assert_eq "edge blank lines are dropped" "# Admin
+
+Admin rules.
+
+$IF_HEADING
+
+Keep it short." "$(cat "$IF_M")"
+
+IF_M="$WORK_DIR/if-merge-team.md"
+assert_eq "--merge beside a team AGENTS.md with no footer exits 0" "0" \
+  "$(if_merge apps/team/CLAUDE.md "$IF_M")"
+assert_eq "the team file comes first byte for byte" "true" \
+  "$(if_has_prefix "$IF_MERGE/apps/team/AGENTS.md" "$IF_M")"
+assert_eq "the section comes after its last line" "true" \
+  "$([ "$(if_line_of "$IF_HEADING" "$IF_M")" -gt "$(if_line_of 'no footer.' "$IF_M")" ] \
+     && echo true || echo false)"
+
+IF_M="$WORK_DIR/if-merge-x.md"
+assert_eq "--merge on a file holding only an import exits 0" "0" "$(if_merge apps/x/CLAUDE.md "$IF_M")"
+assert_eq "and leaves the AGENTS.md unchanged" "true" \
+  "$(cmp -s "$IF_MERGE/apps/x/AGENTS.md" "$IF_M" && echo true || echo false)"
+
+IF_M="$WORK_DIR/if-merge-ui.md"
+assert_eq "--merge on a path not in CUSTOM exits non-zero" "true" \
+  "$([ "$(if_merge libs/ui/CLAUDE.md "$IF_M")" -ne 0 ] && echo true || echo false)"
+assert_eq "with nothing on stdout" "true" "$([ -s "$IF_M" ] && echo false || echo true)"
+
+assert_eq "--merge writes nothing into the tree" "$IF_MERGE_SUM" "$(if_tree_sum "$IF_MERGE")"
+
+# ── Test 5 (REQ-12): it ships ──
+assert_eq "the manifest lists instruction-files.sh" "true" \
+  "$(jq -e '.plugin_scripts | index("instruction-files.sh") != null' \
+       "$REPO_ROOT/templates/dev-setup/manifest.json" >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "instruction-files.sh ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/instruction-files.sh" ] && echo true || echo false)"
+
+# ── Test 6 (REQ-1): no setup mode generates a CLAUDE.md ──
+# Every needle is a line the setup held while it still wrote the shim.
+IF_SETUP_DOCS=()
+for F in "$TEMPLATE_ROOT/setup/SKILL.md" "$TEMPLATE_ROOT"/setup/reference/*.md \
+         "$TEMPLATE_ROOT/profiles/nextjs.md" \
+         "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md" \
+         "$REPO_ROOT"/dist/dev-setup/skills/setup/reference/*.md \
+         "$REPO_ROOT/dist/dev-setup/skills/setup/templates/profiles/nextjs.md"; do
+  [ -f "$F" ] && IF_SETUP_DOCS+=("$F")
+done
+assert_eq "the setup docs and their built copies are all there" "18" "${#IF_SETUP_DOCS[@]}"
+while IFS= read -r NEEDLE; do
+  [ -n "$NEEDLE" ] || continue
+  assert_eq "no setup doc says: $NEEDLE" "" \
+    "$(grep -lF -- "$NEEDLE" "${IF_SETUP_DOCS[@]}" | sed "s#^$REPO_ROOT/##")"
+done <<'EOF'
+Generate AGENTS.md and CLAUDE.md
+Generate CLAUDE.md
+`CLAUDE.md` is the one-line entry
+AGENTS.md / CLAUDE.md / REGISTRY.md
+generate a `CLAUDE.md`
+generate `AGENTS.md`, `CLAUDE.md`
+**`CLAUDE.md`** — the import shim
+EOF
+assert_eq "no setup summary lists a CLAUDE.md row" "" \
+  "$(grep -lE '^ *- `?CLAUDE\.md`? ' "${IF_SETUP_DOCS[@]}" | sed "s#^$REPO_ROOT/##")"
+
+# ── Test 7 (REQ-6): the version gate comes first ──
+IF_SETUP_MD="$TEMPLATE_ROOT/setup/SKILL.md"
+IF_STEP1="$(awk '/^## Step 1/ { f = 1; print; next } f && /^## / { exit } f' "$IF_SETUP_MD" \
+  | tr '\n' ' ' | tr -s ' ')"
+assert_contains "Step 1 runs instruction-files.sh" "$IF_STEP1" "instruction-files.sh --json"
+assert_contains "and acts on VERSION_OK=false" "$IF_STEP1" "VERSION_OK=false"
+assert_contains "by stopping before any write" "$IF_STEP1" "stop before any write"
+assert_contains "naming both versions" "$IF_STEP1" '`CLAUDE_VERSION` and `MIN_CLAUDE_VERSION`'
+assert_eq "the check runs before the mode is reported" "true" \
+  "$([ "$(grep -n 'instruction-files.sh --json' "$IF_SETUP_MD" | head -1 | cut -d: -f1)" \
+       -lt "$(grep -n 'Report the mode' "$IF_SETUP_MD" | head -1 | cut -d: -f1)" ] \
+     && echo true || echo false)"
+assert_contains "an unknown version is reported, not refused" "$(cat "$AGENTS_GEN")" \
+  "Claude Code version not verified — AGENTS.md needs <MIN_CLAUDE_VERSION> or later"
+assert_eq "the setup SKILL.md stays within 500 words" "true" \
+  "$([ "$(wc -w < "$IF_SETUP_MD" | tr -d ' ')" -le 500 ] && echo true || echo false)"
+
+# ── Test 8 (REQ-7, REQ-8): Step 5b removes the shims and moves the rest ──
+IF_STEP5B="$(awk '/^## Step 5b/ { f = 1; print; next } f && /^## / { exit } f' "$AGENTS_GEN")"
+for KEY in SHIMS CUSTOM UNIMPORTED; do
+  assert_contains "Step 5b reads $KEY" "$IF_STEP5B" "\`$KEY\`"
+done
+assert_contains "it reports the removed shims" "$IF_STEP5B" \
+  "CLAUDE.md shim removed (AGENTS.md is read directly): <paths>"
+assert_contains "it reports a move" "$IF_STEP5B" "<path> moved into <AGENTS.md path> and removed"
+assert_contains "it reports a declined move that imports AGENTS.md" "$IF_STEP5B" \
+  "<path> kept: Claude Code reads it, and AGENTS.md only through its @AGENTS.md import"
+assert_contains "and one that does not" "$IF_STEP5B" \
+  "<path> kept: Claude Code reads it and does NOT read <AGENTS.md path>"
+assert_contains "the merged file comes from the script" "$IF_STEP5B" "instruction-files.sh --merge"
+assert_contains "after the footer" "$IF_STEP5B" '`*Generated by:`'
+assert_eq "not under the root file's tail heading" "false" \
+  "$(printf '%s' "$IF_STEP5B" | grep -q '## Available agents' && echo true || echo false)"
+assert_eq "check 16 finds every ask of the instruction-files step reported" "" \
+  "$(bash "$REPO_ROOT/scripts/validate-plugin.sh" --strict 2>&1 | grep 'SETUP_ASK_UNREPORTED' \
+     | grep 'agents-generation.md' || true)"
+
+# ── Test 9 (REQ-9): the files the setup does not own ──
+for WORD in '`LOCAL`' '`ABOVE`' 'claude-md-and-agents-md' 'cc-plugin-agents-md@builtin'; do
+  assert_contains "Step 5b names $WORD" "$IF_STEP5B" "$WORD"
+done
+assert_eq "Step 5b never writes the user's settings" "" \
+  "$(printf '%s\n' "$IF_STEP5B" | grep -E '(>|mv |cp |tee ).*~/\.claude/settings\.json' || true)"
+for F in "$TEMPLATE_ROOT/.claude/settings.json" "$TEMPLATE_ROOT/.claude/settings.user.json" \
+         "$REPO_ROOT/dist/dev-setup/skills/setup/templates/settings.json" \
+         "$REPO_ROOT/dist/dev-setup/skills/setup/templates/settings.user.json"; do
+  assert_eq "${F#"$REPO_ROOT"/} carries no pluginConfigs" "true" \
+    "$(jq -e 'has("pluginConfigs") | not' "$F" >/dev/null 2>&1 && echo true || echo false)"
+done
+
+# ── Test 11 (REQ-11): every shipped agent keeps the project instructions ──
+assert_eq "no shipped agent sets omitClaudeMd" "" \
+  "$(grep -l omitClaudeMd "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md || true)"
+
+# ── Test 10 (REQ-10): the floor is declared where the requirements are ──
+IF_MIN="$(bash "$IF_SCRIPT" --json --dir "$IF_TREE" 2>/dev/null | jq -r '.MIN_CLAUDE_VERSION')"
+# The paragraph that opens with $1, on one line.
+if_paragraph() {
+  awk -v start="$1" 'index($0, start) == 1 { f = 1 } f && /^$/ { exit } f' "$2" | tr '\n' ' ' | tr -s ' '
+}
+IF_README_REQ="$(if_paragraph '**Prerequisites**' "$REPO_ROOT/README.md")"
+IF_ONBOARDING_REQ="$(if_paragraph '**You need**' "$REPO_ROOT/docs/onboarding.md")"
+for PAIR in "README.md|$IF_README_REQ" "docs/onboarding.md|$IF_ONBOARDING_REQ"; do
+  assert_eq "${PAIR%%|*} names the floor instruction-files.sh enforces" "$IF_MIN" \
+    "$(printf '%s' "${PAIR#*|}" | grep -oE 'Claude Code [0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^Claude Code //')"
+  assert_contains "${PAIR%%|*} applies it on every machine and runner" "${PAIR#*|}" \
+    "on every machine and runner"
+done
+
+# ── Test 12 (REQ-12): the docs no longer list a CLAUDE.md the setup writes ──
+for DOC in README.md docs/onboarding.md docs/developer-guide.md; do
+  assert_eq "$DOC lists no CLAUDE.md beside AGENTS.md" "" \
+    "$(grep -nF -e '`AGENTS.md`, `CLAUDE.md`' -e 'AGENTS.md, CLAUDE.md' "$REPO_ROOT/$DOC" || true)"
+done
+IF_MIGRATION="$REPO_ROOT/docs/migration-v2-to-v3.md"
+assert_eq "the migration guide has the CLAUDE.md section" "1" \
+  "$(grep -c '^## 12\. CLAUDE\.md is gone' "$IF_MIGRATION")"
+assert_eq "and its index entry" "1" \
+  "$(grep -c '^- \[12\. CLAUDE\.md is gone.*\](#12-' "$IF_MIGRATION")"
+assert_eq "the AGENTS.md script table lists instruction-files.sh with its keys" "true" \
+  "$(grep -E '^\| `instruction-files\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'VERSION_OK' && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 16. The flow shows where it is, and what comes next (DE-17077)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The phases of an `sdd` were only in the skill's table, and the reports a flow
+# closes on ended in different ways. Prose assertions, read flattened so that a
+# wrapped sentence still counts. The word budgets these edits must respect are
+# the `validate-plugin.sh --strict` assertion of section 14.
+
+echo ""
+echo "── DE-17077 — the phases on screen, the next command on the last line ──"
+
+PV_INTAKE="$SDD_DIR/sdd/reference/intake.md"
+PV_INTAKE_FLAT="$(flat "$PV_INTAKE")"
+
+# ── Test 10 (REQ-10): the phase list is published at intake ──
+for PV_NEEDLE in TaskCreate TaskUpdate TodoWrite; do
+  assert_contains "intake names the task-list tool $PV_NEEDLE" "$PV_INTAKE_FLAT" "\`$PV_NEEDLE\`"
+done
+for PV_PHASE in Intake Discovery Spec Approval Development Gates; do
+  assert_eq "the phase list holds $PV_PHASE" "1" \
+    "$(grep -cE "^\| $PV_PHASE \| " "$PV_INTAKE")"
+done
+for PV_ROW in '`spec`=Approval — nothing past it' '`development`=Development' \
+              '`review`=Gates — nothing past it' '`commit`=Commit' \
+              '`push`=Commit and push' '`merge-request`=Commit and merge request'; do
+  assert_eq "stop point ${PV_ROW%%=*} ends the list on: ${PV_ROW#*=}" "1" \
+    "$(grep -cxF "| ${PV_ROW%%=*} | ${PV_ROW#*=} |" "$PV_INTAKE")"
+done
+assert_contains "a resume creates the phases already passed completed" "$PV_INTAKE_FLAT" \
+  "On a resume, the phases already passed are created completed"
+assert_contains "each phase is marked in progress, then completed" "$PV_INTAKE_FLAT" \
+  "Mark each phase in progress when it starts and completed when it ends"
+assert_contains "and the chat carries one line between calls at most" "$PV_INTAKE_FLAT" \
+  "Between tool calls, write at most one line of commentary"
+
+# ── Test 12 (REQ-12): the brief routes to quick, the flow never switches down ──
+assert_contains "the brief template carries the Route line" \
+  "$(grep -E '^Route:' "$PV_INTAKE" | tr -s ' ')" "Route: looks like quick — /dev-setup:quick"
+assert_contains "the rule gives the exact line" "$PV_INTAKE_FLAT" \
+  "\`Route: looks like quick — /dev-setup:quick <custom_id>\`"
+assert_contains "and the flow goes on in sdd" "$PV_INTAKE_FLAT" "Then the flow goes on in \`sdd\`"
+assert_contains "never moving itself to a lighter flow" "$PV_INTAKE_FLAT" \
+  "it never moves itself to a lighter flow"
+
+# ── Test 11 (REQ-11): every closing report ends on the next command ──
+PV_STOP="$SDD_DIR/sdd/reference/stop-point.md"
+PV_STOP_BLOCK="$(awk '/^## Ending at a stop point/ { p = 1; next } /^## / { p = 0 } p' "$PV_STOP")"
+PV_STOP_FENCE="$(printf '%s\n' "$PV_STOP_BLOCK" | awk '/^```/ { n++; next } n == 1')"
+assert_contains "the stop-point report's last line is the next command" \
+  "$(printf '%s\n' "$PV_STOP_FENCE" | grep -v '^[[:space:]]*$' | tail -1 | tr -s ' ')" \
+  "Next: /dev-setup:sdd"
+assert_eq "and Resume: is gone from it" "" \
+  "$(printf '%s\n' "$PV_STOP_BLOCK" | grep -F 'Resume:' || true)"
+
+assert_eq "the GitHub reference has the follow-its-CI row" "1" \
+  "$(grep -cF '| Follow its CI | `gh pr checks <n> --watch` |' \
+       "$REPO_ROOT/shared/skills/vcs-ops/reference/github.md")"
+assert_eq "the GitLab one names the branch explicitly" "1" \
+  "$(grep -cF "| Follow its pipeline | \`glab ci status --live --branch '<BRANCH>'\`" \
+       "$REPO_ROOT/shared/skills/vcs-ops/reference/gitlab.md")"
+
+PV_CLOSURE="$SDD_DIR/sdd/reference/closure.md"
+PV_QUICK="$SDD_DIR/quick/SKILL.md"
+PV_OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
+for PV_FILE in "$PV_CLOSURE" "$PV_QUICK" "$PV_OUTCOMES"; do
+  PV_NAME="${PV_FILE#"$REPO_ROOT"/templates/dev-setup/.claude/}"
+  assert_contains "$PV_NAME ends on Next: and the host reference's CI command" \
+    "$(flat "$PV_FILE")" "follow-its-CI command"
+  assert_contains "$PV_NAME points at the host reference for it" "$(flat "$PV_FILE")" "host reference"
+  assert_eq "$PV_NAME names no host CI command of its own" "" \
+    "$(grep -nE 'gh pr checks|glab ci' "$PV_FILE" || true)"
+done
+assert_contains "a declined merge request in sdd ends on the resume" \
+  "$(flat "$PV_CLOSURE")" "Declined means declined: report it, leave the branch pushed, and end on \`Next: /dev-setup:sdd <custom_id>\`"
+assert_contains "in quick, on the host reference's open command" \
+  "$(flat "$PV_QUICK")" "(declined: its open command)"
+assert_contains "and in ready-for-mr too" \
+  "$(flat "$PV_OUTCOMES")" "end on \`Next:\` and the host reference's open command"
+
+PV_FAILED="$(awk '/^## failed/ { p = 1; next } /^## / { p = 0 } p' "$PV_OUTCOMES" | tr '\n' ' ' | tr -s ' ')"
+for PV_FORM in '`verify` → `Next: cd "<worktreePath>" && <the command that failed>`' \
+               '`dev` → `Next: cd "<worktreePath>"`' \
+               '`spec` → `Next: /dev-setup:sdd <taskId>`' \
+               '`intake` → `Next: /dev-setup:auto-sdd <taskId>`'; do
+  assert_contains "failed ends on: ${PV_FORM%% →*}" "$PV_FAILED" "$PV_FORM"
+done
+assert_eq "quick/SKILL.md stays within 500 words" "true" \
+  "$([ "$(wc -w < "$PV_QUICK" | tr -d ' ')" -le 500 ] && echo true || echo false)"
+
+# ── Test 13 (REQ-13): the docs say it ──
+#
+# The onboarding cap, checks 14–15 and the "no hook exits 2" grep are asserted
+# where they always were; these are the sentences this task owes the reader.
+PV_ONBOARDING="$(flat "$REPO_ROOT/docs/onboarding.md")"
+for PV_NEEDLE in preferredNotifChannel terminal_bell footerLinksRegexes; do
+  assert_contains "onboarding documents $PV_NEEDLE" "$PV_ONBOARDING" "$PV_NEEDLE"
+done
+assert_contains "as user settings, never the project's" "$PV_ONBOARDING" \
+  "never the project's \`.claude/settings.json\`"
+PV_GUIDE="$(flat "$REPO_ROOT/docs/developer-guide.md")"
+for PV_NEEDLE in notify.sh session-title.sh; do
+  assert_contains "the developer guide names $PV_NEEDLE" "$PV_GUIDE" "\`$PV_NEEDLE\`"
+done
+assert_contains "AGENTS.md lists RECENT_TASKS" "$(cat "$REPO_ROOT/AGENTS.md")" "\`RECENT_TASKS\`"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 17. save-failed-run.sh: a failed run's work, past the gates
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# A failed run in a cloud session loses its work with the session, and the
+# project's gates refuse the commit and the push that would save it — the red
+# commands are why the run failed. So the script commits and pushes past the
+# hooks. What is tested is that it saves whatever exists — a worktree, a bare
+# branch, or only the spec — and how narrow it stays: it refuses outside a
+# cloud session and off the task's own branch, never commits without a reason,
+# never forces, and its commit says the hooks were skipped.
+
+echo ""
+echo "── save-failed-run.sh (a failed run's work, past the gates) ──"
+
+SFR_REMOTE="$WORK_DIR/save-failed-run-remote.git"
+SFR_REPO="$WORK_DIR/save-failed-run-repo"
+SFR_BRANCH="feat(notes)/DE-900_unread-filter"
+mkdir -p "$SFR_REPO"
+git init --quiet --bare --template="$EMPTY_GIT_TEMPLATE" "$SFR_REMOTE" >/dev/null 2>&1
+(
+  cd "$SFR_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  git remote add origin "$SFR_REMOTE"
+  echo "base" > base.txt
+  printf '.hooks/\n' > .gitignore
+  git add . && git commit --quiet -m "chore: base"
+  # A project whose every hook refuses — pre-commit, commit-msg and pre-push —
+  # behind a custom hooks path, as husky sets one.
+  mkdir -p .hooks
+  for HOOK in pre-commit commit-msg pre-push; do
+    printf '#!/bin/sh\necho "%s refused" >&2\nexit 1\n' "$HOOK" > ".hooks/$HOOK"
+    chmod +x ".hooks/$HOOK"
+  done
+  git config core.hooksPath "$SFR_REPO/.hooks"
+) >/dev/null 2>&1
+# The run's worktree, on the task's branch, as the dev agent leaves it.
+SFR_TREE="$WORK_DIR/save-failed-run-tree"
+git -C "$SFR_REPO" worktree add --quiet -b "$SFR_BRANCH" "$SFR_TREE" >/dev/null 2>&1
+
+SFR_REASON="$WORK_DIR/save-failed-run-reason.txt"
+printf 'Blocked on the backend: GET /notes has no unread filter yet.\n' > "$SFR_REASON"
+
+sfr() { (cd "$SFR_REPO" && bash "$PLUGIN_SCRIPTS/save-failed-run.sh" --json "$@" 2>/dev/null); }
+sfr_exit() {
+  (cd "$SFR_REPO" && bash "$PLUGIN_SCRIPTS/save-failed-run.sh" --json "$@") >/dev/null 2>&1
+  printf '%s' "$?"
+}
+sfr_tip() { git -C "$SFR_REPO" rev-parse --verify --quiet "refs/heads/$1"; }
+sfr_remote_tip() { git -C "$SFR_REMOTE" rev-parse --verify --quiet "refs/heads/$1"; }
+
+assert_eq "the project's own hooks refuse an ordinary commit" "1" \
+  "$(cd "$SFR_TREE" && echo wip > wip.txt && git add wip.txt && git commit --quiet -m 'wip' >/dev/null 2>&1; echo $?; git reset --quiet; rm -f wip.txt)"
+
+# Outside a cloud session the worktree survives, so the gates stay.
+SFR_BEFORE="$(sfr_tip "$SFR_BRANCH")"
+SFR_LOCAL="$(env -u CLAUDE_CODE_REMOTE bash -c 'cd "$1" && bash "$2" --json --task DE-900 --stage verify --reason-file "$3" 2>/dev/null' _ \
+  "$SFR_REPO" "$PLUGIN_SCRIPTS/save-failed-run.sh" "$SFR_REASON")"
+assert_eq "it refuses outside a cloud session" "false" "$(printf '%s' "$SFR_LOCAL" | jq -r '.SAVED')"
+assert_contains "and says why" "$(printf '%s' "$SFR_LOCAL" | jq -r '.REASON')" "CLAUDE_CODE_REMOTE"
+assert_eq "with exit 3" "3" "$(env -u CLAUDE_CODE_REMOTE bash -c \
+  'cd "$1" && bash "$2" --json --task DE-900 --stage verify --reason-file "$3" >/dev/null 2>&1; echo $?' _ \
+  "$SFR_REPO" "$PLUGIN_SCRIPTS/save-failed-run.sh" "$SFR_REASON")"
+assert_eq "and commits nothing" "$SFR_BEFORE" "$(sfr_tip "$SFR_BRANCH")"
+
+export CLAUDE_CODE_REMOTE=true
+
+# Only the task's own branch.
+assert_eq "it refuses a worktree on another task's branch" "3" \
+  "$(sfr_exit --task DE-901 --stage verify --reason-file "$SFR_REASON" --dir "$SFR_TREE")"
+assert_eq "and with nothing that carries the task, nothing to save" "3" \
+  "$(sfr_exit --task DE-901 --stage verify --reason-file "$SFR_REASON")"
+assert_contains "it says so" \
+  "$(sfr --task DE-901 --stage verify --reason-file "$SFR_REASON" | jq -r '.REASON')" "nothing to save"
+
+# No reason, no commit: a skipped gate has to say why.
+: > "$WORK_DIR/save-failed-run-empty.txt"
+assert_eq "an empty reason is a usage error" "1" \
+  "$(sfr_exit --task DE-900 --stage verify --reason-file "$WORK_DIR/save-failed-run-empty.txt")"
+assert_eq "an unknown stage is a usage error" "1" \
+  "$(sfr_exit --task DE-900 --stage closure --reason-file "$SFR_REASON")"
+assert_eq "and neither commits" "$SFR_BEFORE" "$(sfr_tip "$SFR_BRANCH")"
+
+# 1 — the run's worktree, found from the task id: uncommitted and untracked
+# work, every hook red, pushed as it is.
+(cd "$SFR_TREE" && echo "changed" >> base.txt && echo "new" > notes_filter.dart)
+SFR_SAVED="$(sfr --task DE-900 --stage verify --reason-file "$SFR_REASON")"
+assert_eq "in a cloud session it commits past the red hooks" "true" "$(printf '%s' "$SFR_SAVED" | jq -r '.SAVED')"
+assert_eq "finding the worktree from the task id" "$(cd "$SFR_TREE" && pwd -P)" \
+  "$(cd "$(printf '%s' "$SFR_SAVED" | jq -r '.WORKTREE')" && pwd -P)"
+assert_eq "everything the worktree held" "2" "$(printf '%s' "$SFR_SAVED" | jq -r '.FILES')"
+assert_eq "leaving it clean" "" "$(git -C "$SFR_TREE" status --porcelain)"
+assert_eq "and pushes past the red pre-push hook" "true" "$(printf '%s' "$SFR_SAVED" | jq -r '.PUSHED')"
+assert_eq "the remote has the commit" "$(printf '%s' "$SFR_SAVED" | jq -r '.COMMIT')" "$(sfr_remote_tip "$SFR_BRANCH")"
+SFR_MESSAGE="$(git -C "$SFR_REPO" log -1 --format=%B "refs/heads/$SFR_BRANCH")"
+assert_eq "the subject is fixed and carries the task" \
+  "chore: save the unfinished work of a failed run [DE-900]" "$(printf '%s\n' "$SFR_MESSAGE" | head -1)"
+assert_contains "the body names the stage" "$SFR_MESSAGE" "failed at the verify stage"
+assert_contains "says the hooks were skipped" "$SFR_MESSAGE" "skipped the project's hooks"
+assert_contains "and carries the reason verbatim" "$SFR_MESSAGE" "GET /notes has no unread filter yet"
+
+# Nothing left uncommitted: an empty commit, so the pushed branch still says why.
+SFR_EMPTY="$(printf 'Nothing to save: the dev agent stopped at step 1.\n' \
+  | (cd "$SFR_REPO" && bash "$PLUGIN_SCRIPTS/save-failed-run.sh" --json --task DE-900 --stage dev \
+       --dir "$SFR_TREE" --reason-file - 2>/dev/null))"
+assert_eq "a clean worktree still gets the commit" "0" "$(printf '%s' "$SFR_EMPTY" | jq -r '.FILES')"
+assert_contains "carrying the reason read from stdin" \
+  "$(git -C "$SFR_REPO" log -1 --format=%B "refs/heads/$SFR_BRANCH")" "the dev agent stopped at step 1"
+
+# A remote branch that moved on is reported, never overwritten: the remote is
+# moved to a commit of its own, written with plumbing on the bare repository.
+# The bare repository has no identity of its own, and a CI runner has none to
+# guess (macOS derives one from the account): without it commit-tree fails, the
+# remote never diverges and the push succeeds — so the identity is given here,
+# and an empty commit is a failure of the setup, not a pass.
+SFR_OTHER="$(git -C "$SFR_REMOTE" -c user.name=Test -c user.email=test@example.com \
+  commit-tree "$SFR_BEFORE^{tree}" -p "$SFR_BEFORE" -m "other")"
+assert_eq "the remote is moved on by a commit of its own" "true" "$([ -n "$SFR_OTHER" ] && echo true || echo false)"
+git -C "$SFR_REMOTE" update-ref "refs/heads/$SFR_BRANCH" "$SFR_OTHER"
+SFR_REJECTED="$(sfr --task DE-900 --stage verify --reason-file "$SFR_REASON")"
+assert_eq "a diverged remote is not forced: exit 4" "4" \
+  "$(sfr_exit --task DE-900 --stage verify --reason-file "$SFR_REASON")"
+assert_eq "the commit is still saved" "true" "$(printf '%s' "$SFR_REJECTED" | jq -r '.SAVED')"
+assert_eq "not pushed" "false" "$(printf '%s' "$SFR_REJECTED" | jq -r '.PUSHED')"
+assert_eq "with the push's own error" "true" \
+  "$([ -n "$(printf '%s' "$SFR_REJECTED" | jq -r '.PUSH_ERROR')" ] && echo true || echo false)"
+assert_eq "and the remote untouched" "$SFR_OTHER" "$(sfr_remote_tip "$SFR_BRANCH")"
+
+# 2 — a branch with no worktree (the run broke after the dev agent's worktree
+# was removed): an empty commit without a checkout.
+SFR_BARE_BRANCH="feat/DE-910_bare-branch"
+git -C "$SFR_REPO" branch "$SFR_BARE_BRANCH" "$SFR_BEFORE"
+SFR_CHECKOUT_BEFORE="$(git -C "$SFR_REPO" symbolic-ref --short HEAD)"
+SFR_BARE="$(sfr --task DE-910 --stage broken --reason-file "$SFR_REASON")"
+assert_eq "a branch with no worktree is saved" "true" "$(printf '%s' "$SFR_BARE" | jq -r '.SAVED')"
+assert_eq "with no worktree named" "" "$(printf '%s' "$SFR_BARE" | jq -r '.WORKTREE')"
+assert_eq "on top of the branch" "$SFR_BEFORE" "$(git -C "$SFR_REPO" rev-parse "refs/heads/$SFR_BARE_BRANCH^")"
+assert_eq "the session's checkout never moves" "$SFR_CHECKOUT_BEFORE" "$(git -C "$SFR_REPO" symbolic-ref --short HEAD)"
+assert_eq "and it is pushed" "true" "$(printf '%s' "$SFR_BARE" | jq -r '.PUSHED')"
+assert_contains "a broken run says so" "$(git -C "$SFR_REPO" log -1 --format=%B "refs/heads/$SFR_BARE_BRANCH")" \
+  "failed at the broken stage"
+
+# 3 — no branch at all, only the spec the run wrote: a branch of its own.
+SFR_SPEC="$WORK_DIR/save-failed-run-spec.md"
+printf '# DE-920 spec\n\n- REQ-1: the filter shows unread notes only.\n' > "$SFR_SPEC"
+SFR_FROM_SPEC="$(TMPDIR="$WORK_DIR" sfr --task DE-920 --stage dev --reason-file "$SFR_REASON" \
+  --spec-file "$SFR_SPEC" --spec-path .specs/DE-920-unread-filter.md --base "$SFR_BEFORE" \
+  --title "unread filter" --type feat)"
+SFR_SPEC_BRANCH="$(printf '%s' "$SFR_FROM_SPEC" | jq -r '.BRANCH')"
+assert_eq "with only a spec, a branch is created" "true" "$(printf '%s' "$SFR_FROM_SPEC" | jq -r '.CREATED')"
+assert_contains "named for the task" "$SFR_SPEC_BRANCH" "DE-920"
+assert_eq "holding the spec" "$(cat "$SFR_SPEC")" \
+  "$(git -C "$SFR_REPO" show "refs/heads/$SFR_SPEC_BRANCH:.specs/DE-920-unread-filter.md" 2>/dev/null)"
+assert_eq "forked from --base" "$SFR_BEFORE" "$(git -C "$SFR_REPO" rev-parse "refs/heads/$SFR_SPEC_BRANCH^")"
+assert_eq "and pushed" "true" "$(printf '%s' "$SFR_FROM_SPEC" | jq -r '.PUSHED')"
+assert_eq "the session's checkout still never moved" "$SFR_CHECKOUT_BEFORE" "$(git -C "$SFR_REPO" symbolic-ref --short HEAD)"
+assert_eq "a spec path outside the repository is a usage error" "1" \
+  "$(sfr_exit --task DE-921 --stage dev --reason-file "$SFR_REASON" --spec-file "$SFR_SPEC" \
+     --spec-path ../escape.md --base "$SFR_BEFORE" --title "x")"
+
+unset CLAUDE_CODE_REMOTE
+
+# The exception lives in the script only: the gate still refuses the bypass
+# when a model types it.
+assert_contains "the settings template still denies --no-verify" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/settings.json")" '"Bash(git commit *--no-verify*)"'
+SFR_OUTCOMES=$(sed -n '/^## failed/,/^## ready-for-mr/p' "$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md")
+assert_contains "a failed cloud run is saved through it" "$SFR_OUTCOMES" "save-failed-run.sh"
+assert_contains "and its push result reaches the board" "$SFR_OUTCOMES" "PUSH_ERROR"
+assert_contains "the workflow hands a branchless spec over" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd.js")" "markdown: draft.specMarkdown"
+assert_eq "the manifest ships it" "true" \
+  "$(jq -r '.plugin_scripts | index("save-failed-run.sh") != null' "$REPO_ROOT/templates/dev-setup/manifest.json")"
+assert_eq "the AGENTS.md script table lists it with its keys" "true" \
+  "$(grep -E '^\| `save-failed-run\.sh' "$REPO_ROOT/AGENTS.md" | grep -q 'PUSHED' && echo true || echo false)"
 
 echo ""
 echo "── frontmatter parseability ──"

@@ -20,16 +20,14 @@ The order matters and it is not the obvious one: **the gates run before the
 commit, and there is one commit.** Two reasons. The commit hook is the gate that
 runs `LINT_CMD`, `TYPECHECK_CMD` and `TEST_CMD`, and it skips when nothing is
 staged — so staging first is what makes it fire at all. And a task that ends in
-one commit is a task whose diff a reviewer can read: the three bookkeeping
-commits this flow used to mandate (`refactor: simplify`, `docs(registry)`,
-`docs(spec): track review outcome`) carried process, not work.
+one commit is a task whose diff a reviewer can read.
 
 ## Index
 
 - [1. Stage](#1-stage)
 - [2. Simplify](#2-simplify)
-- [3. Verify](#3-verify)
-- [4. Review](#4-review)
+- [3. Package the diff](#3-package-the-diff)
+- [4. Verify and review, in parallel](#4-verify-and-review-in-parallel)
 - [5. Summary](#5-summary)
 - [6. Commit](#6-commit)
 - [7. Push](#7-push)
@@ -50,24 +48,44 @@ against the fork point.
 
 Run the `simplify` skill over the staged change: reuse what exists, improve
 quality and efficiency, fix what it finds. **This is the only place `simplify`
-runs in the flow** — `sdd-dev` no longer calls it. Whatever it changes is part
-of the change, not a commit of its own.
+runs in the flow.** Whatever it changes is part of the change, not a commit of
+its own.
 
-## 3. Verify
+## 3. Package the diff
 
-Invoke the `verify` skill — it checks the change against the spec: every `REQ-N`
-implemented, every planned test present, the Impact list respected, the
-technical decisions followed.
+```bash
+git add -A
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-package.sh" --base <MERGE_BASE> --json
+```
 
-- **fail** → show what is missing and go back to development;
-- **pass-with-warnings** → show the warnings and ask the developer to confirm;
-- **pass** → go on to review.
+Stage again first: a file `simplify` (step 2) or a review fix created is
+untracked until it is staged, and an untracked file has no diff. Then build the
+review package once, against the `MERGE_BASE` the prerequisites return — both
+checks read this one file, and neither builds a diff of its own. Do not read the
+package here: it is unbounded, and the agents read it.
 
-## 4. Review
+`EMPTY=true` stops the closure: nothing to verify or review, and no agent is
+launched. Say so and go back to development.
 
-Invoke the `review` skill: rule compliance through the review agent, code
-quality, and the `REGISTRY.md` entries the change earns. It writes those entries
-into the working tree and commits nothing — they ride the commit below.
+## 4. Verify and review, in parallel
+
+Invoke the `verify` and `review` skills in the same turn, each with `PACKAGE` and `SIZE`
+from step 3, and launch `spec-verifier` and `code-reviewer` in one message:
+the two checks are independent, so neither waits for the other. `verify` checks
+the change against the spec; `review` checks the code against the rules,
+validates its own violations, and writes the `REGISTRY.md` entries the change
+earns into the working tree — they ride the commit below.
+
+Read the two results together, in this order:
+
+1. **verify fail** → back to development; the review's findings are shown, not acted on;
+2. otherwise **review fail** → fix the `CONFIRMED` violations and rerun from step 3, the packaging step;
+3. otherwise **verify pass-with-warnings** → show the warnings and ask the developer to confirm;
+4. otherwise → step 5.
+
+A verify fail comes first because fixing the code's style on an implementation
+that does not yet do what the spec says is work done twice.
 
 ## 5. Summary
 
@@ -125,7 +143,8 @@ GitLab reference accordingly, so there is nothing to pick here. Target the
 The `ask` rule on `gh pr create` / `glab mr create` is the developer's last
 checkpoint, and it is a permission rule — do not ask for the same confirmation
 in chat first, and do not work around a refusal. Declined means declined: report
-it and leave the branch pushed.
+it, leave the branch pushed, and end on `Next: /dev-setup:sdd <custom_id>` — the
+resume reaches closure 8 again, with the commit and the push already done.
 
 ## 9. Stop the clock and move the task
 
@@ -142,3 +161,8 @@ nothing to report (`REASON` says why): the move goes out without a comment, and
 you say so in one line. Never compose a duration yourself — the work clock
 section of `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` is the rule,
 and an estimate posted as a measurement is the one failure it names.
+
+The final report — the merge request link, the task moved — ends on one line:
+`Next:` and the follow-its-CI command from the host reference `vcs-ops` loaded
+in step 8, with the merge request's number or branch filled in. It is not a
+question: the developer runs it, or asks you to.

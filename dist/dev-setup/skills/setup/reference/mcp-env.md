@@ -32,9 +32,10 @@ not, print the commands to run manually and move on.
 
 ClickUp is only useful if the team tracks tasks there. Resolve
 `CLICKUP_SETUP_LIST_ID` as `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`
-describes — environment variable, then the plugin's `userConfig`, and **never**
-the project's `.env`: one list id does not justify pulling a file of secrets
-into the context window.
+describes — environment variable, then the list configured at install time,
+which the `clickup` skill states (no Bash command or file read can see that
+value), and **never** the project's `.env`: one list id does not justify
+pulling a file of secrets into the context window.
 
 - **Set** → check with `claude mcp list` whether `clickup` is already configured.
   If it is not:
@@ -136,9 +137,8 @@ In every case, close with one line for the summary:
 
 ## Step 7b — Branch protection on the reference branch
 
-"One review required" and "no direct push to the reference branch" used to be
-two bullets in a governance document nobody could enforce. They are settings on
-the host, so this step sets them there and they stop being prose.
+"One review required" and "no direct push to the reference branch" are not
+prose: they are settings on the host, so this step sets them there.
 
 **Skip this step** when `{VCS}` is `none` or `other`.
 

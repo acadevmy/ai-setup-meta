@@ -111,7 +111,7 @@ file.)*
 2. ```
    mcp__clickup__clickup_create_task_comment(task_id: TASK_ID, comment_text: "🤖 Starting automated processing by the auto-maintain pipeline.")
    ```
-3. On an MCP error: exit with `STATUS: error` — no tagged bail-out, the task is
+3. On an MCP error: exit with `STATUS: error` — no bail-out, the task is
    still in SPRINT.
 4. `jq '.next_step = 3' .automaint-state.json > .tmp && mv .tmp .automaint-state.json`
 
@@ -119,13 +119,12 @@ file.)*
 
 *(Skip if `NEXT_STEP > 3` — the branch already exists.)*
 
-1. Make sure you are on an up-to-date `main`. In the cloud the repo is already
-   cloned on the default branch — run `git pull --ff-only origin main` if you
-   are not on the latest revision. Locally:
-   `git checkout main && git pull --ff-only origin main`.
+1. `git fetch origin next` — `next` is the base of every PR (`AGENTS.md`
+   § Branching), and the clone defaults to `main`. If the fetch fails:
+   **bail out**.
 2. Derive `slug` from the task `name`: lowercase, kebab-case, at most 50
    characters, `[a-z0-9-]` only.
-3. `git checkout -b chore/<custom_id>-<slug>` (e.g.
+3. `git checkout --no-track -b chore/<custom_id>-<slug> origin/next` (e.g.
    `chore/AI-42-add-mcp-helper-skill`).
 4. ```bash
    jq --arg branch "$BRANCH" '.next_step = 4 | .branch = $branch' .automaint-state.json > .tmp && mv .tmp .automaint-state.json
@@ -138,7 +137,7 @@ file.)*
 | Type | Indicators | Typical target files |
 |---|---|---|
 | `skill-update` | "skill", "/project: command" | `templates/<dom>/.claude/skills/`, `shared/skills/` |
-| `mcp-update` | "MCP", "context server", "claude mcp add" | `templates/<dom>/.mcp.json`, related docs |
+| `mcp-update` | "MCP", "context server", "claude mcp add" | `templates/<dom>/setup/reference/mcp-env.md`, related docs |
 | `profile-update` | "profile", "stack", "Next.js/Angular/Flutter" | `templates/<dom>/profiles/` |
 | `agent-update` | "agent", "subagent" | `templates/<dom>/.claude/agents/`, `shared/agents/` |
 | `rules-update` | "rule", "constraint", "governance", "constitution" | `templates/<dom>/rules/` |
@@ -175,18 +174,22 @@ duplicate what is already there.)*
 
 *(Skip if `NEXT_STEP > 6`.)*
 
-1. Run `/project:validate`.
-2. If it fails: **bail out** with the details.
-3. If any `.sh` script was touched, run `bash -n <file>` as a syntax check.
-4. `jq '.next_step = 7' .automaint-state.json > .tmp && mv .tmp .automaint-state.json`
-5. Run `bash scripts/build-plugin.sh <domain>` to regenerate `dist/`.
+1. Run `bash scripts/build-plugin.sh <domain>` to regenerate `dist/` — first,
+   because `/project:validate` reads `dist/` too.
+2. Run `/project:validate`.
+3. If it fails: **bail out** with the details.
+4. If any `.sh` script was touched, run `bash -n <file>` as a syntax check.
+5. `jq '.next_step = 7' .automaint-state.json > .tmp && mv .tmp .automaint-state.json`
+   — last, so a resumed run rebuilds `dist/` instead of committing a stale one
+   (the CI `verify` job rejects it).
 
 ## Step 7 — Commit
 
 *(Skip if `NEXT_STEP > 7`.)*
 
-1. Stage only the files you actually changed: `git add <path1> <path2> …` —
-   never `git add -A`.
+1. Stage only the files you actually changed, plus the `dist/<domain>` that
+   step 6 rebuilt: `git add <path1> <path2> … dist/<domain>` — never
+   `git add -A`.
 2. Conventional Commits, in English:
 
    ```
@@ -257,7 +260,7 @@ duplicate what is already there.)*
 
    ```bash
    PR_URL=$(gh pr create \
-     --base main \
+     --base next \
      --head "$BRANCH" \
      --title "$PR_TITLE" \
      --body-file .automaint-pr-body.md \

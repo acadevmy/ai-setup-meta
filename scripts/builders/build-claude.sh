@@ -313,12 +313,14 @@ elif [ -d "$HOOKS_SRC" ]; then
   done
 fi
 
+# The path is quoted: the plugin root can contain a space, and an unquoted
+# ${CLAUDE_PLUGIN_ROOT} is a warning `claude plugin validate --strict` fails on.
 SETTINGS_HOOKS=$(jq '.hooks // {}' "$SETTINGS_SRC" 2>/dev/null)
 
 if [ "$SETTINGS_HOOKS" != "{}" ] && [ -n "$SETTINGS_HOOKS" ]; then
   echo "$SETTINGS_HOOKS" | \
     jq 'walk(if type == "string" and test("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/") then
-      gsub("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/"; "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/")
+      gsub("\\$CLAUDE_PROJECT_DIR/\\.claude/hooks/(?<script>[^ \"]+)"; "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/\(.script)\"")
     else . end)' | \
     jq '{hooks: .}' > "$DIST_DIR/hooks/hooks.json"
   ok "hooks.json generated with plugin paths"
@@ -332,7 +334,7 @@ elif [ "$HAS_HOOKS" = true ]; then
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh\"",
             "timeout": 600
           }
         ]
@@ -344,7 +346,7 @@ elif [ "$HAS_HOOKS" = true ]; then
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit.sh\""
           }
         ]
       }
@@ -355,7 +357,7 @@ elif [ "$HAS_HOOKS" = true ]; then
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-compact.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-compact.sh\""
           }
         ]
       }
@@ -367,6 +369,40 @@ HOOKSJSON
 else
   echo '{"hooks": {}}' > "$DIST_DIR/hooks/hooks.json"
   ok "hooks.json generated (empty — the template has no hooks)"
+fi
+
+# ── Copy the mod ─────────────────────────────────────────────────────────────
+#
+# A mod is a TypeScript hooks module the harness loads from the `modules` key of
+# hooks/hooks.json (DE-17071). It is an interface layer and nothing more: it
+# draws and answers from what the plugin scripts report, and it holds no rule —
+# the bash hooks above stay the authority, and a client without mods keeps
+# them exactly as they are. Its files sit next to hooks.json because the module
+# path is relative to it; the tests ship too, so CI runs `claude plugin test`
+# on exactly what is released.
+step "Copying the mod"
+
+MOD_SRC="$TEMPLATE_DIR/.claude/mod"
+MOD_FILES=$(jq -r '.mod[]? // empty' "$MANIFEST")
+
+if [ -n "$MOD_FILES" ]; then
+  printf '%s\n' "$MOD_FILES" | grep -qx 'register.ts' \
+    || fail "The manifest lists mod files but not register.ts, the module entry"
+  for FILE in $MOD_FILES; do
+    SRC="$MOD_SRC/$FILE"
+    if [ -f "$SRC" ]; then
+      mkdir -p "$DIST_DIR/hooks/$(dirname "$FILE")"
+      cp "$SRC" "$DIST_DIR/hooks/$FILE"
+      ok "Mod file: $FILE"
+    else
+      warn "Mod file not found: $FILE"
+    fi
+  done
+  jq '. + {modules: ["./register.ts"]}' "$DIST_DIR/hooks/hooks.json" > "$DIST_DIR/hooks/hooks.json.tmp"
+  mv "$DIST_DIR/hooks/hooks.json.tmp" "$DIST_DIR/hooks/hooks.json"
+  ok "hooks.json declares the mod module"
+else
+  ok "no mod in the manifest — hooks.json declares no module"
 fi
 
 # ── Copy .mcp.json ───────────────────────────────────────────────────────────

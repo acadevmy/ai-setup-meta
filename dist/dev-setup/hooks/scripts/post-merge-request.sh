@@ -27,9 +27,22 @@
 # silently. An open clock means a flow of this plugin moved a task to
 # IN PROGRESS here, which is the only case where the board is waiting.
 #
-# Exit 2 is the channel, not a verdict on the command: on PostToolUse it is
-# what puts the message in front of the model (stdout there reaches the debug
-# log only). The merge request was created and stays created.
+# The reminder is `additionalContext`, with exit 0 (DE-17064): on PostToolUse
+# that is the channel the hooks reference gives a hook with something to tell
+# the model, and it arrives next to the command's result rather than as a hook
+# error. Nothing else goes to stdout, and stderr is left to the diagnostics
+# (`jq not found`) that belong in the debug log. The merge request was created
+# and stays created: the hook reports, it does not undo.
+#
+# Mounted twice, with `"if": "Bash(*gh pr *create*)"` and `"if": "Bash(*glab mr
+# *create*)"` — the scan below in permission-rule syntax, one host per handler
+# because a handler holds one rule — so the harness spawns it on a merge-request
+# creation only. The two command strings end in `gh` and `glab`, an argument
+# this script never reads: the harness deduplicates identical hook commands,
+# and nothing says `if` is part of the key, so two handlers with one command
+# could collapse into one and the GitLab creation would never spawn the hook.
+# The scan stays the decision: a client that ignores `if`, and a compound
+# command the harness cannot narrow, still reach it.
 
 set -uo pipefail
 
@@ -74,6 +87,9 @@ RESPONSE=$(printf '%s' "$INPUT" | jq -r '.tool_response // empty | if type == "s
 [ -n "$COMMAND" ] || exit 0
 
 # ── Is this a merge request being opened? ─────────────────────────────────────
+#
+# Mirrored by the mod (mod/lib/merge-request.ts), which shows the developer the
+# same closure: the scan, the URL proof and the task choice — change both.
 #
 # The scan runs on the command with every quoted string removed: a pull request
 # body explaining how to run `gh pr create` must not read as one.
@@ -144,9 +160,18 @@ CLOCK_CMD="bash \"\${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh\""
 CONTRACT='${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md'
 
 # ── The reminder ──────────────────────────────────────────────────────────────
+#
+# One JSON object on stdout, built by jq: the text holds quotes, newlines and a
+# URL, and a hand-escaped string would break on the first of them.
+
+report() {
+  jq -n --arg text "$1" \
+    '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $text}}'
+  exit 0
+}
 
 if [ -z "$TASK" ]; then
-  printf 'post-merge-request: %s is open, and these tasks still have a work clock running here: %s.
+  report "$(printf 'post-merge-request: %s is open, and these tasks still have a work clock running here: %s.
 
 The flow is not finished for the one this merge request closes. For that task:
   1. %s --task <id> --stop --json
@@ -154,14 +179,13 @@ The flow is not finished for the one this merge request closes. For that task:
      COMMENT as the comment, verbatim — the clickup agent, per
      %s
 Do not guess which one: if the merge request does not say, ask.
-' "$MR_URL" "$OPEN_TASKS" "$CLOCK_CMD" "$CONTRACT" >&2
-  exit 2
+' "$MR_URL" "$OPEN_TASKS" "$CLOCK_CMD" "$CONTRACT")"
 fi
 
 STARTED_AT=$(bash "$SCRIPTS_DIR/task-clock.sh" --task "$TASK" --status --json 2>/dev/null \
   | jq -r '.STARTED_AT // empty' 2>/dev/null || true)
 
-printf 'post-merge-request: %s is open, and %s is still IN PROGRESS%s.
+report "$(printf 'post-merge-request: %s is open, and %s is still IN PROGRESS%s.
 
 The flow is not finished. Two calls, now, in this turn:
   1. %s --task %s --stop --json
@@ -171,6 +195,4 @@ The flow is not finished. Two calls, now, in this turn:
 An empty COMMENT means the clock has nothing to report: move the task anyway,
 and say so in one line. Never write a duration yourself.
 ' "$MR_URL" "$TASK" "${STARTED_AT:+ — its work clock has been running since $STARTED_AT}" \
-  "$CLOCK_CMD" "$TASK" "$TASK" "$CONTRACT" >&2
-
-exit 2
+  "$CLOCK_CMD" "$TASK" "$TASK" "$CONTRACT")"

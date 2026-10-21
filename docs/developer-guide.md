@@ -65,6 +65,50 @@ in your working tree and commits nothing.
 **`validate` is not one of these.** `/project:validate` runs in the plugin's own
 repository, not in yours — see [workflow.md](./workflow.md).
 
+### Where you are, without a turn: the band and `/dev-setup`
+
+On a Claude Code that loads mods (2.1.287 and later), the plugin also shows the
+state of the work without spending a model turn:
+
+- **above the prompt** — one row per thing to know, each with a coloured mark:
+  an open task clock (`● DE-123  in progress  42m`, green); after a `gh pr
+  create` / `glab mr create` that created a merge request, its link and a
+  `close DE-123` button that fills — never sends — the prompt that stops the
+  clock and moves the task to `CODE REVIEW`; while an `sdd` runs, its tokens per
+  phase with the phase in progress at full strength, and the cost so far; past
+  70% of context, a yellow warning before a long phase compacts it;
+- **`/dev-setup`** — a pane with one tab per view (`1`–`6` switch, `r` reloads,
+  `Esc` closes). With no argument, the six commands with when to use each and
+  what each takes, and a `use` button that puts one in the prompt. `/dev-setup
+  clock` (one card per open clock — total, current interval, earlier ones, the
+  branch's own task marked — and the clocks stopped in the last five minutes),
+  `status` (what this session changed: its commits, the files it modified and
+  has not committed, the files it committed — nothing the branch carried before
+  the session began), `context` (how full, as a meter, and how much of it the plugin
+  brings), `usage` (the `sdd` in progress, or the last one: per phase the time, the part of it Claude was working and the part it waited for you, the tokens and their share, the cache hit and the cost; then where the tokens went — main thread or subagents, each model, each kind of token) and
+  `runs` (this session's `multi-sdd` runs). Its footer names where the figures
+  come from and when they were read. It answers at once, even while Claude is
+  working, and in the terminal it adds nothing to the conversation; in
+  `claude -p` or VS Code it prints the same rows as text.
+
+None of it is a rule. On an older client, or with mods turned off, the plugin
+works exactly the same — without the view.
+
+Two bash hooks carry the rest, on every client. `notify.sh` speaks on a
+permission prompt only, and only while a task of this plugin is in play here —
+a work clock open, or stopped in the last five minutes: it sends one desktop
+notification titled `dev-setup · DE-123` (every task in play when the branch
+names none of them), so the merge request or the `BLOCKED` move an autonomous
+run waits on reaches you by name. `session-title.sh` names the session
+`DE-123 add-user-auth` — at startup or resume on a task branch, and on the
+`/dev-setup:sdd`, `quick` or `auto-sdd` prompt that launches one task — so
+`claude --resume` lists sessions by task; a title you set yourself is never
+replaced. Both are silent otherwise, and let everything through when `jq` or
+the repository is missing. During an `sdd` the phases are a task list, and
+every closing report ends on a `Next:` line with the command to run next.
+[onboarding.md](./onboarding.md#know-where-a-flow-is) has the two user
+settings that go with them.
+
 ---
 
 ## 2. A task, end to end
@@ -77,7 +121,8 @@ repository, not in yours — see [workflow.md](./workflow.md).
        │  should stop (the merge request, by default), then creates
        │  feat(<context>)/DE-123_…, moves the task to IN PROGRESS and starts the clock
        │
-       ├─ discovery — a structured interview, only the questions that matter
+       ├─ discovery — one call, up to four questions on what the task leaves
+       │  open; "Requirements clear: go to spec" ends it in one click
        │
        ├─ the technical spec, written to .specs/
        │        ↓
@@ -85,7 +130,10 @@ repository, not in yours — see [workflow.md](./workflow.md).
        │
        ├─ development against the approved plan, one step at a time
        │
-       ├─ simplify → verify against the spec → review + REGISTRY
+       ├─ simplify → the diff packaged once → verify ∥ review + REGISTRY
+       │  (verify against the spec and review against the rules run in
+       │  parallel, on the same package; a violation counts only once a
+       │  second agent has confirmed it)
        │
        ├─ one commit: code + spec + REGISTRY, with the gate running here
        │
@@ -95,7 +143,7 @@ repository, not in yours — see [workflow.md](./workflow.md).
           posted on it
 ```
 
-Eight things are worth knowing about that shape.
+What is worth knowing about that shape:
 
 **A backlog task is your call.** A task read in `BACKLOG` was never planned
 into a sprint, so the flow stops and asks before anything else happens — no
@@ -112,6 +160,11 @@ carried out as written does stop, and says why.
 spec and the REGISTRY entries land together. Committing more often while you
 work is fine; nothing requires it.
 
+**Three stops before the code.** Launch (fork point and stop point, one
+call), discovery (one call, at most a second, five questions in all) and the
+spec approval. Discovery drafts what the task already says and asks only about
+the gaps — a well-written task reaches the spec in one click.
+
 **You choose where it stops.** Together with the fork point, the flow asks how
 far this run goes — the merge request is the default:
 
@@ -125,9 +178,10 @@ far this run goes — the merge request is the default:
 | Merge request | the whole flow: the merge request, the task in review, the time posted |
 
 Short of the merge request, the task stays `IN PROGRESS` with its clock
-running. Run `/dev-setup:sdd DE-123` again to carry on: it asks the stop point
-once more and starts from what is on disk — the spec, the uncommitted code, or
-the commit — without redoing what is done.
+running. Run `/dev-setup:sdd DE-123` again to carry on: it reuses the stop
+point you chose — saved beside the clock, it survives `/clear` — and starts
+from what is on disk — the spec, the uncommitted code, or the commit — without
+redoing what is done. `/dev-setup:sdd DE-123 --stop push` changes it.
 
 **The clock runs from IN PROGRESS to the merge request.** The move that starts
 the work stamps `task-clock.sh --start`; the move that ends it reads the stamp
@@ -203,6 +257,18 @@ It comes back with one of two outcomes:
 | `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section (§9) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
+In a cloud session — a scheduled routine included — the disk goes with the
+session, so a `failed` run — or one that broke with no outcome — does not
+leave its work there: whatever the worktree holds is committed and the branch
+is pushed as it is, with no merge request. When the run never made a branch,
+the spec it wrote gets one. That commit and that push are the one way past the
+gates — the commands are red, which is why the run failed — so
+`save-failed-run.sh` makes them, only in a cloud session, only on the task's
+own branch and never forced, with a message that says the hooks were skipped
+and why the run failed. The task goes to `BLOCKED` with the same report: why
+it failed, what is missing, the tail of the failing output, where the branch
+is and how to resume (`/dev-setup:sdd <TASK-ID>` on that branch).
+
 It asks you one thing before it starts — which branch the run forks from, the
 ref resolved from the repository offered as the default, the same question
 `/dev-setup:sdd` asks — and it asks it before the task moves on the board, so
@@ -225,6 +291,67 @@ The cap is **five**, and it is a script that enforces it — the sixth task exit
 with the reason. Five is where the review queue becomes the bottleneck: a
 fan-out costs `n` times a single run, and it ends with `n` merge requests for
 one person to read.
+
+### The quality commands your project declares
+
+Which command lints the project, which type-checks it and which runs its tests
+is the project's to say, once, in `.claude/quality-commands.json` — not a guess
+the plugin remakes on every run. Step 3b of the setup writes it: it proposes
+what the project already declares somewhere, asks you to confirm or correct the
+three in one question, and runs each one before it finishes.
+
+```json
+{
+  "lint": "make lint",
+  "typecheck": null,
+  "test": "make test",
+  "absent": { "typecheck": "the project has no type checker" },
+  "preflight": null,
+  "hook_manager": null
+}
+```
+
+| Key | What it decides |
+|---|---|
+| `lint`, `typecheck`, `test` | the command, or `null` when the project has none — with the reason under `absent`. A `null` is a decision: the flows skip that command and run the others |
+| `preflight` | optional: a readiness check the autonomous launchers run before anything else — a script that checks the toolchain, say |
+| `hook_manager` | optional: your hook tool when detection does not know it (`pre-commit`, `captainhook`, `grumphp`); the commit gate defers to it (§5) |
+
+**Every command runs from the repository root.** One that belongs to a
+sub-directory says so: `make -C api lint`, `cd api && composer test`.
+
+**Where the candidates come from**, in order of authority: your CI (the `run:`
+steps of `.github/workflows/`, the `script:` items of `.gitlab-ci.yml`), your
+task runner (`Makefile`, `justfile`, `Taskfile.yml`), your package scripts
+(`package.json`, `composer.json`, `pyproject.toml`), the shell blocks of
+`README.md` and `AGENTS.md`, and only last the per-language heuristics.
+`${CLAUDE_PLUGIN_ROOT}/scripts/quality-candidates.sh --json` shows the list. So a
+stack the plugin has never seen still gets its own gates, with no rule written
+for it.
+
+**Every flow reads the file the same way**, through `detect-stack.sh`, whose
+`COMMANDS_SOURCE` says where the commands came from: `declared` (the file),
+`detected` (no file, the heuristics found something) or `none`. A malformed file
+is an error, never a silent fallback to the guess.
+
+**The autonomous launchers refuse without it.** Before the board, the fork point
+or the workflow, `/dev-setup:auto-sdd` and `/dev-setup:multi-sdd` run
+`${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh --require-declared --allow-unavailable --json`.
+It refuses in seconds — no declaration, a rejected one, every command declared
+absent — and the run never starts:
+a SPRINT task goes to `BLOCKED` with the reason, a BACKLOG task is left as it
+was, and `multi-sdd` touches no task. The fix is the project's: run
+`/dev-setup:setup` and let step 3b write or repair the declaration.
+
+**An environment that cannot run them does not stop the run.** A command whose
+program is not installed, or a red `preflight` — a cloud routine without PHP or
+MySQL, say — is a fact about the machine, not about the project. The launcher
+says which commands are affected and starts anyway; the dev agent writes the
+tests without running those commands, Verify skips them, and the merge request
+opens with a **Not verified** section naming each one and why. Whoever merges
+runs them, or waits for the CI that does.
+`/dev-setup:sdd` and `/dev-setup:quick` do not stop; with `COMMANDS_SOURCE`
+`none` they say at the start that nothing will lint or test the work.
 
 ### The file an unattended run reads
 
@@ -349,20 +476,30 @@ A sandboxed command reaches the network only through the sandbox's HTTP(S)
 proxy: no raw TCP, no DNS. So with `origin` on `git@host:…`, a `git push` inside
 the sandbox cannot even resolve the hostname. The setup asks which way you want
 it — switch the remote to HTTPS (`gh auth setup-git`, or the `glab` credential
-helper, so no token goes in the URL), or keep SSH and let git's network commands
-run outside the sandbox through the normal permission prompt. The deny rules
-hold either way: they are permission rules, not sandbox boundaries.
+helper, so no token goes in the URL), or keep SSH. Either way
+`sandbox.excludedCommands` carries `git push origin *` and `git push -u origin *`:
+the push runs outside the sandbox, towards `origin` only — its URL lives in
+`.git/config`, which the sandbox protects, and a push to any other URL stays
+sandboxed. `git fetch` on SSH still asks. The deny rules hold either way: they
+are permission rules, not sandbox boundaries, and they cover `git push -u origin
+main` too.
 
 ### `gh` and `glab` run outside the sandbox
 
-`sandbox.excludedCommands` lists `gh` and `glab`. On macOS a Go binary verifies
+`sandbox.excludedCommands` lists `gh *` and `glab *`. On macOS a Go binary verifies
 TLS certificates through a system service the sandbox does not let it reach, so
 inside the sandbox every call fails with `x509: OSStatus -26276`. Excluding them
 removes only the OS-level confinement: the deny rules and the `ask` checkpoints
 on `gh pr create` / `glab mr create` and on writing `gh api` / `glab api` calls
 still apply, and they see `GH_TOKEN` / `GITLAB_TOKEN`, which is the point — they
 are the tools meant to read the token from the environment. A project set up before the entry existed gets it
-on the setup's UPDATE.
+on the setup's UPDATE — and so does one set up with 3.3.0, whose bare `gh` and
+`glab` entries matched only the command with no arguments.
+
+An entry takes a call out of the sandbox only when **every** command in it
+matches, and a redirect to a file, a `cd` or a `$(...)` keeps it in. So
+`gh pr view 12 --json body | head` stays sandboxed and fails like before: run
+`gh` on its own and filter with its `--jq` / `--template` flags instead.
 
 ---
 
@@ -371,15 +508,23 @@ on the setup's UPDATE.
 `gate-commit.sh` is a `PreToolUse` hook on `Bash`, and it picks its mode from
 what the project already owns, so the checks run once and only once.
 
-**Your project has husky, lefthook, simple-git-hooks or a `core.hooksPath`.**
-Then your own tooling runs the per-commit checks and the hook only refuses the
+It spawns only on a git commit call: its handler carries the rule
+`Bash(*git *commit*)`, the hook's own definition of a commit in permission-rule
+syntax, so a `git status` never starts it — and it keeps its own check inside,
+for a client that ignores the rule.
+
+**Your project has husky, lefthook, simple-git-hooks or a `core.hooksPath`** —
+or declares another hook tool as `hook_manager` in
+`.claude/quality-commands.json` (pre-commit, captainhook, grumphp: anything
+detection does not recognise). Then your own tooling runs the per-commit checks and the hook only refuses the
 ways around it: `HUSKY=0`, `LEFTHOOK=0`, a `-c core.hooksPath=…` override, a
 `GIT_CONFIG_*` injection. (`--no-verify` and `-n` are separately denied.) A
 commit *message* that happens to mention `HUSKY=0` is not an attempt to set it —
 the scan reads the command with quoted strings removed.
 
 **Your project has no hook manager.** Then the hook is the gate: it runs the
-lint, typecheck and test commands detected from your project and denies the
+lint, typecheck and test commands your project declares (or, with no
+declaration, the ones detected) and denies the
 commit with the tail of the real output as the reason. Not a summary of the
 failure — the failure.
 
@@ -516,11 +661,13 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | Regenerated | Left alone |
 |---|---|
 | `.claude/rules/dev-setup-*.md` — overwritten, and any that your stack no longer needs are removed | `.claude/rules/<your-own>.md` |
-| `AGENTS.md`, `CLAUDE.md` — after asking | Git hooks, ESLint, Prettier, CI config |
+| `AGENTS.md` — after asking; the first offer replaces only the plugin-owned tail (agents, commands, where the rules live), quoting the diff, and your sections stay | Git hooks, ESLint, Prettier, CI config |
+| A `CLAUDE.md` holding only `@AGENTS.md` — removed without asking, at the root and in every sub-project; one with your own content is moved into its `AGENTS.md` only on your yes | `CLAUDE.local.md` and any instruction file above the project — reported, never touched |
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
 | `.claude/merge-request.json` — written when absent, after asking the language; missing catalogue labels are created on the forge | `.claude/merge-request.json` once you have one |
+| `.claude/quality-commands.json` — proposed when absent (decline it and the autonomous launchers refuse until you accept it), a rewrite offered when malformed | `.claude/quality-commands.json` once you have a valid one — verified, never rewritten |
 
 The one unasked edit to a file the setup did not write is a single `.gitignore`
 line, `.claude/worktrees/`. It adds, never removes; without it every file of
@@ -550,6 +697,18 @@ project's own checks and commit normally.
 If the hook warns on stderr and lets a commit through, `jq` is missing or stack
 detection failed. Install `jq`; the gate is fail-open by design and will not
 tell you twice.
+
+### AGENTS.md is not loading
+
+Run `/memory`: it lists the instruction files the session loaded. Claude Code
+reads `AGENTS.md` only from 2.1.281 on, and only when no `CLAUDE.md`,
+`.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the directory or in one above
+it — a `CLAUDE.local.md` of your own, or a `CLAUDE.md` in the folder that holds
+the repository, is enough to switch it off without an error. The setup lists
+every such file in its summary and touches none it did not write. Move the
+content out, or set **Project instructions** to `claude-md-and-agents-md` in
+`/config` to read both. The built-in AGENTS.md support disabled in `/plugin`,
+and the first session after an upgrade from 2.1.276 or earlier, skip it too.
 
 ### The merge request lists points to confirm
 
@@ -595,8 +754,10 @@ first time; answering "yes, and don't ask again" records it in
 
 ### `git push` fails inside the sandbox
 
-Your `origin` is an SSH remote — see §4. Switch it to HTTPS, or let git's
-network commands run outside the sandbox.
+Your `origin` is an SSH remote and the push was not the plain form the
+exclusion matches — see §4. `git push origin <branch>` or
+`git push -u origin <branch>`, alone on the line, runs outside the sandbox; a
+`cd … &&`, a pipe or a push to a URL keeps it in.
 
 ### ClickUp does not respond
 
@@ -607,8 +768,10 @@ Claude Code and the flow starts again on its own.
 
 `post-merge-request.sh` exists to catch exactly this: it fires on the command
 that created the merge request and names the task whose clock is still running.
-If no reminder arrived — the merge request was opened from the web UI, `jq` is
-missing, the installed plugin predates the hook — the two calls are:
+The reminder arrives as context next to the command's result
+(`additionalContext`), not as a hook error. If none arrived — the merge request
+was opened from the web UI, `jq` is missing, the installed plugin predates the
+hook — the two calls are:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task DE-123 --stop --json
@@ -617,6 +780,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task DE-123 --stop --json
 then move the task to `CODE REVIEW` with the `COMMENT` it returns, verbatim. To
 see what is still open in the repository without closing anything, the same
 script with `--status` and no `--task` lists it.
+
+### `/dev-setup` is not in the command list
+
+The client is not loading mods: it is older than 2.1.287, the rollout has not
+reached it, or mods are turned off (`--safe-mode`, `disableAllHooks`, managed
+settings). On 2.1.285 they are early access: start Claude Code with
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` in its environment. Nothing else in the
+plugin depends on them.
 
 ### The task moved but carries no time
 
@@ -633,9 +804,28 @@ invented one is worse than none. Start the next sitting by moving the task to
 
 ### The setup did not detect my stack
 
-Make sure the project root actually holds the marker: `package.json` with the
-dependencies (Next.js, Angular, React, NestJS), `pubspec.yaml` (Flutter), or
-`app.json` with an `expo` key (React Native).
+For the quality commands it does not need to. Step 3b proposes what your CI,
+task runner, package scripts and README already run, whatever the language, and
+asks; a kind with no candidate is still asked, and you type the command. What
+you confirm lands in `.claude/quality-commands.json`, which wins over any
+detection — edit it by hand at any time, and re-run `/dev-setup:setup` to have
+it verified.
+
+The rules and the profiles do depend on detection. For those, make sure the
+project root actually holds the marker: `package.json` with the dependencies
+(Next.js, Angular, React, NestJS), `pubspec.yaml` (Flutter), or `app.json` with
+an `expo` key (React Native).
+
+### An autonomous run refuses to start
+
+`/dev-setup:auto-sdd` or `/dev-setup:multi-sdd` stopped before the board with a
+`quality-preflight.sh` reason. It names the cause: no
+`.claude/quality-commands.json` (a project set up before the declaration
+existed — run `/dev-setup:setup` once), a malformed one, every command declared
+absent. Fix that, and launch again; nothing was started, so there is nothing to
+clean up. A program the environment does not have, or a `preflight` that
+failed, does not land here: the run starts and its merge request lists those
+checks as not verified.
 
 ### A rule I expected did not load
 

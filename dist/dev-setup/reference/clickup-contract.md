@@ -60,7 +60,12 @@ A flow that starts without a task id needs the list to read from. Look for
 `CLICKUP_SETUP_LIST_ID` in this order:
 
 1. the environment variable;
-2. the plugin's `userConfig` (set at install time).
+2. the value the `clickup` skill states as the
+   "list configured at install time" — load that skill if it is not in
+   context. The install-time value reaches a session only there, substituted
+   into the skill's text: no Bash command and no file read can see it. An
+   empty value, or one still showing the unexpanded `${user_config.…}`
+   placeholder, means not configured.
 
 **Do not read the project's `.env` for this.** Reads of that file are open, but
 one list id does not justify pulling a file of secrets into the context window.

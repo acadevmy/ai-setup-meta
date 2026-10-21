@@ -1,7 +1,8 @@
 # Intake — task, branch, status, brief
 
 Steps 1 to 4 of the flow: from "start this task" to a working branch with the
-task in progress and the developer looking at the brief. The judgement calls
+task in progress, the developer looking at the brief, and the flow's phases on
+screen as a task list. The judgement calls
 here are two questions — the task and the fork point — and a script does the
 rest. The ClickUp calls follow
 `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`, the fork point
@@ -14,6 +15,7 @@ question here is in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 - [2. The working branch](#2-the-working-branch)
 - [3. Task status, and the clock](#3-task-status-and-the-clock)
 - [4. The brief, and what is already on disk](#4-the-brief-and-what-is-already-on-disk)
+- [The phase list](#the-phase-list)
 
 ## 1. Task selection
 
@@ -80,22 +82,26 @@ and resolves `BASE_BRANCH` — the branch HEAD forked from most recently, never 
 hard-coded `main`.
 
 `BRANCH_EXISTS: true` means the task already had a branch: re-run the call with
-`--create` (it checks the branch out), skip the question below — the fork point
-was decided when the branch was born — and say the task is being resumed; step 4
-will show how far it got. The stop point is still asked, on its own.
+`--create` (it checks the branch out, plus `--stop <value>` when `$ARGUMENTS`
+carries one), skip the question below — the fork point was decided when the
+branch was born — and say the task is being resumed; step 4 will show how far
+it got. What `STOP_POINT` decides on a resume is in `stop-point.md`, "Saving
+the answer".
 
 Otherwise confirm the fork point, as
 `${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md` defines it: the resolved
 `BASE_BRANCH` is the default and the first option, never the decision. Ask it
 for `<BRANCH>`, and in the **same** `AskUserQuestion` call the two stop-point
-questions from `stop-point.md` — one call, then the turn ends on it.
+questions from `stop-point.md` — one call, then the turn ends on it. A
+`--stop <value>` in `$ARGUMENTS` already answers those two: ask the fork point
+alone.
 
 Then create the branch from the answer:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
   --task <custom_id> --type <type> [--context <area>] --title "<name, in English>" \
-  --base <the chosen ref> --create --json
+  --base <the chosen ref> --stop <the chosen stop point> --create --json
 ```
 
 Never run `git checkout`/`git pull` by hand in place of these calls: a wrong
@@ -105,7 +111,7 @@ fork point makes every diff downstream cover two branches' work. Report
 With `--worktree`, the order matters: resolve and confirm the fork point **in
 the main checkout** — the report-only call and the question above — then
 enter the worktree named after the task, and only there run the `--create`
-call with `--base <the chosen ref>`. A fresh worktree forks from the remote default, so
+call with `--base <the chosen ref>` and `--stop <the chosen stop point>`. A fresh worktree forks from the remote default, so
 its local HEAD is not a fork point worth resolving.
 `${CLAUDE_PLUGIN_ROOT}/reference/worktree.md` covers the rest — the dependency
 install, the port, the overlap warning.
@@ -132,7 +138,14 @@ section of the ClickUp contract holds the rest.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-prerequisites.sh" --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh" --json
 ```
+
+`COMMANDS_SOURCE: none` from the second means the project declares no quality
+command and detection found none: nothing will lint, type-check or test this
+work. Say so now, in one line — not in the closing summary, where it would be
+news too late — and point at `/dev-setup:setup`, whose step 3b declares them.
+It is not a stop: a person is here to judge the work.
 
 `SPEC` and `SPEC_STATUS` say whether this task has been here before, and that
 decides where the flow actually starts:
@@ -152,7 +165,14 @@ the plan up where it left off. Never silently redo development over a diff
 that already exists.
 
 Never re-run discovery over a spec that exists. Say which step you are starting
-from and why, then show the brief:
+from and why, then show the brief.
+
+When the task meets `quick`'s bar — at most three files, and no new component,
+dependency or public interface — the brief says so with the exact command:
+`Route: looks like quick — /dev-setup:quick <custom_id>`. Then the flow goes on
+in `sdd`, as launched: it never moves itself to a lighter flow, and the choice
+stays with the developer, who can stop here and type the command. Under the bar
+or not, nothing is asked. Leave the line out when the task does not meet it.
 
 ```
 Task:     DE-123 — Task title
@@ -160,7 +180,50 @@ Priority: High
 Branch:   feat(auth)/DE-123_add-user-auth  (base: origin/next)
 Status:   IN PROGRESS  (clock started 2026-09-18 14:03)
 Spec:     .specs/DE-123-add-user-auth.md (approved) — or "none yet"
+Stop at:  Merge request  (saved — /dev-setup:sdd DE-123 --stop <value> changes it)
+Route:    looks like quick — /dev-setup:quick DE-123   ← only under quick's bar
 
 Description:
 <the task description, as the agent returned it>
 ```
+
+## The phase list
+
+Once the brief is shown, publish the flow's phases as the session's task list,
+so the developer sees where the run is without reading the chat: `TaskCreate`
+for each phase and `TaskUpdate` to move it, or `TodoWrite` with the whole list
+where that is the task-list tool the session has.
+
+The phases are the steps of the flow, with the closure split where the stop
+points split it:
+
+| Phase | Steps |
+|---|---|
+| Intake | 1–4 |
+| Discovery | 5 |
+| Spec | 6 |
+| Approval | 7 |
+| Development | 8 |
+| Gates | closure 1–5 |
+| the commit step, named after the stop point | closure 6, and 7–9 when the stop point reaches them |
+
+The list ends where the saved stop point ends the run — a list promising a
+merge request this run will not open is the opposite of visible:
+
+| Stop point | The list ends on |
+|---|---|
+| `spec` | Approval — nothing past it |
+| `development` | Development |
+| `review` | Gates — nothing past it |
+| `commit` | Commit |
+| `push` | Commit and push |
+| `merge-request` | Commit and merge request |
+
+- **Intake is created completed**: the brief is where it ends.
+- **On a resume, the phases already passed are created completed** — every
+  phase before the step the table in step 4 starts at.
+- **Mark each phase in progress when it starts and completed when it ends**,
+  one in progress at a time. A phase that ends the run — the stop point — is
+  completed before the final report.
+- **Between tool calls, write at most one line of commentary.** The list says
+  where the run is; the chat does not have to.

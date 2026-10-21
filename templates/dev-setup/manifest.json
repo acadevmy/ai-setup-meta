@@ -7,6 +7,7 @@
     "existing.md",
     "greenfield.md",
     "install.md",
+    "quality-commands.md",
     "rules-generation.md",
     "agents-generation.md",
     "mcp-env.md"
@@ -27,6 +28,7 @@
   ],
   "template_agents": [
     "review.md",
+    "validate-findings.md",
     "verify.md"
   ],
   "template_skills": [
@@ -47,20 +49,42 @@
   "plugin_scripts": [
     "common.sh",
     "detect-stack.sh",
+    "quality-candidates.sh",
+    "quality-preflight.sh",
     "sdd-start.sh",
     "check-prerequisites.sh",
+    "review-package.sh",
     "multi-preflight.sh",
     "task-clock.sh",
     "migrate-settings.sh",
     "render-template.sh",
+    "instruction-files.sh",
     "worktree-info.sh",
-    "mr-meta.sh"
+    "mr-meta.sh",
+    "save-failed-run.sh"
   ],
   "hooks": [
     "gate-commit.sh",
     "post-edit.sh",
     "post-merge-request.sh",
-    "on-compact.sh"
+    "on-compact.sh",
+    "notify.sh",
+    "session-title.sh"
+  ],
+  "mod": [
+    "register.ts",
+    "lib/rows.ts",
+    "lib/draw.ts",
+    "lib/clock.ts",
+    "lib/merge-request.ts",
+    "lib/catalogue.ts",
+    "lib/usage.ts",
+    "lib/runs.ts",
+    "lib/context.ts",
+    "lib/session.ts",
+    "lib/views.ts",
+    "tests/lib.test.ts",
+    "tests/register.test.ts"
   ],
   "rules": [
     "core.md",
