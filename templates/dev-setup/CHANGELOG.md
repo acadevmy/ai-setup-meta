@@ -6,6 +6,72 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.0.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.4.2...dev-setup-v4.0.0) (2026-10-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **setup:** the setup no longer writes CLAUDE.md, and removes the @AGENTS.md shim on UPDATE; Claude Code 2.1.281 or later is required to read the project instructions.
+* **auto-sdd:** auto-sdd and multi-sdd refuse to start on a project without .claude/quality-commands.json. Run /dev-setup:setup (UPDATE) once to write it.
+
+### Features
+
+* **auto-sdd:** Refuse to launch without declared quality commands, before the board [DE-17535] ([cefe981](https://github.com/acadevmy/ai-setup-meta/commit/cefe981c957ae7f71986c301779ccb446bba85bb))
+* **auto-sdd:** Run on when the environment lacks the toolchain, and list what was not verified [DE-17535] ([87dc4a2](https://github.com/acadevmy/ai-setup-meta/commit/87dc4a2f37f1f9a41801742f06049096cd3f6e7b))
+* **auto-sdd:** Save a failed cloud run past the gates, push it and block the task with why ([4b8bba1](https://github.com/acadevmy/ai-setup-meta/commit/4b8bba1bd280ca99b0b0a3dbb170baa159deb91b))
+* **auto-sdd:** Save a failed cloud run past the gates, push it and block the task with why ([1fefc27](https://github.com/acadevmy/ai-setup-meta/commit/1fefc275be6795b602f1e4c8a5b4ce629fa15f11))
+* **hooks:** Name the session after the task [DE-17077] ([0e0d731](https://github.com/acadevmy/ai-setup-meta/commit/0e0d731c7f5b7a93c58b2681c56b2b2af96a870a))
+* **hooks:** Notify the developer with the task id when a flow needs them [DE-17077] ([bcdbb60](https://github.com/acadevmy/ai-setup-meta/commit/bcdbb60fc4a26732822b8fd42ed15805509efc40))
+* **hooks:** Notify, name the session after the task, and show the sdd phases and next command [DE-17077] ([7e44575](https://github.com/acadevmy/ai-setup-meta/commit/7e44575f16d912659f2c65ff202ea3c05da35f39))
+* **hooks:** Spawn only on their calls and report through additionalContext [DE-17064] ([d857e12](https://github.com/acadevmy/ai-setup-meta/commit/d857e123db2cab8887cd61c4064b0ed2722e83fa))
+* **hooks:** Spawn only on their calls and report through additionalContext [DE-17064] ([7c2458d](https://github.com/acadevmy/ai-setup-meta/commit/7c2458d3a06d66262f2c79b4a1a2477a960a8f47))
+* **mods:** Add the dev-setup mod — work status without a model turn [DE-17071] ([ee73927](https://github.com/acadevmy/ai-setup-meta/commit/ee73927233946f71fbe083d7f98b3158e07e20f3))
+* **mods:** Add the dev-setup mod — work status without a model turn [DE-17071] ([905a87f](https://github.com/acadevmy/ai-setup-meta/commit/905a87f9dcf47ed1c32f90c40103e4cc75045b36))
+* **mod:** Scope status to the session, redraw the clock, add time per phase to usage ([4a6ed37](https://github.com/acadevmy/ai-setup-meta/commit/4a6ed3751608b8a323f17d21722d3c007d4a34a3))
+* **mod:** Scope status to the session, redraw the clock, add time per phase to usage ([5fb3ceb](https://github.com/acadevmy/ai-setup-meta/commit/5fb3ceb5b4378020b13c478981eb6dcede4df112))
+* **mods:** Restyle the dev-setup band and pane for readability [DE-17071] ([3f1e1c4](https://github.com/acadevmy/ai-setup-meta/commit/3f1e1c4680d9332498f0e8d0a4359fbbb64988d5))
+* **review:** Redesign the verify and review pipeline [DE-17080] ([4e833af](https://github.com/acadevmy/ai-setup-meta/commit/4e833af6cb599ea271fcbcc3c686b19ac26a86a4))
+* **review:** Validate blocking findings before they fail the review [DE-17080] ([d255d2d](https://github.com/acadevmy/ai-setup-meta/commit/d255d2d7cced5438ce9563286b1de62872c5305f))
+* **scripts:** Add review-package.sh to build the review diff once [DE-17080] ([03e02a5](https://github.com/acadevmy/ai-setup-meta/commit/03e02a57dd2301611d0aceb51dd3f426f4fe2c27))
+* **scripts:** Propose quality-command candidates from where the project declares them [DE-17535] ([eeb71b4](https://github.com/acadevmy/ai-setup-meta/commit/eeb71b4b1889c2f394b9bb3dd2221bff8b841bf7))
+* **scripts:** Read the quality commands from the project declaration [DE-17535] ([5d10206](https://github.com/acadevmy/ai-setup-meta/commit/5d1020631fa5b8bcce2cdcfc0ac36835aba19494))
+* **scripts:** Refuse a run that cannot check its own work, in seconds [DE-17535] ([dc875d9](https://github.com/acadevmy/ai-setup-meta/commit/dc875d93c21e7ab283eabaa3068934307b1d2b8f))
+* **sdd:** End every closing report on the next command [DE-17077] ([0b66dbd](https://github.com/acadevmy/ai-setup-meta/commit/0b66dbd27f8152ec7b4481b8654cccfcad189554))
+* **sdd:** Say at intake when no quality command is declared or detected [DE-17535] ([ec3a088](https://github.com/acadevmy/ai-setup-meta/commit/ec3a0880c42b7c80e091b196ba913bd16771c1cd))
+* **sdd:** Shorten discovery and keep the stop point across resumes [DE-17076] ([211eff9](https://github.com/acadevmy/ai-setup-meta/commit/211eff9fa050420064c7ae372b249666b4f300e5))
+* **sdd:** Shorten discovery and keep the stop point across resumes [DE-17076] ([1363f7f](https://github.com/acadevmy/ai-setup-meta/commit/1363f7f3beee72168c23ec0a87180ad50fd35ad0))
+* **sdd:** Show the flow's phases as a task list [DE-17077] ([238540f](https://github.com/acadevmy/ai-setup-meta/commit/238540f414b91bddae9166a20ea375b6d9707774))
+* **setup:** Add instruction-files.sh to tell which instruction file Claude Code reads [DE-17167] ([e178076](https://github.com/acadevmy/ai-setup-meta/commit/e178076905bdd40d711a3114643a27c8d2d4718e))
+* **setup:** Declare and verify the quality commands at step 3b [DE-17535] ([83f973a](https://github.com/acadevmy/ai-setup-meta/commit/83f973add15cfd6aa5fe0a74eb13fedbcd1b3083))
+* **setup:** Stop generating CLAUDE.md and let Claude Code read AGENTS.md [DE-17167] ([ad712ed](https://github.com/acadevmy/ai-setup-meta/commit/ad712ed06c76a69db85ceab34c323ba0a07bd7de))
+* **workflow:** End an auto-sdd run at intake when it has no quality command [DE-17535] ([f6a5f4a](https://github.com/acadevmy/ai-setup-meta/commit/f6a5f4a9a6286f01dd803090e9fdacbd293eef32))
+
+
+### Bug Fixes
+
+* **clickup:** Carry the install-time list id through ${user_config.CLICKUP_SETUP_LIST_ID} [DE-17061] ([989e0d0](https://github.com/acadevmy/ai-setup-meta/commit/989e0d06d5754e9258874d3a5567970098e42731))
+* **dev-setup:** Correct the defects found by the claude.dev analysis [DE-17061] ([941b1b6](https://github.com/acadevmy/ai-setup-meta/commit/941b1b69c15dec1dd3cb709580a8928d4672d03a))
+* **hooks:** Quote the plugin root in the generated hook commands [DE-17071] ([ed95cc1](https://github.com/acadevmy/ai-setup-meta/commit/ed95cc1e6dc7a979e73c9cf4fd01fdda5d6e1838))
+* **review:** Launch the code-reviewer agent [DE-17061] ([3bd15d9](https://github.com/acadevmy/ai-setup-meta/commit/3bd15d9d58a2c76318997b864422588fc301a7b0))
+* **sdd-dev:** Align methodologies.md with the flow stops and detect-stack.sh [DE-17128] ([071b57d](https://github.com/acadevmy/ai-setup-meta/commit/071b57d8a87ac5dd8208e26cc1861a2b519e00de))
+* **sdd-dev:** Align sdd-dev with the flow stops and detect-stack.sh, and drop the history from the instructions [DE-17128] ([70ab949](https://github.com/acadevmy/ai-setup-meta/commit/70ab94995cadc252d2f053610f23e3025797d903))
+* **sdd:** Cut the task branch without tracking its base [DE-17076] ([f6eeaaa](https://github.com/acadevmy/ai-setup-meta/commit/f6eeaaa78be65effd2acae9677df28cba2eb0f15))
+* **settings:** Exclude gh and glab with a wildcard, so their calls leave the sandbox ([00f52d7](https://github.com/acadevmy/ai-setup-meta/commit/00f52d71a982371d0c0cd6f674073a5de000cbed))
+* **setup:** Align the generated AGENTS.md and REGISTRY.md with the plugin [DE-17130] ([14da6e6](https://github.com/acadevmy/ai-setup-meta/commit/14da6e634d670ca8af9be734316f1c0f9c595091))
+* **setup:** Block the tools the setup claims to block [DE-17061] ([78afcc9](https://github.com/acadevmy/ai-setup-meta/commit/78afcc9231ae6cabb5ebf4bda8c041a6618619a9))
+* **setup:** Give the verbatim-write rule its reason [DE-17128] ([1e651fb](https://github.com/acadevmy/ai-setup-meta/commit/1e651fbd14ac1339178334b3fd56d0ecd981a707))
+* **setup:** Run the push to origin outside the sandbox, guarded by its denies [DE-17076] ([fd4efe9](https://github.com/acadevmy/ai-setup-meta/commit/fd4efe91c3fd911f68c3dc06ca410b79bf05b4c1))
+* **skills:** State the current rule without the history behind it [DE-17128] ([50d1370](https://github.com/acadevmy/ai-setup-meta/commit/50d13700c9ed2ba6b9e688238e0dc18d4b48d995))
+* **validate:** Stop check 12 running macOS bash out of descriptors [DE-17535] ([89955b2](https://github.com/acadevmy/ai-setup-meta/commit/89955b2b5f0a8c50abce31c09d048834cd9c307a))
+* **vcs-ops:** Pass every merge-request value as a single-quoted literal [DE-17061] ([4b6327e](https://github.com/acadevmy/ai-setup-meta/commit/4b6327ecf7f26e55a5681d9aa69cf504518e3492))
+* **workflow:** Have the dev agent report absent quality commands in notes [DE-17128] ([ce9ec04](https://github.com/acadevmy/ai-setup-meta/commit/ce9ec049dcea5a5325a7a37850b5de2b852841f6))
+
+
+### Performance Improvements
+
+* **review:** Read the shared package in spec-verifier and code-reviewer [DE-17080] ([b65a40e](https://github.com/acadevmy/ai-setup-meta/commit/b65a40e25370c5f769c1373b2b13d471f2c55604))
+* **sdd:** Package the diff once and run verify and review in parallel [DE-17080] ([16be8a6](https://github.com/acadevmy/ai-setup-meta/commit/16be8a6bc9079dfc841729a060f29ceef7e5cd86))
+
 ## [3.4.2](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.4.1...dev-setup-v3.4.2) (2026-10-05)
 
 
