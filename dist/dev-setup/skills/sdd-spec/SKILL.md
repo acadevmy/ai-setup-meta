@@ -1,7 +1,7 @@
 ---
 name: sdd-spec
 description: Turns a task and its discovery summary into a technical specification with an ordered implementation plan, written to .specs/. Use when a task's requirements are gathered and the implementation has to be designed before any code is written.
-effort: max
+effort: high
 user-invocable: false
 disable-model-invocation: false
 ---
