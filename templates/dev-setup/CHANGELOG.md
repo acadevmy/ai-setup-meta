@@ -6,6 +6,14 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.0.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.0.0...dev-setup-v4.0.1) (2026-10-22)
+
+
+### Performance Improvements
+
+* **dev-setup:** Drop max effort, review at xhigh and the rest at high ([55e8084](https://github.com/acadevmy/ai-setup-meta/commit/55e80848612cdb0fd6d8e4815f96b657af2702f1))
+* **dev-setup:** Drop max effort, review at xhigh and the rest at high ([f782fe0](https://github.com/acadevmy/ai-setup-meta/commit/f782fe06b9b9bd86bbb8bf9ef377fee0332c2b6d))
+
 ## [4.0.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v3.4.2...dev-setup-v4.0.0) (2026-10-21)
 
 
