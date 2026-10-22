@@ -555,7 +555,7 @@ async function runLens(lens, draft) {
     const verdict = await agent(reviewPrompt(lens, draft), {
       label: 'challenge:' + lens.key + (attempt > 1 ? ':retry' : ''),
       phase: 'Challenge',
-      effort: 'max',
+      effort: 'high',
       schema: REVIEW_SCHEMA,
     })
     if (verdict) return verdict

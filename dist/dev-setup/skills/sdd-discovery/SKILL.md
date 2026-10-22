@@ -1,7 +1,7 @@
 ---
 name: sdd-discovery
 description: Runs a structured discovery interview that turns a raw task into a complete set of requirements. Use when a task needs its requirements, edge cases and constraints gathered before a technical spec is written.
-effort: max
+effort: high
 user-invocable: false
 disable-model-invocation: false
 ---
