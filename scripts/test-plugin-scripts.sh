@@ -1478,12 +1478,15 @@ if [ -f "$AUTO_SDD" ]; then
   assert_contains "the dev stage runs in an isolated worktree" \
     "$(cat "$AUTO_SDD")" "isolation: 'worktree'"
 
-  # Effort is differentiated per call: max only on the verifiers, high on the
-  # spec, its revisions and dev, low on the stage that only runs commands.
-  assert_eq "only the verifiers get max effort" \
-    "1" "$(grep -c "effort: 'max'" "$AUTO_SDD")"
-  assert_eq "spec, revision and dev run at high effort" \
-    "3" "$(grep -c "effort: 'high'" "$AUTO_SDD")"
+  # Effort is differentiated per call: high on the spec, its reviewers, its
+  # revision and dev, low on the stage that only runs commands.
+  assert_eq "nothing in the run goes above high effort" \
+    "0" "$(grep -cE "effort: '(xhigh|max)'" "$AUTO_SDD")"
+  # max costs more than it returns: nothing in the plugin runs at it.
+  assert_eq "no skill, agent or workflow runs at max effort" "" \
+    "$(grep -rlE "effort: '?max'?" "$REPO_ROOT/templates/dev-setup" "$REPO_ROOT/shared" || true)"
+  assert_eq "spec, reviewers, revision and dev run at high effort" \
+    "4" "$(grep -c "effort: 'high'" "$AUTO_SDD")"
   assert_eq "the command runner stays at low effort" \
     "1" "$(grep -c "effort: 'low'" "$AUTO_SDD")"
 

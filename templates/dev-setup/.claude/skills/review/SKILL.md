@@ -1,7 +1,7 @@
 ---
 name: review
 description: Reviews the current branch's diff against the project rules through the code-reviewer agent, then records the components it found in REGISTRY.md. Use when a branch is ready and its code quality and rule compliance have to be checked before a merge request.
-effort: max
+effort: xhigh
 user-invocable: true
 disable-model-invocation: false
 ---
