@@ -233,6 +233,8 @@ echo "── detect-stack.sh (fixture snapshots) ──"
 for FIXTURE_DIR in "$FIXTURES"/*/; do
   [ -d "$FIXTURE_DIR" ] || continue
   NAME=$(basename "$FIXTURE_DIR")
+  # stories/ holds story drafts for validate-story.sh, not a project to detect.
+  [ "$NAME" = "stories" ] && continue
   SNAPSHOT="$FIXTURES/$NAME.expected.json"
 
   # Run on a copy outside the repository: inside it, git would report the
@@ -1400,6 +1402,26 @@ assert_eq "an exclusion already there still gets its guards" "excluded-commands-
   "$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unguarded.json" \
        --template "$SETTINGS_TEMPLATE" --json 2>/dev/null | jq -r .REASON)"
 
+# The ClickUp writes left the ask rules: a story run makes a dozen of them after
+# the drafts were approved. A sandboxed project still carrying them loses exactly
+# those three entries on UPDATE; deleting, moving and merging keep asking.
+jq '.permissions.ask += ["mcp__clickup__clickup_create_*", "mcp__clickup__clickup_update_*", "mcp__clickup__clickup_add_*"]' \
+  "$MIG_DIR/with-gh.json" > "$MIG_DIR/old-ask.json"
+ASK_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/old-ask.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/new-ask.json" --json 2>/dev/null)
+assert_eq "a sandboxed settings asking on ClickUp writes is migrated" "ask-retired" \
+  "$(printf '%s' "$ASK_REPORT" | jq -r .REASON)"
+assert_eq "the report names the retired ask entries" \
+  "mcp__clickup__clickup_create_*,mcp__clickup__clickup_update_*,mcp__clickup__clickup_add_*" \
+  "$(printf '%s' "$ASK_REPORT" | jq -r .RETIRED_ASK)"
+assert_eq "only those entries leave the ask list" "true" \
+  "$(jq -n --slurpfile a "$MIG_DIR/with-gh.json" --slurpfile b "$MIG_DIR/new-ask.json" '$a[0] == $b[0]')"
+assert_eq "deleting a ClickUp task still asks" "true" \
+  "$(jq '.permissions.ask | index("mcp__clickup__clickup_delete_*") != null' "$MIG_DIR/new-ask.json")"
+assert_eq "the template no longer asks on ClickUp creates" "false" \
+  "$(jq '.permissions.ask | index("mcp__clickup__clickup_create_*") != null' "$SETTINGS_TEMPLATE")"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd.js: the workflow script (DE-16479)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1757,10 +1779,13 @@ setup/reference/mcp-env.md|settings on the host
 HIST_KEPT
 
 # Over the prose the model reads, the three phrases survive only where they
-# state a present fact (fork-point.md, rules-generation.md) or the recognition
-# rule UPDATE applies to an old AGENTS.md (agents-generation.md).
+# state a present fact (fork-point.md, rules-generation.md, the story
+# references) or the recognition rule UPDATE applies to an old AGENTS.md
+# (agents-generation.md).
 assert_eq "the only history phrases left are present-tense facts and the UPDATE recognition rule" \
   "templates/dev-setup/.claude/reference/fork-point.md
+templates/dev-setup/.claude/skills/story/reference/examples.md
+templates/dev-setup/.claude/skills/story/reference/intake.md
 templates/dev-setup/setup/reference/agents-generation.md
 templates/dev-setup/setup/reference/rules-generation.md" \
   "$(cd "$REPO_ROOT" && grep -rln "used to\|no longer\|once cost" \
@@ -1803,8 +1828,8 @@ PUBLIC_SKILLS="$(for S in "$SDD_DIR"/*/SKILL.md "$REPO_ROOT"/shared/skills/*/SKI
 SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
-assert_eq "the surface the check reads is the six public commands" \
-  "auto-sdd multi-sdd quick review sdd setup" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+assert_eq "the surface the check reads is the seven public commands" \
+  "auto-sdd multi-sdd quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
 
 # The names from $2 (one per line) with no row in $1 matching $3, where `@`
 # stands for the name.
@@ -1877,7 +1902,9 @@ for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DEC
 done
 
 # DE-17079 wants the generated file shorter; these fixes may not lengthen it.
-for BUDGET in "$GEN_SINGLE:131" "$GEN_WORKSPACE:136" "$GEN_PROJECT:30"; do
+# The two extra lines are the `story` command and its `story-reviewer` agent,
+# which the surface checks above require.
+for BUDGET in "$GEN_SINGLE:133" "$GEN_WORKSPACE:138" "$GEN_PROJECT:30"; do
   GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
   assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
     "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
@@ -1947,6 +1974,122 @@ assert_eq "ids and --from-sprint together are refused" "3" \
 
 assert_eq "the script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/multi-preflight.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── validate-story.sh (the structural checks on the story drafts) ──"
+
+# What a machine can check about a draft is checked here, so the reviewer agent
+# is left with judgement only. Every rule below is one the prose used to carry.
+STORY_FIX="$REPO_ROOT/scripts/fixtures/stories"
+story() { bash "$PLUGIN_SCRIPTS/validate-story.sh" --json "$@" 2>/dev/null; }
+story_exit() {
+  bash "$PLUGIN_SCRIPTS/validate-story.sh" --json "$@" >/dev/null 2>&1
+  printf '%s' "$?"
+}
+STORY_BAD=$(story "$STORY_FIX/invalid" | jq -r '.ERRORS')
+
+assert_eq "a valid epic, its stories and a spike pass" "true" \
+  "$(story "$STORY_FIX/valid" | jq -r '.VALID')"
+assert_eq "and the caller sees a zero exit" "0" "$(story_exit "$STORY_FIX/valid")"
+assert_eq "every draft in the folder is read" "5" \
+  "$(story "$STORY_FIX/valid" | jq -r '.CHECKED')"
+# The open points are what the da dettagliare tag is applied from.
+assert_eq "the draft with an Open points section is reported" "US-02" \
+  "$(story "$STORY_FIX/valid" | jq -r '.OPEN_POINTS')"
+assert_eq "an Italian story (Come … voglio … così da, Dato/Quando/Allora) passes" "true" \
+  "$(story "$STORY_FIX/valid/US-02.md" "$STORY_FIX/valid/EPIC-01.md" "$STORY_FIX/valid/SPIKE-01.md" | jq -r '.VALID')"
+
+assert_eq "an invalid folder is refused with exit 3" "3" "$(story_exit "$STORY_FIX/invalid")"
+assert_contains "a story with no value clause is refused" "$STORY_BAD" \
+  "US-10.md: the Connextra sentence must read"
+assert_contains "a conjunction in the I want clause is refused" "$STORY_BAD" \
+  "US-11.md: the \"I want\" clause has a conjunction"
+assert_contains "a scenario with two When steps is refused" "$STORY_BAD" \
+  "scenario \"two actions\" has 2 When steps"
+assert_contains "a key outside the schema is refused" "$STORY_BAD" \
+  "unknown frontmatter key \"estimate\""
+assert_contains "a leftover placeholder is refused" "$STORY_BAD" "keeps a {{…}} placeholder"
+assert_contains "a # title in the body is refused" "$STORY_BAD" "the body starts with a # title"
+assert_contains "a story with no scenario is refused" "$STORY_BAD" "US-13.md: no **Scenario:**"
+# The workspace nests one level: an epic under an epic has nowhere to go.
+assert_contains "an epic with a parent is refused" "$STORY_BAD" "an EPIC has no parent"
+assert_contains "an epic missing a requirement section is refused" "$STORY_BAD" \
+  "no **Design requirement** section"
+# Publication deletes <id>.md, so the name is part of the contract.
+assert_contains "a draft not named after its id is refused" "$STORY_BAD" \
+  "the file must be named US-14.md"
+assert_contains "a relation to a provisional id nobody drafted is refused" "$STORY_BAD" \
+  "relation to US-99, which is not drafted in this run"
+assert_contains "one scenario is a warning, not an error" \
+  "$(story "$STORY_FIX/invalid" | jq -r '.WARNINGS')" "US-10.md: one scenario"
+assert_eq "no argument is a usage error" "1" "$(story_exit)"
+
+# The story map (--map) is checked against the drafts it lays out: a map that
+# forgets an epic or a story is a plan that does not match the backlog.
+STORY_BAD_MAP=$(story "$STORY_FIX/invalid-map" | jq -r '.ERRORS')
+assert_contains "a map with relations is refused" "$STORY_BAD_MAP" "a MAP has no relations"
+assert_contains "a story in the walking skeleton is refused" "$STORY_BAD_MAP" \
+  "the walking skeleton lists US [US-01]: tasks and spikes only"
+assert_contains "a map citing an item nobody drafted is refused" "$STORY_BAD_MAP" \
+  "the map cites US [US-09], which is not drafted in this run"
+assert_contains "an epic missing from the backbone is refused" "$STORY_BAD_MAP" \
+  "EPIC [EPIC-01] is drafted but missing from the map's Backbone"
+assert_contains "a story missing from the release lanes is refused" "$STORY_BAD_MAP" \
+  "US [US-01] is drafted but missing from the map's Release lanes"
+# A run that has Figma frames gives each story its own, never the bare file.
+STORY_BAD_FIGMA=$(story "$STORY_FIX/invalid-figma" | jq -r '.ERRORS')
+assert_contains "a story without its frame is refused when the run has Figma" "$STORY_BAD_FIGMA" \
+  "US-02 has no frame in **Design**"
+assert_contains "a bare file link is not a frame" "$STORY_BAD_FIGMA" \
+  "US-03.md: the **Design** section links Figma without a frame"
+assert_eq "a frame link, or No design, passes" "" \
+  "$(printf '%s\n' "$STORY_BAD_FIGMA" | grep -E 'US-0[14]' || true)"
+assert_contains "a short DoR Check is a warning" \
+  "$(story "$STORY_FIX/invalid-map" | jq -r '.WARNINGS')" "the DoR Check has 1 lines"
+
+assert_eq "the script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/validate-story.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── parse-story.sh (the flows read the story format) ──"
+
+# The body of a draft is exactly what ClickUp receives, so the fixtures double
+# as task descriptions once their frontmatter is stripped.
+story_body() { awk 'f >= 2 { print } /^---$/ { f++ }' "$1"; }
+parse() { bash "$PLUGIN_SCRIPTS/parse-story.sh" --json 2>/dev/null; }
+
+assert_eq "a story description is recognised" "story" \
+  "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.FORMAT')"
+assert_eq "its scenarios are counted" "4" \
+  "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.SCENARIO_COUNT')"
+assert_eq "and named, in order" "archiving a path" \
+  "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.SCENARIOS' | head -1)"
+assert_eq "an Italian story is recognised too" "story" \
+  "$(story_body "$STORY_FIX/valid/US-02.md" | parse | jq -r '.FORMAT')"
+assert_contains "its open points are returned" \
+  "$(story_body "$STORY_FIX/valid/US-02.md" | parse | jq -r '.OPEN_POINTS')" "Da confermare"
+# An epic is not something to implement: the flows stop on it.
+assert_eq "an epic is recognised" "epic" \
+  "$(story_body "$STORY_FIX/valid/EPIC-01.md" | parse | jq -r '.FORMAT')"
+# The new format is used when it is there, never required.
+assert_eq "a hand-written description is other" "other" \
+  "$(printf 'Add a CSV export to the orders page.\n' | parse | jq -r '.FORMAT')"
+# ClickUp hands markdown back with its own list spacing.
+assert_eq "ClickUp's list spacing does not hide the open points" "To confirm: the format" \
+  "$(printf '**User Story**\nAs a buyer, I want an export, so that I file expenses.\n\n**Acceptance Criteria**\n**Scenario:** x\n\n**Open points**\n*   To confirm: the format\n' | parse | jq -r '.OPEN_POINTS')"
+assert_eq "the script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/parse-story.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── multi-preflight.sh --from-epic ──"
+assert_eq "--from-epic passes the epic through" "DE-100" \
+  "$(preflight --from-epic DE-100 | jq -r '.FROM_EPIC')"
+assert_eq "and asks for no task yet" "0" "$(preflight --from-epic DE-100 | jq -r '.COUNT')"
+assert_eq "--from-epic with ids is refused" "3" "$(preflight_exit --from-epic DE-100 DE-1)"
+assert_eq "--from-epic with --from-sprint is refused" "3" \
+  "$(preflight_exit --from-epic DE-100 --from-sprint 2)"
+assert_eq "an epic id that is not a plain identifier is refused" "3" \
+  "$(preflight_exit --from-epic 'DE-1; rm -rf /')"
 
 echo ""
 echo "── worktree-info.sh --impact (the overlap before the fan-out) ──"
@@ -3698,12 +3841,16 @@ assert_eq "no setup reference registers an MCP server with --type url" "false" \
 # rule: `allowed-tools` only pre-approves the tools it lists and restricts none;
 # `disallowed-tools` is the one field that removes a tool, until the developer's
 # next message. So the setup declares the tools it does not need there, and
-# AskUserQuestion is callable because that line does not name it. No `model:`
-# either: an override either lasts one turn of a multi-turn setup, paying two
-# cache re-keys, or silently moves the rest of the session to another model.
+# AskUserQuestion is callable because that line does not name it. Its
+# `allowed-tools` is a pre-approval and nothing more: the four read-only MCP
+# calls Step 7e makes, so a built-in tool listed there would be a claim to
+# restrict it. No `model:` either: an override either lasts one turn of a
+# multi-turn setup, paying two cache re-keys, or silently moves the rest of
+# the session to another model.
 SETUP_FM="$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")"
 SETUP_DISALLOWED="$(printf '%s\n' "$SETUP_FM" | grep '^disallowed-tools:')"
-assert_eq "the setup declares no allowed-tools, which would restrict nothing" "" \
+assert_eq "the setup pre-approves only Step 7e's four read-only MCP calls" \
+  "allowed-tools: mcp__clickup__clickup_list_document_pages, mcp__clickup__clickup_get_document_pages, mcp__claude_ai_Google_Drive__search_files, mcp__claude_ai_Google_Drive__read_file_content" \
   "$(printf '%s\n' "$SETUP_FM" | grep '^allowed-tools:')"
 assert_eq "the setup does not switch the session model" "" \
   "$(printf '%s\n' "$SETUP_FM" | grep '^model:')"
@@ -4066,7 +4213,7 @@ for F in "$TEMPLATE_ROOT/setup/SKILL.md" "$TEMPLATE_ROOT"/setup/reference/*.md \
          "$REPO_ROOT/dist/dev-setup/skills/setup/templates/profiles/nextjs.md"; do
   [ -f "$F" ] && IF_SETUP_DOCS+=("$F")
 done
-assert_eq "the setup docs and their built copies are all there" "18" "${#IF_SETUP_DOCS[@]}"
+assert_eq "the setup docs and their built copies are all there" "20" "${#IF_SETUP_DOCS[@]}"
 while IFS= read -r NEEDLE; do
   [ -n "$NEEDLE" ] || continue
   assert_eq "no setup doc says: $NEEDLE" "" \

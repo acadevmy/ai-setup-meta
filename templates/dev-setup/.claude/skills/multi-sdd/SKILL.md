@@ -2,7 +2,7 @@
 name: multi-sdd
 description: Runs the autonomous SDD workflow on up to five tracked tasks from one session — a sequential pre-flight, then one background run per task in its own worktree, each outcome reported as it lands. Use when several independent tasks should each reach a review-ready merge request without a terminal per task.
 effort: medium
-argument-hint: "<TASK_ID>… | --from-sprint <n>"
+argument-hint: "<TASK_ID>… | --from-sprint <n> | --from-epic <id>"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -13,8 +13,8 @@ One session, several tasks. This command **composes** the `auto-sdd` workflow: i
 holds no development logic, and every line of spec → challenge → dev → verify
 lives in `workflows/auto-sdd.js`.
 
-**Usage**: `/dev-setup:multi-sdd DE-1 DE-2 …`, or `--from-sprint <n>` for the
-first `n` `SPRINT` tasks on the board.
+**Usage**: `/dev-setup:multi-sdd DE-1 DE-2 …`, `--from-sprint <n>` (the first
+`n` `SPRINT` tasks) or `--from-epic <id>` (an epic's stories).
 
 The chat is a control tower: the human parts happen **before** the fan-out or
 **after**, never braided through it. Parallel *interactive* work stays
@@ -34,9 +34,9 @@ carrying a `;` would run as shell *before* the check meant to reject it.
 
 Exit 3 means refused — print `REASON` and **stop**: no run starts, no task is
 touched, nothing is negotiated. It refuses six tasks, none at all, a duplicate
-id, and an id that is not a plain identifier. `--from-sprint <n>` validates `n`
-only; call it again with the ids the board returned, and an empty `SPRINT` is
-refused there.
+id, and an id that is not a plain identifier. `--from-sprint` and
+`--from-epic` validate the count or the id only; call it again with the ids
+the board returned.
 
 Five is the ceiling because review is the bottleneck, not compute, and **the
 cost is `n` times a single run** — five tasks means fifteen verifiers.
@@ -46,7 +46,7 @@ cost is `n` times a single run** — five tasks means fifteen verifiers.
 - **`reference/preflight.md`** — phase A, the sequential part.
 - **`reference/fan-out.md`** — phases B and C, and the ledger.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`** — each outcome and what
-  to do about it. Unchanged by there being several.
+  to do about it.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — the rule for every
   question phase A asks.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the

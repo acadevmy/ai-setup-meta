@@ -7,11 +7,10 @@ disable-model-invocation: false
 
 # ClickUp operations
 
-ClickUp is where the team's tasks live. This skill is the board's documentation;
-the **calling contract** — the intents, their parameters, the result format and
-how the task list id is resolved — is in
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`, and every ClickUp call
-goes through the `clickup` agent described there.
+This skill is the board's documentation; the **calling contract** — the
+intents, their parameters, the result format and how the task list id is
+resolved — is in `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`, and
+every ClickUp call goes through the `clickup` agent described there.
 
 ## Prerequisites
 
@@ -39,8 +38,7 @@ SPRINT  ->  IN PROGRESS  ->  IN REVIEW / CODE REVIEW  ->  DONE
 | DONE | merged |
 | BLOCKED | an automated run gave up; a human has to resolve the blocker |
 
-Two lists use different names for the same stage — `IN REVIEW` and
-`CODE REVIEW`. Ask for `CODE REVIEW` and fall back to `IN REVIEW` when the list
+Two lists name the same stage differently — `IN REVIEW` and `CODE REVIEW`. Ask for `CODE REVIEW` and fall back to `IN REVIEW` when the list
 does not have it.
 
 ## What the operations are for
@@ -57,13 +55,14 @@ a summarised requirement is a lost requirement.
 validated against the workflow above, so ask for the one the flow has actually
 reached.
 
-**Create a task.** Needs the destination `list_id`, a `name` and a `description`
-(markdown is supported); `priority`, `assignees` and `due_date` are optional.
+**Create a task.** A `list_id`, a `name`, a markdown `description`; optionally
+a `task_type`, a `parent` and existing `tags`. An Epic is a task with
+subtasks, one level deep.
 
 ## What not to do
 
 - Do not close or delete tasks: status updates and comments only.
 - Do not move a task out of `BACKLOG` without the developer's explicit
   confirmation — the flows ask first, and nothing moves it automatically.
-- Do not write a task's description from a flow — it is the human's input to the
-  work, not the work's output.
+- Do not rewrite an existing task's description from a flow — it is the
+  human's input to the work. Only `story` writes one, on the tasks it creates.
