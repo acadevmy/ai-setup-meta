@@ -6,6 +6,14 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.1.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.1.0...dev-setup-v4.1.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **dev-setup:** Wait for long suites in auto-dev verify, and report a commit gate that runs out of time ([168b3a8](https://github.com/acadevmy/ai-setup-meta/commit/168b3a8b9f767a39f61d977ef21771cc24b369fd))
+* **dev-setup:** Wait for long suites in auto-dev verify, and report a commit gate that runs out of time ([6da7b81](https://github.com/acadevmy/ai-setup-meta/commit/6da7b81f60e825a9e0fc9ce3024897b545be0f43))
+
 ## [4.1.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.0.1...dev-setup-v4.1.0) (2026-10-28)
 
 
