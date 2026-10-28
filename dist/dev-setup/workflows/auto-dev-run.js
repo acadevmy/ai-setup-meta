@@ -34,9 +34,6 @@ export const meta = {
 //     auto-dev-commit.sh: the gate would run the command and refuse;
 //   - Verify only runs commands, on the cheapest model.
 //
-// The commit is not taken on the Dev agent's word: auto-dev-report.sh fails a
-// ready-for-mr whose branch holds no commit over the base.
-//
 // auto-sdd.js and its launchers are untouched: the interactive and the routine
 // flows behave as before. What this file does NOT do is the same as there: it
 // never pushes, never opens a merge request and never touches the tracker. It
@@ -819,7 +816,9 @@ const reqLines = draft.reqs.map((req) => '  - ' + req.id + ': ' + req.statement)
 // The branch is cut from the base the launcher resolved, not from whatever the
 // clone happened to check out. One commit at the end, carrying the spec and
 // the code — the shape the interactive closure already has — so the commit
-// gate runs the project checks once.
+// gate runs the project checks once. The commit is not taken on this agent's
+// word: auto-dev-report.sh fails a ready-for-mr whose branch holds no commit
+// over the base.
 
 phase('Dev')
 log('Dev — implementing ' + draft.planSteps.length + ' planned steps on the task branch')
