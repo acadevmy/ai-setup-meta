@@ -34,6 +34,13 @@
 #   result.json   the outcome, the merge request's title and labels, the usage
 #   pr-body.md    the merge request body, on ready-for-mr only
 #   spec.md       the spec, when the run failed before any branch held it
+#   changes.patch a failed run's uncommitted work — tracked and untracked, the
+#                 ignored files left out — as a binary diff on HEAD
+#                 (`git apply` on the commit in `patchBase`)
+#
+# A ready-for-mr outcome is checked against git first: no commit on its branch
+# over the base makes it failed at stage dev, and the commit subjects in
+# result.json are the ones git holds, not the ones the Dev agent reported.
 #
 # Keys:
 #   STATUS       ready-for-mr | failed
@@ -41,6 +48,7 @@
 #   RESULT_FILE  result.json
 #   BODY_FILE    pr-body.md, empty when none was written
 #   SPEC_FILE    spec.md, empty when none was written
+#   PATCH_FILE   changes.patch, empty when none was written
 #   TITLE        the merge request title, empty when there is none
 #   LABELS       its labels, comma-separated
 #   OUTPUT_SOURCE  transcript-lower-bound | reconciled | none
@@ -161,6 +169,8 @@ OUT_DIR="$(cd "$(dirname "$OUTCOME")" 2>/dev/null && pwd)" || die "no directory 
 RESULT_FILE="$OUT_DIR/result.json"
 BODY_FILE="$OUT_DIR/pr-body.md"
 SPEC_FILE="$OUT_DIR/spec.md"
+PATCH_FILE="$OUT_DIR/changes.patch"
+WROTE_PATCH=""
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/auto-dev.XXXXXX")" || die "cannot create a temporary directory"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -182,6 +192,62 @@ O="$TMP_DIR/outcome.json"
 
 STATUS="$(jq -r '.status' "$O")"
 BRANCH="$(jq -r '.branch // ""' "$O")"
+
+# ── The branch, as git holds it ───────────────────────────────────────────────
+#
+# The outcome carries what the Dev agent said it committed; the runner pushes
+# what git holds. On job ad-dry-10281136 the commit gate refused the one commit
+# and the run still came back ready-for-mr, with the work staged and the branch
+# identical to its base. So git decides: a branch with no commit over the base
+# is a failed run at stage dev, and the commit subjects come from git.
+
+BASE="$(jq -r '.baseBranch // ""' "$O")"
+[ -n "$BASE" ] || BASE="$(launch baseBranch)"
+in_repo() { git -C "$REPO_ROOT" "$@"; }
+HAS_REPO=false
+if [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT" ] && in_repo rev-parse --git-dir >/dev/null 2>&1; then
+  HAS_REPO=true
+fi
+
+if [ "$STATUS" = ready-for-mr ]; then
+  NO_COMMIT=""
+  if [ "$HAS_REPO" != true ]; then
+    NO_COMMIT="the repository ${REPO_ROOT:-(none)} is not here to check the branch in"
+  elif [ -z "$BRANCH" ] || ! in_repo rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
+    NO_COMMIT="the branch ${BRANCH:-(none)} does not exist"
+  elif [ -z "$BASE" ] || ! in_repo rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
+    NO_COMMIT="the base ${BASE:-(none)} does not resolve here"
+  elif [ "$(in_repo rev-list --count "$BASE..refs/heads/$BRANCH")" = 0 ]; then
+    NO_COMMIT="the branch $BRANCH holds no commit over $BASE: the work was not committed"
+  fi
+
+  if [ -n "$NO_COMMIT" ]; then
+    jq --arg r "$NO_COMMIT" '.status = "failed" | .stage = "dev" | .reason = $r' "$O" > "$TMP_DIR/checked.json" \
+      && mv "$TMP_DIR/checked.json" "$O" || die "cannot rewrite the outcome"
+    STATUS=failed
+  else
+    in_repo log --reverse --format=%s "$BASE..refs/heads/$BRANCH" \
+      | jq -R . | jq -s . > "$TMP_DIR/commits.json" \
+      && jq --slurpfile c "$TMP_DIR/commits.json" '.commits = $c[0]' "$O" > "$TMP_DIR/checked.json" \
+      && mv "$TMP_DIR/checked.json" "$O" || die "cannot rewrite the outcome"
+  fi
+fi
+
+# A failed run's uncommitted work is saved as a patch on HEAD, so the machine
+# can go without taking it along. The index is a scratch copy: the checkout is
+# left exactly as the run left it.
+PATCH_BASE=""
+if [ "$STATUS" = failed ] && [ "$HAS_REPO" = true ] && PATCH_BASE="$(in_repo rev-parse --verify --quiet HEAD)"; then
+  export GIT_INDEX_FILE="$TMP_DIR/index"
+  if in_repo read-tree HEAD && in_repo add -A >/dev/null 2>&1 \
+     && in_repo diff --cached --binary HEAD > "$TMP_DIR/changes.patch"; then
+    [ -s "$TMP_DIR/changes.patch" ] && cp "$TMP_DIR/changes.patch" "$PATCH_FILE" && WROTE_PATCH="$PATCH_FILE"
+  else
+    warn "could not save the uncommitted work of $REPO_ROOT as a patch"
+  fi
+  unset GIT_INDEX_FILE
+fi
+[ -n "$WROTE_PATCH" ] || PATCH_BASE=""
 
 # ── The merge request: title and labels ───────────────────────────────────────
 
@@ -281,6 +347,7 @@ NOW="$(date +%s)"
 jq -n --slurpfile o "$O" --slurpfile l "$LAUNCH" --argjson usage "$USAGE" \
   --arg title "$TITLE" --arg labels "$LABELS" --arg language "$LANGUAGE" --arg template "$TEMPLATE" \
   --arg body "$( [ "$STATUS" = ready-for-mr ] && printf '%s' "$BODY_FILE" )" \
+  --arg patch "$WROTE_PATCH" --arg patchBase "$PATCH_BASE" \
   --argjson now "$NOW" '
   ($o[0]) as $o | ($l[0]) as $l
   | {
@@ -304,6 +371,8 @@ jq -n --slurpfile o "$O" --slurpfile l "$LAUNCH" --argjson usage "$USAGE" \
       unverified: ($o.unverified // []),
       checks: {ran: ($o.ran // []), absent: ($o.absent // []), output: ($o.output // "")},
       notes: ($o.notes // ""),
+      patchFile: $patch,
+      patchBase: $patchBase,
       mr: {title: $title, labels: ($labels | split(",") | map(select(. != ""))),
            language: $language, template: $template, bodyFile: $body,
            summary: ($o.mr.summary // "")},
@@ -460,6 +529,7 @@ json_set STAGE "$(jq -r '.stage // ""' "$O")"
 json_set RESULT_FILE "$RESULT_FILE"
 json_set BODY_FILE "$WROTE_BODY"
 json_set SPEC_FILE "$WROTE_SPEC"
+json_set PATCH_FILE "$WROTE_PATCH"
 json_set TITLE "$TITLE"
 json_set LABELS "$LABELS"
 json_set OUTPUT_SOURCE "$(printf '%s' "$USAGE" | jq -r '.outputSource')"

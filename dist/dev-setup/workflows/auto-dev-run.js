@@ -29,8 +29,13 @@ export const meta = {
 //   - Dev works in the current checkout, no worktree: the machine is thrown
 //     away after the run, and the runner installed the dependencies once. It
 //     runs only the related tests per step, the full commands once, and makes
-//     one commit — so the commit gate runs the checks once, not once per step;
+//     one commit — so the commit gate runs the checks once, not once per step.
+//     With a command `unavailable`, that commit goes through
+//     auto-dev-commit.sh: the gate would run the command and refuse;
 //   - Verify only runs commands, on the cheapest model.
+//
+// The commit is not taken on the Dev agent's word: auto-dev-report.sh fails a
+// ready-for-mr whose branch holds no commit over the base.
 //
 // auto-sdd.js and its launchers are untouched: the interactive and the routine
 // flows behave as before. What this file does NOT do is the same as there: it
@@ -914,13 +919,31 @@ const dev = await agent(
           '',
         ].join('\n')
       : '',
-    'Step 4 — one commit. Set `> Status: implemented` in ' + specPath + ', stage',
-    'everything (`git add -A`), and commit once, Conventional Commits in',
-    'English, the task id in the subject:',
-    '`' + branchType + '(<scope>): <what changed> [' + task.id + ']`. The commit',
-    'hook may run the project checks: a denial is the gate working — read what',
-    'it returns, fix it, and commit again. Never `--no-verify`, never a hook',
-    'bypass: the deny rules refuse them anyway.',
+    'Step 4 — one commit. Set `> Status: implemented` in ' + specPath + ' and',
+    'commit once, Conventional Commits in English, the task id in the subject:',
+    '`' + branchType + '(<scope>): <what changed> [' + task.id + ']`.',
+    unavailable.length > 0
+      ? [
+          'The commit hook would run the commands NOT RUNNABLE HERE too, and refuse',
+          'every commit. Commit through the plugin script instead: it stages',
+          'everything, runs the commands this environment can start, skips the',
+          'others, and commits with the project git hooks on:',
+          '',
+          '  bash "' + plugin + '/scripts/auto-dev-commit.sh" --json \\',
+          '    --task ' + task.id + ' --message "<the subject>"',
+          '',
+          'Exit 4 is the gate working: OUTPUT says what is red — fix it and run it',
+          'again. Exit 3 refuses, and REASON says why: when it says to commit with',
+          'git commit, stage everything (`git add -A`) and do that.',
+        ].join('\n')
+      : [
+          'Stage everything (`git add -A`) and commit. The commit hook may run the',
+          'project checks: a denial is the gate working — read what it returns,',
+          'fix it, and commit again.',
+        ].join('\n'),
+    'Never `--no-verify`, never a hook bypass: the deny rules refuse them',
+    'anyway. When no commit can be made, stop there: leave `commits` empty and',
+    'say why in `notes`. The run then fails, and its work is saved for a person.',
     '',
     'Step 5 — the merge request text, in ' + languageName + ', in `mr`: `summary`',
     '(what was done, a short phrase for the title — no type, no task id),',
