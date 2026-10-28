@@ -6,6 +6,24 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.1.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.0.1...dev-setup-v4.1.0) (2026-10-28)
+
+
+### Features
+
+* **dev-setup:** Add headless auto-dev and auto-dev-select for job runners ([f1ddd03](https://github.com/acadevmy/ai-setup-meta/commit/f1ddd03d2ad78bdec8edc15847bbd3621cf487c7))
+* **dev-setup:** Add headless auto-dev and auto-dev-select for job runners ([d5659bc](https://github.com/acadevmy/ai-setup-meta/commit/d5659bcbfad657588f676d7d0ac2bdc9d2ece735))
+
+
+### Bug Fixes
+
+* **dev-setup:** Fail an auto-dev run whose commit never happened ([45ae938](https://github.com/acadevmy/ai-setup-meta/commit/45ae9387f7c269447a8f9baca0bdf85503754641))
+* **dev-setup:** Fail an auto-dev run whose commit never happened ([88a3f25](https://github.com/acadevmy/ai-setup-meta/commit/88a3f2595a29aebfd198339060cb07f00a645f4f))
+* **dev-setup:** Keep /dev-setup:auto-dev on the skill and read the board's own statuses ([7a1ea25](https://github.com/acadevmy/ai-setup-meta/commit/7a1ea251e070d04d26a90100ce6dad3f27721b62))
+* **dev-setup:** Refuse an auto-dev run that claude -p would stop at ten minutes ([3b0469a](https://github.com/acadevmy/ai-setup-meta/commit/3b0469a0a1f4dc884831b42de1fa4e23b0449361))
+* **dev-setup:** Rename the auto-sdd workflow so /dev-setup:auto-sdd reaches its skill ([4cc0242](https://github.com/acadevmy/ai-setup-meta/commit/4cc024203db7839f2183cadce874b62adc12b6e9))
+* **dev-setup:** Rename the auto-sdd workflow so /dev-setup:auto-sdd reaches its skill ([41e725a](https://github.com/acadevmy/ai-setup-meta/commit/41e725acf72d6779c95ed4f142b3abbe5f41fa12))
+
 ## [4.0.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.0.0...dev-setup-v4.0.1) (2026-10-22)
 
 
