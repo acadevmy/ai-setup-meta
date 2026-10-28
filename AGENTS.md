@@ -248,6 +248,10 @@ status other than 0.
 | `instruction-files.sh [--dir <path>]`, `instruction-files.sh --merge <path>` | `SHIMS`, `CUSTOM`, `UNIMPORTED`, `LOCAL`, `ABOVE`, `CLAUDE_VERSION`, `MIN_CLAUDE_VERSION`, `VERSION_OK` — will Claude Code read `AGENTS.md` here (DE-17167). The setup writes no `CLAUDE.md`: Claude Code reads `AGENTS.md` from 2.1.277, and only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the directory or above it. `SHIMS` are the `@AGENTS.md`-only files an earlier setup wrote, which Step 5b removes; `CUSTOM` the team's, moved only on a yes; `VERSION_OK` the client against the `MIN_CLAUDE_VERSION` floor (2.1.281: before it Bedrock and telemetry-off sessions read `CLAUDE.md` only), checked at Step 1. Read-only: `--merge` prints the owning `AGENTS.md` with the file's content appended after its footer, and the setup writes it |
 | `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `ADDED_EXCLUDED` |
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
+| `auto-dev-select.sh --args <file> [--choose <repo> --reason <text> \| --block --reason <text>]` | `STATUS`, `REPO`, `SLUG`, `BASE_BRANCH`, `BASE_SOURCE`, `SOURCE`, `REASON`, `SELECTION_FILE`, `CANDIDATES_FILE`, `TASK_FILE` — which clone a headless task belongs to and the base it forks from: a `repo:` line or a single clone with no model, otherwise `undecided` and a capped `candidates.md` for the model; blocked moves the task to `BLOCKED` itself. Writes `selection.json` |
+| `auto-dev-args.sh --args <file>` | `ACCEPTED`, `REASON`, `TASK_ID`, `TITLE`, `TRACKER`, `OUTPUT_DIR`, `TASK_FILE`, `WORKFLOW_ARGS`, `WORKFLOW_ARGS_FILE`, `LAUNCH_FILE`, `PLUGIN_ROOT` — everything `auto-dev` needs before its first agent: the task (from the board or inline), the base (passed, or from `selection.json`, refused in another clone), the quality commands, the MR language. Exit 3 also writes a `failed`/`intake` `result.json` |
+| `auto-dev-clickup.sh --task <id> --read \| --start \| --finish --result <file> [--mr-url <url>] [--pushed true\|false]` | `TASK_ID`, `CUSTOM_ID`, `NAME`, `DESCRIPTION`, `STATUS`, `PRIORITY`, `URL`, `MOVED_TO`, `COMMENTED`, `TIME_LOGGED`, `MINUTES`, `REASON` — the board for a headless run, over the REST API with `CLICKUP_API_TOKEN` read by curl from stdin, never from argv: a disposable machine has no OAuth login for the MCP. `BACKLOG` is refused; `--finish` logs the clock in ClickUp's own time tracking |
+| `auto-dev-report.sh --outcome <file> --launch <file> [--session <id>]`, `--finalize --result <file> --claude-result <file>` | `STATUS`, `STAGE`, `RESULT_FILE`, `BODY_FILE`, `SPEC_FILE`, `TITLE`, `LABELS`, `OUTPUT_SOURCE` — `result.json` and `pr-body.md` with no model: title and labels from `mr-meta.sh`, the repository's template with its description and test sections filled. Usage per step from the transcripts is a lower bound for output; `--finalize` spreads `claude -p`'s exact per-model totals over the steps |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug, branch-name parsing |
 
 ### The UPDATE path is part of the contract
@@ -514,7 +518,11 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
 **The public surface is six commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
-`multi-sdd`, `review`. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
+`multi-sdd`, `review` — plus two headless ones, `auto-dev-select` and
+`auto-dev`, which a job runner starts inside `claude -p` and no developer types.
+They are user-invocable because `claude -p` starts them by name, and they stay
+out of the generated `AGENTS.md`, whose command table the suite pins to the six:
+every session of every project would otherwise pay to describe them. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
 `sdd-plan`, `sdd-dev`, `verify`, `clickup`, `vcs-ops`) carries
 `user-invocable: false`: the orchestrator invokes it by name, and `/help` stays
 readable. A skill that opens a PR or writes into a project also carries
@@ -681,6 +689,24 @@ resolving it again. Two invariants keep it honest, and both are pinned by
    (`toConfirm`, `deviations`, `openPoints`), where the reviewer is the
    checkpoint. The business questions a person *can* answer are asked before
    the run — phase A of `multi-sdd` — and never in the middle of one.
+
+**The headless variant is a second workflow, not a flag on the first.**
+`auto-dev.js` is `auto-sdd.js` with the cost taken out where six measured
+Invictus runs put it (Challenge 47% of the input, Dev 34%), for a job runner
+that runs one task per disposable machine: the spec returns a context pack the
+reviewer and the developer start from; one reviewer covers the three lenses, on
+opus/medium, reading only the spec and the pack, and `challenge: auto` skips it
+at three REQ and three steps or fewer; Dev works on the task branch in the
+checkout — no worktree, the machine is thrown away — runs only the related tests
+per step and makes one commit, so the commit gate runs the checks once; Verify
+is haiku/low. Everything around it that needs no judgement is a script
+(`auto-dev-select.sh`, `auto-dev-args.sh`, `auto-dev-clickup.sh`,
+`auto-dev-report.sh`), and the launchers only call them. The order is forced by
+the devcontainer: `auto-dev-select` chooses the clone on the host, the runner
+starts that clone's devcontainer, `auto-dev` runs inside it. Two things to keep:
+a change to `auto-sdd.js` is not a change to `auto-dev.js` — decide for each —
+and the board there is the REST script, never the `clickup` agent, because the
+MCP's OAuth login does not exist on a fresh machine.
 
 Three rules for changing a workflow:
 
@@ -923,4 +949,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.34.0 — bump the version number on every substantial change*
+*Version: 2.35.0 — bump the version number on every substantial change*

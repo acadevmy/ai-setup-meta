@@ -41,10 +41,13 @@
     "sdd-spec",
     "sdd-plan",
     "sdd-dev",
-    "verify"
+    "verify",
+    "auto-dev",
+    "auto-dev-select"
   ],
   "workflows": [
-    "auto-sdd.js"
+    "auto-sdd.js",
+    "auto-dev.js"
   ],
   "plugin_scripts": [
     "common.sh",
@@ -61,7 +64,11 @@
     "instruction-files.sh",
     "worktree-info.sh",
     "mr-meta.sh",
-    "save-failed-run.sh"
+    "save-failed-run.sh",
+    "auto-dev-args.sh",
+    "auto-dev-clickup.sh",
+    "auto-dev-report.sh",
+    "auto-dev-select.sh"
   ],
   "hooks": [
     "gate-commit.sh",
