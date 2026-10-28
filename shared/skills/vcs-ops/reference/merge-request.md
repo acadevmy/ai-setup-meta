@@ -9,6 +9,7 @@ Same on both hosts. The CLI invocations are in `github.md` and `gitlab.md`.
 - [The body is the repository's template](#the-body-is-the-repositorys-template)
 - [Short, not exhaustive](#short-not-exhaustive)
 - [The test section](#the-test-section)
+- [When the commit gate ran out of time](#when-the-commit-gate-ran-out-of-time)
 - [The labels](#the-labels)
 - [When the repository has no template](#when-the-repository-has-no-template)
 
@@ -110,6 +111,22 @@ the branch.
 
 Anything a reviewer would otherwise have to guess — a seeded user, a feature
 flag, a build that has to run first — is one of the steps, not an assumption.
+
+## When the commit gate ran out of time
+
+The commit gate gives the checks twenty minutes. When they run longer it stops
+them, lets the commit through and notes it for the branch; `mr-meta.sh` returns
+the note as `UNCHECKED_AT_COMMIT`, one line per commit. When it is not empty,
+the body opens with it, before the template, in `LANGUAGE`:
+
+```markdown
+> **Tests not completed at commit** — the commit gate ran out of time:
+> 2026-10-28T15:35:06Z — tests (`flutter test`, stopped): not finished in 19 min (lint green)
+```
+
+(`Test non completati al commit` in Italian.) The reviewer then knows the CI is
+the first full run of those checks. A later commit whose gate finishes green
+empties the note.
 
 ## The labels
 

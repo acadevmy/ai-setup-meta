@@ -35,6 +35,11 @@
 #   TITLE        `<TITLE_TYPE>: <summary> [<TASK_ID>]` — empty without --summary
 #   LABELS       the labels to pass, comma-separated, in order: by type,
 #                breaking, by priority, on open — empty without a metadata file
+#   UNCHECKED_AT_COMMIT
+#                what the commit gate let through on this branch when it ran
+#                out of time, one line per commit — empty when it never did, or
+#                when a later commit's gate finished green. The merge request
+#                leads with it: "tests not completed at commit"
 #
 # Exits non-zero outside a repository, on a malformed metadata file, or on a
 # --priority that is not one of the four.
@@ -158,6 +163,13 @@ if [ -f "$REPO_ROOT/.claude/merge-request.json" ]; then
     || die "$META_FILE: labels must be an object of label lists"
 fi
 
+# ── What the commit gate left unchecked ───────────────────────────────────────
+
+UNCHECKED_AT_COMMIT=""
+if [ -n "$BRANCH" ] && NOTE_FILE=$(gate_note_file "$BRANCH") && [ -f "$NOTE_FILE" ]; then
+  UNCHECKED_AT_COMMIT=$(cat "$NOTE_FILE")
+fi
+
 # ── Output ────────────────────────────────────────────────────────────────────
 
 json_set META_FILE "$META_FILE"
@@ -170,6 +182,7 @@ json_set TASK_ID "$TASK_ID"
 json_set TITLE_TYPE "$TITLE_TYPE"
 json_set TITLE "$TITLE"
 json_set LABELS "$LABELS"
+json_set UNCHECKED_AT_COMMIT "$UNCHECKED_AT_COMMIT"
 
 if [ "$AS_JSON" = true ]; then
   json_emit

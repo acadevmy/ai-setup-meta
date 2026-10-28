@@ -335,7 +335,7 @@ elif [ "$HAS_HOOKS" = true ]; then
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate-commit.sh\"",
-            "timeout": 600
+            "timeout": 1200
           }
         ]
       }

@@ -689,8 +689,10 @@ assert_eq "the gate is mounted once as a PreToolUse hook on Bash" "1" \
   "$(printf '%s' "$GATE_HANDLERS" | jq 'length')"
 GATE_RULE="$(printf '%s' "$GATE_HANDLERS" | jq -r '.[0].if // ""')"
 assert_eq "and spawns on a git commit call only" "Bash(*git *commit*)" "$GATE_RULE"
-assert_eq "keeping its timeout" "600" \
-  "$(printf '%s' "$GATE_HANDLERS" | jq -r '.[0].timeout // ""')"
+# Twenty minutes, over the slowest suite measured (about 13), and no
+# onFailure: a gate that runs out of time lets the commit through and says so.
+assert_eq "with twenty minutes for the checks, and the commit never blocked by a timeout" "1200 none" \
+  "$(printf '%s' "$GATE_HANDLERS" | jq -r '"\(.[0].timeout // "") \(.[0].onFailure // "none")"')"
 
 for CMD in 'git status' 'git log --format=%H -1' 'npm test' 'echo "about to commit"'; do
   assert_eq "the rule leaves alone: $CMD" "false" \
@@ -736,8 +738,46 @@ if command -v npm >/dev/null 2>&1; then
   EMPTY_PROJECT="$WORK_DIR/gate-empty"
   make_gate_project "$EMPTY_PROJECT" 1
   git -C "$EMPTY_PROJECT" commit --quiet -m "chore: base"
-  assert_eq "nothing staged, no suite run" \
+  assert_eq "nothing to commit, no suite run" \
     "none" "$(decision_of "$(gate "$EMPTY_PROJECT" 'git commit -m "feat: thing"')")"
+
+  # The hook runs before the whole line: in `git add -A && git commit` the index
+  # is still empty when it looks. That is how a commit went in unchecked on
+  # DE-17941, so the working tree counts too.
+  echo 'change' > "$EMPTY_PROJECT/a.txt"
+  assert_eq "git add -A && git commit is gated: the red suite denies it" \
+    "deny" "$(decision_of "$(gate "$EMPTY_PROJECT" 'git add -A && git commit -m "feat: thing"')")"
+  rm -f "$EMPTY_PROJECT/a.txt"
+
+  # Out of time: the gate stops its checks itself before the harness's timeout,
+  # lets the commit through and says so, and the branch keeps a note that
+  # mr-meta.sh hands to the merge request. A budget of 3 s stands for 1140.
+  SLOW_PROJECT="$WORK_DIR/gate-slow"
+  make_gate_project "$SLOW_PROJECT" 0
+  git -C "$SLOW_PROJECT" commit --quiet -m "chore: base"
+  jq '.scripts.test = "echo SLOW_SUITE_STARTED && sleep 30"' "$SLOW_PROJECT/package.json" > "$SLOW_PROJECT/p.json" \
+    && mv "$SLOW_PROJECT/p.json" "$SLOW_PROJECT/package.json"
+  git -C "$SLOW_PROJECT" add -A
+  SLOW_START=$(date +%s)
+  SLOW_OUT=$(DEV_SETUP_GATE_BUDGET_S=3 gate "$SLOW_PROJECT" 'git commit -m "feat: thing"')
+  SLOW_TOOK=$(( $(date +%s) - SLOW_START ))
+  assert_eq "out of time: no decision, the commit goes on through the normal flow" \
+    "none" "$(decision_of "$SLOW_OUT")"
+  assert_eq "and the gate stopped its checks at its own budget, not the suite's 30 s" "true" \
+    "$([ "$SLOW_TOOK" -lt 15 ] && echo true || echo "false ($SLOW_TOOK s)")"
+  assert_contains "the model is told, as additionalContext" \
+    "$(printf '%s' "$SLOW_OUT" | jq -r '.hookSpecificOutput.additionalContext // ""')" "did not finish"
+  assert_contains "the developer too, as a systemMessage" \
+    "$(printf '%s' "$SLOW_OUT" | jq -r '.systemMessage // ""')" "committed unchecked"
+  assert_contains "and mr-meta.sh hands the note to the merge request" \
+    "$(cd "$SLOW_PROJECT" && bash "$PLUGIN_SCRIPTS/mr-meta.sh" --json 2>/dev/null | jq -r .UNCHECKED_AT_COMMIT)" \
+    "tests (\`npm run test\`, stopped): not finished in 3 s"
+  jq '.scripts.test = "echo fast"' "$SLOW_PROJECT/package.json" > "$SLOW_PROJECT/p.json" \
+    && mv "$SLOW_PROJECT/p.json" "$SLOW_PROJECT/package.json"
+  assert_eq "a later gate that finishes green lets the commit through" \
+    "none" "$(decision_of "$(gate "$SLOW_PROJECT" 'git commit -am "feat: thing"')")"
+  assert_eq "and clears the note: the whole tree is checked now" "" \
+    "$(cd "$SLOW_PROJECT" && bash "$PLUGIN_SCRIPTS/mr-meta.sh" --json 2>/dev/null | jq -r .UNCHECKED_AT_COMMIT)"
 
   # The internal filter stays, for a client that ignores `if` and for the
   # compound commands the harness cannot narrow — and it is asserted where a
@@ -4576,7 +4616,9 @@ async function agent(prompt, o) {
     return { repoPath: '/repo', branch: 'feat/DE-1_x', specPath: '.specs/DE-1-sim.md', commits: ['feat: x [DE-1]'],
       mr: { summary: 's', description: 'd', howToTest: { terminal: [], app: [] } } };
   }
-  if (o.label.startsWith('verify:')) return { passed: true, output: 'green' };
+  if (o.label.startsWith('verify:')) {
+    return scenario.verify || { done: true, lint: 'passed', typecheck: 'absent', test: 'passed', output: 'green', reason: '' };
+  }
   return null;
 }
 
@@ -4609,6 +4651,10 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     devNoWorktree: !(prompts.dev || '').includes('worktree'),
     taskFile: (prompts.spec || '').includes('/out/task.md'),
     mr: Boolean(out.mr),
+    verifyWaits: (prompts.verify || '').includes('/plugin/scripts/auto-dev-checks.sh" --task DE-1 --json --wait'),
+    reason: out.reason || '',
+    ran: (out.ran || []).map((r) => r.command + '=' + r.ok).join(','),
+    unverified: (out.unverified || []).map((u) => u.kind).join(','),
   }));
 });
 NODEJS
@@ -4631,6 +4677,26 @@ NODEJS
   SIM=$(dsim '{}' '{"unavailable":["test"],"unavailableReason":"test: `make` is not installed"}')
   assert_eq "with one unavailable, Dev commits through auto-dev-commit.sh: the gate would run it" "true" \
     "$(dfield "$SIM" devCommitScript)"
+
+  # Verify copies what auto-dev-checks.sh answers, and the workflow decides: a
+  # check with no verdict is never a pass (DE-17941: a 13-minute suite moved to
+  # the background was reported red a minute later).
+  SIM=$(dsim '{}')
+  assert_eq "Verify starts the checks through the script and waits on its --wait call" "true" \
+    "$(dfield "$SIM" verifyWaits)"
+  assert_eq "a green verdict lists what ran" "make lint=true,make test=true" "$(dfield "$SIM" ran)"
+  SIM=$(dsim '{"verify":{"done":false,"lint":"passed","typecheck":"absent","test":"running","output":"","reason":""}}')
+  assert_eq "an answer before the end is no verdict: failed at verify" "failed verify" \
+    "$(dfield "$SIM" status) $(dfield "$SIM" stage)"
+  assert_contains "naming the check still running" "$(dfield "$SIM" reason)" "test running"
+  SIM=$(dsim '{"verify":{"done":true,"lint":"passed","typecheck":"absent","test":"stopped","output":"","reason":"the run stopped before its end"}}')
+  assert_contains "a stopped run fails with the script's reason" "$(dfield "$SIM" reason)" "stopped before its end"
+  SIM=$(dsim '{"verify":{"done":true,"lint":"failed","typecheck":"absent","test":"passed","output":"lint red","reason":""}}')
+  assert_eq "a red command fails the run, with what ran" "failed make lint=false,make test=true" \
+    "$(dfield "$SIM" status) $(dfield "$SIM" ran)"
+  SIM=$(dsim '{"verify":{"done":true,"lint":"passed","typecheck":"absent","test":"not-found","output":"","reason":""}}')
+  assert_eq "a command that could not start is unverified, not red" "ready-for-mr test" \
+    "$(dfield "$SIM" status) $(dfield "$SIM" unverified)"
 
   SIM=$(dsim '{"reqs":4,"steps":2}')
   assert_eq "over the threshold, one reviewer looks at the spec" \
@@ -4819,6 +4885,17 @@ assert_eq "the template's own test placeholder is replaced, not kept" "false" \
 assert_eq "the commits are the ones git holds, not the ones the agent reported" \
   '["feat(greet): the commit git holds [DE-7]"]' "$(jq -c .commits "$AD_OUT/result.json")"
 
+# The commit gate ran out of time on this branch: its note opens the body.
+AD_NOTE="$(cd "$AD_REPO" && . "$PLUGIN_SCRIPTS/common.sh" && gate_note_file "feat/DE-7_add-a-greeting")"
+mkdir -p "$(dirname "$AD_NOTE")"
+printf '%s\n' '2026-10-28T15:35:06Z — tests (`make test`, stopped): not finished in 19 min' > "$AD_NOTE"
+ad auto-dev-report.sh --outcome "$AD_OUT/outcome.json" --launch "$AD_OUT/launch.json" >/dev/null
+assert_eq "a commit the gate let through unchecked opens the body" "## Tests not completed at commit" \
+  "$(head -1 "$AD_OUT/pr-body.md")"
+assert_contains "with the gate's note" "$(cat "$AD_OUT/pr-body.md")" "not finished in 19 min"
+assert_eq "and result.json carries it" "1" "$(jq '.mr.uncheckedAtCommit | length' "$AD_OUT/result.json")"
+rm -f "$AD_NOTE"
+
 printf 'not json at all' > "$AD_OUT/broken.json"
 ad auto-dev-report.sh --outcome "$AD_OUT/broken.json" --launch "$AD_OUT/launch.json" >/dev/null
 assert_eq "an outcome that is neither is a run that broke" "failed broken" \
@@ -4973,6 +5050,84 @@ GATE_OUT="$(cd "$AD_CREPO" && jq -n --arg c "bash \"$PLUGIN_SCRIPTS/auto-dev-com
   --arg d "$AD_CREPO" '{tool_name: "Bash", tool_input: {command: $c}, cwd: $d}' \
   | PATH="$AD_CBIN:$PATH" bash "$REPO_ROOT/templates/dev-setup/.claude/hooks/gate-commit.sh" 2>/dev/null)"
 assert_eq "the commit gate does not take the script call for a commit" "" "$GATE_OUT"
+
+# The checks of a Verify, run so the agent can wait for them. adklint's verdict
+# is KLINT_RED's; adktest sleeps KTEST_SLEEP seconds, the stand-in for a suite
+# longer than the Bash call's ceiling.
+AD_KREPO="$AD_DIR/checks-repo"
+AD_KBIN="$AD_DIR/checks-bin"
+mkdir -p "$AD_KREPO" "$AD_KBIN"
+printf '#!/usr/bin/env bash\nif [ -n "${KLINT_RED:-}" ]; then echo "lib/a.dart:3 unused import"; exit 1; fi\necho "no issues"\n' \
+  > "$AD_KBIN/adklint"
+printf '#!/usr/bin/env bash\nsleep "${KTEST_SLEEP:-0}"\necho "00:01 +3: All tests passed!"\n' > "$AD_KBIN/adktest"
+chmod +x "$AD_KBIN/adklint" "$AD_KBIN/adktest"
+(
+  cd "$AD_KREPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  mkdir -p .claude
+  echo '{"lint":"adklint","typecheck":null,"test":"adktest","absent":{"typecheck":"Dart has no separate type checker"}}' \
+    > .claude/quality-commands.json
+  git add -A && git commit --quiet -m init && git branch -M main
+) >/dev/null 2>&1
+adk() {
+  (cd "$AD_KREPO" && PATH="$AD_KBIN:$PATH" bash "$PLUGIN_SCRIPTS/auto-dev-checks.sh" "$@" --json 2>/dev/null)
+}
+kfield() { printf '%s' "$1" | jq -r "$2"; }
+AD_KSTATE="$AD_KREPO/.git/dev-setup/auto-dev-checks"
+
+OUT="$(adk --task DE-6 --wait)"
+assert_eq "auto-dev-checks: --wait with no run started refuses, and starts nothing" "3 false" \
+  "$? $(kfield "$OUT" .DONE)$([ -d "$AD_KSTATE/DE-6" ] && echo ' started')"
+assert_contains "saying how to start one" "$(kfield "$OUT" .REASON)" "without --wait"
+
+OUT="$(adk --task DE-6)"
+assert_eq "a green run: done, passed, each command's status" "0 true true passed absent passed" \
+  "$? $(kfield "$OUT" '[.DONE, .PASSED, .LINT_STATUS, .TYPECHECK_STATUS, .TEST_STATUS] | join(" ")')"
+assert_contains "OUTPUT ends on the runner's summary" "$(kfield "$OUT" .OUTPUT)" "All tests passed!"
+assert_eq "each command keeps its full log, outside the working tree" "true true" \
+  "$([ -f "$(kfield "$OUT" .LOG_DIR)/test.log" ] && echo true) $(cd "$AD_KREPO" && [ -z "$(git status --porcelain)" ] && echo true)"
+
+OUT="$(KLINT_RED=1 adk --task DE-6)"
+assert_eq "a red command: exit 4, not passed, and the others still run" "4 false failed passed" \
+  "$? $(kfield "$OUT" '[.PASSED, .LINT_STATUS, .TEST_STATUS] | join(" ")')"
+assert_contains "with the failure in OUTPUT" "$(kfield "$OUT" .OUTPUT)" "unused import"
+
+# A suite longer than the call: the first call stands for the one the harness
+# moved to the background, and goes on by itself.
+(KTEST_SLEEP=4 adk --task DE-6 >/dev/null) &
+AD_KRUN=$!
+sleep 1
+OUT="$(adk --task DE-6 --wait --budget 0)"
+assert_eq "while it runs, --wait answers not done: exit 5, the test running" "5 false running" \
+  "$? $(kfield "$OUT" '[.DONE, .TEST_STATUS] | join(" ")')"
+echo 'edit' > "$AD_KREPO/b.dart"
+OUT="$(adk --task DE-6)"
+assert_eq "a start on another tree refuses while the run is alive" "3" "$?"
+assert_contains "and names the wait" "$(kfield "$OUT" .REASON)" "wait for it with --wait"
+rm -f "$AD_KREPO/b.dart"
+OUT="$(adk --task DE-6 --budget 30)"
+assert_eq "a second start on the same tree joins the run instead of a second copy" "0 true passed" \
+  "$? $(kfield "$OUT" '[.DONE, .TEST_STATUS] | join(" ")')"
+wait "$AD_KRUN"
+OUT="$(adk --task DE-6 --wait)"
+assert_eq "--wait after the end prints the answer" "0 true" "$? $(kfield "$OUT" .PASSED)"
+
+# A run whose heartbeat stopped: its state, as a killed run leaves it.
+mkdir -p "$AD_KSTATE/DE-7"
+printf '%s' "$(( $(date +%s) - 3600 ))" > "$AD_KSTATE/DE-7/started"
+printf '%s' "$(( $(date +%s) - 3600 ))" > "$AD_KSTATE/DE-7/heartbeat"
+printf 'running' > "$AD_KSTATE/DE-7/test.status"
+printf 'adktest' > "$AD_KSTATE/DE-7/test.cmd"
+OUT="$(adk --task DE-7 --wait --budget 5)"
+assert_eq "a run whose heartbeat stopped is no verdict: exit 3, the test stopped" "3 true false stopped" \
+  "$? $(kfield "$OUT" '[.DONE, .PASSED, .TEST_STATUS] | join(" ")')"
+assert_contains "and REASON says why" "$(kfield "$OUT" .REASON)" "stopped before its end"
+adk --task DE-7 >/dev/null
+assert_eq "a start over a stopped run runs again" "0 true" "$? $(kfield "$(adk --task DE-7 --wait)" .PASSED)"
+
+assert_contains "the script ships" "$(jq -r '.plugin_scripts | join(" ")' "$TEMPLATE_ROOT/manifest.json")" "auto-dev-checks.sh"
 
 # The selection: three clones, one task.
 AD_SEL="$AD_DIR/select"

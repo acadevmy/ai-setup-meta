@@ -255,6 +255,7 @@ TITLE=""
 LABELS=""
 LANGUAGE=""
 TEMPLATE=""
+UNCHECKED_AT_COMMIT=""
 SUMMARY="$(jq -r '.mr.summary // ""' "$O")"
 if [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT" ]; then
   MR_ARGS=(--json)
@@ -267,6 +268,7 @@ if [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT" ]; then
     LABELS="$(printf '%s' "$META" | jq -r '.LABELS // ""')"
     LANGUAGE="$(printf '%s' "$META" | jq -r '.LANGUAGE // ""')"
     TEMPLATE="$(printf '%s' "$META" | jq -r '.TEMPLATE // ""')"
+    UNCHECKED_AT_COMMIT="$(printf '%s' "$META" | jq -r '.UNCHECKED_AT_COMMIT // ""')"
   else
     warn "mr-meta.sh failed: the result carries no merge request title or labels"
   fi
@@ -346,6 +348,7 @@ fi
 NOW="$(date +%s)"
 jq -n --slurpfile o "$O" --slurpfile l "$LAUNCH" --argjson usage "$USAGE" \
   --arg title "$TITLE" --arg labels "$LABELS" --arg language "$LANGUAGE" --arg template "$TEMPLATE" \
+  --arg unchecked "$UNCHECKED_AT_COMMIT" \
   --arg body "$( [ "$STATUS" = ready-for-mr ] && printf '%s' "$BODY_FILE" )" \
   --arg patch "$WROTE_PATCH" --arg patchBase "$PATCH_BASE" \
   --argjson now "$NOW" '
@@ -375,7 +378,8 @@ jq -n --slurpfile o "$O" --slurpfile l "$LAUNCH" --argjson usage "$USAGE" \
       patchBase: $patchBase,
       mr: {title: $title, labels: ($labels | split(",") | map(select(. != ""))),
            language: $language, template: $template, bodyFile: $body,
-           summary: ($o.mr.summary // "")},
+           summary: ($o.mr.summary // ""),
+           uncheckedAtCommit: ($unchecked | split("\n") | map(select(. != "")))},
       usage: $usage,
       startedAt: ($l.startedAt // null),
       finishedAt: $now,
@@ -402,6 +406,8 @@ WROTE_BODY=""
 if [ "$STATUS" = ready-for-mr ]; then
   if [ "$LANGUAGE" = it ]; then
     LABELS_JSON='{
+      "uncheckedAtCommit": "Test non completati al commit",
+      "uncheckedAtCommitIntro": "Il gate del commit ha esaurito il tempo e ha lasciato passare il commit prima che questi controlli finissero. L'\''output dei comandi di qualità più sotto viene dalla verifica del run.",
       "notVerified": "Non verificato",
       "notVerifiedIntro": "Questi comandi non sono stati eseguiti da questo run: chi fa il merge li esegue, o aspetta la CI.",
       "toConfirm": "Da confermare",
@@ -418,6 +424,8 @@ if [ "$STATUS" = ready-for-mr ]; then
     }'
   else
     LABELS_JSON='{
+      "uncheckedAtCommit": "Tests not completed at commit",
+      "uncheckedAtCommitIntro": "The commit gate ran out of time and let the commit through before these checks finished. The quality commands output further down comes from the run'\''s own verification.",
       "notVerified": "Not verified",
       "notVerifiedIntro": "These commands did not run in this run: whoever merges runs them, or waits for the CI.",
       "toConfirm": "To confirm",
@@ -434,8 +442,12 @@ if [ "$STATUS" = ready-for-mr ]; then
     }'
   fi
 
-  jq -r --argjson L "$LABELS_JSON" '
-    [ (if (.unverified // []) | length > 0 then
+  jq -r --argjson L "$LABELS_JSON" --arg unchecked "$UNCHECKED_AT_COMMIT" '
+    [ (if $unchecked != "" then
+         "## \($L.uncheckedAtCommit)\n\n\($L.uncheckedAtCommitIntro)\n\n"
+         + ($unchecked | split("\n") | map(select(. != "") | "- " + .) | join("\n"))
+       else empty end),
+      (if (.unverified // []) | length > 0 then
          "## \($L.notVerified)\n\n\($L.notVerifiedIntro)\n\n"
          + (.unverified | map("- **\(.kind)** `\(.command)` — \(.reason)") | join("\n"))
        else empty end),

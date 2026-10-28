@@ -84,10 +84,6 @@ const SMALL_TASK = { reqs: 3, steps: 3 }
 
 const CHALLENGE_MODES = ['auto', 'always', 'never']
 
-// The Verify output goes into the merge request body and the result file: the
-// tail is where a test runner puts its summary and its failure.
-const OUTPUT_TAIL_LINES = 80
-
 const input = typeof args === 'string' ? { taskId: args } : args || {}
 
 const missing = ['taskId', 'title', 'taskFile', 'pluginRoot', 'baseBranch'].filter((key) => !input[key])
@@ -434,41 +430,34 @@ const DEV_SCHEMA = {
   },
 }
 
+// What auto-dev-checks.sh says of one command. The agent copies it; the
+// workflow decides from it.
+const CHECK_STATUSES = ['passed', 'failed', 'not-found', 'unavailable', 'absent', 'pending', 'running', 'stopped', '']
+
+const checkStatus = (key) => ({
+  type: 'string',
+  enum: CHECK_STATUSES,
+  description: key + ' from the last answer of auto-dev-checks.sh, exactly as printed',
+})
+
 const CHECK_SCHEMA = {
   type: 'object',
-  required: ['passed', 'output'],
+  required: ['done', 'lint', 'typecheck', 'test', 'output'],
   properties: {
-    passed: {
+    done: {
       type: 'boolean',
-      description: 'true only when every command that started exited 0',
+      description: 'true when the last answer of auto-dev-checks.sh says DONE "true"',
     },
+    lint: checkStatus('LINT_STATUS'),
+    typecheck: checkStatus('TYPECHECK_STATUS'),
+    test: checkStatus('TEST_STATUS'),
     output: {
       type: 'string',
-      description:
-        'the real tail of the commands output — the failing part when something failed, the test summary when everything passed',
+      description: 'OUTPUT from the last answer, exactly as printed',
     },
-    ran: {
-      type: 'array',
-      description: 'one entry per command, in the order they ran',
-      items: {
-        type: 'object',
-        required: ['command', 'ok'],
-        properties: {
-          command: { type: 'string' },
-          ok: { type: 'boolean' },
-        },
-      },
-    },
-    absent: {
-      type: 'array',
-      description: 'the commands the project does not define, so nothing ran for them',
-      items: { type: 'string' },
-    },
-    notStarted: {
-      type: 'array',
-      description:
-        'the commands that could not start here (exit 126/127, program not found), exactly as written',
-      items: { type: 'string' },
+    reason: {
+      type: 'string',
+      description: 'REASON from the last answer, exactly as printed — empty when it is empty',
     },
   },
 }
@@ -992,9 +981,14 @@ if (!dev || !dev.branch || !dev.repoPath) {
 
 // ── 4. Verify ────────────────────────────────────────────────────────────────
 //
-// `effort: low` on the cheapest model on purpose: this agent runs commands and
-// reports their output, it does not reason about the design. It commits
-// nothing — the spec was marked implemented in Dev's one commit.
+// `effort: low` on the cheapest model on purpose: this agent starts a script,
+// waits for its answer and copies it, it does not reason about the design. It
+// commits nothing — the spec was marked implemented in Dev's one commit.
+//
+// The script, not the agent, runs the commands: a suite longer than the Bash
+// call's ceiling is moved to the background, and the agent left alone with it
+// reported a green suite red (DE-17941). auto-dev-checks.sh keeps the run's
+// state on disk and gives the agent a --wait call that blocks.
 
 phase('Verify')
 
@@ -1031,49 +1025,46 @@ if (runnable.length === 0) {
 
 log('Verify — running the project own quality commands on ' + dev.branch)
 
+const checksCall = 'bash "' + plugin + '/scripts/auto-dev-checks.sh" --task ' + task.id + ' --json'
+
 const check = await agent(
   [
-    'Run the quality commands of this project and report what they said. You are',
-    'not here to fix anything: a red command is the answer, not a problem to',
-    'solve. Change no file and commit nothing.',
+    'Run the quality checks of this project through the plugin script, and report',
+    'what it answers. You are not here to fix anything: a red check is the',
+    'answer, not a problem to solve. Change no file and commit nothing.',
     '',
     'Work in this repository, and nowhere else:',
     '',
     '  cd ' + JSON.stringify(dev.repoPath),
     '',
-    'Run these, in order, each exactly as written. An entry marked (none) does',
-    'not exist in this project: list it in `absent` and run nothing for it. An',
-    'entry marked (skip) cannot run in this environment: run nothing for it and',
-    'list it nowhere — the merge request already names it.',
+    'Step 1 — start the checks, with `timeout: 600000` on the Bash call:',
     '',
-    commandLines('(skip)'),
+    '  ' + checksCall,
     '',
-    'A command that cannot start — exit 126 or 127, its program not found — is',
-    'not a red result: list it in `notStarted` and go on with the next one.',
-    'Never install anything to make it start.',
+    'The script runs the project own commands, each into its own log. Do not run',
+    'them yourself, do not pipe anything through tail, never install anything.',
     '',
-    '`passed` is true only when every command that started exited 0. Put the real',
-    'output in `output`, at most ' + OUTPUT_TAIL_LINES + ' lines: the failing part when something',
-    'failed — the error, the file, the line — and the test summary when',
-    'everything passed. It goes into the merge request, so a reviewer has to be',
-    'able to read it without re-running anything. Never write output you did',
-    'not see.',
+    'Step 2 — wait for the answer. It is there when the JSON says DONE "true".',
+    'It is not there yet when the call came back saying the command was moved',
+    'to the background, or when the JSON says DONE "false". Then run, again with',
+    '`timeout: 600000`:',
+    '',
+    '  ' + checksCall + ' --wait',
+    '',
+    'Each call waits up to nine minutes. Repeat it, as many times as it takes,',
+    'until DONE is "true": a test suite can run for half an hour. Do not start',
+    'the checks a second time, do not read the background output file, never',
+    'sleep and never use Monitor — the --wait call is the wait. Your final',
+    'answer ends the run, and checks still running are killed with it: never',
+    'answer before DONE is "true".',
+    '',
+    'Step 3 — copy the last answer: `done` from DONE, `lint`, `typecheck` and',
+    '`test` from LINT_STATUS, TYPECHECK_STATUS and TEST_STATUS, `output` from',
+    'OUTPUT and `reason` from REASON, each exactly as printed. Never write',
+    'output you did not see.',
   ].join('\n'),
   { label: 'verify:' + task.id, phase: 'Verify', model: MODEL.verify, effort: 'low', schema: CHECK_SCHEMA },
 )
-
-// A command the verify agent could not start joins the unverified ones: the
-// environment was missing something, and the merge request says so.
-const KIND_OF = {}
-KINDS.forEach((kind) => {
-  if (commands[kind]) KIND_OF[commands[kind]] = kind
-})
-const notStarted = (check && Array.isArray(check.notStarted) ? check.notStarted : []).map((command) => ({
-  kind: KIND_OF[command] || '',
-  command: command,
-  reason: 'it did not start in this environment (exit 126/127: program not found)',
-}))
-const allUnverified = unverified.concat(notStarted)
 
 if (!check) {
   return Object.assign({ status: 'failed', stage: 'verify' }, outcome, {
@@ -1081,21 +1072,50 @@ if (!check) {
   })
 }
 
-if (!check.passed) {
-  return Object.assign({ status: 'failed', stage: 'verify' }, outcome, {
+const statusOf = (kind) => String(check[kind] || '')
+
+// A command that could not start joins the unverified ones: the environment
+// was missing something, and the merge request says so.
+const notStarted = runnable
+  .filter((kind) => statusOf(kind) === 'not-found' || statusOf(kind) === 'unavailable')
+  .map((kind) => ({
+    kind: kind,
+    command: commands[kind],
+    reason:
+      statusOf(kind) === 'not-found'
+        ? 'it did not start in this environment (exit 126/127: program not found)'
+        : 'auto-dev-checks.sh found this environment cannot start it',
+  }))
+const checked = {
+  output: check.output || '',
+  ran: KINDS.filter((kind) => statusOf(kind) === 'passed' || statusOf(kind) === 'failed').map((kind) => ({
+    command: commands[kind],
+    ok: statusOf(kind) === 'passed',
+  })),
+  absent: KINDS.filter((kind) => !commands[kind]),
+  unverified: unverified.concat(notStarted),
+}
+
+// A command this run had to check and holds no verdict for — still running,
+// stopped, never reached — is not a pass: the run is ready on a verdict only.
+const VERDICTS = ['passed', 'failed', 'not-found', 'unavailable']
+const unproven = runnable.filter((kind) => !VERDICTS.includes(statusOf(kind)))
+if (!check.done || unproven.length > 0) {
+  return Object.assign({ status: 'failed', stage: 'verify' }, outcome, checked, {
+    reason:
+      'the quality checks gave no verdict: ' +
+      (check.reason ||
+        unproven.map((kind) => kind + ' ' + (statusOf(kind) || 'not reported')).join(', ') ||
+        'the agent answered before they ended'),
+  })
+}
+
+if (checked.ran.some((entry) => !entry.ok)) {
+  return Object.assign({ status: 'failed', stage: 'verify' }, outcome, checked, {
     reason: 'the project quality commands did not pass',
-    output: check.output,
-    ran: check.ran || [],
-    absent: check.absent || [],
-    unverified: allUnverified,
   })
 }
 
 log('Verify — green on ' + dev.branch + ', ready for the merge request')
 
-return Object.assign({ status: 'ready-for-mr' }, outcome, {
-  output: check.output,
-  ran: check.ran || [],
-  absent: check.absent || [],
-  unverified: allUnverified,
-})
+return Object.assign({ status: 'ready-for-mr' }, outcome, checked)

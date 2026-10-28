@@ -36,8 +36,25 @@
 # cover `--no-verify`/`-n` at the permission layer regardless of this hook, and
 # CI is the backstop — a quality gate that blocks every commit on a broken
 # toolchain would be worse than one that reports it.
+#
+# A gate that runs out of time lets the commit through, and says so. The
+# handler carries `"timeout": 1200`: twenty minutes, over the slowest suite
+# measured (invictus-program-app, about 13). A hook the harness kills at its
+# timeout says nothing, and the commit it held went in as if it had passed —
+# with the 600 s the handler used to carry, a suite slower than ten minutes did
+# exactly that, silently. So the gate stops its own checks a minute before the
+# timeout and answers: the commit goes ahead, the model and the developer are
+# told, and the checks that did not finish are noted for the branch, where
+# mr-meta.sh reads them (UNCHECKED_AT_COMMIT) and the merge request leads with
+# them. Waiting longer was weighed and rejected: nobody waits an hour on a
+# manual commit, an auto-dev run's Verify runs the whole suite anyway
+# (auto-dev-checks.sh), and the CI stays the final gate. A later commit whose
+# gate finishes green clears the note: its checks covered the whole tree.
 
 set -uo pipefail
+
+# The checks' clock starts with the hook, which is when the harness's starts.
+HOOK_START=$(date +%s)
 
 # ── Locate the plugin scripts ─────────────────────────────────────────────────
 #
@@ -210,15 +227,19 @@ LINT_CMD=$(stack_get LINT_CMD)
 TYPECHECK_CMD=$(stack_get TYPECHECK_CMD)
 TEST_CMD=$(stack_get TEST_CMD)
 
-# Nothing staged and no --amend/--all: git itself will refuse the commit, so
-# there is no point paying for a suite run first. Read off the commit segment
-# for the same reason as the bypass flags: `ls -a && git commit` carries no
-# `-a` of its own.
+# Nothing to commit at all and no --amend/--all: git itself will refuse the
+# commit, so there is no point paying for a suite run first. "At all" means the
+# working tree too, not only the index: the hook runs before the whole line, so
+# in `git add -A && git commit` the index is still empty when it looks. On job
+# ad-invictus-de-17941-mvs8mncb that is how a dev agent's commit went in with
+# no check — "nothing staged, gate skipped". Read off the commit segment for
+# the same reason as the bypass flags: `ls -a && git commit` carries no `-a` of
+# its own.
 case "$COMMIT_SCAN" in
   *--amend*|*--all*|*" -a "*) ;;
   *)
-    if git diff --cached --quiet 2>/dev/null; then
-      echo "gate-commit: nothing staged, gate skipped" >&2
+    if [ -z "$(git status --porcelain 2>/dev/null)" ]; then
+      echo "gate-commit: nothing to commit, gate skipped" >&2
       exit 0
     fi
     ;;
@@ -232,12 +253,61 @@ fi
 # Keeps the reason readable: the tail is where a runner puts the failure summary.
 MAX_OUTPUT_LINES=40
 
+# The checks stop a minute before the handler's 1200 s, so the gate is still
+# alive to say so. DEV_SETUP_GATE_BUDGET_S shortens it: the tests use it.
+BUDGET_S="${DEV_SETUP_GATE_BUDGET_S:-1140}"
+case "$BUDGET_S" in ''|*[!0-9]*) BUDGET_S=1140 ;; esac
+DEADLINE=$(( HOOK_START + BUDGET_S ))
+
+OUT_FILE=$(mktemp "${TMPDIR:-/tmp}/gate-commit.XXXXXX") || exit 0
+trap 'rm -f "$OUT_FILE"' EXIT
+
+# Runs one command into OUT_FILE and returns its exit status; at the deadline it
+# stops it and sets STOPPED. The command gets a process group of its own (`set
+# -m`), so stopping it stops what it started too — a test runner's workers.
+STOPPED=false
+run_against_deadline() {
+  local pid
+  set -m
+  ( eval "$1" ) > "$OUT_FILE" 2>&1 < /dev/null &
+  pid=$!
+  set +m
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+      kill -TERM -- "-$pid" 2>/dev/null
+      sleep 2
+      kill -KILL -- "-$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null
+      STOPPED=true
+      return 0
+    fi
+    sleep 1
+  done
+  wait "$pid"
+}
+
+GREEN=""
+UNFINISHED=""
+
 run_check() {
-  local label="$1" cmd="$2" output status
+  local label="$1" cmd="$2" status
   [ -n "$cmd" ] || return 0
 
-  output=$(eval "$cmd" 2>&1)
+  # Past the deadline, nothing more starts.
+  if [ "$STOPPED" = true ]; then
+    UNFINISHED="$UNFINISHED, $label (\`$cmd\`, not started)"
+    return 0
+  fi
+
+  # The job notices of `set -m` go to stderr; the command's own output is in
+  # OUT_FILE.
+  run_against_deadline "$cmd" 2>/dev/null
   status=$?
+
+  if [ "$STOPPED" = true ]; then
+    UNFINISHED="$label (\`$cmd\`, stopped)"
+    return 0
+  fi
 
   if [ "$status" -ne 0 ]; then
     deny "Commit refused: $label failed.
@@ -245,10 +315,11 @@ run_check() {
 Command: $cmd
 Exit code: $status
 
-$(printf '%s' "$output" | tail -n "$MAX_OUTPUT_LINES")
+$(tail -n "$MAX_OUTPUT_LINES" "$OUT_FILE")
 
 Fix the failures above and commit again. Do not skip the gate."
   fi
+  GREEN="${GREEN:+$GREEN, }$label"
   return 0
 }
 
@@ -256,5 +327,37 @@ run_check "lint" "$LINT_CMD"
 run_check "type check" "$TYPECHECK_CMD"
 run_check "tests" "$TEST_CMD"
 
-echo "gate-commit: lint, type check and tests green" >&2
+# The branch's note: what the gate let through unchecked, for the merge request.
+NOTE_FILE=""
+BRANCH=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+# shellcheck source=../scripts/common.sh
+if [ -n "$BRANCH" ] && source "$SCRIPTS_DIR/common.sh" 2>/dev/null; then
+  NOTE_FILE=$(gate_note_file "$BRANCH" 2>/dev/null || true)
+fi
+
+if [ "$STOPPED" != true ]; then
+  # Every check finished green on the whole working tree, so whatever an earlier
+  # commit let through is checked now.
+  [ -z "$NOTE_FILE" ] || rm -f "$NOTE_FILE"
+  echo "gate-commit: lint, type check and tests green" >&2
+  exit 0
+fi
+
+if [ "$BUDGET_S" -ge 120 ]; then SPAN="$(( BUDGET_S / 60 )) min"; else SPAN="$BUDGET_S s"; fi
+NOTE="$(date -u +%Y-%m-%dT%H:%M:%SZ) — $UNFINISHED: not finished in $SPAN${GREEN:+ ($GREEN green)}"
+if [ -n "$NOTE_FILE" ] && mkdir -p "$(dirname "$NOTE_FILE")" 2>/dev/null; then
+  printf '%s\n' "$NOTE" >> "$NOTE_FILE"
+fi
+
+# No permission decision: the commit goes on through the normal permission
+# flow, and the `ask` rules still apply to it. The reminder is additionalContext
+# for the model, and systemMessage for the developer.
+jq -n --arg context "The commit gate ran out of time: $UNFINISHED did not finish in $SPAN${GREEN:+ ($GREEN green)}. Nothing was refused, so this commit goes in with its checks incomplete. Say so in the merge request — \"tests not completed at commit\": mr-meta.sh returns it as UNCHECKED_AT_COMMIT until a later commit's gate finishes green. The CI runs the full suite." \
+  --arg message "dev-setup gate: $UNFINISHED did not finish in $SPAN — committed unchecked, and the merge request will say so." '{
+  systemMessage: $message,
+  hookSpecificOutput: {
+    hookEventName: "PreToolUse",
+    additionalContext: $context
+  }
+}'
 exit 0

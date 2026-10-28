@@ -316,7 +316,9 @@ never pays to describe them.
   a small task (three REQ and three steps or fewer); development happens on the
   task branch in the checkout, with no worktree, and ends in one commit, so the
   commit gate runs the checks once. Opus writes, reviews and develops; Haiku
-  runs the quality commands. It writes `result.json` and `pr-body.md`. A
+  runs the quality commands through `auto-dev-checks.sh` and waits for them,
+  so a suite longer than the ten minutes a Bash call gets is waited for, not
+  reported red. It writes `result.json` and `pr-body.md`. A
   command the machine cannot start (its program is not installed) is not run:
   the merge request lists it as not verified, and the commit goes through
   `auto-dev-commit.sh`, which runs the others, because the commit gate would
@@ -329,7 +331,8 @@ The board is reached with `auto-dev-clickup.sh` over the ClickUp REST API and a
 personal token in `CLICKUP_API_TOKEN` (with `CLICKUP_TEAM_ID` for custom ids),
 because a disposable machine has no OAuth login for the MCP. Everything around
 the run that does not need judgement is a script — `auto-dev-args.sh`,
-`auto-dev-select.sh`, `auto-dev-commit.sh`, `auto-dev-report.sh` — and each
+`auto-dev-select.sh`, `auto-dev-commit.sh`, `auto-dev-checks.sh`,
+`auto-dev-report.sh` — and each
 one's `--help` holds its contract. The runner starts `claude -p` with
 `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`: without it, `claude -p` stops the
 workflow ten minutes after the launcher's last turn, so `auto-dev-args.sh`
@@ -580,6 +583,15 @@ The hook is **fail-open**: with no `jq`, or if stack detection cannot run, it
 warns on stderr and lets the commit through. It is a quality gate, not a
 security boundary — the security boundary is the deny rules and the sandbox, and
 blocking every commit on a broken toolchain would be worse than reporting it.
+
+The checks get **twenty minutes**. When they run longer, the gate stops them a
+minute before its timeout and **lets the commit through, saying so**. The
+session is told, you get a message, and the branch keeps a note that
+`mr-meta.sh` returns as `UNCHECKED_AT_COMMIT`. The merge request opens with it,
+"tests not completed at commit", and the CI runs the full suite. A later commit
+whose checks finish green clears the note. `git add -A && git commit` in one
+line is gated too: the checks are skipped only when there is nothing to commit
+at all.
 
 ---
 
