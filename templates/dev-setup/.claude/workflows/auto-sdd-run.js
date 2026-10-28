@@ -1,5 +1,5 @@
 export const meta = {
-  name: 'auto-sdd',
+  name: 'auto-sdd-run',
   description:
     'Autonomous SDD for one task: a spec, three reviewers that improve it against the project architectural choices in a single revision, a test-first implementation in an isolated worktree, and the project own quality commands. Returns ready-for-mr or failed, and opens nothing by itself.',
   whenToUse:
@@ -13,7 +13,9 @@ export const meta = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// auto-sdd — the autonomous SDD flow for a single task.
+// auto-sdd-run — the autonomous SDD flow for a single task. Named auto-sdd-run,
+// not auto-sdd: the harness registers a workflow as the slash command
+// /<plugin>:<meta.name> too, and one named like the auto-sdd skill shadowed it.
 //
 // This file replaces 275 lines of prose that asked the model to orchestrate
 // itself. The difference that matters is not the length: a bound written here

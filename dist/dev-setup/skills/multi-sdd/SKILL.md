@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 One session, several tasks. This command **composes** the `auto-sdd` workflow: it
 holds no development logic, and every line of spec → challenge → dev → verify
-lives in `workflows/auto-sdd.js`.
+lives in `workflows/auto-sdd-run.js`.
 
 **Usage**: `/dev-setup:multi-sdd DE-1 DE-2 …`, or `--from-sprint <n>` for the
 first `n` `SPRINT` tasks on the board.

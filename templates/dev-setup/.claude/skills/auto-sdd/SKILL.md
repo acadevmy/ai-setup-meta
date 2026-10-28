@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 # Auto SDD
 
-The launcher of the `auto-sdd` workflow (`workflows/auto-sdd.js`, run by the
+The launcher of the `auto-sdd-run` workflow (`workflows/auto-sdd-run.js`, run by the
 harness). What is left here is what code cannot do — the task, the launch, the
 outcome.
 
@@ -67,7 +67,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --start --
 
 ```json
 Workflow({
-  "name": "dev-setup:auto-sdd",
+  "name": "dev-setup:auto-sdd-run",
   "args": {
     "taskId": "<custom_id>",
     "title": "<name>",

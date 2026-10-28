@@ -1401,7 +1401,7 @@ assert_eq "an exclusion already there still gets its guards" "excluded-commands-
        --template "$SETTINGS_TEMPLATE" --json 2>/dev/null | jq -r .REASON)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 8. auto-sdd.js: the workflow script (DE-16479)
+# 8. auto-sdd-run.js: the workflow script (DE-16479)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # The autonomous orchestration is code now, so it is tested like code. What the
@@ -1411,9 +1411,9 @@ assert_eq "an exclusion already there still gets its guards" "excluded-commands-
 # `node --check` answers the wrong question. This reproduces both halves.
 
 echo ""
-echo "── auto-sdd.js (workflow script) ──"
+echo "── auto-sdd-run.js (workflow script) ──"
 
-AUTO_SDD="$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd.js"
+AUTO_SDD="$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd-run.js"
 
 if [ ! -f "$AUTO_SDD" ]; then
   fail "the auto-sdd workflow script exists" "$AUTO_SDD not found"
@@ -1445,7 +1445,7 @@ NODEJS
     pass "the script compiles the way the harness compiles it"
 
     assert_eq "meta.name is the name the launcher calls" \
-      "auto-sdd" "$(printf '%s' "$WF_META" | jq -r '.name')"
+      "auto-sdd-run" "$(printf '%s' "$WF_META" | jq -r '.name')"
 
     assert_eq "the four phases are declared in order" \
       "Spec Challenge Dev Verify" \
@@ -1453,9 +1453,29 @@ NODEJS
 
     assert_eq "meta carries a description" "false" \
       "$(printf '%s' "$WF_META" | jq -r '.description == ""')"
+
+    for LAUNCHER_DOC in skills/auto-sdd/SKILL.md skills/multi-sdd/reference/fan-out.md; do
+      assert_contains "$LAUNCHER_DOC launches the workflow by its name" \
+        "$(cat "$REPO_ROOT/templates/dev-setup/.claude/$LAUNCHER_DOC")" '"name": "dev-setup:auto-sdd-run"'
+    done
   else
     fail "the script compiles the way the harness compiles it" "$WF_META"
   fi
+
+  # The harness registers every workflow as the slash command
+  # /<plugin>:<meta.name> too, and one named like a skill shadows it: in
+  # `claude -p`, `/dev-setup:auto-sdd DE-1` reached the workflow with "DE-1" as
+  # its arguments, past the launcher (2026-10-28), and `/dev-setup:auto-dev`
+  # did the same on its first live run. No workflow is named like a skill.
+  SKILL_NAMES="$(find "$REPO_ROOT/templates" "$REPO_ROOT/shared" -name SKILL.md \
+    -exec awk '/^name:/ { sub(/^name:[ \t]*/, ""); print; exit }' {} \; | LC_ALL=C sort -u)"
+  SHADOWED=""
+  for WF in "$REPO_ROOT"/templates/*/.claude/workflows/*.js; do
+    WF_NAME="$(node "$WORK_DIR/workflow-parse.cjs" "$WF" 2>/dev/null | jq -r '.name // empty')"
+    [ -n "$WF_NAME" ] || continue
+    printf '%s\n' "$SKILL_NAMES" | grep -qxF "$WF_NAME" && SHADOWED="$SHADOWED $WF_NAME"
+  done
+  assert_eq "no workflow is named like a skill, so every command reaches its skill" "" "${SHADOWED# }"
 else
   printf '%s  skip%s  node not found: the workflow compile test needs it\n' "$DIM" "$NC"
 fi
@@ -1528,7 +1548,7 @@ assert_eq "no command points at the retired tdd/bdd skills" "" \
        "$REPO_ROOT/templates" "$REPO_ROOT/dist" 2>/dev/null || true)"
 
 assert_eq "the workflow ships in the built plugin" "true" \
-  "$([ -f "$REPO_ROOT/dist/dev-setup/workflows/auto-sdd.js" ] && echo true || echo false)"
+  "$([ -f "$REPO_ROOT/dist/dev-setup/workflows/auto-sdd-run.js" ] && echo true || echo false)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 9. worktree-info.sh and the slimmed interactive flow (DE-16480)
@@ -1794,12 +1814,22 @@ GEN_PROJECT="$TEMPLATE_ROOT/AGENTS.project-template.md"
 GEN_REGISTRY="$TEMPLATE_ROOT/REGISTRY.md"
 AGENTS_GEN="$TEMPLATE_ROOT/setup/reference/agents-generation.md"
 
-PUBLIC_SKILLS="$(for S in "$SDD_DIR"/*/SKILL.md "$REPO_ROOT"/shared/skills/*/SKILL.md \
+# The headless commands are user-invocable because `claude -p` starts them by
+# name, and they are not part of a project session's surface: a job runner
+# types them, never a developer. Listing them in every generated AGENTS.md
+# would make every session of every project pay to describe commands nobody
+# there runs, so the AGENTS.md checks below read the interactive surface only.
+# The developer guide documents them all the same (check 15).
+HEADLESS_SKILLS="auto-dev auto-dev-select"
+ALL_PUBLIC_SKILLS="$(for S in "$SDD_DIR"/*/SKILL.md "$REPO_ROOT"/shared/skills/*/SKILL.md \
                           "$TEMPLATE_ROOT/setup/SKILL.md"; do
     FM="$(frontmatter_of "$S")"
     printf '%s\n' "$FM" | grep -q '^user-invocable: true' || continue
     printf '%s\n' "$FM" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort)"
+PUBLIC_SKILLS="$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -vxF -e auto-dev -e auto-dev-select)"
+assert_eq "the headless commands are exactly the two auto-dev ones" \
+  "$HEADLESS_SKILLS" "$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -xF -e auto-dev -e auto-dev-select | tr '\n' ' ' | sed 's/ $//')"
 SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
@@ -2021,7 +2051,7 @@ assert_contains "each id goes in as one quoted argument" \
 
 # It launches the PR 9 workflow rather than carrying a flow of its own.
 assert_contains "it launches the auto-sdd workflow" \
-  "$(cat "$MULTI"/SKILL.md "$MULTI"/reference/*.md)" "dev-setup:auto-sdd"
+  "$(cat "$MULTI"/SKILL.md "$MULTI"/reference/*.md)" "dev-setup:auto-sdd-run"
 
 # Acceptance criterion 4: the spec -> challenge -> dev -> verify logic lives in
 # exactly one place. The command must not name a lens, declare a phase, or hold
@@ -2055,7 +2085,7 @@ echo "── the Challenge improves the spec, it never stops the run ──"
 # agents it launches included, since one pass is the whole point of its shape.
 if [ -f "$AUTO_SDD" ] && command -v node >/dev/null 2>&1; then
   cat > "$WORK_DIR/workflow-sim.cjs" <<'NODEJS'
-// Runs auto-sdd.js with stubbed agents. argv[3] maps a reviewer focus to what
+// Runs auto-sdd-run.js with stubbed agents. argv[3] maps a reviewer focus to what
 // it answers: "ok" (satisfied), "propose", or "dead"; "revise": "dead" makes
 // the reviser return nothing. The reviser declines simpler on an ADR, applies
 // scope, and leaves testable without an answer.
@@ -4443,7 +4473,7 @@ SFR_OUTCOMES=$(sed -n '/^## failed/,/^## ready-for-mr/p' "$REPO_ROOT/templates/d
 assert_contains "a failed cloud run is saved through it" "$SFR_OUTCOMES" "save-failed-run.sh"
 assert_contains "and its push result reaches the board" "$SFR_OUTCOMES" "PUSH_ERROR"
 assert_contains "the workflow hands a branchless spec over" \
-  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd.js")" "markdown: draft.specMarkdown"
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd-run.js")" "markdown: draft.specMarkdown"
 assert_eq "the manifest ships it" "true" \
   "$(jq -r '.plugin_scripts | index("save-failed-run.sh") != null' "$REPO_ROOT/templates/dev-setup/manifest.json")"
 assert_eq "the AGENTS.md script table lists it with its keys" "true" \
@@ -4471,6 +4501,534 @@ $(find "$REPO_ROOT/templates" "$REPO_ROOT/shared" "$REPO_ROOT/.claude" \
     -name 'SKILL.md' -o -name '*.md' -path '*/agents/*' 2>/dev/null | LC_ALL=C sort)
 EOF
 assert_eq "no unquoted colon breaks a frontmatter scalar" "" "${FM_COLON# }"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 18. auto-dev: the headless run — its workflow and its four scripts
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# auto-dev is auto-sdd with the cost taken out, for a run nobody watches. What
+# is pinned is where the cost went: which agents a run launches on which model
+# and effort, when the Challenge is skipped, that the reviewer and the
+# developer start from the context pack, and that the scripts that replace the
+# model around the run — the arguments, the board, the report, the repository
+# choice — decide the same way every time. No network: curl is a stub.
+
+echo ""
+echo "── auto-dev-run.js (the headless workflow) ──"
+
+AUTO_DEV="$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-dev-run.js"
+
+if [ ! -f "$AUTO_DEV" ]; then
+  fail "the auto-dev workflow script exists" "$AUTO_DEV not found"
+elif command -v node >/dev/null 2>&1 && [ -f "$WORK_DIR/workflow-parse.cjs" ]; then
+  if WF_META="$(node "$WORK_DIR/workflow-parse.cjs" "$AUTO_DEV" 2>&1)"; then
+    pass "the script compiles the way the harness compiles it"
+    assert_eq "meta.name is the name the launcher calls" \
+      "auto-dev-run" "$(printf '%s' "$WF_META" | jq -r '.name')"
+    assert_contains "and the launcher calls exactly that name" \
+      "$(cat "$TEMPLATE_ROOT/.claude/skills/auto-dev/SKILL.md")" '"name": "dev-setup:auto-dev-run"'
+    assert_eq "the four phases are declared in order" \
+      "Spec Challenge Dev Verify" "$(printf '%s' "$WF_META" | jq -r '.phases | join(" ")')"
+  else
+    fail "the script compiles the way the harness compiles it" "$WF_META"
+  fi
+
+  cat > "$WORK_DIR/auto-dev-sim.cjs" <<'NODEJS'
+// Runs auto-dev-run.js with stubbed agents. argv[3] is the scenario: the spec's
+// size (`reqs`, `steps`) and what the reviewer does (`review`: ok, propose,
+// dead). argv[4] overrides the launch arguments.
+const fs = require('fs');
+const vm = require('vm');
+
+const src = fs.readFileSync(process.argv[2], 'utf8');
+const meta = src.match(/^export const meta = \{[\s\S]*?\n\}\n/);
+const scenario = JSON.parse(process.argv[3] || '{}');
+const overrides = process.argv[4] ? JSON.parse(process.argv[4]) : {};
+const calls = [];
+const opts = {};
+const prompts = {};
+const reqs = Array.from({ length: scenario.reqs || 1 }, (_, i) => ({ id: 'REQ-' + (i + 1), statement: 's', test: 't' }));
+const spec = {
+  slug: 'sim', specMarkdown: '# spec', reqs, planSteps: Array(scenario.steps || 1).fill('a step'),
+  contextPack: [{ path: 'src/greeting.ts', kind: 'file', why: 'the component' }],
+  deviations: [], toConfirm: [],
+};
+
+async function agent(prompt, o) {
+  calls.push(o.label);
+  opts[o.label] = o;
+  prompts[o.label.split(':')[0]] = prompt;
+  if (o.label.startsWith('spec:')) return spec;
+  if (o.label.startsWith('challenge:')) {
+    if (scenario.review === 'dead') return null;
+    if (scenario.review === 'propose') {
+      return { lenses: [
+        { lens: 'simpler', satisfied: false, reason: 'r', suggestion: 's', grounds: 'an ADR' },
+        { lens: 'scope', satisfied: true, reason: 'checked' },
+      ] };
+    }
+    return { lenses: ['simpler', 'scope', 'testable'].map((lens) => ({ lens, satisfied: true, reason: 'checked' })) };
+  }
+  if (o.label.startsWith('revise:')) {
+    return Object.assign({}, spec, { responses: [{ lens: 'simpler', applied: true, note: 'done' }] });
+  }
+  if (o.label.startsWith('dev:')) {
+    return { repoPath: '/repo', branch: 'feat/DE-1_x', specPath: '.specs/DE-1-sim.md', commits: ['feat: x [DE-1]'],
+      mr: { summary: 's', description: 'd', howToTest: { terminal: [], app: [] } } };
+  }
+  if (o.label.startsWith('verify:')) return { passed: true, output: 'green' };
+  return null;
+}
+
+const context = {
+  args: Object.assign({
+    taskId: 'DE-1', title: 'T', taskFile: '/out/task.md', pluginRoot: '/plugin', baseBranch: 'origin/next',
+    stack: { lint: 'make lint', typecheck: '', test: 'make test' },
+  }, overrides),
+  agent,
+  parallel: (thunks) => Promise.all(thunks.map((thunk) => thunk())),
+  phase() {},
+  log() {},
+};
+vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', context).then((out) => {
+  console.log(JSON.stringify({
+    status: out.status,
+    stage: out.stage || '',
+    agents: calls.map((l) => l.split(':')[0]).join(','),
+    models: calls.map((l) => opts[l].model).join(','),
+    efforts: calls.map((l) => opts[l].effort).join(','),
+    isolated: calls.some((l) => opts[l].isolation),
+    skipped: out.challenge ? out.challenge.skipped : '',
+    unchecked: (out.unchecked || []).join(','),
+    applied: (out.applied || []).map((a) => a.lens).join(','),
+    reviewerPack: (prompts.challenge || '').includes('src/greeting.ts')
+      && (prompts.challenge || '').includes('Do not search the repository'),
+    devPack: (prompts.dev || '').includes('src/greeting.ts'),
+    devOneCommit: (prompts.dev || '').includes('one commit'),
+    devCommitScript: (prompts.dev || '').includes('/scripts/auto-dev-commit.sh'),
+    devNoWorktree: !(prompts.dev || '').includes('worktree'),
+    taskFile: (prompts.spec || '').includes('/out/task.md'),
+    mr: Boolean(out.mr),
+  }));
+});
+NODEJS
+
+  dsim() { node "$WORK_DIR/auto-dev-sim.cjs" "$AUTO_DEV" "$1" ${2:+"$2"} 2>&1; }
+  dfield() { printf '%s' "$1" | jq -r ".$2" 2>/dev/null; }
+
+  SIM=$(dsim '{}')
+  assert_eq "a small task goes from the spec to Dev: no reviewer, no revision" \
+    "ready-for-mr spec,dev,verify" "$(dfield "$SIM" status) $(dfield "$SIM" agents)"
+  assert_contains "and the result says why the Challenge was skipped" "$(dfield "$SIM" skipped)" "small task"
+  assert_eq "the spec agent reads the task from its file" "true" "$(dfield "$SIM" taskFile)"
+  assert_eq "Dev works in the checkout, never in a worktree" "false true" \
+    "$(dfield "$SIM" isolated) $(dfield "$SIM" devNoWorktree)"
+  assert_eq "Dev starts from the context pack and commits once" "true true" \
+    "$(dfield "$SIM" devPack) $(dfield "$SIM" devOneCommit)"
+  assert_eq "the outcome carries the merge request text" "true" "$(dfield "$SIM" mr)"
+  assert_eq "with every command runnable, Dev commits with git and the gate runs" "false" \
+    "$(dfield "$SIM" devCommitScript)"
+  SIM=$(dsim '{}' '{"unavailable":["test"],"unavailableReason":"test: `make` is not installed"}')
+  assert_eq "with one unavailable, Dev commits through auto-dev-commit.sh: the gate would run it" "true" \
+    "$(dfield "$SIM" devCommitScript)"
+
+  SIM=$(dsim '{"reqs":4,"steps":2}')
+  assert_eq "over the threshold, one reviewer looks at the spec" \
+    "spec,challenge,dev,verify" "$(dfield "$SIM" agents)"
+  assert_eq "it reads only the spec and the context pack" "true" "$(dfield "$SIM" reviewerPack)"
+  SIM=$(dsim '{"reqs":3,"steps":4}')
+  assert_eq "more steps than the threshold is enough to review" \
+    "spec,challenge,dev,verify" "$(dfield "$SIM" agents)"
+  SIM=$(dsim '{}' '{"challenge":"always"}')
+  assert_eq "challenge: always reviews a small task too" "spec,challenge,dev,verify" "$(dfield "$SIM" agents)"
+  SIM=$(dsim '{"reqs":9,"steps":9}' '{"challenge":"never"}')
+  assert_eq "challenge: never skips a large one" "spec,dev,verify challenge: never" \
+    "$(dfield "$SIM" agents) $(dfield "$SIM" skipped)"
+
+  SIM=$(dsim '{"reqs":4,"review":"propose"}')
+  assert_eq "a proposal earns one revision" "spec,challenge,revise,dev,verify" "$(dfield "$SIM" agents)"
+  assert_eq "opus writes, reviews, revises and develops; haiku runs the commands" \
+    "opus,opus,opus,opus,haiku" "$(dfield "$SIM" models)"
+  assert_eq "high on spec and dev, medium on the Challenge, low on Verify" \
+    "high,medium,medium,high,low" "$(dfield "$SIM" efforts)"
+  assert_eq "an applied proposal is reported as applied" "simpler" "$(dfield "$SIM" applied)"
+  assert_eq "a focus the reviewer did not answer is unchecked" "testable" "$(dfield "$SIM" unchecked)"
+
+  SIM=$(dsim '{"reqs":4,"review":"dead"}')
+  assert_eq "a reviewer that dies twice leaves every focus unchecked, and the run goes on" \
+    "ready-for-mr spec,challenge,challenge,dev,verify simpler,scope,testable" \
+    "$(dfield "$SIM" status) $(dfield "$SIM" agents) $(dfield "$SIM" unchecked)"
+
+  SIM=$(dsim '{}' '{"taskFile":""}')
+  assert_eq "no task file ends at intake, before any agent" "failed intake " \
+    "$(dfield "$SIM" status) $(dfield "$SIM" stage) $(dfield "$SIM" agents)"
+  SIM=$(dsim '{}' '{"challenge":"sometimes"}')
+  assert_eq "an unknown challenge mode ends at intake" "failed intake" \
+    "$(dfield "$SIM" status) $(dfield "$SIM" stage)"
+else
+  printf '%s  skip%s  node not found: the auto-dev workflow tests need it\n' "$DIM" "$NC"
+fi
+
+if [ -f "$AUTO_DEV" ]; then
+  assert_eq "the headless workflow pushes nothing, opens nothing, touches no board" "" \
+    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup" "$AUTO_DEV" || true)"
+  assert_eq "nothing in it goes above high effort" "0" "$(grep -cE "effort: '(xhigh|max)'" "$AUTO_DEV")"
+  assert_contains "the task id is validated before it reaches a prompt" "$(cat "$AUTO_DEV")" "TASK_ID_SHAPE"
+  assert_contains "the Challenge threshold is a constant" "$(cat "$AUTO_DEV")" "SMALL_TASK = { reqs: 3, steps: 3 }"
+fi
+
+echo ""
+echo "── auto-dev scripts (arguments, board, report, selection) ──"
+
+AD_DIR="$WORK_DIR/auto-dev"
+AD_REPO="$AD_DIR/repo"
+AD_OUT="$AD_DIR/out"
+AD_BIN="$AD_DIR/bin"
+AD_LOG="$AD_DIR/curl.log"
+mkdir -p "$AD_REPO" "$AD_OUT" "$AD_BIN"
+(
+  cd "$AD_REPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  mkdir -p .claude .github
+  echo '{"lint":"make lint","typecheck":null,"test":"make test"}' > .claude/quality-commands.json
+  cp "$REPO_ROOT/templates/dev-setup/boilerplate/merge-request.json" .claude/merge-request.json
+  printf '## Description\n\n<!-- what -->\n\n## Screenshots\n\nkeep me\n\n## How was it tested?\n\n- [ ] Test A\n\n## Checklist:\n\n- [ ] done\n' \
+    > .github/PULL_REQUEST_TEMPLATE.md
+  jq '.language = "en"' .claude/merge-request.json > .claude/mr.tmp && mv .claude/mr.tmp .claude/merge-request.json
+  git add -A && git commit --quiet -m init && git branch -M main && git branch next
+) >/dev/null 2>&1
+
+# The ClickUp API, stubbed: it logs every call with whether the token came in
+# through the config on stdin, and whether it leaked into the arguments. DE-8
+# is in BACKLOG; a list with no CODE REVIEW refuses that status.
+cat > "$AD_BIN/curl" <<'STUB'
+#!/usr/bin/env bash
+cfg=$(cat)
+url="${*: -1}"; method=GET; prev=""; body=""
+for a in "$@"; do
+  [ "$prev" = "--request" ] && method="$a"
+  [ "$prev" = "--data-binary" ] && body="$(tr '\n' ' ' < "${a#@}")"
+  prev="$a"
+done
+leak=no; case "$*" in *pk_secret*) leak=yes ;; esac
+printf '%s %s stdin-token=%s argv-token=%s body=%s\n' "$method" "$url" \
+  "$(printf '%s' "$cfg" | grep -c 'Authorization: pk_secret')" "$leak" "$body" >> "$CURL_LOG"
+task() { printf '{"id":"86x%s","custom_id":"%s","name":"Add a greeting","markdown_description":"Say hello","status":{"status":"%s"},"priority":{"priority":"high"},"url":"https://app.clickup.com/t/86x","team_id":"42"}\n200' "$1" "$1" "$2"; }
+case "$method $url" in
+  "GET "*/task/DE-7*) task DE-7 sprint ;;
+  "GET "*/task/DE-8*) task DE-8 backlog ;;
+  "PUT "*)
+    if [ -n "${NO_CODE_REVIEW:-}" ] && printf '%s' "$body" | grep -q 'CODE REVIEW'; then
+      printf '{"err":"Status not found"}\n400'
+    else
+      printf '{}\n200'
+    fi ;;
+  "POST "*) printf '{}\n200' ;;
+  *) printf '{"err":"not found"}\n404' ;;
+esac
+STUB
+chmod +x "$AD_BIN/curl"
+
+ad() {
+  local script="$1"; shift
+  (cd "$AD_REPO" && PATH="$AD_BIN:$PATH" CURL_LOG="$AD_LOG" CLICKUP_API_TOKEN=pk_secret CLICKUP_TEAM_ID=42 \
+    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="${AD_CEILING-0}" bash "$PLUGIN_SCRIPTS/$script" "$@" --json 2>/dev/null)
+}
+
+jq -n --arg o "$AD_OUT" '{taskId: "DE-7", baseBranch: "next", outputDir: $o, runId: "r1",
+  tracker: "none", task: {title: "Add a greeting", description: "Say \"hello\"\nTwo lines.", priority: "high"},
+  stack: {lint: "make lint", typecheck: "", test: "make test"}}' > "$AD_DIR/args.json"
+OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_eq "auto-dev-args accepts a complete args file" "true" "$(printf '%s' "$OUT" | jq -r .ACCEPTED)"
+assert_eq "it writes the task text verbatim to the file the agents read" \
+  "$(printf '# Add a greeting\n\nSay "hello"\nTwo lines.')" "$(cat "$AD_OUT/task.md")"
+assert_eq "the workflow arguments carry the file, not the text" "$AD_OUT/task.md false" \
+  "$(jq -r '.taskFile + " " + (has("description") | tostring)' "$AD_OUT/workflow-args.json")"
+assert_eq "and the merge request language from mr-meta" "en" "$(jq -r .language "$AD_OUT/workflow-args.json")"
+
+jq --arg o "$AD_REPO/out" '.outputDir = $o' "$AD_DIR/args.json" > "$AD_DIR/args-inside.json"
+OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args-inside.json")"
+assert_contains "an output directory inside the repository is refused: the commit would carry it" \
+  "$(printf '%s' "$OUT" | jq -r .REASON)" "inside the repository"
+jq 'del(.baseBranch)' "$AD_DIR/args.json" > "$AD_DIR/args-nobase.json"
+OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args-nobase.json")"
+assert_contains "no base and no selection: refused, never guessed" "$(printf '%s' "$OUT" | jq -r .REASON)" "no base branch"
+assert_eq "and the refusal is a result the runner reads" "failed intake" \
+  "$(jq -r '.status + " " + .stage' "$AD_OUT/result.json")"
+OUT="$(AD_CEILING="" ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_contains "without the background-wait ceiling lifted, the run is refused at intake" \
+  "$(printf '%s' "$OUT" | jq -r .REASON)" "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS is not set"
+assert_eq "and the runner reads it as a failed intake" "failed intake" \
+  "$(jq -r '.status + " " + .stage' "$AD_OUT/result.json")"
+OUT="$(AD_CEILING="forever" ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_contains "a ceiling that is not milliseconds is refused too" "$(printf '%s' "$OUT" | jq -r .REASON)" "it takes milliseconds"
+OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_eq "with it set, the same args are accepted again" "true" "$(printf '%s' "$OUT" | jq -r .ACCEPTED)"
+
+: > "$AD_LOG"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --read)"
+assert_eq "the board read returns the task" "Add a greeting|Say hello|SPRINT|high" \
+  "$(printf '%s' "$OUT" | jq -r '[.NAME, .DESCRIPTION, .STATUS, .PRIORITY] | join("|")')"
+assert_eq "a custom id is resolved within the workspace" "1" \
+  "$(grep -c 'custom_task_ids=true&team_id=42' "$AD_LOG")"
+OUT="$(ad auto-dev-clickup.sh --task DE-8 --start)"
+assert_contains "a BACKLOG task is refused before the board moves" "$(printf '%s' "$OUT" | jq -r .REASON)" "BACKLOG"
+assert_eq "no PUT reached the board for it" "0" "$(grep -c '^PUT' "$AD_LOG")"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --start)"
+assert_eq "a SPRINT task moves to IN PROGRESS" "IN PROGRESS" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+assert_eq "the token travels on stdin, every call" "$(grep -c . "$AD_LOG")" "$(grep -c 'stdin-token=1' "$AD_LOG")"
+assert_eq "and never in curl's arguments" "0" "$(grep -c 'argv-token=yes' "$AD_LOG")"
+OUT="$(cd "$AD_REPO" && PATH="$AD_BIN:$PATH" bash "$PLUGIN_SCRIPTS/auto-dev-clickup.sh" --task DE-7 --read --json 2>/dev/null)"
+assert_contains "no token in the environment: refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "CLICKUP_API_TOKEN"
+
+# The report, on a ready-for-mr outcome as the launcher saves it.
+(
+  cd "$AD_REPO" || exit 1
+  git checkout --quiet -b "feat/DE-7_add-a-greeting"
+  echo 'export const greeting = "hello"' > greeting.ts
+  git add -A && git commit --quiet -m "feat(greet): the commit git holds [DE-7]"
+) >/dev/null 2>&1
+cat > "$AD_OUT/outcome.json" <<'JSON'
+{"status":"ready-for-mr","taskId":"DE-7","branch":"feat/DE-7_add-a-greeting","baseBranch":"next",
+ "repoPath":"/repo","spec":{"path":".specs/DE-7-greeting.md","reqs":[{"id":"REQ-1","statement":"s","test":"t"}]},
+ "contextPack":[],"challenge":{"mode":"auto","ran":true,"skipped":"","applied":1,"open":1},
+ "commits":["feat(greet): add a greeting [DE-7]"],"filesChanged":["src/greeting.ts"],
+ "mr":{"summary":"Add a greeting","description":"Adds the greeting.","howToTest":{"terminal":["make test"],"app":["Open /hello"]}},
+ "openPoints":[{"lens":"scope","reason":"too wide","suggestion":"drop REQ-2","grounds":"the task","answer":""}],
+ "applied":[{"lens":"simpler"}],"deviations":[],"toConfirm":["the greeting is in English"],"unchecked":[],
+ "notes":"","output":"3 passed","ran":[{"command":"make test","ok":true}],"absent":["typecheck"],
+ "unverified":[{"kind":"lint","command":"make lint","reason":"no make here"}]}
+JSON
+OUT="$(ad auto-dev-report.sh --outcome "$AD_OUT/outcome.json" --launch "$AD_OUT/launch.json")"
+assert_eq "the report titles the merge request through mr-meta" "Feat: Add a greeting [DE-7]" \
+  "$(jq -r .mr.title "$AD_OUT/result.json")"
+assert_eq "with its labels" "Type: Feature,Priority: High,State: Pending" \
+  "$(jq -r '.mr.labels | join(",")' "$AD_OUT/result.json")"
+assert_eq "result.json carries the checks and the run's identity" "3 passed r1 DE-7" \
+  "$(jq -r '[.checks.output, .runId, .taskId] | join(" ")' "$AD_OUT/result.json")"
+BODY="$(cat "$AD_OUT/pr-body.md")"
+assert_eq "what nobody verified or confirmed opens the body" "## Not verified" "$(head -1 "$AD_OUT/pr-body.md")"
+for PART in "## To confirm" "## Open points" "proposals applied to the spec: 1" "keep me" "- [ ] done" \
+            "Adds the greeting." "**Spec:** \`.specs/DE-7-greeting.md\`" "make test" "1. Open /hello" "3 passed"; do
+  assert_contains "the body carries: $PART" "$BODY" "$PART"
+done
+assert_eq "the template's own test placeholder is replaced, not kept" "false" \
+  "$(printf '%s' "$BODY" | grep -q 'Test A' && echo true || echo false)"
+assert_eq "the commits are the ones git holds, not the ones the agent reported" \
+  '["feat(greet): the commit git holds [DE-7]"]' "$(jq -c .commits "$AD_OUT/result.json")"
+
+printf 'not json at all' > "$AD_OUT/broken.json"
+ad auto-dev-report.sh --outcome "$AD_OUT/broken.json" --launch "$AD_OUT/launch.json" >/dev/null
+assert_eq "an outcome that is neither is a run that broke" "failed broken" \
+  "$(jq -r '.status + " " + .stage' "$AD_OUT/result.json")"
+assert_eq "a failed run on a clean checkout leaves no patch" "" "$(jq -r .patchFile "$AD_OUT/result.json")"
+
+# ad-dry-10281136: the gate refused the commit, the work stayed staged, and the
+# outcome still said ready-for-mr.
+(
+  cd "$AD_REPO" || exit 1
+  git checkout --quiet -b "feat/DE-9_not-committed" next
+  echo 'staged' > staged.ts && git add staged.ts
+  echo 'untracked' > untracked.ts
+) >/dev/null 2>&1
+jq '.branch = "feat/DE-9_not-committed" | .taskId = "DE-9"' "$AD_OUT/outcome.json" > "$AD_DIR/uncommitted.json"
+mkdir -p "$AD_DIR/uncommitted" && cp "$AD_DIR/uncommitted.json" "$AD_DIR/uncommitted/outcome.json"
+OUT="$(ad auto-dev-report.sh --outcome "$AD_DIR/uncommitted/outcome.json" --launch "$AD_OUT/launch.json")"
+assert_eq "ready-for-mr with no commit over the base is a failed run at dev" "failed dev" \
+  "$(jq -r '.status + " " + .stage' "$AD_DIR/uncommitted/result.json")"
+assert_contains "saying the work was not committed" "$(jq -r .reason "$AD_DIR/uncommitted/result.json")" \
+  "holds no commit over next"
+assert_eq "and no merge request body is written for it" "" "$(printf '%s' "$OUT" | jq -r .BODY_FILE)"
+assert_eq "its work, staged and untracked, is saved as a patch" "staged.ts untracked.ts" \
+  "$(grep '^diff --git' "$AD_DIR/uncommitted/changes.patch" | sed 's#.* b/##' | sort | tr '\n' ' ' | sed 's/ $//')"
+assert_eq "which applies on the commit result.json names" "$(cd "$AD_REPO" && git rev-parse next)" \
+  "$(jq -r .patchBase "$AD_DIR/uncommitted/result.json")"
+assert_eq "and the checkout is left as the run left it" "A  staged.ts|?? untracked.ts" \
+  "$(cd "$AD_REPO" && git status --porcelain | tr '\n' '|' | sed 's/|$//')"
+(
+  cd "$AD_REPO" || exit 1
+  git reset --quiet && rm -f staged.ts untracked.ts
+  git checkout --quiet "feat/DE-7_add-a-greeting"
+) >/dev/null 2>&1
+
+# Usage from transcripts, then reconciled with claude -p's per-model totals.
+AD_CFG="$AD_DIR/claude"
+mkdir -p "$AD_CFG/projects/p/sid-1/subagents"
+cat > "$AD_CFG/projects/p/sid-1.jsonl" <<'JSONL'
+{"type":"user","message":{"content":"/dev-setup:auto-dev --args x"}}
+{"type":"assistant","message":{"id":"m1","model":"claude-sonnet-5-5","usage":{"input_tokens":5,"cache_creation_input_tokens":100,"cache_read_input_tokens":1000,"output_tokens":2}}}
+{"type":"assistant","message":{"id":"m1","model":"claude-sonnet-5-5","usage":{"input_tokens":5,"cache_creation_input_tokens":100,"cache_read_input_tokens":1000,"output_tokens":7}}}
+JSONL
+cat > "$AD_CFG/projects/p/sid-1/subagents/agent-a.jsonl" <<'JSONL'
+{"type":"user","message":{"content":[{"type":"text","text":"You are writing the technical spec for one task"}]}}
+{"type":"assistant","message":{"id":"s1","model":"claude-opus-5-5","usage":{"input_tokens":3,"cache_creation_input_tokens":50,"cache_read_input_tokens":500,"output_tokens":10}}}
+{"type":"assistant","message":{"id":"s2","model":"claude-opus-5-5","usage":{"input_tokens":3,"cache_creation_input_tokens":50,"cache_read_input_tokens":500,"output_tokens":30}}}
+JSONL
+cp "$AD_OUT/outcome.json" "$AD_OUT/outcome2.json"
+(cd "$AD_REPO" && CLAUDE_CONFIG_DIR="$AD_CFG" bash "$PLUGIN_SCRIPTS/auto-dev-report.sh" \
+  --outcome "$AD_OUT/outcome2.json" --launch "$AD_OUT/launch.json" --session sid-1 --json >/dev/null 2>&1)
+assert_eq "each step's usage is read from its transcript, a request counted once" "launcher:1:7 spec:2:40" \
+  "$(jq -r '.usage.steps | to_entries | map("\(.key):\(.value.calls):\(.value.output)") | join(" ")' "$AD_OUT/result.json")"
+assert_eq "and marked as a lower bound" "transcript-lower-bound" "$(jq -r .usage.outputSource "$AD_OUT/result.json")"
+echo '{"total_cost_usd":1.5,"modelUsage":{"claude-opus-5-5":{"inputTokens":6,"outputTokens":400,"cacheReadInputTokens":1000,"cacheCreationInputTokens":100},"claude-sonnet-5-5":{"inputTokens":5,"outputTokens":70,"cacheReadInputTokens":1000,"cacheCreationInputTokens":100}}}' \
+  > "$AD_OUT/claude.json"
+bash "$PLUGIN_SCRIPTS/auto-dev-report.sh" --finalize --result "$AD_OUT/result.json" \
+  --claude-result "$AD_OUT/claude.json" --json >/dev/null 2>&1
+assert_eq "--finalize spreads each model's exact output over its steps" "launcher:70 spec:400 470 reconciled" \
+  "$(jq -r '(.usage.steps | to_entries | map("\(.key):\(.value.output)") | join(" ")) + " \(.usage.total.output) \(.usage.outputSource)"' "$AD_OUT/result.json")"
+
+# The finish: a merge request moves the task to review, a failure to BLOCKED.
+: > "$AD_LOG"
+cp "$AD_OUT/outcome.json" "$AD_OUT/outcome3.json"
+ad auto-dev-report.sh --outcome "$AD_OUT/outcome3.json" --launch "$AD_OUT/launch.json" >/dev/null
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/result.json")"
+assert_contains "ready-for-mr without its merge request link is refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "--mr-url"
+OUT="$(NO_CODE_REVIEW=1 ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/result.json" --mr-url https://example.test/pr/1)"
+assert_eq "a list without CODE REVIEW gets IN REVIEW" "IN REVIEW true" \
+  "$(printf '%s' "$OUT" | jq -r '.MOVED_TO + " " + .COMMENTED')"
+assert_contains "the comment links the merge request" "$(grep '^POST .*comment' "$AD_LOG")" "https://example.test/pr/1"
+jq '.status = "failed" | .stage = "verify" | .reason = "the project quality commands did not pass"' \
+  "$AD_OUT/result.json" > "$AD_OUT/failed.json"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/failed.json" --pushed true)"
+assert_eq "a failed run moves the task to BLOCKED" "BLOCKED" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+assert_contains "with why, and where the branch is" "$(grep '^POST .*comment' "$AD_LOG" | tail -1)" "Branch on origin"
+
+# The board's own names, from the project's .claude/auto-dev.json (setup 7d).
+echo '{"status":{"ready":"TODO","in_progress":"DOING","in_review":"IN QA","blocked":"STUCK"}}' \
+  > "$AD_REPO/.claude/auto-dev.json"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/failed.json")"
+assert_eq "the project's blocked status is the one the task moves to" "STUCK" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --start)"
+assert_eq "and its in-progress status the one the work starts in" "DOING" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+rm -f "$AD_REPO/.claude/auto-dev.json"
+
+# The commit of a run with a command this machine cannot start: adtest is not
+# installed, adlint is a stub whose verdict LINT_RED sets.
+AD_CREPO="$AD_DIR/commit-repo"
+AD_CBIN="$AD_DIR/commit-bin"
+mkdir -p "$AD_CREPO" "$AD_CBIN"
+printf '#!/usr/bin/env bash\necho ran >> "%s/adlint.log"\nif [ -n "${LINT_RED:-}" ]; then echo "lib/a.dart:3 1 problem"; exit 1; fi\necho "no issues"\n' \
+  "$AD_DIR" > "$AD_CBIN/adlint"
+chmod +x "$AD_CBIN/adlint"
+(
+  cd "$AD_CREPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  mkdir -p .claude
+  echo '{"lint":"adlint","typecheck":null,"test":"adtest","absent":{"typecheck":"Dart has no separate type checker"}}' \
+    > .claude/quality-commands.json
+  git add -A && git commit --quiet -m init && git branch -M main
+) >/dev/null 2>&1
+adc() {
+  (cd "$AD_CREPO" && PATH="$AD_CBIN:$PATH" bash "$PLUGIN_SCRIPTS/auto-dev-commit.sh" "$@" --json 2>/dev/null)
+}
+
+adc --task DE-5 --message "feat: no id" >/dev/null
+assert_eq "auto-dev-commit wants the task id in the subject" "1" "$?"
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_eq "it refuses off the task's branch" "3 false" "$? $(printf '%s' "$OUT" | jq -r .COMMITTED)"
+assert_contains "saying which branch it is on" "$(printf '%s' "$OUT" | jq -r .REASON)" "main does not carry DE-5"
+(cd "$AD_CREPO" && git checkout --quiet -b "feat/DE-5_add-a") >/dev/null 2>&1
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_contains "with nothing to commit, it says so" "$(printf '%s' "$OUT" | jq -r .REASON)" "nothing to commit"
+echo 'one' > "$AD_CREPO/a.dart"
+printf '#!/usr/bin/env bash\necho ok\n' > "$AD_CBIN/adtest" && chmod +x "$AD_CBIN/adtest"
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_eq "with every command runnable it refuses: git commit and the gate work" "3" "$?"
+assert_contains "and says to use them" "$(printf '%s' "$OUT" | jq -r .REASON)" "every declared command can run here"
+rm -f "$AD_CBIN/adtest"
+mkdir -p "$AD_CREPO/.husky"
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_contains "with a hook manager it refuses: the project's hooks own the checks" \
+  "$(printf '%s' "$OUT" | jq -r .REASON)" "husky"
+rmdir "$AD_CREPO/.husky"
+
+: > "$AD_DIR/adlint.log"
+OUT="$(LINT_RED=1 adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_eq "a red runnable command refuses the commit" "4 false 0" \
+  "$? $(printf '%s' "$OUT" | jq -r .COMMITTED) $(cd "$AD_CREPO" && git rev-list --count main..HEAD)"
+assert_contains "with its output, as the gate gives it" "$(printf '%s' "$OUT" | jq -r .OUTPUT)" "1 problem"
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_eq "green on what can run: committed, the unavailable one skipped" "0 true lint test" \
+  "$? $(printf '%s' "$OUT" | jq -r '.COMMITTED + " " + .RAN + " " + .SKIPPED')"
+assert_contains "and the merge request's reason is passed on" "$(printf '%s' "$OUT" | jq -r .UNAVAILABLE_REASON)" "adtest"
+assert_eq "the commit carries the subject and the whole working tree" "feat(a): add a [DE-5]|a.dart" \
+  "$(cd "$AD_CREPO" && git log -1 --format=%s)|$(cd "$AD_CREPO" && git show --name-only --format= HEAD)"
+assert_eq "the lint ran once per attempt, from the repository root" "2" "$(grep -c ran "$AD_DIR/adlint.log")"
+
+echo 'two' >> "$AD_CREPO/a.dart"
+mkdir -p "$AD_CREPO/.git/hooks"
+printf '#!/usr/bin/env bash\necho "commit-msg hook: subject too long"\nexit 1\n' > "$AD_CREPO/.git/hooks/commit-msg"
+chmod +x "$AD_CREPO/.git/hooks/commit-msg"
+OUT="$(adc --task DE-5 --message "feat(a): change a [DE-5]")"
+assert_eq "the project's git hooks still run: one that refuses stops the commit" "4 false" \
+  "$? $(printf '%s' "$OUT" | jq -r .COMMITTED)"
+assert_contains "and what it said is in OUTPUT" "$(printf '%s' "$OUT" | jq -r .OUTPUT)" "subject too long"
+rm -f "$AD_CREPO/.git/hooks/commit-msg"
+
+GATE_OUT="$(cd "$AD_CREPO" && jq -n --arg c "bash \"$PLUGIN_SCRIPTS/auto-dev-commit.sh\" --json --task DE-5 --message \"feat(a): change a [DE-5]\"" \
+  --arg d "$AD_CREPO" '{tool_name: "Bash", tool_input: {command: $c}, cwd: $d}' \
+  | PATH="$AD_CBIN:$PATH" bash "$REPO_ROOT/templates/dev-setup/.claude/hooks/gate-commit.sh" 2>/dev/null)"
+assert_eq "the commit gate does not take the script call for a commit" "" "$GATE_OUT"
+
+# The selection: three clones, one task.
+AD_SEL="$AD_DIR/select"
+mkdir -p "$AD_SEL/out"
+for NAME in web api mobile; do
+  git init --quiet --bare --template="$EMPTY_GIT_TEMPLATE" "$AD_SEL/$NAME.git" >/dev/null 2>&1
+  (
+    cd "$AD_SEL" || exit 1
+    git_init "$NAME"
+    cd "$NAME" || exit 1
+    git config user.email "test@example.com"
+    git config user.name "Test"
+    echo "# $NAME" > README.md
+    mkdir -p .claude
+    [ "$NAME" = mobile ] || echo '{"lint":"make lint"}' > .claude/quality-commands.json
+    [ "$NAME" = web ] && echo '{"base_branch":"develop"}' > .claude/auto-dev.json
+    git add -A && git commit --quiet -m init && git branch -M main && git branch develop
+    git remote add origin "$AD_SEL/$NAME.git"
+    git push --quiet origin main develop && git fetch --quiet origin
+    git remote set-url origin "https://github.com/acme/$NAME.git"
+  ) >/dev/null 2>&1
+done
+sel_args() {
+  jq -n --arg d "$1" --arg o "$AD_SEL/out" --arg s "$AD_SEL" \
+    '{taskId: "DE-9", runId: "r9", outputDir: $o, tracker: "none",
+      repos: [($s + "/web"), ($s + "/api"), ($s + "/mobile")], task: {title: "T", description: $d}}' \
+    > "$AD_SEL/args.json"
+}
+sel() { ad auto-dev-select.sh --args "$AD_SEL/args.json" "$@"; }
+
+sel_args $'Fix the login.\n**repo:** acme/web'
+assert_eq "a repo: line chooses with no model, and the clone's config gives the base" \
+  "selected acme/web origin/develop config task-line" \
+  "$(sel | jq -r '[.STATUS, .SLUG, .BASE_BRANCH, .BASE_SOURCE, .SOURCE] | join(" ")')"
+sel_args $'repo: api\nbase: release'
+assert_eq "a base the task names and the clone lacks blocks the selection" "blocked" "$(sel | jq -r .STATUS)"
+assert_eq "as a failed result at stage select" "failed select" \
+  "$(jq -r '.status + " " + .stage' "$AD_SEL/out/result.json")"
+sel_args 'repo: mobile'
+assert_contains "a clone that declares no quality commands is not ready" "$(sel | jq -r .REASON)" "quality commands"
+sel_args 'Something vague'
+OUT="$(sel)"
+assert_eq "no line and three clones: undecided, for a model to choose" "undecided" "$(printf '%s' "$OUT" | jq -r .STATUS)"
+assert_contains "from a candidates file that names each clone" "$(cat "$AD_SEL/out/candidates.md")" "## acme/mobile"
+assert_eq "the model's choice is recorded, with the base it read" "selected acme/api origin/develop model" \
+  "$(sel --choose "$AD_SEL/api" --reason "the api owns login" --evidence "login -> src/auth" --base develop \
+     | jq -r '[.STATUS, .SLUG, .BASE_BRANCH, .BASE_SOURCE] | join(" ")')"
+assert_eq "with its evidence" "login -> src/auth" "$(jq -r '.evidence | join(",")' "$AD_SEL/out/selection.json")"
+
+jq 'del(.repos) | .stack = {lint: "make lint"}' "$AD_SEL/args.json" > "$AD_SEL/args-dev.json"
+assert_eq "auto-dev-args takes the base from the selection" "true origin/develop" \
+  "$(cd "$AD_SEL/api" && CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null \
+     | jq -r .ACCEPTED) $(jq -r .baseBranch "$AD_SEL/out/workflow-args.json")"
+assert_contains "and refuses a checkout that is not the chosen repository" \
+  "$(cd "$AD_SEL/web" && CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null | jq -r .REASON)" \
+  "the selection chose acme/api"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary

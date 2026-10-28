@@ -248,6 +248,11 @@ status other than 0.
 | `instruction-files.sh [--dir <path>]`, `instruction-files.sh --merge <path>` | `SHIMS`, `CUSTOM`, `UNIMPORTED`, `LOCAL`, `ABOVE`, `CLAUDE_VERSION`, `MIN_CLAUDE_VERSION`, `VERSION_OK` — will Claude Code read `AGENTS.md` here (DE-17167). The setup writes no `CLAUDE.md`: Claude Code reads `AGENTS.md` from 2.1.277, and only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the directory or above it. `SHIMS` are the `@AGENTS.md`-only files an earlier setup wrote, which Step 5b removes; `CUSTOM` the team's, moved only on a yes; `VERSION_OK` the client against the `MIN_CLAUDE_VERSION` floor (2.1.281: before it Bedrock and telemetry-off sessions read `CLAUDE.md` only), checked at Step 1. Read-only: `--merge` prints the owning `AGENTS.md` with the file's content appended after its footer, and the setup writes it |
 | `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `ADDED_EXCLUDED` |
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
+| `auto-dev-select.sh --args <file> [--choose <repo> --reason <text> \| --block --reason <text>]` | `STATUS`, `REPO`, `SLUG`, `BASE_BRANCH`, `BASE_SOURCE`, `SOURCE`, `REASON`, `SELECTION_FILE`, `CANDIDATES_FILE`, `TASK_FILE` — which clone a headless task belongs to and the base it forks from: a `repo:` line or a single clone with no model, otherwise `undecided` and a capped `candidates.md` for the model; blocked moves the task to `BLOCKED` itself. Writes `selection.json` |
+| `auto-dev-args.sh --args <file>` | `ACCEPTED`, `REASON`, `TASK_ID`, `TITLE`, `TRACKER`, `OUTPUT_DIR`, `TASK_FILE`, `WORKFLOW_ARGS`, `WORKFLOW_ARGS_FILE`, `LAUNCH_FILE`, `PLUGIN_ROOT` — everything `auto-dev` needs before its first agent: the task (from the board or inline), the base (passed, or from `selection.json`, refused in another clone), the quality commands, the MR language. It refuses unless the runner set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`: `claude -p` otherwise stops the workflow ten minutes after the launcher's last turn. Exit 3 also writes a `failed`/`intake` `result.json` |
+| `auto-dev-clickup.sh --task <id> --read \| --start \| --finish --result <file> [--mr-url <url>] [--pushed true\|false]` | `TASK_ID`, `CUSTOM_ID`, `NAME`, `DESCRIPTION`, `STATUS`, `PRIORITY`, `URL`, `MOVED_TO`, `COMMENTED`, `TIME_LOGGED`, `MINUTES`, `REASON` — the board for a headless run, over the REST API with `CLICKUP_API_TOKEN` read by curl from stdin, never from argv: a disposable machine has no OAuth login for the MCP. `BACKLOG` is refused; `--finish` logs the clock in ClickUp's own time tracking |
+| `auto-dev-commit.sh --task <id> --message <subject>` | `COMMITTED`, `COMMIT`, `BRANCH`, `RAN`, `SKIPPED`, `UNAVAILABLE_REASON`, `OUTPUT`, `REASON` — the one commit of an `auto-dev` run with a command `unavailable`: the commit gate minus what cannot start. It asks `quality-preflight.sh` itself, runs the commands that can start, and commits with the project's git hooks on. Exit 4 a red command or a refused commit; exit 3 refuses when nothing is unavailable, with a hook manager, or off the task's branch — `git commit` and the gate work there |
+| `auto-dev-report.sh --outcome <file> --launch <file> [--session <id>]`, `--finalize --result <file> --claude-result <file>` | `STATUS`, `STAGE`, `RESULT_FILE`, `BODY_FILE`, `SPEC_FILE`, `PATCH_FILE`, `TITLE`, `LABELS`, `OUTPUT_SOURCE` — `result.json` and `pr-body.md` with no model: title and labels from `mr-meta.sh`, the repository's template with its description and test sections filled. Git decides the outcome: a `ready-for-mr` whose branch holds no commit over the base becomes `failed` at `dev`, the commit subjects are git's, and a failed run's uncommitted work goes to `changes.patch`. Usage per step from the transcripts is a lower bound for output; `--finalize` spreads `claude -p`'s exact per-model totals over the steps |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug, branch-name parsing |
 
 ### The UPDATE path is part of the contract
@@ -320,6 +325,17 @@ on a branch that does not carry the task id, never forces a push, never
 commits without the failure report, and its fixed subject and body say the
 hooks were skipped. The `deny` rules and the anti-bypass mode are untouched: a
 bypass typed by a model is refused as before.
+
+**And one narrower, for a headless run.** The gate does not know which commands
+this machine cannot start, so in full-gate mode a program that is not installed
+exits 127 and refuses every commit. On job ad-dry-10281136 an `auto-dev` run
+had its work staged, nothing on the branch, and still came back `ready-for-mr`.
+`auto-dev-commit.sh` is the gate minus those commands: it asks
+`quality-preflight.sh`, runs every command that can start, and denies the
+commit on a red one. It never skips the git hooks. It refuses when nothing is
+unavailable and when a hook manager owns the checks, because there plain
+`git commit` already works. `auto-dev-report.sh` checks the branch against
+git, so a run whose commit did not happen is `failed` whatever its agent said.
 
 The hook is fail-open — no `jq`, no `detect-stack.sh`, and it warns on stderr and
 lets the call through. It is a quality gate, not a security boundary: the security
@@ -514,7 +530,11 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
 **The public surface is six commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
-`multi-sdd`, `review`. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
+`multi-sdd`, `review` — plus two headless ones, `auto-dev-select` and
+`auto-dev`, which a job runner starts inside `claude -p` and no developer types.
+They are user-invocable because `claude -p` starts them by name, and they stay
+out of the generated `AGENTS.md`, whose command table the suite pins to the six:
+every session of every project would otherwise pay to describe them. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
 `sdd-plan`, `sdd-dev`, `verify`, `clickup`, `vcs-ops`) carries
 `user-invocable: false`: the orchestrator invokes it by name, and `/help` stays
 readable. A skill that opens a PR or writes into a project also carries
@@ -557,7 +577,7 @@ Four things left `sdd`, and each one was paid for on every task:
   `LINT_CMD` or `TYPECHECK_CMD` is a command the project does not define: it is
   skipped, never substituted, and reported where the step reports — the
   `Tests:` / `Linter:` lines of the summary, `notes` in the autonomous run —
-  the same rule `gate-commit.sh` and the dev agent of `auto-sdd.js` apply. A
+  the same rule `gate-commit.sh` and the dev agent of `auto-sdd-run.js` apply. A
   command named in chat would be checked by `sdd-dev` and by nothing
   downstream, since the gate, the closure and the autonomous run all read the
   script;
@@ -630,7 +650,7 @@ of the bare system prompt.
 
 `templates/<domain>/.claude/workflows/*.js` → `dist/<domain>/workflows/`. The
 harness loads every `*.js` there and registers it as `<plugin>:<meta.name>`, so
-`auto-sdd.js` is callable as `Workflow({name: "dev-setup:auto-sdd"})` — the one
+`auto-sdd-run.js` is callable as `Workflow({name: "dev-setup:auto-sdd-run"})` — the one
 piece of the plugin the model never reads. Its control flow stays out of the
 context window, and a bound written in code — one revision is one `agent()` call,
 with no loop around it — cannot be re-read charitably the way "max 3 iterations"
@@ -682,12 +702,35 @@ resolving it again. Two invariants keep it honest, and both are pinned by
    checkpoint. The business questions a person *can* answer are asked before
    the run — phase A of `multi-sdd` — and never in the middle of one.
 
+**The headless variant is a second workflow, not a flag on the first.**
+`auto-dev-run.js` is `auto-sdd-run.js` with the cost taken out where six measured
+Invictus runs put it (Challenge 47% of the input, Dev 34%), for a job runner
+that runs one task per disposable machine: the spec returns a context pack the
+reviewer and the developer start from; one reviewer covers the three lenses, on
+opus/medium, reading only the spec and the pack, and `challenge: auto` skips it
+at three REQ and three steps or fewer; Dev works on the task branch in the
+checkout — no worktree, the machine is thrown away — runs only the related tests
+per step and makes one commit, so the commit gate runs the checks once; Verify
+is haiku/low. Everything around it that needs no judgement is a script
+(`auto-dev-select.sh`, `auto-dev-args.sh`, `auto-dev-clickup.sh`,
+`auto-dev-commit.sh`, `auto-dev-report.sh`), and the launchers only call them. The order is forced by
+the devcontainer: `auto-dev-select` chooses the clone on the host, the runner
+starts that clone's devcontainer, `auto-dev` runs inside it. Two things to keep:
+a change to `auto-sdd-run.js` is not a change to `auto-dev-run.js` — decide for each —
+and the board there is the REST script, never the `clickup` agent, because the
+MCP's OAuth login does not exist on a fresh machine.
+
 Three rules for changing a workflow:
 
 1. **Plain JavaScript, `.js`, `export const meta` first.** Any other extension is
    skipped by the loader in silence; the meta literal must be pure (no variables,
    no interpolation), and `meta.name` has to match the file name — the launcher
-   hard-codes `dev-setup:<name>`.
+   hard-codes `dev-setup:<name>`. It is never the name of a skill: the harness
+   registers a workflow as the slash command `/<plugin>:<meta.name>` too, and
+   one named like a skill shadows it — in `claude -p`, `/dev-setup:auto-sdd DE-1`
+   resolved to the workflow with `"DE-1"` as its arguments, past the launcher,
+   until the workflow became `auto-sdd-run` (2026-10-28). Hence `auto-sdd-run.js` and
+   `auto-dev-run.js`, and a suite check over every workflow.
 2. **No clock, no randomness, no `require`.** `Date.now()`, `Math.random()`,
    `new Date()` and the module loader throw inside the workflow VM: a run that
    needs a date asks an agent for `date +%F`.
@@ -923,4 +966,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.34.0 — bump the version number on every substantial change*
+*Version: 2.36.0 — bump the version number on every substantial change*

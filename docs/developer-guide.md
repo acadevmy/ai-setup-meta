@@ -292,6 +292,51 @@ with the reason. Five is where the review queue becomes the bottleneck: a
 fan-out costs `n` times a single run, and it ends with `n` merge requests for
 one person to read.
 
+### Headless runs, for a job runner
+
+Two more commands exist for a machine, not for you: a job runner starts them
+inside `claude -p` on a disposable checkout, one task per machine, and pushes,
+opens the merge request and closes the task itself from the files they leave.
+They are left out of the project's `AGENTS.md`, so a session in your project
+never pays to describe them.
+
+- **`/dev-setup:auto-dev-select --args <file>`** runs on the host, after the
+  runner cloned every repository of the project and before any devcontainer
+  exists. A `repo: owner/repo` line in the task, or a single clone, settles
+  which repository the task belongs to with no model; otherwise Sonnet reads the
+  task and each clone's README, `AGENTS.md` and manifests and chooses, or the
+  task goes to `BLOCKED` with the reason. The base branch comes, in order, from
+  a `base: <branch>` line, the task's own words, `base_branch` in the clone's
+  `.claude/auto-dev.json`, the remote's HEAD, then `main`/`master`/`develop`.
+  It writes `selection.json`.
+- **`/dev-setup:auto-dev --args <file>`** runs inside the chosen repository's
+  devcontainer. It is `auto-sdd` with the cost taken out: the spec hands on a
+  context pack — the files, rules and ADRs it rests on — so nothing explores
+  the repository twice; one reviewer covers the three focuses and is skipped on
+  a small task (three REQ and three steps or fewer); development happens on the
+  task branch in the checkout, with no worktree, and ends in one commit, so the
+  commit gate runs the checks once. Opus writes, reviews and develops; Haiku
+  runs the quality commands. It writes `result.json` and `pr-body.md`. A
+  command the machine cannot start (its program is not installed) is not run:
+  the merge request lists it as not verified, and the commit goes through
+  `auto-dev-commit.sh`, which runs the others, because the commit gate would
+  run that command and refuse. The result is checked against git: a branch
+  with no commit over its base is a `failed` run at stage `dev`, never
+  `ready-for-mr`, and a failed run's uncommitted work is saved as
+  `changes.patch`.
+
+The board is reached with `auto-dev-clickup.sh` over the ClickUp REST API and a
+personal token in `CLICKUP_API_TOKEN` (with `CLICKUP_TEAM_ID` for custom ids),
+because a disposable machine has no OAuth login for the MCP. Everything around
+the run that does not need judgement is a script — `auto-dev-args.sh`,
+`auto-dev-select.sh`, `auto-dev-commit.sh`, `auto-dev-report.sh` — and each
+one's `--help` holds its contract. The runner starts `claude -p` with
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`: without it, `claude -p` stops the
+workflow ten minutes after the launcher's last turn, so `auto-dev-args.sh`
+refuses the run at intake. With the Bash sandbox on, the runner also passes
+`--add-dir <outputDir>`, because a sandboxed command writes only in the
+checkout and the directories added. `auto-sdd`, `multi-sdd` and the interactive flow are unchanged.
+
 ### The quality commands your project declares
 
 Which command lints the project, which type-checks it and which runs its tests
@@ -741,7 +786,7 @@ only the commands run again.
 
 ### A run says the workflow does not exist
 
-`Workflow "dev-setup:auto-sdd" not found` almost always means a stale install is
+`Workflow "dev-setup:auto-sdd-run" not found` almost always means a stale install is
 shadowing a newer build. Check that the plugin actually ships it, and reinstall
 or rebuild if it does not.
 

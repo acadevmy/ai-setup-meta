@@ -236,9 +236,9 @@ Three failures happen before any phase does, and none is a task problem:
   The fix belongs to the project, not the task: `/dev-setup:setup` writes or
   repairs the declaration (step 3b), then launch again. Any other non-zero exit
   is a broken script — show its stderr and stop, with no board write.
-- **`Workflow "dev-setup:auto-sdd" not found`** — the loaded plugin has no such
+- **`Workflow "dev-setup:auto-sdd-run" not found`** — the loaded plugin has no such
   workflow. The usual cause is a stale install shadowing a newer build: check
-  that `${CLAUDE_PLUGIN_ROOT}/workflows/auto-sdd.js` exists, and if it does not,
+  that `${CLAUDE_PLUGIN_ROOT}/workflows/auto-sdd-run.js` exists, and if it does not,
   reinstall or rebuild the plugin. The same script can be launched by path with
   `scriptPath` while that is being fixed.
 - **`status: 'failed', stage: 'intake'`** — the launcher passed bad arguments:
