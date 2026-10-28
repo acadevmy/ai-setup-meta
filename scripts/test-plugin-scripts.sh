@@ -4605,6 +4605,7 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
       && (prompts.challenge || '').includes('Do not search the repository'),
     devPack: (prompts.dev || '').includes('src/greeting.ts'),
     devOneCommit: (prompts.dev || '').includes('one commit'),
+    devCommitScript: (prompts.dev || '').includes('/scripts/auto-dev-commit.sh'),
     devNoWorktree: !(prompts.dev || '').includes('worktree'),
     taskFile: (prompts.spec || '').includes('/out/task.md'),
     mr: Boolean(out.mr),
@@ -4625,6 +4626,11 @@ NODEJS
   assert_eq "Dev starts from the context pack and commits once" "true true" \
     "$(dfield "$SIM" devPack) $(dfield "$SIM" devOneCommit)"
   assert_eq "the outcome carries the merge request text" "true" "$(dfield "$SIM" mr)"
+  assert_eq "with every command runnable, Dev commits with git and the gate runs" "false" \
+    "$(dfield "$SIM" devCommitScript)"
+  SIM=$(dsim '{}' '{"unavailable":["test"],"unavailableReason":"test: `make` is not installed"}')
+  assert_eq "with one unavailable, Dev commits through auto-dev-commit.sh: the gate would run it" "true" \
+    "$(dfield "$SIM" devCommitScript)"
 
   SIM=$(dsim '{"reqs":4,"steps":2}')
   assert_eq "over the threshold, one reviewer looks at the spec" \
@@ -4728,7 +4734,7 @@ chmod +x "$AD_BIN/curl"
 ad() {
   local script="$1"; shift
   (cd "$AD_REPO" && PATH="$AD_BIN:$PATH" CURL_LOG="$AD_LOG" CLICKUP_API_TOKEN=pk_secret CLICKUP_TEAM_ID=42 \
-    bash "$PLUGIN_SCRIPTS/$script" "$@" --json 2>/dev/null)
+    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="${AD_CEILING-0}" bash "$PLUGIN_SCRIPTS/$script" "$@" --json 2>/dev/null)
 }
 
 jq -n --arg o "$AD_OUT" '{taskId: "DE-7", baseBranch: "next", outputDir: $o, runId: "r1",
@@ -4751,6 +4757,15 @@ OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args-nobase.json")"
 assert_contains "no base and no selection: refused, never guessed" "$(printf '%s' "$OUT" | jq -r .REASON)" "no base branch"
 assert_eq "and the refusal is a result the runner reads" "failed intake" \
   "$(jq -r '.status + " " + .stage' "$AD_OUT/result.json")"
+OUT="$(AD_CEILING="" ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_contains "without the background-wait ceiling lifted, the run is refused at intake" \
+  "$(printf '%s' "$OUT" | jq -r .REASON)" "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS is not set"
+assert_eq "and the runner reads it as a failed intake" "failed intake" \
+  "$(jq -r '.status + " " + .stage' "$AD_OUT/result.json")"
+OUT="$(AD_CEILING="forever" ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_contains "a ceiling that is not milliseconds is refused too" "$(printf '%s' "$OUT" | jq -r .REASON)" "it takes milliseconds"
+OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_eq "with it set, the same args are accepted again" "true" "$(printf '%s' "$OUT" | jq -r .ACCEPTED)"
 
 : > "$AD_LOG"
 OUT="$(ad auto-dev-clickup.sh --task DE-7 --read)"
@@ -4769,7 +4784,12 @@ OUT="$(cd "$AD_REPO" && PATH="$AD_BIN:$PATH" bash "$PLUGIN_SCRIPTS/auto-dev-clic
 assert_contains "no token in the environment: refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "CLICKUP_API_TOKEN"
 
 # The report, on a ready-for-mr outcome as the launcher saves it.
-(cd "$AD_REPO" && git checkout --quiet -b "feat/DE-7_add-a-greeting") >/dev/null 2>&1
+(
+  cd "$AD_REPO" || exit 1
+  git checkout --quiet -b "feat/DE-7_add-a-greeting"
+  echo 'export const greeting = "hello"' > greeting.ts
+  git add -A && git commit --quiet -m "feat(greet): the commit git holds [DE-7]"
+) >/dev/null 2>&1
 cat > "$AD_OUT/outcome.json" <<'JSON'
 {"status":"ready-for-mr","taskId":"DE-7","branch":"feat/DE-7_add-a-greeting","baseBranch":"next",
  "repoPath":"/repo","spec":{"path":".specs/DE-7-greeting.md","reqs":[{"id":"REQ-1","statement":"s","test":"t"}]},
@@ -4796,11 +4816,42 @@ for PART in "## To confirm" "## Open points" "proposals applied to the spec: 1" 
 done
 assert_eq "the template's own test placeholder is replaced, not kept" "false" \
   "$(printf '%s' "$BODY" | grep -q 'Test A' && echo true || echo false)"
+assert_eq "the commits are the ones git holds, not the ones the agent reported" \
+  '["feat(greet): the commit git holds [DE-7]"]' "$(jq -c .commits "$AD_OUT/result.json")"
 
 printf 'not json at all' > "$AD_OUT/broken.json"
 ad auto-dev-report.sh --outcome "$AD_OUT/broken.json" --launch "$AD_OUT/launch.json" >/dev/null
 assert_eq "an outcome that is neither is a run that broke" "failed broken" \
   "$(jq -r '.status + " " + .stage' "$AD_OUT/result.json")"
+assert_eq "a failed run on a clean checkout leaves no patch" "" "$(jq -r .patchFile "$AD_OUT/result.json")"
+
+# ad-dry-10281136: the gate refused the commit, the work stayed staged, and the
+# outcome still said ready-for-mr.
+(
+  cd "$AD_REPO" || exit 1
+  git checkout --quiet -b "feat/DE-9_not-committed" next
+  echo 'staged' > staged.ts && git add staged.ts
+  echo 'untracked' > untracked.ts
+) >/dev/null 2>&1
+jq '.branch = "feat/DE-9_not-committed" | .taskId = "DE-9"' "$AD_OUT/outcome.json" > "$AD_DIR/uncommitted.json"
+mkdir -p "$AD_DIR/uncommitted" && cp "$AD_DIR/uncommitted.json" "$AD_DIR/uncommitted/outcome.json"
+OUT="$(ad auto-dev-report.sh --outcome "$AD_DIR/uncommitted/outcome.json" --launch "$AD_OUT/launch.json")"
+assert_eq "ready-for-mr with no commit over the base is a failed run at dev" "failed dev" \
+  "$(jq -r '.status + " " + .stage' "$AD_DIR/uncommitted/result.json")"
+assert_contains "saying the work was not committed" "$(jq -r .reason "$AD_DIR/uncommitted/result.json")" \
+  "holds no commit over next"
+assert_eq "and no merge request body is written for it" "" "$(printf '%s' "$OUT" | jq -r .BODY_FILE)"
+assert_eq "its work, staged and untracked, is saved as a patch" "staged.ts untracked.ts" \
+  "$(grep '^diff --git' "$AD_DIR/uncommitted/changes.patch" | sed 's#.* b/##' | sort | tr '\n' ' ' | sed 's/ $//')"
+assert_eq "which applies on the commit result.json names" "$(cd "$AD_REPO" && git rev-parse next)" \
+  "$(jq -r .patchBase "$AD_DIR/uncommitted/result.json")"
+assert_eq "and the checkout is left as the run left it" "A  staged.ts|?? untracked.ts" \
+  "$(cd "$AD_REPO" && git status --porcelain | tr '\n' '|' | sed 's/|$//')"
+(
+  cd "$AD_REPO" || exit 1
+  git reset --quiet && rm -f staged.ts untracked.ts
+  git checkout --quiet "feat/DE-7_add-a-greeting"
+) >/dev/null 2>&1
 
 # Usage from transcripts, then reconciled with claude -p's per-model totals.
 AD_CFG="$AD_DIR/claude"
@@ -4853,6 +4904,76 @@ OUT="$(ad auto-dev-clickup.sh --task DE-7 --start)"
 assert_eq "and its in-progress status the one the work starts in" "DOING" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
 rm -f "$AD_REPO/.claude/auto-dev.json"
 
+# The commit of a run with a command this machine cannot start: adtest is not
+# installed, adlint is a stub whose verdict LINT_RED sets.
+AD_CREPO="$AD_DIR/commit-repo"
+AD_CBIN="$AD_DIR/commit-bin"
+mkdir -p "$AD_CREPO" "$AD_CBIN"
+printf '#!/usr/bin/env bash\necho ran >> "%s/adlint.log"\nif [ -n "${LINT_RED:-}" ]; then echo "lib/a.dart:3 1 problem"; exit 1; fi\necho "no issues"\n' \
+  "$AD_DIR" > "$AD_CBIN/adlint"
+chmod +x "$AD_CBIN/adlint"
+(
+  cd "$AD_CREPO" || exit 1
+  git_init .
+  git config user.email "test@example.com"
+  git config user.name "Test"
+  mkdir -p .claude
+  echo '{"lint":"adlint","typecheck":null,"test":"adtest","absent":{"typecheck":"Dart has no separate type checker"}}' \
+    > .claude/quality-commands.json
+  git add -A && git commit --quiet -m init && git branch -M main
+) >/dev/null 2>&1
+adc() {
+  (cd "$AD_CREPO" && PATH="$AD_CBIN:$PATH" bash "$PLUGIN_SCRIPTS/auto-dev-commit.sh" "$@" --json 2>/dev/null)
+}
+
+adc --task DE-5 --message "feat: no id" >/dev/null
+assert_eq "auto-dev-commit wants the task id in the subject" "1" "$?"
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_eq "it refuses off the task's branch" "3 false" "$? $(printf '%s' "$OUT" | jq -r .COMMITTED)"
+assert_contains "saying which branch it is on" "$(printf '%s' "$OUT" | jq -r .REASON)" "main does not carry DE-5"
+(cd "$AD_CREPO" && git checkout --quiet -b "feat/DE-5_add-a") >/dev/null 2>&1
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_contains "with nothing to commit, it says so" "$(printf '%s' "$OUT" | jq -r .REASON)" "nothing to commit"
+echo 'one' > "$AD_CREPO/a.dart"
+printf '#!/usr/bin/env bash\necho ok\n' > "$AD_CBIN/adtest" && chmod +x "$AD_CBIN/adtest"
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_eq "with every command runnable it refuses: git commit and the gate work" "3" "$?"
+assert_contains "and says to use them" "$(printf '%s' "$OUT" | jq -r .REASON)" "every declared command can run here"
+rm -f "$AD_CBIN/adtest"
+mkdir -p "$AD_CREPO/.husky"
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_contains "with a hook manager it refuses: the project's hooks own the checks" \
+  "$(printf '%s' "$OUT" | jq -r .REASON)" "husky"
+rmdir "$AD_CREPO/.husky"
+
+: > "$AD_DIR/adlint.log"
+OUT="$(LINT_RED=1 adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_eq "a red runnable command refuses the commit" "4 false 0" \
+  "$? $(printf '%s' "$OUT" | jq -r .COMMITTED) $(cd "$AD_CREPO" && git rev-list --count main..HEAD)"
+assert_contains "with its output, as the gate gives it" "$(printf '%s' "$OUT" | jq -r .OUTPUT)" "1 problem"
+OUT="$(adc --task DE-5 --message "feat(a): add a [DE-5]")"
+assert_eq "green on what can run: committed, the unavailable one skipped" "0 true lint test" \
+  "$? $(printf '%s' "$OUT" | jq -r '.COMMITTED + " " + .RAN + " " + .SKIPPED')"
+assert_contains "and the merge request's reason is passed on" "$(printf '%s' "$OUT" | jq -r .UNAVAILABLE_REASON)" "adtest"
+assert_eq "the commit carries the subject and the whole working tree" "feat(a): add a [DE-5]|a.dart" \
+  "$(cd "$AD_CREPO" && git log -1 --format=%s)|$(cd "$AD_CREPO" && git show --name-only --format= HEAD)"
+assert_eq "the lint ran once per attempt, from the repository root" "2" "$(grep -c ran "$AD_DIR/adlint.log")"
+
+echo 'two' >> "$AD_CREPO/a.dart"
+mkdir -p "$AD_CREPO/.git/hooks"
+printf '#!/usr/bin/env bash\necho "commit-msg hook: subject too long"\nexit 1\n' > "$AD_CREPO/.git/hooks/commit-msg"
+chmod +x "$AD_CREPO/.git/hooks/commit-msg"
+OUT="$(adc --task DE-5 --message "feat(a): change a [DE-5]")"
+assert_eq "the project's git hooks still run: one that refuses stops the commit" "4 false" \
+  "$? $(printf '%s' "$OUT" | jq -r .COMMITTED)"
+assert_contains "and what it said is in OUTPUT" "$(printf '%s' "$OUT" | jq -r .OUTPUT)" "subject too long"
+rm -f "$AD_CREPO/.git/hooks/commit-msg"
+
+GATE_OUT="$(cd "$AD_CREPO" && jq -n --arg c "bash \"$PLUGIN_SCRIPTS/auto-dev-commit.sh\" --json --task DE-5 --message \"feat(a): change a [DE-5]\"" \
+  --arg d "$AD_CREPO" '{tool_name: "Bash", tool_input: {command: $c}, cwd: $d}' \
+  | PATH="$AD_CBIN:$PATH" bash "$REPO_ROOT/templates/dev-setup/.claude/hooks/gate-commit.sh" 2>/dev/null)"
+assert_eq "the commit gate does not take the script call for a commit" "" "$GATE_OUT"
+
 # The selection: three clones, one task.
 AD_SEL="$AD_DIR/select"
 mkdir -p "$AD_SEL/out"
@@ -4903,10 +5024,10 @@ assert_eq "with its evidence" "login -> src/auth" "$(jq -r '.evidence | join(","
 
 jq 'del(.repos) | .stack = {lint: "make lint"}' "$AD_SEL/args.json" > "$AD_SEL/args-dev.json"
 assert_eq "auto-dev-args takes the base from the selection" "true origin/develop" \
-  "$(cd "$AD_SEL/api" && bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null \
+  "$(cd "$AD_SEL/api" && CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null \
      | jq -r .ACCEPTED) $(jq -r .baseBranch "$AD_SEL/out/workflow-args.json")"
 assert_contains "and refuses a checkout that is not the chosen repository" \
-  "$(cd "$AD_SEL/web" && bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null | jq -r .REASON)" \
+  "$(cd "$AD_SEL/web" && CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null | jq -r .REASON)" \
   "the selection chose acme/api"
 
 # ═══════════════════════════════════════════════════════════════════════════════

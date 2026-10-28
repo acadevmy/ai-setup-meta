@@ -249,9 +249,10 @@ status other than 0.
 | `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `ADDED_EXCLUDED` |
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
 | `auto-dev-select.sh --args <file> [--choose <repo> --reason <text> \| --block --reason <text>]` | `STATUS`, `REPO`, `SLUG`, `BASE_BRANCH`, `BASE_SOURCE`, `SOURCE`, `REASON`, `SELECTION_FILE`, `CANDIDATES_FILE`, `TASK_FILE` — which clone a headless task belongs to and the base it forks from: a `repo:` line or a single clone with no model, otherwise `undecided` and a capped `candidates.md` for the model; blocked moves the task to `BLOCKED` itself. Writes `selection.json` |
-| `auto-dev-args.sh --args <file>` | `ACCEPTED`, `REASON`, `TASK_ID`, `TITLE`, `TRACKER`, `OUTPUT_DIR`, `TASK_FILE`, `WORKFLOW_ARGS`, `WORKFLOW_ARGS_FILE`, `LAUNCH_FILE`, `PLUGIN_ROOT` — everything `auto-dev` needs before its first agent: the task (from the board or inline), the base (passed, or from `selection.json`, refused in another clone), the quality commands, the MR language. Exit 3 also writes a `failed`/`intake` `result.json` |
+| `auto-dev-args.sh --args <file>` | `ACCEPTED`, `REASON`, `TASK_ID`, `TITLE`, `TRACKER`, `OUTPUT_DIR`, `TASK_FILE`, `WORKFLOW_ARGS`, `WORKFLOW_ARGS_FILE`, `LAUNCH_FILE`, `PLUGIN_ROOT` — everything `auto-dev` needs before its first agent: the task (from the board or inline), the base (passed, or from `selection.json`, refused in another clone), the quality commands, the MR language. It refuses unless the runner set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`: `claude -p` otherwise stops the workflow ten minutes after the launcher's last turn. Exit 3 also writes a `failed`/`intake` `result.json` |
 | `auto-dev-clickup.sh --task <id> --read \| --start \| --finish --result <file> [--mr-url <url>] [--pushed true\|false]` | `TASK_ID`, `CUSTOM_ID`, `NAME`, `DESCRIPTION`, `STATUS`, `PRIORITY`, `URL`, `MOVED_TO`, `COMMENTED`, `TIME_LOGGED`, `MINUTES`, `REASON` — the board for a headless run, over the REST API with `CLICKUP_API_TOKEN` read by curl from stdin, never from argv: a disposable machine has no OAuth login for the MCP. `BACKLOG` is refused; `--finish` logs the clock in ClickUp's own time tracking |
-| `auto-dev-report.sh --outcome <file> --launch <file> [--session <id>]`, `--finalize --result <file> --claude-result <file>` | `STATUS`, `STAGE`, `RESULT_FILE`, `BODY_FILE`, `SPEC_FILE`, `TITLE`, `LABELS`, `OUTPUT_SOURCE` — `result.json` and `pr-body.md` with no model: title and labels from `mr-meta.sh`, the repository's template with its description and test sections filled. Usage per step from the transcripts is a lower bound for output; `--finalize` spreads `claude -p`'s exact per-model totals over the steps |
+| `auto-dev-commit.sh --task <id> --message <subject>` | `COMMITTED`, `COMMIT`, `BRANCH`, `RAN`, `SKIPPED`, `UNAVAILABLE_REASON`, `OUTPUT`, `REASON` — the one commit of an `auto-dev` run with a command `unavailable`: the commit gate minus what cannot start. It asks `quality-preflight.sh` itself, runs the commands that can start, and commits with the project's git hooks on. Exit 4 a red command or a refused commit; exit 3 refuses when nothing is unavailable, with a hook manager, or off the task's branch — `git commit` and the gate work there |
+| `auto-dev-report.sh --outcome <file> --launch <file> [--session <id>]`, `--finalize --result <file> --claude-result <file>` | `STATUS`, `STAGE`, `RESULT_FILE`, `BODY_FILE`, `SPEC_FILE`, `PATCH_FILE`, `TITLE`, `LABELS`, `OUTPUT_SOURCE` — `result.json` and `pr-body.md` with no model: title and labels from `mr-meta.sh`, the repository's template with its description and test sections filled. Git decides the outcome: a `ready-for-mr` whose branch holds no commit over the base becomes `failed` at `dev`, the commit subjects are git's, and a failed run's uncommitted work goes to `changes.patch`. Usage per step from the transcripts is a lower bound for output; `--finalize` spreads `claude -p`'s exact per-model totals over the steps |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug, branch-name parsing |
 
 ### The UPDATE path is part of the contract
@@ -324,6 +325,17 @@ on a branch that does not carry the task id, never forces a push, never
 commits without the failure report, and its fixed subject and body say the
 hooks were skipped. The `deny` rules and the anti-bypass mode are untouched: a
 bypass typed by a model is refused as before.
+
+**And one narrower, for a headless run.** The gate does not know which commands
+this machine cannot start, so in full-gate mode a program that is not installed
+exits 127 and refuses every commit. On job ad-dry-10281136 an `auto-dev` run
+had its work staged, nothing on the branch, and still came back `ready-for-mr`.
+`auto-dev-commit.sh` is the gate minus those commands: it asks
+`quality-preflight.sh`, runs every command that can start, and denies the
+commit on a red one. It never skips the git hooks. It refuses when nothing is
+unavailable and when a hook manager owns the checks, because there plain
+`git commit` already works. `auto-dev-report.sh` checks the branch against
+git, so a run whose commit did not happen is `failed` whatever its agent said.
 
 The hook is fail-open — no `jq`, no `detect-stack.sh`, and it warns on stderr and
 lets the call through. It is a quality gate, not a security boundary: the security
@@ -701,7 +713,7 @@ checkout — no worktree, the machine is thrown away — runs only the related t
 per step and makes one commit, so the commit gate runs the checks once; Verify
 is haiku/low. Everything around it that needs no judgement is a script
 (`auto-dev-select.sh`, `auto-dev-args.sh`, `auto-dev-clickup.sh`,
-`auto-dev-report.sh`), and the launchers only call them. The order is forced by
+`auto-dev-commit.sh`, `auto-dev-report.sh`), and the launchers only call them. The order is forced by
 the devcontainer: `auto-dev-select` chooses the clone on the host, the runner
 starts that clone's devcontainer, `auto-dev` runs inside it. Two things to keep:
 a change to `auto-sdd-run.js` is not a change to `auto-dev-run.js` — decide for each —
@@ -954,4 +966,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.35.0 — bump the version number on every substantial change*
+*Version: 2.36.0 — bump the version number on every substantial change*

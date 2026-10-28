@@ -316,14 +316,26 @@ never pays to describe them.
   a small task (three REQ and three steps or fewer); development happens on the
   task branch in the checkout, with no worktree, and ends in one commit, so the
   commit gate runs the checks once. Opus writes, reviews and develops; Haiku
-  runs the quality commands. It writes `result.json` and `pr-body.md`.
+  runs the quality commands. It writes `result.json` and `pr-body.md`. A
+  command the machine cannot start (its program is not installed) is not run:
+  the merge request lists it as not verified, and the commit goes through
+  `auto-dev-commit.sh`, which runs the others, because the commit gate would
+  run that command and refuse. The result is checked against git: a branch
+  with no commit over its base is a `failed` run at stage `dev`, never
+  `ready-for-mr`, and a failed run's uncommitted work is saved as
+  `changes.patch`.
 
 The board is reached with `auto-dev-clickup.sh` over the ClickUp REST API and a
 personal token in `CLICKUP_API_TOKEN` (with `CLICKUP_TEAM_ID` for custom ids),
 because a disposable machine has no OAuth login for the MCP. Everything around
 the run that does not need judgement is a script — `auto-dev-args.sh`,
-`auto-dev-select.sh`, `auto-dev-report.sh` — and each one's `--help` holds its
-contract. `auto-sdd`, `multi-sdd` and the interactive flow are unchanged.
+`auto-dev-select.sh`, `auto-dev-commit.sh`, `auto-dev-report.sh` — and each
+one's `--help` holds its contract. The runner starts `claude -p` with
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`: without it, `claude -p` stops the
+workflow ten minutes after the launcher's last turn, so `auto-dev-args.sh`
+refuses the run at intake. With the Bash sandbox on, the runner also passes
+`--add-dir <outputDir>`, because a sandboxed command writes only in the
+checkout and the directories added. `auto-sdd`, `multi-sdd` and the interactive flow are unchanged.
 
 ### The quality commands your project declares
 

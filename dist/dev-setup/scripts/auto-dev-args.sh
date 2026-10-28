@@ -37,6 +37,16 @@
 #                                          only with stack
 #   }
 #
+# Environment, set by the runner:
+#   CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS
+#                       required — 0 to wait for the workflow however long it
+#                       runs. Unset, claude -p stops a background workflow ten
+#                       minutes after the launcher's last turn, which is the one
+#                       that starts it: the run would end with no outcome
+#
+# With the Bash sandbox on, claude needs `--add-dir <outputDir>`: a sandboxed
+# command writes only in the working directory and the directories added.
+#
 # Writes into outputDir:
 #   task.md             the task's title and description, verbatim
 #   workflow-args.json  the arguments of the dev-setup:auto-dev workflow
@@ -160,9 +170,20 @@ ROOT_REAL="$(cd "$ROOT" && pwd -P)"
 case "$OUTPUT_DIR/" in
   "$ROOT_REAL"/*) refuse "outputDir $OUTPUT_DIR is inside the repository: the dev commit would carry the run's files" ;;
 esac
-[ -w "$OUTPUT_DIR" ] || refuse "outputDir $OUTPUT_DIR is not writable"
+[ -w "$OUTPUT_DIR" ] \
+  || refuse "outputDir $OUTPUT_DIR is not writable — with the Bash sandbox on, start claude with --add-dir $OUTPUT_DIR"
 json_set OUTPUT_DIR "$OUTPUT_DIR"
 REFUSAL_RESULT="$OUTPUT_DIR/result.json"
+
+# The launcher's last turn is the one that starts the workflow, and claude -p
+# stops a background task ten minutes after the last turn: on job
+# ad-dry-10281436 a run in a devcontainer was stopped in Dev, with no outcome,
+# no result and the money spent. So the runner lifts that ceiling, and a run
+# without it is refused here, before anything is paid for.
+case "${CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS:-}" in
+  "") refuse "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS is not set: claude -p would stop the workflow ten minutes after the launcher's last turn, with no outcome. Start claude with CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0, and let the job's own timeout bound the run" ;;
+  *[!0-9]*) refuse "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS is \"$CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS\": it takes milliseconds, 0 to wait however long the run takes" ;;
+esac
 
 # ── The base branch ───────────────────────────────────────────────────────────
 #
