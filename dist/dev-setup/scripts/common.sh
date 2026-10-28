@@ -103,6 +103,15 @@ state_dir() {
   printf '%s/dev-setup/%s\n' "$common" "$1"
 }
 
+# Prints the file holding what the commit gate let through unchecked on one
+# branch — one line per commit it ran out of time on. gate-commit.sh writes it,
+# mr-meta.sh reads it, and a gate that finishes green removes it.
+gate_note_file() {
+  local dir
+  dir="$(state_dir gate-unchecked)" || return 1
+  printf '%s/%s\n' "$dir" "$(slugify "$1" 120)"
+}
+
 # Prints the detected VCS: git | none. Only git is supported today; the key
 # exists so the consumers do not have to guess.
 detect_vcs() {
