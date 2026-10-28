@@ -8,7 +8,7 @@ disable-model-invocation: false
 # VCS operations
 
 Everything runs through `git` plus the host CLI — `gh` on GitHub, `glab` on
-GitLab. Not the GitHub or GitLab MCP servers: the CLIs read the token from the
+GitLab. Not the MCP servers: the CLIs read the token from the
 environment, so it never lands on a command line or in a log. `git` needs
 `user.name` and `user.email` configured.
 
@@ -24,8 +24,7 @@ Neither, on a self-hosted host → probe `gh auth status --hostname <host>` and
 `glab auth status --hostname <host>`; whichever succeeds is the host. If neither
 does, stop and ask.
 
-Those two files hold **only** what differs: the CLI invocations and each tool's
-quirks. Everything below is the same on both hosts.
+They hold **only** what differs; everything below is the same on both hosts.
 
 ## Branch
 
@@ -72,6 +71,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/mr-meta.sh" --summary "<what was done, in LA
 - **Body** — `TEMPLATE`, the repository's own template, **filled in and short**,
   in `LANGUAGE`. Never `--fill`, never the template unfilled.
 - **Labels** — `LABELS`, passed as they are. Never invent one.
+- **Unchecked** — a non-empty `UNCHECKED_AT_COMMIT` opens the body: the commit
+  gate timed out, so tests were not completed at commit.
 
 [reference/merge-request.md](reference/merge-request.md) has the rest: the
 brevity rule, the test section, no metadata file, no template.
@@ -90,5 +91,5 @@ git tag -a v1.2.0 -m "v1.2.0"
 git push origin v1.2.0
 ```
 
-Then the host's release command. Under release-please or semantic-release, none
-of this by hand: merging the release PR creates the tag and the release.
+Then the host's release command — unless release-please or semantic-release
+cuts both from the merged release PR.

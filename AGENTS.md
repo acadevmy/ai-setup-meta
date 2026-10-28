@@ -238,7 +238,7 @@ status other than 0.
 | `quality-candidates.sh [--dir <path>]` | `LINT_CANDIDATES`, `TYPECHECK_CANDIDATES`, `TEST_CANDIDATES`, `CANDIDATE_COUNT` — what setup step 3b proposes: one `<command>\t<kind>:<path>` line per gate the project already declares, from the CI, the task runners, the package scripts, the docs, and the heuristics last. Root-relative (`cd <dir> && …`), deduplicated, no language rule |
 | `quality-preflight.sh [--require-declared] [--allow-unavailable] [--run]` | `READY`, `REASON`, `COMMANDS_SOURCE`, `MISSING`, `UNAVAILABLE`, `UNAVAILABLE_REASON`, `PREFLIGHT`, `OUTPUT`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS` — can the project check its own work here. Exit 3 refuses: a rejected or (with the flag) missing declaration, no command, and — without `--allow-unavailable` — a program not installed or a red declared preflight. `--run` executes each command once (setup 3b); the autonomous launchers call it with `--require-declared --allow-unavailable` before the board, so a toolchain the environment lacks makes those commands `UNAVAILABLE` — the run goes on and its merge request lists them as not verified |
 | `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>] [--stop <point>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED`, `STOP_POINT` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket; `--stop` with `--create` saves the stop point beside the task clock, and every later call returns it, so a resumed `sdd` does not ask again |
-| `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this |
+| `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS`, `UNCHECKED_AT_COMMIT` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this. `UNCHECKED_AT_COMMIT` is what the commit gate let through on the branch when it ran out of time, and the merge request opens with it |
 | `save-failed-run.sh --task <id> --stage <spec\|dev\|verify\|broken> --reason-file <path> [--dir <worktree>] [--spec-file <path> --spec-path <path> --base <ref> --title <text>]` | `SAVED`, `COMMIT`, `BRANCH`, `WORKTREE`, `CREATED`, `FILES`, `PUSHED`, `REMOTE`, `PUSH_ERROR`, `REASON` — the one way past the gates: a failed `auto-sdd` run in a cloud session commits what the task's worktree holds (an empty commit when nothing; on a branch with no worktree, without a checkout; with no branch, a new one holding the spec) with the failure report as the body, and pushes it as it is, past the commit and push hooks, never forced. Exit 3 refuses outside `CLAUDE_CODE_REMOTE=true` or with nothing that carries the task id; exit 4 saved but not pushed |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
@@ -252,6 +252,7 @@ status other than 0.
 | `auto-dev-args.sh --args <file>` | `ACCEPTED`, `REASON`, `TASK_ID`, `TITLE`, `TRACKER`, `OUTPUT_DIR`, `TASK_FILE`, `WORKFLOW_ARGS`, `WORKFLOW_ARGS_FILE`, `LAUNCH_FILE`, `PLUGIN_ROOT` — everything `auto-dev` needs before its first agent: the task (from the board or inline), the base (passed, or from `selection.json`, refused in another clone), the quality commands, the MR language. It refuses unless the runner set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`: `claude -p` otherwise stops the workflow ten minutes after the launcher's last turn. Exit 3 also writes a `failed`/`intake` `result.json` |
 | `auto-dev-clickup.sh --task <id> --read \| --start \| --finish --result <file> [--mr-url <url>] [--pushed true\|false]` | `TASK_ID`, `CUSTOM_ID`, `NAME`, `DESCRIPTION`, `STATUS`, `PRIORITY`, `URL`, `MOVED_TO`, `COMMENTED`, `TIME_LOGGED`, `MINUTES`, `REASON` — the board for a headless run, over the REST API with `CLICKUP_API_TOKEN` read by curl from stdin, never from argv: a disposable machine has no OAuth login for the MCP. `BACKLOG` is refused; `--finish` logs the clock in ClickUp's own time tracking |
 | `auto-dev-commit.sh --task <id> --message <subject>` | `COMMITTED`, `COMMIT`, `BRANCH`, `RAN`, `SKIPPED`, `UNAVAILABLE_REASON`, `OUTPUT`, `REASON` — the one commit of an `auto-dev` run with a command `unavailable`: the commit gate minus what cannot start. It asks `quality-preflight.sh` itself, runs the commands that can start, and commits with the project's git hooks on. Exit 4 a red command or a refused commit; exit 3 refuses when nothing is unavailable, with a hook manager, or off the task's branch — `git commit` and the gate work there |
+| `auto-dev-checks.sh --task <id> [--wait] [--budget <seconds>]` | `DONE`, `PASSED`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS`, `OUTPUT`, `LOG_DIR`, `TREE`, `REASON` — the quality commands of an `auto-dev` Verify, run so the agent can wait for them however long they take: each command into its own log, each status on disk as it lands. A suite past the Bash call's ceiling goes on in the background, and `--wait` blocks up to 540 s per call until `DONE` (exit 5: call it again). A second start on the same tree joins the live run; a run whose heartbeat stopped answers `stopped`, never green. Exit 0 green, 4 red, 3 no verdict |
 | `auto-dev-report.sh --outcome <file> --launch <file> [--session <id>]`, `--finalize --result <file> --claude-result <file>` | `STATUS`, `STAGE`, `RESULT_FILE`, `BODY_FILE`, `SPEC_FILE`, `PATCH_FILE`, `TITLE`, `LABELS`, `OUTPUT_SOURCE` — `result.json` and `pr-body.md` with no model: title and labels from `mr-meta.sh`, the repository's template with its description and test sections filled. Git decides the outcome: a `ready-for-mr` whose branch holds no commit over the base becomes `failed` at `dev`, the commit subjects are git's, and a failed run's uncommitted work goes to `changes.patch`. Usage per step from the transcripts is a lower bound for output; `--finalize` spreads `claude -p`'s exact per-model totals over the steps |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug, branch-name parsing |
 
@@ -341,6 +342,28 @@ The hook is fail-open — no `jq`, no `detect-stack.sh`, and it warns on stderr 
 lets the call through. It is a quality gate, not a security boundary: the security
 boundary is the `deny` rules plus the sandbox, and blocking every commit on a broken
 toolchain would be worse than reporting it.
+
+**A gate that runs out of time lets the commit through, and says so.** A hook the
+harness kills at its timeout says nothing, and the commit it held goes in as if it
+had passed: with the `"timeout": 600` the handler used to carry, a suite slower
+than ten minutes did exactly that, silently. The handler now carries `"timeout":
+1200` — over the slowest suite measured, invictus-program-app's 13 minutes — and
+the gate stops its own checks a minute before, at 1140 s, killing the command's
+process group. Then it answers with no permission decision, so the commit goes on
+through the normal flow and the `ask` rules still apply. `additionalContext`
+tells the model, `systemMessage` tells the developer, and a note under
+`<git-common-dir>/dev-setup/gate-unchecked/<branch>` records what did not finish.
+`mr-meta.sh` returns it as `UNCHECKED_AT_COMMIT`, and both `vcs-ops` and
+`auto-dev-report.sh` open the merge request with it ("tests not completed at
+commit"). A later commit whose gate finishes green removes the note. Blocking
+instead was weighed and rejected (2026-10-28): nobody waits an hour on a manual
+commit, an `auto-dev` Verify runs the whole suite anyway, and the CI is the final
+gate. `DEV_SETUP_GATE_BUDGET_S` shortens the budget; the tests use it.
+
+The same run showed a second way through: the hook runs before the whole line, so
+in `git add -A && git commit` the index is still empty when it looks, and
+"nothing staged" used to skip the checks. It now skips only when the working tree
+holds nothing to commit either.
 
 ### The obligation travels with the event, not with the flow
 
@@ -711,9 +734,13 @@ opus/medium, reading only the spec and the pack, and `challenge: auto` skips it
 at three REQ and three steps or fewer; Dev works on the task branch in the
 checkout — no worktree, the machine is thrown away — runs only the related tests
 per step and makes one commit, so the commit gate runs the checks once; Verify
-is haiku/low. Everything around it that needs no judgement is a script
+is haiku/low, and it runs nothing itself: `auto-dev-checks.sh` runs the
+commands and the agent waits on its `--wait` call, because a suite past the
+Bash call's ceiling goes to the background and is killed with the subagent's
+answer — on DE-17941 a green 13-minute suite was reported red that way.
+Everything around it that needs no judgement is a script
 (`auto-dev-select.sh`, `auto-dev-args.sh`, `auto-dev-clickup.sh`,
-`auto-dev-commit.sh`, `auto-dev-report.sh`), and the launchers only call them. The order is forced by
+`auto-dev-commit.sh`, `auto-dev-checks.sh`, `auto-dev-report.sh`), and the launchers only call them. The order is forced by
 the devcontainer: `auto-dev-select` chooses the clone on the host, the runner
 starts that clone's devcontainer, `auto-dev` runs inside it. Two things to keep:
 a change to `auto-sdd-run.js` is not a change to `auto-dev-run.js` — decide for each —
@@ -966,4 +993,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.36.0 — bump the version number on every substantial change*
+*Version: 2.37.0 — bump the version number on every substantial change*

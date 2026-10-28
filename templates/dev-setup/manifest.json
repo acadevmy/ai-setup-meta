@@ -68,6 +68,7 @@
     "auto-dev-args.sh",
     "auto-dev-clickup.sh",
     "auto-dev-commit.sh",
+    "auto-dev-checks.sh",
     "auto-dev-report.sh",
     "auto-dev-select.sh"
   ],
