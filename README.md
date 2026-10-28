@@ -150,7 +150,7 @@ ai-setup-meta/
 │       │   ├── agents/                 # code-reviewer, spec-verifier, finding-validator
 │       │   ├── reference/              # Contracts shared by several skills
 │       │   ├── skills/                 # 10 workflow skills (SKILL.md + reference/)
-│       │   └── workflows/              # auto-sdd.js — the autonomous run, as code
+│       │   └── workflows/              # auto-sdd-run.js — the autonomous run, as code
 │       └── profiles/
 │           ├── web-frontend.md
 │           ├── backend-node.md
@@ -163,7 +163,7 @@ ai-setup-meta/
 │       ├── skills/              # 13 skills (10 from the template + 2 shared + setup)
 │       ├── agents/              # 4 agents (3 from the template + the shared clickup)
 │       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
-│       ├── workflows/           # dev-setup:auto-sdd
+│       ├── workflows/           # dev-setup:auto-sdd-run
 │       └── hooks/               # hooks.json + hooks/scripts/ + the mod (register.ts, lib/, tests/)
 ├── scripts/
 │   ├── build-plugin.sh          # Orchestrator: reads the manifest, calls the builder
@@ -271,7 +271,7 @@ answers under its own name:
 **3. What the copy cannot take over.** Two names are hard-coded in the skills:
 
 - the workflow. `auto-sdd` and `multi-sdd` call `Workflow({"name":
-  "dev-setup:auto-sdd"})`, which resolves to the installed plugin's script. To
+  "dev-setup:auto-sdd-run"})`, which resolves to the installed plugin's script. To
   run the copy's, change that name to `dev-setup-next:auto-sdd` in the copy's
   two launchers (the `auto-sdd` skill and the fan-out reference of `multi-sdd`)
   — the harness registers every workflow as `<plugin>:<meta.name>`;
@@ -318,7 +318,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
 | `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
 | `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify ∥ review on one diff package → one commit → PR |
-| `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd.js`) writes the spec, has three reviewers improve it against the project architecture, develops in an isolated worktree and runs the project real quality commands. It returns `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
+| `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd-run.js`) writes the spec, has three reviewers improve it against the project architecture, develops in an isolated worktree and runs the project real quality commands. It returns `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
 | `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |
 | `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
 
@@ -396,7 +396,7 @@ first.
 
 ### The workflow
 
-`dist/dev-setup/workflows/auto-sdd.js` is the one piece of the plugin the model
+`dist/dev-setup/workflows/auto-sdd-run.js` is the one piece of the plugin the model
 does not read: the harness executes it, so its control flow stays out of the
 context window and its bounds are bounds. The plugin loads every `*.js` in that
 directory and registers it as `dev-setup:<meta.name>`, which is the name the

@@ -565,7 +565,7 @@ Four things left `sdd`, and each one was paid for on every task:
   `LINT_CMD` or `TYPECHECK_CMD` is a command the project does not define: it is
   skipped, never substituted, and reported where the step reports — the
   `Tests:` / `Linter:` lines of the summary, `notes` in the autonomous run —
-  the same rule `gate-commit.sh` and the dev agent of `auto-sdd.js` apply. A
+  the same rule `gate-commit.sh` and the dev agent of `auto-sdd-run.js` apply. A
   command named in chat would be checked by `sdd-dev` and by nothing
   downstream, since the gate, the closure and the autonomous run all read the
   script;
@@ -638,7 +638,7 @@ of the bare system prompt.
 
 `templates/<domain>/.claude/workflows/*.js` → `dist/<domain>/workflows/`. The
 harness loads every `*.js` there and registers it as `<plugin>:<meta.name>`, so
-`auto-sdd.js` is callable as `Workflow({name: "dev-setup:auto-sdd"})` — the one
+`auto-sdd-run.js` is callable as `Workflow({name: "dev-setup:auto-sdd-run"})` — the one
 piece of the plugin the model never reads. Its control flow stays out of the
 context window, and a bound written in code — one revision is one `agent()` call,
 with no loop around it — cannot be re-read charitably the way "max 3 iterations"
@@ -691,7 +691,7 @@ resolving it again. Two invariants keep it honest, and both are pinned by
    the run — phase A of `multi-sdd` — and never in the middle of one.
 
 **The headless variant is a second workflow, not a flag on the first.**
-`auto-dev-run.js` is `auto-sdd.js` with the cost taken out where six measured
+`auto-dev-run.js` is `auto-sdd-run.js` with the cost taken out where six measured
 Invictus runs put it (Challenge 47% of the input, Dev 34%), for a job runner
 that runs one task per disposable machine: the spec returns a context pack the
 reviewer and the developer start from; one reviewer covers the three lenses, on
@@ -704,7 +704,7 @@ is haiku/low. Everything around it that needs no judgement is a script
 `auto-dev-report.sh`), and the launchers only call them. The order is forced by
 the devcontainer: `auto-dev-select` chooses the clone on the host, the runner
 starts that clone's devcontainer, `auto-dev` runs inside it. Two things to keep:
-a change to `auto-sdd.js` is not a change to `auto-dev-run.js` — decide for each —
+a change to `auto-sdd-run.js` is not a change to `auto-dev-run.js` — decide for each —
 and the board there is the REST script, never the `clickup` agent, because the
 MCP's OAuth login does not exist on a fresh machine.
 
@@ -713,7 +713,12 @@ Three rules for changing a workflow:
 1. **Plain JavaScript, `.js`, `export const meta` first.** Any other extension is
    skipped by the loader in silence; the meta literal must be pure (no variables,
    no interpolation), and `meta.name` has to match the file name — the launcher
-   hard-codes `dev-setup:<name>`.
+   hard-codes `dev-setup:<name>`. It is never the name of a skill: the harness
+   registers a workflow as the slash command `/<plugin>:<meta.name>` too, and
+   one named like a skill shadows it — in `claude -p`, `/dev-setup:auto-sdd DE-1`
+   resolved to the workflow with `"DE-1"` as its arguments, past the launcher,
+   until the workflow became `auto-sdd-run` (2026-10-28). Hence `auto-sdd-run.js` and
+   `auto-dev-run.js`, and a suite check over every workflow.
 2. **No clock, no randomness, no `require`.** `Date.now()`, `Math.random()`,
    `new Date()` and the module loader throw inside the workflow VM: a run that
    needs a date asks an agent for `date +%F`.

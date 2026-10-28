@@ -6,7 +6,7 @@
 // its end (the same background task id, and the run's own result). What a run
 // is doing in between is not observable, and the view does not pretend.
 
-const RUN_WORKFLOW = 'dev-setup:auto-sdd'
+const RUN_WORKFLOW = 'dev-setup:auto-sdd-run'
 const MAX_RUNS = 5
 
 export type RunState = 'running' | 'ready-for-mr' | 'failed' | 'completed' | 'killed'
