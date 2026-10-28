@@ -774,7 +774,7 @@ only the commands run again.
 
 ### A run says the workflow does not exist
 
-`Workflow "dev-setup:auto-sdd" not found` almost always means a stale install is
+`Workflow "dev-setup:auto-sdd-run" not found` almost always means a stale install is
 shadowing a newer build. Check that the plugin actually ships it, and reinstall
 or rebuild if it does not.
 

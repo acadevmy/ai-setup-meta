@@ -260,8 +260,8 @@ const RUN: Run = {
 }
 
 describe('runs', () => {
-  test('only a dev-setup:auto-sdd Workflow call starts a run', async () => {
-    const input = { tool: 'Workflow', name: 'dev-setup:auto-sdd', args: { taskId: 'DE-5', title: 'A task' } }
+  test('only a dev-setup:auto-sdd-run Workflow call starts a run', async () => {
+    const input = { tool: 'Workflow', name: 'dev-setup:auto-sdd-run', args: { taskId: 'DE-5', title: 'A task' } }
     const result = { status: 'async_launched', taskId: 'wf-bg-1', runId: 'wf_abc123' }
     expect(runFromWorkflowCall(input, result, AT_10_00)).toEqual(RUN)
     expect(runFromWorkflowCall({ name: 'other' }, result, AT_10_00)).toBe(null)

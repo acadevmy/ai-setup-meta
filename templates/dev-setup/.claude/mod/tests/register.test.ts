@@ -396,9 +396,9 @@ describe('the runs', () => {
     on('prompt.submit', ($, e: { text: string }) => ({ text: e.text }))
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
 
-    const out = await $.tool.call({ tool: 'Workflow', name: 'dev-setup:auto-sdd', args: { taskId: 'DE-5', title: 'A task' } })
+    const out = await $.tool.call({ tool: 'Workflow', name: 'dev-setup:auto-sdd-run', args: { taskId: 'DE-5', title: 'A task' } })
     expect(out).toEqual(launched)
-    await $.tool.call({ tool: 'Workflow', name: 'dev-setup:auto-sdd', args: { taskId: 'DE-6', title: 'Another' } })
+    await $.tool.call({ tool: 'Workflow', name: 'dev-setup:auto-sdd-run', args: { taskId: 'DE-6', title: 'Another' } })
     expect(opened.length).toBe(1)
     expect(toasts[0]).toContain('/dev-setup runs')
 

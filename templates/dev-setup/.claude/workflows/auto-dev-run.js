@@ -16,7 +16,7 @@ export const meta = {
 // auto-dev-run — the autonomous SDD flow for a run nobody watches: `claude -p` on a
 // disposable machine, one task per machine.
 //
-// It is auto-sdd.js with the cost taken out where the measurements put it. On
+// It is auto-sdd-run.js with the cost taken out where the measurements put it. On
 // six tasks the Challenge was 47% of a run's input (three reviewers, each
 // exploring the repository again — one of them made 43 calls and read 5.9M
 // tokens on its own) and Dev 34%. So:
@@ -32,7 +32,7 @@ export const meta = {
 //     one commit — so the commit gate runs the checks once, not once per step;
 //   - Verify only runs commands, on the cheapest model.
 //
-// auto-sdd.js and its launchers are untouched: the interactive and the routine
+// auto-sdd-run.js and its launchers are untouched: the interactive and the routine
 // flows behave as before. What this file does NOT do is the same as there: it
 // never pushes, never opens a merge request and never touches the tracker. It
 // returns `ready-for-mr` or `failed`; the launcher writes it down and the

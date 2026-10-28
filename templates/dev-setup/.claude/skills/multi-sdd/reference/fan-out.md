@@ -36,7 +36,7 @@ rather than in a queue:
 
 ```json
 Workflow({
-  "name": "dev-setup:auto-sdd",
+  "name": "dev-setup:auto-sdd-run",
   "args": {
     "taskId": "<custom_id>",
     "title": "<name>",

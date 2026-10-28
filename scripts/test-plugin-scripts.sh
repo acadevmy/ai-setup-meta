@@ -1401,7 +1401,7 @@ assert_eq "an exclusion already there still gets its guards" "excluded-commands-
        --template "$SETTINGS_TEMPLATE" --json 2>/dev/null | jq -r .REASON)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 8. auto-sdd.js: the workflow script (DE-16479)
+# 8. auto-sdd-run.js: the workflow script (DE-16479)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # The autonomous orchestration is code now, so it is tested like code. What the
@@ -1411,9 +1411,9 @@ assert_eq "an exclusion already there still gets its guards" "excluded-commands-
 # `node --check` answers the wrong question. This reproduces both halves.
 
 echo ""
-echo "── auto-sdd.js (workflow script) ──"
+echo "── auto-sdd-run.js (workflow script) ──"
 
-AUTO_SDD="$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd.js"
+AUTO_SDD="$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd-run.js"
 
 if [ ! -f "$AUTO_SDD" ]; then
   fail "the auto-sdd workflow script exists" "$AUTO_SDD not found"
@@ -1445,7 +1445,7 @@ NODEJS
     pass "the script compiles the way the harness compiles it"
 
     assert_eq "meta.name is the name the launcher calls" \
-      "auto-sdd" "$(printf '%s' "$WF_META" | jq -r '.name')"
+      "auto-sdd-run" "$(printf '%s' "$WF_META" | jq -r '.name')"
 
     assert_eq "the four phases are declared in order" \
       "Spec Challenge Dev Verify" \
@@ -1453,9 +1453,29 @@ NODEJS
 
     assert_eq "meta carries a description" "false" \
       "$(printf '%s' "$WF_META" | jq -r '.description == ""')"
+
+    for LAUNCHER_DOC in skills/auto-sdd/SKILL.md skills/multi-sdd/reference/fan-out.md; do
+      assert_contains "$LAUNCHER_DOC launches the workflow by its name" \
+        "$(cat "$REPO_ROOT/templates/dev-setup/.claude/$LAUNCHER_DOC")" '"name": "dev-setup:auto-sdd-run"'
+    done
   else
     fail "the script compiles the way the harness compiles it" "$WF_META"
   fi
+
+  # The harness registers every workflow as the slash command
+  # /<plugin>:<meta.name> too, and one named like a skill shadows it: in
+  # `claude -p`, `/dev-setup:auto-sdd DE-1` reached the workflow with "DE-1" as
+  # its arguments, past the launcher (2026-10-28), and `/dev-setup:auto-dev`
+  # did the same on its first live run. No workflow is named like a skill.
+  SKILL_NAMES="$(find "$REPO_ROOT/templates" "$REPO_ROOT/shared" -name SKILL.md \
+    -exec awk '/^name:/ { sub(/^name:[ \t]*/, ""); print; exit }' {} \; | LC_ALL=C sort -u)"
+  SHADOWED=""
+  for WF in "$REPO_ROOT"/templates/*/.claude/workflows/*.js; do
+    WF_NAME="$(node "$WORK_DIR/workflow-parse.cjs" "$WF" 2>/dev/null | jq -r '.name // empty')"
+    [ -n "$WF_NAME" ] || continue
+    printf '%s\n' "$SKILL_NAMES" | grep -qxF "$WF_NAME" && SHADOWED="$SHADOWED $WF_NAME"
+  done
+  assert_eq "no workflow is named like a skill, so every command reaches its skill" "" "${SHADOWED# }"
 else
   printf '%s  skip%s  node not found: the workflow compile test needs it\n' "$DIM" "$NC"
 fi
@@ -1528,7 +1548,7 @@ assert_eq "no command points at the retired tdd/bdd skills" "" \
        "$REPO_ROOT/templates" "$REPO_ROOT/dist" 2>/dev/null || true)"
 
 assert_eq "the workflow ships in the built plugin" "true" \
-  "$([ -f "$REPO_ROOT/dist/dev-setup/workflows/auto-sdd.js" ] && echo true || echo false)"
+  "$([ -f "$REPO_ROOT/dist/dev-setup/workflows/auto-sdd-run.js" ] && echo true || echo false)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 9. worktree-info.sh and the slimmed interactive flow (DE-16480)
@@ -2031,7 +2051,7 @@ assert_contains "each id goes in as one quoted argument" \
 
 # It launches the PR 9 workflow rather than carrying a flow of its own.
 assert_contains "it launches the auto-sdd workflow" \
-  "$(cat "$MULTI"/SKILL.md "$MULTI"/reference/*.md)" "dev-setup:auto-sdd"
+  "$(cat "$MULTI"/SKILL.md "$MULTI"/reference/*.md)" "dev-setup:auto-sdd-run"
 
 # Acceptance criterion 4: the spec -> challenge -> dev -> verify logic lives in
 # exactly one place. The command must not name a lens, declare a phase, or hold
@@ -2065,7 +2085,7 @@ echo "── the Challenge improves the spec, it never stops the run ──"
 # agents it launches included, since one pass is the whole point of its shape.
 if [ -f "$AUTO_SDD" ] && command -v node >/dev/null 2>&1; then
   cat > "$WORK_DIR/workflow-sim.cjs" <<'NODEJS'
-// Runs auto-sdd.js with stubbed agents. argv[3] maps a reviewer focus to what
+// Runs auto-sdd-run.js with stubbed agents. argv[3] maps a reviewer focus to what
 // it answers: "ok" (satisfied), "propose", or "dead"; "revise": "dead" makes
 // the reviser return nothing. The reviser declines simpler on an ADR, applies
 // scope, and leaves testable without an answer.
@@ -4453,7 +4473,7 @@ SFR_OUTCOMES=$(sed -n '/^## failed/,/^## ready-for-mr/p' "$REPO_ROOT/templates/d
 assert_contains "a failed cloud run is saved through it" "$SFR_OUTCOMES" "save-failed-run.sh"
 assert_contains "and its push result reaches the board" "$SFR_OUTCOMES" "PUSH_ERROR"
 assert_contains "the workflow hands a branchless spec over" \
-  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd.js")" "markdown: draft.specMarkdown"
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-sdd-run.js")" "markdown: draft.specMarkdown"
 assert_eq "the manifest ships it" "true" \
   "$(jq -r '.plugin_scripts | index("save-failed-run.sh") != null' "$REPO_ROOT/templates/dev-setup/manifest.json")"
 assert_eq "the AGENTS.md script table lists it with its keys" "true" \
@@ -4507,12 +4527,6 @@ elif command -v node >/dev/null 2>&1 && [ -f "$WORK_DIR/workflow-parse.cjs" ]; t
       "auto-dev-run" "$(printf '%s' "$WF_META" | jq -r '.name')"
     assert_contains "and the launcher calls exactly that name" \
       "$(cat "$TEMPLATE_ROOT/.claude/skills/auto-dev/SKILL.md")" '"name": "dev-setup:auto-dev-run"'
-    # The harness registers a plugin workflow as the slash command
-    # /<plugin>:<meta.name> too: named like a skill, it shadows it, and on the
-    # first live run `/dev-setup:auto-dev --args …` launched the workflow
-    # directly with the path as a string.
-    assert_eq "no skill shares the headless workflow's name, so the command stays the skill" "false" \
-      "$([ -d "$TEMPLATE_ROOT/.claude/skills/$(printf '%s' "$WF_META" | jq -r '.name')" ] && echo true || echo false)"
     assert_eq "the four phases are declared in order" \
       "Spec Challenge Dev Verify" "$(printf '%s' "$WF_META" | jq -r '.phases | join(" ")')"
   else

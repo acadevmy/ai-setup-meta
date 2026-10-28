@@ -46,7 +46,7 @@
     "auto-dev-select"
   ],
   "workflows": [
-    "auto-sdd.js",
+    "auto-sdd-run.js",
     "auto-dev-run.js"
   ],
   "plugin_scripts": [
