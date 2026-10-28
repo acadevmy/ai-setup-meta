@@ -18,17 +18,24 @@
 #   auto-dev-clickup.sh --task DE-123 --start  [--json]
 #   auto-dev-clickup.sh --task DE-123 --finish --result <result.json>
 #                       [--mr-url <url>] [--pushed true|false] [--json]
+#   (any mode)          [--config <.claude/auto-dev.json>]
 #
 #   --read     the task: name, description, status, priority, url
 #   --start    the move that starts the work: IN PROGRESS, and the work clock
 #   --finish   the move that ends it, from the run's result.json:
 #              ready-for-mr → CODE REVIEW (IN REVIEW when the list has no
 #              CODE REVIEW), with the merge request link — --mr-url is required;
-#              failed → BLOCKED, with why it failed and what to do next.
-#              The clock's measurement goes to ClickUp's own time tracking; its
-#              COMMENT line goes in the comment only when that call fails
+#              failed → BLOCKED, with why it failed and what to do next — or,
+#              for a run that never started (stage select or intake), what the
+#              task needs. The clock's measurement goes to ClickUp's own time
+#              tracking; its COMMENT line goes in the comment only when that
+#              call fails
 #   --pushed   whether the runner pushed the branch of a failed run, for the
 #              BLOCKED note
+#   --config   the project's .claude/auto-dev.json (step 7d of the setup),
+#              default the one at the root of the current repository: its
+#              `status` names the board's own in_progress, in_review and blocked
+#              statuses, tried before the defaults above
 #   --json     emit a flat JSON object
 #
 # Environment:
@@ -82,6 +89,7 @@ TASK=""
 RESULT=""
 MR_URL=""
 PUSHED=""
+CONFIG=""
 
 usage() {
   awk 'NR == 1 { next } /^# ---8<---/ { exit } /^#/ { sub(/^# ?/, ""); print }' \
@@ -104,6 +112,9 @@ while [ $# -gt 0 ]; do
     --pushed)
       [ $# -ge 2 ] || die "--pushed requires true or false"
       PUSHED="$2"; shift 2 ;;
+    --config)
+      [ $# -ge 2 ] || die "--config requires a path"
+      CONFIG="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
@@ -130,6 +141,21 @@ refuse() {
 
 json_set TASK "$TASK"
 json_set REASON ""
+
+# The board's own status names, when the project wrote them (setup step 7d):
+# a list whose review column is "In QA" is moved there, not refused. The
+# defaults are the ClickUp contract's names, tried after.
+if [ -z "$CONFIG" ]; then
+  CONFIG_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$CONFIG_ROOT" ] && CONFIG="$CONFIG_ROOT/.claude/auto-dev.json"
+fi
+status_name() {
+  [ -n "$CONFIG" ] && [ -f "$CONFIG" ] || return 0
+  jq -r --arg k "$1" '.status[$k] // "" | if type == "string" then . else "" end' "$CONFIG" 2>/dev/null || true
+}
+ST_PROGRESS="$(status_name in_progress)"
+ST_REVIEW="$(status_name in_review)"
+ST_BLOCKED="$(status_name blocked)"
 
 printf '%s' "$TASK" | grep -qE "$TASK_ID_SHAPE" \
   || refuse "\"$TASK\" is not a plain task id: it would reach a URL, so fix it on the board"
@@ -250,7 +276,7 @@ CLOCK_ID="${CUSTOM:-$TASK}"
 if [ "$MODE" = start ]; then
   [ "$(json_get STATUS)" != BACKLOG ] \
     || refuse "$TASK is in BACKLOG: it was never planned into a sprint, and the backlog gate needs a person — plan it into SPRINT first"
-  move_to "IN PROGRESS"
+  move_to ${ST_PROGRESS:+"$ST_PROGRESS"} "IN PROGRESS"
   bash "$SCRIPT_DIR/task-clock.sh" --task "$CLOCK_ID" --start --json >/dev/null 2>&1 \
     || warn "the work clock did not start: --finish will have no time to log"
   finish_output
@@ -285,7 +311,7 @@ if [ "$STATUS_OUT" = ready-for-mr ]; then
       (if (.unverified // []) | length > 0
        then "Not verified here: \(.unverified | map(.kind + " (" + .command + ")") | join(", "))" else empty end)
     ] | join("\n")' "$RESULT")"
-  move_to "CODE REVIEW" "IN REVIEW"
+  move_to ${ST_REVIEW:+"$ST_REVIEW"} "CODE REVIEW" "IN REVIEW"
 else
   # A run that never reached the workflow — no repository chosen, arguments
   # refused — has no branch and no output: the note says what the task needs.
@@ -308,7 +334,7 @@ else
       "To resume: fix the cause, check the branch out and run /dev-setup:sdd \($id)."
     ] | join("\n")
     end' "$RESULT")"
-  move_to "BLOCKED"
+  move_to ${ST_BLOCKED:+"$ST_BLOCKED"} "BLOCKED"
 fi
 
 # The measured time goes to ClickUp's own tracking, where the board's cost

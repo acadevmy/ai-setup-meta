@@ -303,7 +303,7 @@ never pays to describe them.
 - **`/dev-setup:auto-dev-select --args <file>`** runs on the host, after the
   runner cloned every repository of the project and before any devcontainer
   exists. A `repo: owner/repo` line in the task, or a single clone, settles
-  which repository the task belongs to with no model; otherwise Haiku reads the
+  which repository the task belongs to with no model; otherwise Sonnet reads the
   task and each clone's README, `AGENTS.md` and manifests and chooses, or the
   task goes to `BLOCKED` with the reason. The base branch comes, in order, from
   a `base: <branch>` line, the task's own words, `base_branch` in the clone's

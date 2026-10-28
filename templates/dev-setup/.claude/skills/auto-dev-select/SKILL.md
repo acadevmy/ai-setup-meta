@@ -1,7 +1,7 @@
 ---
 name: auto-dev-select
 description: Chooses which of a project's clones an auto-dev task belongs to, and its base branch, headless on the host before any devcontainer exists — by the task's `repo:` line or a single clone with no model, otherwise by reading the task and each clone's README, AGENTS.md and manifests. Writes selection.json, or moves the task to BLOCKED. Use when a job runner has cloned every repository of a project and has to know where to start auto-dev.
-model: haiku
+model: sonnet
 effort: medium
 argument-hint: "--args <path to args.json>"
 user-invocable: true

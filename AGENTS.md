@@ -691,7 +691,7 @@ resolving it again. Two invariants keep it honest, and both are pinned by
    the run — phase A of `multi-sdd` — and never in the middle of one.
 
 **The headless variant is a second workflow, not a flag on the first.**
-`auto-dev.js` is `auto-sdd.js` with the cost taken out where six measured
+`auto-dev-run.js` is `auto-sdd.js` with the cost taken out where six measured
 Invictus runs put it (Challenge 47% of the input, Dev 34%), for a job runner
 that runs one task per disposable machine: the spec returns a context pack the
 reviewer and the developer start from; one reviewer covers the three lenses, on
@@ -704,7 +704,7 @@ is haiku/low. Everything around it that needs no judgement is a script
 `auto-dev-report.sh`), and the launchers only call them. The order is forced by
 the devcontainer: `auto-dev-select` chooses the clone on the host, the runner
 starts that clone's devcontainer, `auto-dev` runs inside it. Two things to keep:
-a change to `auto-sdd.js` is not a change to `auto-dev.js` — decide for each —
+a change to `auto-sdd.js` is not a change to `auto-dev-run.js` — decide for each —
 and the board there is the REST script, never the `clickup` agent, because the
 MCP's OAuth login does not exist on a fresh machine.
 

@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 # Auto dev
 
-The launcher of the `auto-dev` workflow (`workflows/auto-dev.js`), for a run
+The launcher of the `auto-dev-run` workflow (`workflows/auto-dev-run.js`), for a run
 nobody watches. It asks nothing, pushes nothing and opens nothing: it starts
 the work, runs the workflow and leaves files. The runner that started
 `claude -p` pushes, opens the merge request and closes the task from them.
@@ -45,7 +45,7 @@ skips step 3: write its output and stderr, as plain text, to
 ## 3. The run
 
 ```json
-Workflow({ "name": "dev-setup:auto-dev", "args": <WORKFLOW_ARGS, parsed as JSON> })
+Workflow({ "name": "dev-setup:auto-dev-run", "args": <WORKFLOW_ARGS, parsed as JSON> })
 ```
 
 Pass `WORKFLOW_ARGS` exactly as step 1 returned it, as a JSON object — not as a

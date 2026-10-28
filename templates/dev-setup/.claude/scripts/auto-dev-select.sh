@@ -229,8 +229,17 @@ block() {
     '{status: "failed", stage: "select", reason: $reason, taskId: $taskId, runId: $runId}' \
     > "$OUTPUT_DIR/result.json" || die "cannot write $OUTPUT_DIR/result.json"
   if [ "$TRACKER" = clickup ]; then
+    # The board's status names come from a clone's .claude/auto-dev.json: no
+    # clone was chosen, and they all belong to the same project and board.
+    local config_args=() repo
+    for repo in "${REPOS[@]}"; do
+      if [ -f "$repo/.claude/auto-dev.json" ]; then
+        config_args=(--config "$repo/.claude/auto-dev.json")
+        break
+      fi
+    done
     bash "$SCRIPT_DIR/auto-dev-clickup.sh" --task "$TASK_ID" --finish \
-      --result "$OUTPUT_DIR/result.json" --json >/dev/null \
+      --result "$OUTPUT_DIR/result.json" ${config_args[@]+"${config_args[@]}"} --json >/dev/null \
       || warn "the task could not be moved to BLOCKED: the runner has to say so on the board"
   fi
   finish_output

@@ -1,5 +1,5 @@
 export const meta = {
-  name: 'auto-dev',
+  name: 'auto-dev-run',
   description:
     'Headless autonomous SDD for one task, built to spend less: a spec that hands on a context pack, one reviewer over three lenses (skipped on small tasks), a test-first implementation on the task branch in the current checkout with one commit, and the project own quality commands. Returns ready-for-mr or failed, and opens nothing by itself.',
   whenToUse:
@@ -13,7 +13,7 @@ export const meta = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// auto-dev — the autonomous SDD flow for a run nobody watches: `claude -p` on a
+// auto-dev-run — the autonomous SDD flow for a run nobody watches: `claude -p` on a
 // disposable machine, one task per machine.
 //
 // It is auto-sdd.js with the cost taken out where the measurements put it. On
@@ -37,6 +37,12 @@ export const meta = {
 // never pushes, never opens a merge request and never touches the tracker. It
 // returns `ready-for-mr` or `failed`; the launcher writes it down and the
 // runner acts on it.
+//
+// It is named auto-dev-run, not auto-dev, on purpose. The harness registers a
+// plugin workflow as the slash command `/<plugin>:<meta.name>` too, and one
+// named like the skill shadows it: on the first live run (2026-10-28)
+// `claude -p "/dev-setup:auto-dev --args …"` launched this script directly,
+// with the args path as a string, and it stopped at intake.
 //
 // The contract with the launcher (the auto-dev skill):
 //

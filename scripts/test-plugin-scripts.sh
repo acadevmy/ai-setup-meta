@@ -4494,9 +4494,9 @@ assert_eq "no unquoted colon breaks a frontmatter scalar" "" "${FM_COLON# }"
 # choice — decide the same way every time. No network: curl is a stub.
 
 echo ""
-echo "── auto-dev.js (the headless workflow) ──"
+echo "── auto-dev-run.js (the headless workflow) ──"
 
-AUTO_DEV="$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-dev.js"
+AUTO_DEV="$REPO_ROOT/templates/dev-setup/.claude/workflows/auto-dev-run.js"
 
 if [ ! -f "$AUTO_DEV" ]; then
   fail "the auto-dev workflow script exists" "$AUTO_DEV not found"
@@ -4504,7 +4504,15 @@ elif command -v node >/dev/null 2>&1 && [ -f "$WORK_DIR/workflow-parse.cjs" ]; t
   if WF_META="$(node "$WORK_DIR/workflow-parse.cjs" "$AUTO_DEV" 2>&1)"; then
     pass "the script compiles the way the harness compiles it"
     assert_eq "meta.name is the name the launcher calls" \
-      "auto-dev" "$(printf '%s' "$WF_META" | jq -r '.name')"
+      "auto-dev-run" "$(printf '%s' "$WF_META" | jq -r '.name')"
+    assert_contains "and the launcher calls exactly that name" \
+      "$(cat "$TEMPLATE_ROOT/.claude/skills/auto-dev/SKILL.md")" '"name": "dev-setup:auto-dev-run"'
+    # The harness registers a plugin workflow as the slash command
+    # /<plugin>:<meta.name> too: named like a skill, it shadows it, and on the
+    # first live run `/dev-setup:auto-dev --args …` launched the workflow
+    # directly with the path as a string.
+    assert_eq "no skill shares the headless workflow's name, so the command stays the skill" "false" \
+      "$([ -d "$TEMPLATE_ROOT/.claude/skills/$(printf '%s' "$WF_META" | jq -r '.name')" ] && echo true || echo false)"
     assert_eq "the four phases are declared in order" \
       "Spec Challenge Dev Verify" "$(printf '%s' "$WF_META" | jq -r '.phases | join(" ")')"
   else
@@ -4512,7 +4520,7 @@ elif command -v node >/dev/null 2>&1 && [ -f "$WORK_DIR/workflow-parse.cjs" ]; t
   fi
 
   cat > "$WORK_DIR/auto-dev-sim.cjs" <<'NODEJS'
-// Runs auto-dev.js with stubbed agents. argv[3] is the scenario: the spec's
+// Runs auto-dev-run.js with stubbed agents. argv[3] is the scenario: the spec's
 // size (`reqs`, `steps`) and what the reviewer does (`review`: ok, propose,
 // dead). argv[4] overrides the launch arguments.
 const fs = require('fs');
@@ -4821,6 +4829,15 @@ jq '.status = "failed" | .stage = "verify" | .reason = "the project quality comm
 OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/failed.json" --pushed true)"
 assert_eq "a failed run moves the task to BLOCKED" "BLOCKED" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
 assert_contains "with why, and where the branch is" "$(grep '^POST .*comment' "$AD_LOG" | tail -1)" "Branch on origin"
+
+# The board's own names, from the project's .claude/auto-dev.json (setup 7d).
+echo '{"status":{"ready":"TODO","in_progress":"DOING","in_review":"IN QA","blocked":"STUCK"}}' \
+  > "$AD_REPO/.claude/auto-dev.json"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/failed.json")"
+assert_eq "the project's blocked status is the one the task moves to" "STUCK" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --start)"
+assert_eq "and its in-progress status the one the work starts in" "DOING" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+rm -f "$AD_REPO/.claude/auto-dev.json"
 
 # The selection: three clones, one task.
 AD_SEL="$AD_DIR/select"

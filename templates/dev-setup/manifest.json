@@ -47,7 +47,7 @@
   ],
   "workflows": [
     "auto-sdd.js",
-    "auto-dev.js"
+    "auto-dev-run.js"
   ],
   "plugin_scripts": [
     "common.sh",
