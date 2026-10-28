@@ -330,7 +330,12 @@ personal token in `CLICKUP_API_TOKEN` (with `CLICKUP_TEAM_ID` for custom ids),
 because a disposable machine has no OAuth login for the MCP. Everything around
 the run that does not need judgement is a script — `auto-dev-args.sh`,
 `auto-dev-select.sh`, `auto-dev-commit.sh`, `auto-dev-report.sh` — and each
-one's `--help` holds its contract. `auto-sdd`, `multi-sdd` and the interactive flow are unchanged.
+one's `--help` holds its contract. The runner starts `claude -p` with
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`: without it, `claude -p` stops the
+workflow ten minutes after the launcher's last turn, so `auto-dev-args.sh`
+refuses the run at intake. With the Bash sandbox on, the runner also passes
+`--add-dir <outputDir>`, because a sandboxed command writes only in the
+checkout and the directories added. `auto-sdd`, `multi-sdd` and the interactive flow are unchanged.
 
 ### The quality commands your project declares
 

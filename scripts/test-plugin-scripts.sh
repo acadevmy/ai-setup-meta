@@ -4720,7 +4720,7 @@ chmod +x "$AD_BIN/curl"
 ad() {
   local script="$1"; shift
   (cd "$AD_REPO" && PATH="$AD_BIN:$PATH" CURL_LOG="$AD_LOG" CLICKUP_API_TOKEN=pk_secret CLICKUP_TEAM_ID=42 \
-    bash "$PLUGIN_SCRIPTS/$script" "$@" --json 2>/dev/null)
+    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="${AD_CEILING-0}" bash "$PLUGIN_SCRIPTS/$script" "$@" --json 2>/dev/null)
 }
 
 jq -n --arg o "$AD_OUT" '{taskId: "DE-7", baseBranch: "next", outputDir: $o, runId: "r1",
@@ -4743,6 +4743,15 @@ OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args-nobase.json")"
 assert_contains "no base and no selection: refused, never guessed" "$(printf '%s' "$OUT" | jq -r .REASON)" "no base branch"
 assert_eq "and the refusal is a result the runner reads" "failed intake" \
   "$(jq -r '.status + " " + .stage' "$AD_OUT/result.json")"
+OUT="$(AD_CEILING="" ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_contains "without the background-wait ceiling lifted, the run is refused at intake" \
+  "$(printf '%s' "$OUT" | jq -r .REASON)" "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS is not set"
+assert_eq "and the runner reads it as a failed intake" "failed intake" \
+  "$(jq -r '.status + " " + .stage' "$AD_OUT/result.json")"
+OUT="$(AD_CEILING="forever" ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_contains "a ceiling that is not milliseconds is refused too" "$(printf '%s' "$OUT" | jq -r .REASON)" "it takes milliseconds"
+OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args.json")"
+assert_eq "with it set, the same args are accepted again" "true" "$(printf '%s' "$OUT" | jq -r .ACCEPTED)"
 
 : > "$AD_LOG"
 OUT="$(ad auto-dev-clickup.sh --task DE-7 --read)"
@@ -5001,10 +5010,10 @@ assert_eq "with its evidence" "login -> src/auth" "$(jq -r '.evidence | join(","
 
 jq 'del(.repos) | .stack = {lint: "make lint"}' "$AD_SEL/args.json" > "$AD_SEL/args-dev.json"
 assert_eq "auto-dev-args takes the base from the selection" "true origin/develop" \
-  "$(cd "$AD_SEL/api" && bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null \
+  "$(cd "$AD_SEL/api" && CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null \
      | jq -r .ACCEPTED) $(jq -r .baseBranch "$AD_SEL/out/workflow-args.json")"
 assert_contains "and refuses a checkout that is not the chosen repository" \
-  "$(cd "$AD_SEL/web" && bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null | jq -r .REASON)" \
+  "$(cd "$AD_SEL/web" && CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null | jq -r .REASON)" \
   "the selection chose acme/api"
 
 # ═══════════════════════════════════════════════════════════════════════════════
