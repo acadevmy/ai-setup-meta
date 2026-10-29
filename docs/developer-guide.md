@@ -377,7 +377,9 @@ those clauses, and runs the declared preflight and commands with
 such; a command that does not start is the devcontainer's to fix. The check
 needs Docker and the devcontainer CLI (`npm install -g @devcontainers/cli`)
 and runs outside the Bash sandbox, which asks you first; without them the
-files are written and reported as not verified. It builds under a label and a
+files are written and reported as not verified. A private dependency on an SSH
+URL needs `--ssh-agent`: your SSH agent is forwarded into the check's container,
+as VS Code does, since the runner's own credentials exist only on the runner. It builds under a label and a
 compose project of its own, and removes what it built, so your own
 devcontainer is never touched — but `postCreateCommand` runs on your checkout,
 as in any devcontainer: what it installs or generates lands in your working

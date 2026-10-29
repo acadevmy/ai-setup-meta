@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 The runner clones the repository, runs `devcontainer up` at its root with no
 `--config`, and starts `/dev-setup:auto-dev` inside. This command writes that
-devcontainer and proves the quality commands run in it. Only GCP projects need
+devcontainer and proves the quality commands run there. Only GCP projects need
 one, per repository.
 
 **Usage**: `/dev-setup:devcontainer [--check]` — `--check` verifies what
@@ -35,13 +35,13 @@ runner: follow "Testcontainers" in
 ## 2 — An existing configuration
 
 `CONFIG` or `NESTED_CONFIGS` set → the team's files, never overwritten
-unasked. With `--check`, go to 5. Otherwise one `AskUserQuestion`, header
+unasked. `--check` → 5. Otherwise one `AskUserQuestion`, header
 `Devcontainer`: **Verify it** (default) → 5; **Propose a rewrite** → 3, as a
 diff; **Leave it** → stop. With only `NESTED_CONFIGS`, say the runner reads
 none of them. End the turn
 (`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`).
 
-No configuration and `--check` → stop: nothing to verify.
+No configuration and `--check` → stop.
 
 ## 3 — Propose
 
@@ -64,7 +64,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/devcontainer-check.sh" --json
 
 It needs Docker and the registries, which the sandbox refuses: run it
 unsandboxed (the developer approves) and in the background — a build plus the
-suite outlasts a Bash call.
+suite outlasts a Bash call. `PRIVATE_DEPS` with an SSH URL → add
+`--ssh-agent` (contract.md).
 
 - `ready` (exit 0) — built, contract held, every command started. A red
   command is the project's state: report it, never fix it.
@@ -82,5 +83,5 @@ Devcontainer: <written: files | kept: CONFIG | declined>
   Open: <ISSUES, why unverified, private dependencies the check could not fetch>
 ```
 
-Next: commit `.devcontainer/` and merge it into the branch the runner forks
-from — `/dev-setup:quick` does both.
+Next: commit it and merge it into the runner's base branch
+(`/dev-setup:quick`).

@@ -41,9 +41,15 @@
 # a Bash call.
 #
 # Usage:
-#   devcontainer-check.sh [--json] [--keep]
+#   devcontainer-check.sh [--json] [--keep] [--ssh-agent]
 #
-#   --keep   leave the container running (CONTAINER), for a look inside
+#   --keep       leave the container running (CONTAINER), for a look inside
+#   --ssh-agent  forward this machine's SSH agent into the container for the
+#                check, as VS Code does: for a private dependency declared
+#                with an SSH URL, which the runner fetches over HTTPS with its
+#                own credentials during `up`. Nothing is copied — the agent's
+#                socket is mounted while the check's container lives (Docker
+#                Desktop's on macOS, $SSH_AUTH_SOCK on Linux)
 #   --json   emit a flat JSON object
 #
 # Keys:
@@ -67,6 +73,7 @@
 #   OUTPUT            the tail of what failed: `up`, a command, the preflight
 #   LOG_DIR           the full logs, one file per step
 #   KEPT              true when the container was left running
+#   SSH_AGENT         forwarded | "" (not asked)
 #
 # Exit: 0 ready · 4 not ready · 3 unverified (no Docker, no CLI, or no
 #       declared commands — the static clauses are still checked) · 1 usage
@@ -81,6 +88,7 @@ source "$SCRIPT_DIR/common.sh"
 
 AS_JSON=false
 KEEP=false
+SSH_AGENT_ASKED=false
 
 usage() {
   awk 'NR == 1 { next } /^# ---8<---/ { exit } /^#/ { sub(/^# ?/, ""); print }' \
@@ -91,6 +99,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --json) AS_JSON=true; shift ;;
     --keep) KEEP=true; shift ;;
+    --ssh-agent) SSH_AGENT_ASKED=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
@@ -123,6 +132,7 @@ TEST_STATUS=""
 OUTPUT=""
 LOG_DIR=""
 KEPT=false
+SSH_AGENT=""
 
 finish() {
   if [ -z "$STATUS" ]; then
@@ -152,6 +162,7 @@ finish() {
   json_set OUTPUT "$OUTPUT"
   json_set LOG_DIR "$LOG_DIR"
   json_set KEPT "$KEPT"
+  json_set SSH_AGENT "$SSH_AGENT"
 
   if [ "$AS_JSON" = true ]; then
     json_emit
@@ -395,16 +406,75 @@ if [ "$COMPOSE" = true ]; then
   docker compose -p "$PROJECT" down --volumes --remove-orphans >/dev/null 2>&1 || true
 fi
 
-UP_START=$(date +%s)
-devcontainer up --workspace-folder "$ROOT" --id-label "$ID_LABEL" --remove-existing-container \
-  >"$LOG_DIR/up.json" 2>"$LOG_DIR/up.log"
-UP_RC=$?
-UP_SECONDS=$(( $(date +%s) - UP_START ))
+UP_ARGS=(--workspace-folder "$ROOT" --id-label "$ID_LABEL" --remove-existing-container)
+AGENT_ENV=()
+OPEN_SOCKET=false
 
-UP_RESULT=$(grep '^{' "$LOG_DIR/up.json" 2>/dev/null | tail -n 1)
-up_get() { printf '%s' "$UP_RESULT" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null; }
-CONTAINER=$(up_get containerId)
-REMOTE_USER=$(up_get remoteUser)
+# The agent the developer's own devcontainer gets from VS Code: Docker Desktop
+# forwards the macOS one at a fixed path inside its VM, Linux has the socket
+# itself. The lifecycle commands see it through SSH_AUTH_SOCK; github.com's key
+# is accepted on first use, as a fresh container has no known_hosts. Only the
+# keys loaded in the agent travel: one ~/.ssh/config names with IdentityFile
+# does not.
+if [ "$SSH_AGENT_ASKED" = true ]; then
+  AGENT_TARGET="/tmp/dev-setup-ssh-agent.sock"
+  if [ "$(uname -s)" = Linux ]; then
+    AGENT_SOURCE="${SSH_AUTH_SOCK:-}"
+    if [ -z "$AGENT_SOURCE" ] || [ ! -e "$AGENT_SOURCE" ]; then
+      STATUS="unverified"
+      REASON="--ssh-agent: no SSH agent here (SSH_AUTH_SOCK is unset or gone) — start one and add the key, or check without it"
+      finish
+    fi
+  else
+    AGENT_SOURCE="/run/host-services/ssh-auth.sock"
+    # Docker Desktop's socket is root's (0660): the remote user reaches it only
+    # once it is opened, which needs the container — so the lifecycle commands
+    # run after `up`, and the socket's mode is put back when they end.
+    OPEN_SOCKET=true
+    UP_ARGS+=(--skip-post-create)
+  fi
+  if command -v ssh-add >/dev/null 2>&1 && ! ssh-add -l >/dev/null 2>&1; then
+    STATUS="unverified"
+    REASON="--ssh-agent: the SSH agent holds no key — load the one the git host accepts (ssh-add <key>), or check without it"
+    finish
+  fi
+  AGENT_ENV=(--remote-env "SSH_AUTH_SOCK=$AGENT_TARGET"
+             --remote-env "GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new")
+  UP_ARGS+=(--mount "type=bind,source=$AGENT_SOURCE,target=$AGENT_TARGET" "${AGENT_ENV[@]}")
+  SSH_AGENT="forwarded"
+fi
+
+# The last JSON line a CLI call printed, and one key of it.
+result_of() { grep '^{' "$1" 2>/dev/null | tail -n 1; }
+result_get() { printf '%s' "$1" | jq -r --arg k "$2" '.[$k] // empty' 2>/dev/null; }
+
+UP_START=$(date +%s)
+devcontainer up "${UP_ARGS[@]}" >"$LOG_DIR/up.json" 2>"$LOG_DIR/up.log"
+UP_RC=$?
+
+UP_RESULT=$(result_of "$LOG_DIR/up.json")
+CONTAINER=$(result_get "$UP_RESULT" containerId)
+REMOTE_USER=$(result_get "$UP_RESULT" remoteUser)
+FAILED_STEP=""
+if [ "$UP_RC" -ne 0 ] || [ "$(result_get "$UP_RESULT" outcome)" != success ]; then
+  FAILED_STEP="up"
+  FAILED_RC=$UP_RC
+  FAILED_RESULT=$UP_RESULT
+elif [ "$OPEN_SOCKET" = true ]; then
+  SOCKET_MODE=$(docker exec -u 0 "$CONTAINER" stat -c %a "$AGENT_TARGET" 2>/dev/null)
+  docker exec -u 0 "$CONTAINER" chmod 0666 "$AGENT_TARGET" >/dev/null 2>&1
+  devcontainer run-user-commands --workspace-folder "$ROOT" --container-id "$CONTAINER" "${AGENT_ENV[@]}" \
+    >"$LOG_DIR/lifecycle.json" 2>"$LOG_DIR/lifecycle.log"
+  LIFECYCLE_RC=$?
+  [ -z "$SOCKET_MODE" ] || docker exec -u 0 "$CONTAINER" chmod "$SOCKET_MODE" "$AGENT_TARGET" >/dev/null 2>&1
+  LIFECYCLE_RESULT=$(result_of "$LOG_DIR/lifecycle.json")
+  if [ "$LIFECYCLE_RC" -ne 0 ] || [ "$(result_get "$LIFECYCLE_RESULT" outcome)" != success ]; then
+    FAILED_STEP="lifecycle"
+    FAILED_RC=$LIFECYCLE_RC
+    FAILED_RESULT=$LIFECYCLE_RESULT
+  fi
+fi
+UP_SECONDS=$(( $(date +%s) - UP_START ))
 
 # Removes what the check built. A compose project is the check's own whatever
 # `up` answered — a failed build names no project, and its database would
@@ -419,12 +489,12 @@ cleanup() {
   fi
 }
 
-if [ "$UP_RC" -ne 0 ] || [ "$(up_get outcome)" != success ]; then
+if [ -n "$FAILED_STEP" ]; then
   UP="failed"
-  REASON="\`devcontainer up\` failed: $(up_get description) $(up_get message)"
+  REASON="\`devcontainer up\` failed: $(result_get "$FAILED_RESULT" description) $(result_get "$FAILED_RESULT" message)"
   REASON="${REASON% }"
-  add_issue "the configuration does not build or start — see OUTPUT and $LOG_DIR/up.log"
-  add_output "devcontainer up (exit $UP_RC)" "$LOG_DIR/up.log"
+  add_issue "the configuration does not build or start — see OUTPUT and $LOG_DIR/$FAILED_STEP.log"
+  add_output "devcontainer $FAILED_STEP (exit $FAILED_RC)" "$LOG_DIR/$FAILED_STEP.log"
   cleanup
   finish
 fi

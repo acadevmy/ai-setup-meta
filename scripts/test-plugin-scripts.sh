@@ -5364,13 +5364,25 @@ case "$1" in
       exit 0
     fi
     exec "$@" ;;
+  run-user-commands)
+    if [ "${STUB_LIFECYCLE:-success}" != success ]; then
+      echo 'git@github.com: Permission denied (publickey).' >&2
+      printf '{"outcome":"error","message":"Command failed: /bin/sh -c tool/generate.sh","description":"postCreateCommand from devcontainer.json failed."}\n'
+      exit 1
+    fi
+    printf '{"outcome":"success"}\n' ;;
 esac
 STUB
 cat > "$DCC_BIN/docker" <<'STUB'
 #!/usr/bin/env bash
 printf 'docker %s\n' "$*" >> "$STUB_LOG"
 [ "$1" = info ] && exit "${STUB_DOCKER_RC:-0}"
+case "$*" in exec*stat*) printf '660\n' ;; esac
 exit 0
+STUB
+cat > "$DCC_BIN/ssh-add" <<'STUB'
+#!/usr/bin/env bash
+exit "${STUB_SSH_ADD_RC:-0}"
 STUB
 cat > "$DCC_BIN/uname" <<'STUB'
 #!/usr/bin/env bash
@@ -5430,6 +5442,36 @@ assert_contains "the commands run with devcontainer exec, in the container" "$(c
 assert_eq "and the container is removed after" "true" "$(logged 'docker rm -f c0ffee')"
 dcc "$DCC" --keep
 assert_eq "--keep leaves it running" "true false" "$(dck .KEPT) $(logged 'docker rm')"
+assert_eq "no agent is forwarded unless asked" "|false" "$(dck .SSH_AGENT)|$(logged '--mount')"
+dcc "$DCC" --ssh-agent
+assert_eq "--ssh-agent on macOS mounts Docker Desktop's agent socket, for the check's container only" "forwarded true" \
+  "$(dck .SSH_AGENT) $(logged 'devcontainer up .*--mount type=bind,source=/run/host-services/ssh-auth.sock,target=/tmp/dev-setup-ssh-agent.sock')"
+assert_eq "and the lifecycle commands find it, and accept github.com's key" "true true" \
+  "$(logged 'run-user-commands .*--remote-env SSH_AUTH_SOCK=/tmp/dev-setup-ssh-agent.sock') $(logged 'GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new')"
+assert_eq "Docker Desktop's socket is root's: up skips the lifecycle, the socket is opened, then put back" \
+  "true true true" \
+  "$(logged 'devcontainer up .*--skip-post-create') $(logged 'docker exec -u 0 c0ffee chmod 0666 /tmp/dev-setup-ssh-agent.sock') $(logged 'docker exec -u 0 c0ffee chmod 660 /tmp/dev-setup-ssh-agent.sock')"
+assert_eq "in that order: opened, lifecycle, closed" "chmod 0666|run-user-commands|chmod 660" \
+  "$(grep -oE 'chmod 0666|run-user-commands|chmod 660' "$DCC_LOG" | tr '\n' '|' | sed 's/|$//')"
+STUB_LIFECYCLE=error dcc "$DCC" --ssh-agent
+assert_eq "a lifecycle command that fails is a failed up, the socket put back all the same" "not-ready failed true" \
+  "$(dck '"\(.STATUS) \(.UP)"') $(logged 'chmod 660')"
+assert_contains "with the lifecycle's own log" "$(dck .OUTPUT)" "--- devcontainer lifecycle (exit 1)"
+assert_contains "and its description" "$(dck .REASON)" "postCreateCommand from devcontainer.json failed."
+STUB_SSH_ADD_RC=1 dcc "$DCC" --ssh-agent
+assert_eq "an agent with no key is not worth a build" "unverified false" "$(dck .STATUS) $(logged 'devcontainer up')"
+assert_contains "and the reason says to load the key" "$(dck .REASON)" "the SSH agent holds no key"
+DCC_SOCK="$WORK_DIR/dc-check-agent.sock"
+: > "$DCC_SOCK"
+STUB_OS=Linux STUB_UID="$(id -u)" SSH_AUTH_SOCK="$DCC_SOCK" dcc "$DCC" --ssh-agent
+assert_eq "on Linux it mounts the agent the session has" "ready true" \
+  "$(dck .STATUS) $(logged "source=$DCC_SOCK,target=/tmp/dev-setup-ssh-agent.sock")"
+assert_eq "whose socket is already the user's: the lifecycle runs in up, nothing is opened" "false false" \
+  "$(logged 'skip-post-create') $(logged 'chmod')"
+STUB_OS=Linux SSH_AUTH_SOCK="" dcc "$DCC" --ssh-agent
+assert_eq "and with no agent there, nothing is built and the check says why" "unverified 3 false" \
+  "$(dck .STATUS) $DCC_EXIT $(logged 'devcontainer up')"
+assert_contains "naming SSH_AUTH_SOCK" "$(dck .REASON)" "SSH_AUTH_SOCK is unset"
 
 STUB_UID=0 STUB_USER=root dcc "$DCC"
 assert_eq "commands that run as root are not ready" "not-ready 4" "$(dck .STATUS) $DCC_EXIT"

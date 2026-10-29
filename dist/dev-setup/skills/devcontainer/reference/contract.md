@@ -84,10 +84,17 @@ it too). End the turn. On a yes, propose as usual, and the summary says
 ## What the check cannot see
 
 - **Private dependencies.** On a developer's machine `devcontainer up` has
-  neither the runner's credentials nor its URL rewriting, so a lifecycle
-  command that fetches a private package can fail here and pass there. When
-  `PRIVATE_DEPS` is set and `up` fails on a fetch, say so under **Open**
-  instead of changing the command.
+  neither the runner's credentials nor its URL rewriting. For an SSH URL,
+  `--ssh-agent` forwards the developer's agent for the check, as VS Code does —
+  nothing copied, the socket mounted while the check's container lives (Docker
+  Desktop's is root's, so the check opens it for the lifecycle commands and
+  puts its mode back). Only keys loaded in the agent travel: a key that
+  `~/.ssh/config` names with `IdentityFile` does not, so `Permission denied
+  (publickey)` there means `ssh-add` that key. The agent only stands in for
+  the runner's credentials: a pass with it does not prove the runner's token
+  reads the dependency — only a dry run on the runner does. For an HTTPS URL a
+  fetch can fail here and pass on the runner: say so under **Open** instead of
+  changing the command.
 - **The host's UID.** On macOS the CLI does not map UIDs, so the check expects
   1000 itself; on a Linux machine it expects the host's, as on the runner.
 - **SDK ownership after a UID change.** Visible only where the UIDs differ: a
