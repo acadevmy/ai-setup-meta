@@ -308,7 +308,11 @@ never pays to describe them.
   task goes to `BLOCKED` with the reason. The base branch comes, in order, from
   a `base: <branch>` line, the task's own words, `base_branch` in the clone's
   `.claude/auto-dev.json`, the remote's HEAD, then `main`/`master`/`develop`.
-  It writes `selection.json`.
+  It writes `selection.json`, whose `hasDevcontainer` is true only for a
+  configuration the runner's `devcontainer up`, with no `--config`, reads —
+  `.devcontainer/devcontainer.json` or `.devcontainer.json`. A clone with only
+  `.devcontainer/<name>/devcontainer.json` runs on the host, and
+  `devcontainerNote` says what was ignored; the task is not blocked.
 - **`/dev-setup:auto-dev --args <file>`** runs inside the chosen repository's
   devcontainer. It is `auto-sdd` with the cost taken out: the spec hands on a
   context pack — the files, rules and ADRs it rests on — so nothing explores

@@ -37,7 +37,16 @@
 #   candidates.md    what the model reads, when the facts did not settle it
 #   selection.json   { status: selected | blocked | undecided, taskId, runId,
 #                      repo, remote, slug, baseBranch, baseSource, source,
-#                      reason, evidence[], hasDevcontainer, candidates[] }
+#                      reason, evidence[], hasDevcontainer, devcontainerNote,
+#                      candidates[] }
+#
+# hasDevcontainer is true only for a configuration the runner's `devcontainer
+# up --workspace-folder <clone>`, with no --config, reads: .devcontainer/
+# devcontainer.json or .devcontainer.json. A clone with only
+# .devcontainer/<name>/devcontainer.json gets false — the run goes on the host,
+# its commands that cannot start reported as not verified — and
+# devcontainerNote (also on stderr) names what was ignored and why. It never
+# blocks the task.
 #   result.json      a failed result at stage `select`, when blocked
 #
 # Keys:
@@ -193,11 +202,23 @@ task_line() {
 
 write_selection() {
   local status="$1" repo="$2" source="$3" reason="$4" base="$5" base_source="$6"
-  local slug="" remote="" devcontainer=false evidence='[]'
+  local slug="" remote="" devcontainer=false devcontainer_note="" evidence='[]' nested="" config
   if [ -n "$repo" ]; then
     slug="$(printf '%s' "$CANDIDATES_JSON" | jq -r --arg r "$repo" 'map(select(.repo == $r)) | first | .slug // ""')"
     remote="$(printf '%s' "$CANDIDATES_JSON" | jq -r --arg r "$repo" 'map(select(.repo == $r)) | first | .remote // ""')"
-    { [ -d "$repo/.devcontainer" ] || [ -f "$repo/.devcontainer.json" ]; } && devcontainer=true
+    # Only what `devcontainer up` reads with no --config: a directory with
+    # nothing but nested configurations makes `up` fail, and the job with it.
+    if [ -f "$repo/.devcontainer/devcontainer.json" ] || [ -f "$repo/.devcontainer.json" ]; then
+      devcontainer=true
+    else
+      while IFS= read -r config; do
+        [ -n "$config" ] && nested="${nested:+$nested, }${config#"$repo"/}"
+      done < <(find "$repo/.devcontainer" -mindepth 2 -maxdepth 2 -name devcontainer.json 2>/dev/null | LC_ALL=C sort)
+      if [ -n "$nested" ]; then
+        devcontainer_note="$nested ignored: the runner runs \`devcontainer up\` with no --config, which reads only .devcontainer/devcontainer.json or .devcontainer.json — auto-dev runs on the host, and the commands it cannot start are reported as not verified"
+        warn "$devcontainer_note"
+      fi
+    fi
   fi
   if [ ${#EVIDENCE[@]} -gt 0 ]; then
     evidence="$(printf '%s\n' "${EVIDENCE[@]}" | jq -R . | jq -cs .)"
@@ -206,6 +227,7 @@ write_selection() {
     --arg repo "$repo" --arg remote "$remote" --arg slug "$slug" \
     --arg baseBranch "$base" --arg baseSource "$base_source" --arg source "$source" \
     --arg reason "$reason" --argjson evidence "$evidence" --argjson hasDevcontainer "$devcontainer" \
+    --arg devcontainerNote "$devcontainer_note" \
     --argjson candidates "$CANDIDATES_JSON" \
     '$ARGS.named' > "$SELECTION_FILE" || die "cannot write $SELECTION_FILE"
 
