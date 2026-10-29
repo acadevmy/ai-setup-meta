@@ -6,6 +6,21 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.2.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.1.1...dev-setup-v4.2.0) (2026-10-29)
+
+
+### Features
+
+* **dev-setup:** Add the devcontainer command for headless runs on GCP ([d5704f4](https://github.com/acadevmy/ai-setup-meta/commit/d5704f4e174eebdd7016a0cd3139d23a3b7bdf52))
+* **dev-setup:** Add the devcontainer command for headless runs on GCP ([5ca8245](https://github.com/acadevmy/ai-setup-meta/commit/5ca8245f0d7a5c972a2614a710184a22690de057))
+* **dev-setup:** Forward the SSH agent in the devcontainer check ([35d40d7](https://github.com/acadevmy/ai-setup-meta/commit/35d40d723b0bd2695fa075d6c51b55f5d87b48d3))
+
+
+### Bug Fixes
+
+* **dev-setup:** Count only a root devcontainer the runner can start in auto-dev-select ([31a2503](https://github.com/acadevmy/ai-setup-meta/commit/31a25031dc6e0f07a8c8c5c7e84d5dc184e24a2e))
+* **dev-setup:** Count only a root devcontainer the runner can start in auto-dev-select ([14f7bb8](https://github.com/acadevmy/ai-setup-meta/commit/14f7bb8b201fb23f29df4932965d58eefe0efd98))
+
 ## [4.1.1](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.1.0...dev-setup-v4.1.1) (2026-10-28)
 
 
