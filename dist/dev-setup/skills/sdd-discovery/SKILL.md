@@ -71,7 +71,8 @@ resolved: an unanswered question is information the spec needs.
 ### 6. Close
 
 Show the summary. Invoked by the orchestrator, hand control back so the spec can
-be generated. Invoked on its own, ask whether to proceed to the spec.
+be generated. Invoked on its own, hand off as
+`${CLAUDE_PLUGIN_ROOT}/reference/hand-off.md` says.
 
 ## Expected output
 
