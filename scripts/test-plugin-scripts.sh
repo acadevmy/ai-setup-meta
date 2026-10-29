@@ -5185,6 +5185,33 @@ assert_contains "and refuses a checkout that is not the chosen repository" \
   "$(cd "$AD_SEL/web" && CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null | jq -r .REASON)" \
   "the selection chose acme/api"
 
+# hasDevcontainer is what the runner's `devcontainer up --workspace-folder
+# <clone>`, with no --config, can start: a clone with only a nested
+# configuration runs on the host, and the selection says why — without
+# blocking the task.
+sel_dc() {
+  sel >/dev/null
+  jq -r '"\(.status) \(.hasDevcontainer)|\(.devcontainerNote)"' "$AD_SEL/out/selection.json"
+}
+sel_args 'repo: api'
+assert_eq "no devcontainer: false, and no note" "selected false|" "$(sel_dc)"
+mkdir -p "$AD_SEL/api/.devcontainer/web" "$AD_SEL/api/.devcontainer/mobile"
+printf '{}\n' > "$AD_SEL/api/.devcontainer/web/devcontainer.json"
+printf '{}\n' > "$AD_SEL/api/.devcontainer/mobile/devcontainer.json"
+OUT="$(sel_dc)"
+assert_eq "only nested configurations: false, and the task is still selected" "selected false" "${OUT%%|*}"
+assert_contains "the note names each one, and why the runner cannot use it" "${OUT#*|}" \
+  ".devcontainer/mobile/devcontainer.json, .devcontainer/web/devcontainer.json ignored: the runner runs \`devcontainer up\` with no --config"
+assert_contains "and the runner's log gets it on stderr" \
+  "$(bash "$PLUGIN_SCRIPTS/auto-dev-select.sh" --args "$AD_SEL/args.json" --json 2>&1 >/dev/null)" \
+  "warning: .devcontainer/mobile/devcontainer.json, .devcontainer/web/devcontainer.json ignored"
+printf '{}\n' > "$AD_SEL/api/.devcontainer/devcontainer.json"
+assert_eq ".devcontainer/devcontainer.json at the root: true, no note" "selected true|" "$(sel_dc)"
+rm -rf "$AD_SEL/api/.devcontainer"
+printf '{}\n' > "$AD_SEL/api/.devcontainer.json"
+assert_eq ".devcontainer.json at the root: true, no note" "selected true|" "$(sel_dc)"
+rm -f "$AD_SEL/api/.devcontainer.json"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════════════════════════
