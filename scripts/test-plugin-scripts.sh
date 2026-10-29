@@ -1859,17 +1859,26 @@ AGENTS_GEN="$TEMPLATE_ROOT/setup/reference/agents-generation.md"
 # types them, never a developer. Listing them in every generated AGENTS.md
 # would make every session of every project pay to describe commands nobody
 # there runs, so the AGENTS.md checks below read the interactive surface only.
-# The developer guide documents them all the same (check 15).
+# The developer guide documents them all the same (check 15). The optional
+# `devcontainer` command is left out for the same reason: it is typed once per
+# repository, and only on a project whose unattended runs go to GCP.
 HEADLESS_SKILLS="auto-dev auto-dev-select"
+OPTIONAL_SKILLS="devcontainer"
 ALL_PUBLIC_SKILLS="$(for S in "$SDD_DIR"/*/SKILL.md "$REPO_ROOT"/shared/skills/*/SKILL.md \
                           "$TEMPLATE_ROOT/setup/SKILL.md"; do
     FM="$(frontmatter_of "$S")"
     printf '%s\n' "$FM" | grep -q '^user-invocable: true' || continue
     printf '%s\n' "$FM" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort)"
-PUBLIC_SKILLS="$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -vxF -e auto-dev -e auto-dev-select)"
+PUBLIC_SKILLS="$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -vxF -e auto-dev -e auto-dev-select -e devcontainer)"
 assert_eq "the headless commands are exactly the two auto-dev ones" \
   "$HEADLESS_SKILLS" "$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -xF -e auto-dev -e auto-dev-select | tr '\n' ' ' | sed 's/ $//')"
+assert_eq "and the optional one is devcontainer" \
+  "$OPTIONAL_SKILLS" "$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -xF -e devcontainer)"
+for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE"; do
+  assert_eq "$(basename "$GEN") does not describe the optional devcontainer command" "false" \
+    "$(grep -q '/dev-setup:devcontainer' "$GEN" && echo true || echo false)"
+done
 SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
@@ -5184,6 +5193,408 @@ assert_eq "auto-dev-args takes the base from the selection" "true origin/develop
 assert_contains "and refuses a checkout that is not the chosen repository" \
   "$(cd "$AD_SEL/web" && CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 bash "$PLUGIN_SCRIPTS/auto-dev-args.sh" --args "$AD_SEL/args-dev.json" --json 2>/dev/null | jq -r .REASON)" \
   "the selection chose acme/api"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 19. devcontainer: the facts a proposal starts from, and the check
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The runner of the headless runs builds the repository's root devcontainer and
+# runs the quality commands inside it. What the proposal starts from has to be
+# read the same way every time, and never from `.env`; the check has to hold
+# the runner's contract, isolate what it builds, and tell a red project (ready)
+# from a devcontainer that cannot start a command (not ready). No Docker: the
+# devcontainer CLI, docker and uname are stubs.
+
+echo ""
+echo "── devcontainer-facts.sh (what the proposal starts from) ──"
+
+facts() { (cd "$1" && bash "$PLUGIN_SCRIPTS/devcontainer-facts.sh" --json 2>/dev/null); }
+fact() { facts "$1" | jq -r --arg k "$2" '.[$k]'; }
+
+DCF_EMPTY="$WORK_DIR/dc-facts-empty"
+git_init "$DCF_EMPTY"
+assert_eq "an empty repository has no fact, and no coverage" "||||false" \
+  "$(facts "$DCF_EMPTY" | jq -r '[.CONFIG, .VERSIONS, .CI_IMAGES, .PRIVATE_DEPS, .PHP_COVERAGE] | join("|")')"
+
+DCF="$WORK_DIR/dc-facts"
+git_init "$DCF"
+mkdir -p "$DCF/api" "$DCF/app" "$DCF/.github/workflows" "$DCF/.devcontainer/web" "$DCF/node_modules/x"
+cat > "$DCF/api/composer.json" <<'EOF'
+{"require": {"php": "^8.2", "ext-intl": "*", "ext-pdo_mysql": "*"},
+ "require-dev": {"ext-pcov": "*"},
+ "repositories": [{"type": "vcs", "url": "https://bot:s3cr3t@github.com/acme/private.git"},
+                  {"type": "path", "url": "../packages/local"}],
+ "scripts": {"test": "pest --coverage"}}
+EOF
+printf '<phpunit><php><env name="DB_CONNECTION" value="sqlite"/><env name="DB_DATABASE" value=":memory:"/></php></phpunit>\n' \
+  > "$DCF/api/phpunit.xml"
+printf 'APP_NAME=api\nDB_CONNECTION=mysql\nREDIS_HOST=127.0.0.1\n# MONGO_URL=mongodb://x\nMAIL_HOST=mailpit\n' \
+  > "$DCF/api/.env.example"
+printf 'DB_CONNECTION=pgsql\nAPP_KEY=base64:never-printed\n' > "$DCF/api/.env"
+printf 'flutter 3.24.3-stable\nnodejs 20.11.0 # pinned\n' > "$DCF/.tool-versions"
+printf 'v20\n' > "$DCF/.nvmrc"
+printf '{"packageManager": "pnpm@9.1.0+sha256.abc", "devDependencies": {"lib": "github:acme/lib#v1", "ok": "^1.0.0"}}\n' \
+  > "$DCF/package.json"
+printf '{"engines": {"node": "18"}}\n' > "$DCF/node_modules/x/package.json"
+printf 'name: app\nenvironment:\n  sdk: ">=3.4.0 <4.0.0"\n  flutter: 3.24.3\ndependencies:\n  atlas:\n    git:\n      url: git@github.com:acme/atlas.git\n      ref: main\n' \
+  > "$DCF/app/pubspec.yaml"
+printf '{"flutter": "3.24.3"}\n' > "$DCF/app/.fvmrc"
+# shellcheck disable=SC2016
+printf '@acme:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=${NPM_TOKEN}\n' > "$DCF/.npmrc"
+cat > "$DCF/.github/workflows/ci.yml" <<'EOF'
+name: CI
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: php:8.3-cli
+    services:
+      mysql:
+        image: mysql:8.0
+        ports:
+          - 3306:3306
+      redis:
+        image: "redis:7"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+  matrix:
+    container: ${{ matrix.image }}
+EOF
+cat > "$DCF/.gitlab-ci.yml" <<'EOF'
+image:
+  name: ghcr.io/cirruslabs/flutter:3.24.3
+services:
+  - postgres:16
+  - name: valkey/valkey:8
+    alias: cache
+test:
+  image: node:20
+  script:
+    - npm test
+EOF
+printf 'FROM php:8.3\n' > "$DCF/api/Dockerfile"
+printf 'FROM node:20\n' > "$DCF/.devcontainer/web/Dockerfile"
+printf 'services: {}\n' > "$DCF/docker-compose.yml"
+printf '{}\n' > "$DCF/.devcontainer/web/devcontainer.json"
+DCF_OUT="$(facts "$DCF")"
+dcf() { printf '%s' "$DCF_OUT" | jq -r --arg k "$1" '.[$k]'; }
+
+assert_eq "a nested configuration is not the one the runner reads" \
+  "|.devcontainer/web/devcontainer.json" "$(dcf CONFIG)|$(dcf NESTED_CONFIGS)"
+assert_line "asdf's nodejs is node, with the file that pins it" "$(dcf VERSIONS)" $'node\t20.11.0\t.tool-versions'
+assert_line "packageManager gives the manager's version, without its hash" "$(dcf VERSIONS)" $'pnpm\t9.1.0\tpackage.json'
+assert_line "composer.json gives php, from its package" "$(dcf VERSIONS)" $'php\t^8.2\tapi/composer.json'
+assert_line "pubspec.yaml gives dart and flutter" "$(dcf VERSIONS)" $'dart\t>=3.4.0 <4.0.0\tapp/pubspec.yaml'
+assert_line "and .fvmrc its own flutter pin" "$(dcf VERSIONS)" $'flutter\t3.24.3\tapp/.fvmrc'
+assert_eq "node_modules is never read" "false" \
+  "$(printf '%s' "$(dcf VERSIONS)" | grep -q 'node_modules' && echo true || echo false)"
+assert_eq "the ext-* composer requires, sorted" "intl pcov pdo_mysql" "$(dcf PHP_EXTENSIONS)"
+assert_eq "a composer script measuring coverage asks for pcov" "true" "$(dcf PHP_COVERAGE)"
+assert_line "phpunit.xml says the tests run on an in-memory sqlite" "$(dcf TEST_ENV)" $'DB_CONNECTION=sqlite\tapi/phpunit.xml'
+assert_line "a job container is a job image" "$(dcf CI_IMAGES)" $'php:8.3-cli\tjob\t.github/workflows/ci.yml'
+assert_line "a GitHub service is a service image" "$(dcf CI_IMAGES)" $'redis:7\tservice\t.github/workflows/ci.yml'
+assert_line "a GitLab image block gives its name" "$(dcf CI_IMAGES)" $'ghcr.io/cirruslabs/flutter:3.24.3\tjob\t.gitlab-ci.yml'
+assert_line "a GitLab service item, scalar" "$(dcf CI_IMAGES)" $'postgres:16\tservice\t.gitlab-ci.yml'
+assert_line "a GitLab service item, with a name" "$(dcf CI_IMAGES)" $'valkey/valkey:8\tservice\t.gitlab-ci.yml'
+assert_eq "a port mapping and an expression are not images" "false" \
+  "$(printf '%s' "$(dcf CI_IMAGES)" | grep -qE '^(3306|\$)' && echo true || echo false)"
+assert_eq "the Docker files outside .devcontainer/" "api/Dockerfile|docker-compose.yml" \
+  "$(dcf DOCKERFILES)|$(dcf COMPOSE_FILES)"
+assert_eq "the services .env.example points at, a commented key not one of them" \
+  "mailpit mysql redis" "$(printf '%s\n' "$(dcf ENV_SERVICES)" | cut -f1 | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
+assert_eq ".env is never read: not its service, not its value, not the file" "false false false" \
+  "$(dcf ENV_SERVICES | grep -q postgres && echo true || echo false) $(printf '%s' "$DCF_OUT" | grep -q never-printed && echo true || echo false) $(dcf ENV_EXAMPLES | grep -qx 'api/.env' && echo true || echo false)"
+assert_line "a vcs repository needs credentials, its token masked" "$(dcf PRIVATE_DEPS)" \
+  $'api/composer.json\trepository vcs https://***@github.com/acme/private.git'
+assert_eq "the token itself is printed nowhere" "false" \
+  "$(printf '%s' "$DCF_OUT" | grep -qE 's3cr3t|NPM_TOKEN' && echo true || echo false)"
+assert_line "a git dependency of package.json" "$(dcf PRIVATE_DEPS)" $'package.json\tlib github:acme/lib#v1'
+assert_line "a private npm registry" "$(dcf PRIVATE_DEPS)" $'.npmrc\tregistry https://npm.pkg.github.com'
+assert_line "a git dependency of pubspec.yaml" "$(dcf PRIVATE_DEPS)" $'app/pubspec.yaml\tgit git@github.com:acme/atlas.git'
+assert_eq "no Testcontainers here" "" "$(dcf TESTCONTAINERS)"
+DCF_TC="$WORK_DIR/dc-facts-tc"
+git_init "$DCF_TC"
+mkdir -p "$DCF_TC/svc" "$DCF_TC/web"
+printf 'module acme/svc\n\ngo 1.22\n\nrequire github.com/testcontainers/testcontainers-go v0.30.0\n' > "$DCF_TC/svc/go.mod"
+printf '{"devDependencies": {"@testcontainers/postgresql": "^10.0.0", "jest": "^29"}}\n' > "$DCF_TC/web/package.json"
+printf '<dependency><groupId>org.testcontainers</groupId></dependency>\n' > "$DCF_TC/pom.xml"
+mkdir -p "$DCF_TC/dotnet" "$DCF_TC/rs" "$DCF_TC/py"
+printf '<ItemGroup><PackageReference Include="Testcontainers.PostgreSql" Version="3.9.0" /></ItemGroup>\n' \
+  > "$DCF_TC/dotnet/Api.Tests.csproj"
+printf '[dev-dependencies]\ntestcontainers = "0.20"\ntestcontainers-modules = { version = "0.8" }\n' > "$DCF_TC/rs/Cargo.toml"
+printf 'pytest==8.0\ntestcontainers[postgres]==4.4\n' > "$DCF_TC/py/requirements-dev.txt"
+git -C "$DCF_TC" remote add origin "https://bot:t0k@github.com/Acme/Svc.git"
+assert_eq "Testcontainers, in every manifest's own spelling: the tests need the socket the runner refuses" \
+  "dotnet/Api.Tests.csproj Testcontainers.PostgreSql|pom.xml org.testcontainers|py/requirements-dev.txt testcontainers|rs/Cargo.toml testcontainers|rs/Cargo.toml testcontainers-modules|svc/go.mod github.com/testcontainers/testcontainers-go|web/package.json @testcontainers/postgresql" \
+  "$(fact "$DCF_TC" TESTCONTAINERS | tr '\t' ' ' | tr '\n' '|' | sed 's/|$//')"
+assert_eq "and go.mod still gives its go version" "$(printf 'go\t1.22\tsvc/go.mod')" "$(fact "$DCF_TC" VERSIONS)"
+assert_eq "the repository the GCP exclusion names, as auto-dev-select names it, credentials dropped" \
+  "acme/svc" "$(fact "$DCF_TC" REPOSITORY)"
+
+echo ""
+echo "── devcontainer-check.sh (the runner's contract, built and probed) ──"
+
+DCC_BIN="$WORK_DIR/dc-check-bin"
+mkdir -p "$DCC_BIN"
+cat > "$DCC_BIN/devcontainer" <<'STUB'
+#!/usr/bin/env bash
+printf 'devcontainer %s COMPOSE_PROJECT_NAME=%s\n' "$*" "${COMPOSE_PROJECT_NAME:-}" >> "$STUB_LOG"
+case "$1" in
+  up)
+    if [ "${STUB_UP:-success}" != success ]; then
+      echo 'E: Unable to locate package flutter' >&2
+      printf '{"outcome":"error","message":"Command failed: docker build","description":"An error occurred building the image."}\n'
+      exit 1
+    fi
+    project=""
+    [ -n "${COMPOSE_PROJECT_NAME:-}" ] && project=",\"composeProjectName\":\"$COMPOSE_PROJECT_NAME\""
+    echo '[2 ms] Start: Run: docker build' >&2
+    printf '{"outcome":"success","containerId":"c0ffee","remoteUser":"%s","remoteWorkspaceFolder":"/workspaces/repo"%s}\n' \
+      "${STUB_USER:-vscode}" "$project" ;;
+  exec)
+    shift
+    while [ $# -gt 0 ]; do
+      case "$1" in --workspace-folder|--container-id|--id-label) shift 2 ;; --*) shift ;; *) break ;; esac
+    done
+    if [ "$1" = sh ]; then
+      printf 'uid=%s\npwd=/workspaces/repo\n' "${STUB_UID:-1000}"
+      for t in ${STUB_MISSING:-}; do printf 'missing=%s\n' "$t"; done
+      printf 'top=%s\n' "${STUB_TOP:-/workspaces/repo}"
+      exit 0
+    fi
+    exec "$@" ;;
+esac
+STUB
+cat > "$DCC_BIN/docker" <<'STUB'
+#!/usr/bin/env bash
+printf 'docker %s\n' "$*" >> "$STUB_LOG"
+[ "$1" = info ] && exit "${STUB_DOCKER_RC:-0}"
+exit 0
+STUB
+cat > "$DCC_BIN/uname" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "${STUB_OS:-Darwin}"
+STUB
+chmod +x "$DCC_BIN"/*
+
+DCC_LOG="$WORK_DIR/dc-check.log"
+# Runs the check in $1 with the stubs first on PATH, in this shell: the JSON
+# lands in OUT and the exit status in DCC_EXIT. `dck <key>` reads OUT.
+dcc() {
+  local dir="$1"
+  shift
+  : > "$DCC_LOG"
+  OUT="$(cd "$dir" && STUB_LOG="$DCC_LOG" PATH="$DCC_BIN:$PATH" \
+         bash "$PLUGIN_SCRIPTS/devcontainer-check.sh" --json "$@" 2>/dev/null)"
+  DCC_EXIT=$?
+}
+dck() { printf '%s' "$OUT" | jq -r "$1"; }
+logged() { grep -q -- "$1" "$DCC_LOG" && echo true || echo false; }
+dcc_repo() {
+  local dir="$WORK_DIR/dc-check-$1"
+  git_init "$dir"
+  mkdir -p "$dir/.devcontainer" "$dir/.claude"
+  printf '%s\n' '{"lint": "true", "typecheck": null, "test": "false", "absent": {"typecheck": "none"}, "preflight": null, "hook_manager": null}' \
+    > "$dir/.claude/quality-commands.json"
+  printf '%s' "$dir"
+}
+
+DCC="$(dcc_repo none)"
+dcc "$DCC"
+assert_eq "no configuration at the root is not ready" "not-ready 4" "$(dck .STATUS) $DCC_EXIT"
+mkdir -p "$DCC/.devcontainer/web" && printf '{}\n' > "$DCC/.devcontainer/web/devcontainer.json"
+dcc "$DCC"
+assert_contains "and a nested one is named as the reason" "$(dck .REASON)" "no --config"
+
+DCC="$(dcc_repo ok)"
+cat > "$DCC/.devcontainer/devcontainer.json" <<'EOF'
+{
+  // the toolchain, from "the" repository root
+  "name": "app // not a comment",
+  "build": { "dockerfile": "Dockerfile", "context": ".." },
+  "remoteUser": "vscode", /* the runner's UID */
+  "postCreateCommand": "npm ci",
+}
+EOF
+dcc "$DCC"
+assert_eq "comments and trailing commas parse, and the check is ready" "ready 0" "$(dck .STATUS) $DCC_EXIT"
+assert_eq "a red test is the project's state, not an issue" "passed absent failed|" \
+  "$(dck '"\(.LINT_STATUS) \(.TYPECHECK_STATUS) \(.TEST_STATUS)|\(.ISSUES)"')"
+assert_contains "and its output is reported" "$(dck .OUTPUT)" "--- test: false (exit 1)"
+assert_contains "it builds fresh, under a label of its own" "$(cat "$DCC_LOG")" \
+  "--id-label dev-setup.check=dc-check-ok-"
+assert_contains "replacing only the check's previous container" "$(cat "$DCC_LOG")" "--remove-existing-container"
+assert_contains "the commands run with devcontainer exec, in the container" "$(cat "$DCC_LOG")" \
+  "--container-id c0ffee bash -c false"
+assert_eq "and the container is removed after" "true" "$(logged 'docker rm -f c0ffee')"
+dcc "$DCC" --keep
+assert_eq "--keep leaves it running" "true false" "$(dck .KEPT) $(logged 'docker rm')"
+
+STUB_UID=0 STUB_USER=root dcc "$DCC"
+assert_eq "commands that run as root are not ready" "not-ready 4" "$(dck .STATUS) $DCC_EXIT"
+assert_contains "and the issue says why" "$(dck .ISSUES)" "the runner runs as UID 1000"
+STUB_UID=1001 dcc "$DCC"
+assert_contains "a user with another UID is not ready" "$(dck .ISSUES)" "has UID 1001, the runner's is 1000"
+STUB_OS=Linux STUB_UID="$(id -u)" dcc "$DCC"
+assert_eq "on a Linux host the CLI maps the UID, so the host's is expected" "ready $(id -u)" \
+  "$(dck '"\(.STATUS) \(.EXPECTED_UID)"')"
+STUB_MISSING=curl dcc "$DCC"
+assert_contains "an image without curl is not ready" "$(dck .ISSUES)" "not in the image: curl"
+STUB_TOP=/workspaces dcc "$DCC"
+assert_contains "a workspace that is not the repository root is not ready" "$(dck .ISSUES)" \
+  "workspaceFolder must be the root"
+
+printf '%s\n' '{"lint": "no-such-linter-anywhere", "typecheck": null, "test": "true", "absent": {"typecheck": "none"}, "preflight": "false"}' \
+  > "$DCC/.claude/quality-commands.json"
+dcc "$DCC"
+assert_eq "a command that does not start, and a red preflight, are the devcontainer's" \
+  "not-ready not-found failed 4" "$(dck '"\(.STATUS) \(.LINT_STATUS) \(.PREFLIGHT)"') $DCC_EXIT"
+assert_contains "named in the issues" "$(dck .ISSUES)" "lint did not start inside the container"
+
+STUB_UP=error dcc "$DCC"
+assert_eq "a build that fails is not ready" "not-ready failed" "$(dck '"\(.STATUS) \(.UP)"')"
+assert_contains "with the CLI's description" "$(dck .REASON)" "An error occurred building the image."
+assert_contains "and the build log's tail" "$(dck .OUTPUT)" "Unable to locate package flutter"
+assert_eq "and no command runs" "false" "$(logged 'bash -c')"
+
+STUB_DOCKER_RC=1 dcc "$DCC"
+assert_eq "no Docker daemon: unverified" "unverified 3" "$(dck .STATUS) $DCC_EXIT"
+assert_contains "and the reason names the sandbox" "$(dck .REASON)" "inside a sandbox"
+NODC_BIN="$WORK_DIR/dc-check-nocli"
+mkdir -p "$NODC_BIN" && cp "$DCC_BIN/docker" "$NODC_BIN/docker"
+assert_contains "no devcontainer CLI: unverified, with how to install it" \
+  "$(cd "$DCC" && STUB_LOG="$DCC_LOG" PATH="$NODC_BIN:/usr/bin:/bin" \
+       bash "$PLUGIN_SCRIPTS/devcontainer-check.sh" --json 2>/dev/null | jq -r '"\(.STATUS) \(.REASON)"')" \
+  "unverified the devcontainer CLI is not installed (npm install -g @devcontainers/cli)"
+rm -f "$DCC/.claude/quality-commands.json"
+dcc "$DCC"
+assert_eq "no declared commands: unverified, nothing built" "unverified 3 false" \
+  "$(dck .STATUS) $DCC_EXIT $(logged 'devcontainer up')"
+assert_contains "and the setup's step 3b is named" "$(dck .REASON)" "/dev-setup:setup (step 3b)"
+
+DCC="$(dcc_repo static)"
+cat > "$DCC/.devcontainer/devcontainer.json" <<'EOF'
+{
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  "remoteUser": "root",
+  "mounts": ["source=/var/autodev,target=/var/autodev,type=bind"],
+  "containerEnv": { "GH_TOKEN": "${localEnv:GH_TOKEN}", "HOME_DIR": "${localEnv:HOME}" }
+}
+EOF
+dcc "$DCC"
+assert_eq "a configuration that breaks the contract is not built" "not-ready 4 false" \
+  "$(dck .STATUS) $DCC_EXIT $(logged 'devcontainer up')"
+assert_eq "three clauses broken, three issues: root, the mount, the credential" "3" \
+  "$(dck .ISSUES | grep -c .)"
+# shellcheck disable=SC2016
+assert_contains "the credential is named" "$(dck .ISSUES)" '${localEnv:GH_TOKEN}'
+assert_eq "a localEnv that is not a credential is not an issue" "false" \
+  "$(dck .ISSUES | grep -q 'localEnv:HOME' && echo true || echo false)"
+# The clauses that keep the agent away from the runner's host, one per line.
+dc_static() {
+  printf '%s\n' "$1" > "$DCC/.devcontainer/devcontainer.json"
+  dcc "$DCC"
+  printf '%s %s|%s' "$(dck .STATUS)" "$(logged 'devcontainer up')" "$(dck .ISSUES)"
+}
+# shellcheck disable=SC2016
+OUT_SSH="$(dc_static '{"image": "x", "mounts": ["source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind", "source=node_modules,target=/w/node_modules,type=volume"]}')"
+assert_contains "a bind of the host's ~/.ssh fails up on the VM, and is not built" "$OUT_SSH" \
+  'not-ready false|a bind mount of a host path (${localEnv:HOME}/.ssh)'
+assert_eq "a named volume is not a host path" "1" "$(printf '%s' "${OUT_SSH#*|}" | grep -c .)"
+assert_contains "a -v of an absolute host path, in runArgs" \
+  "$(dc_static '{"image": "x", "runArgs": ["-v", "/home/me/.aws:/home/vscode/.aws"]}')" \
+  "a bind mount of a host path (/home/me/.aws:/home/vscode/.aws)"
+assert_contains "the Docker socket" \
+  "$(dc_static '{"image": "x", "mounts": [{"source": "/var/run/docker.sock", "target": "/var/run/docker.sock", "type": "bind"}]}')" \
+  "the Docker socket is mounted: the runner refuses it"
+assert_contains "privileged mode" "$(dc_static '{"image": "x", "privileged": true}')" "privileged mode: the runner refuses it"
+assert_contains "privileged mode, in runArgs" "$(dc_static '{"image": "x", "runArgs": ["--privileged"]}')" "privileged mode"
+assert_contains "the host network" "$(dc_static '{"image": "x", "runArgs": ["--network=host"]}')" "the host network: the runner refuses it"
+assert_contains "a Docker Feature" \
+  "$(dc_static '{"image": "x", "features": {"ghcr.io/devcontainers/features/docker-in-docker:2": {}}}')" \
+  "the Feature ghcr.io/devcontainers/features/docker-in-docker:2 gives the container Docker"
+assert_contains "a workspaceMount of its own" \
+  "$(dc_static '{"image": "x", "workspaceMount": "source=${localWorkspaceFolder},target=/src,type=bind"}')" \
+  "a custom workspaceMount"
+assert_contains "a workspaceFolder of its own" "$(dc_static '{"image": "x", "workspaceFolder": "/src"}')" \
+  "a custom workspaceFolder (/src)"
+# shellcheck disable=SC2016
+assert_eq "the CLI's default, written out, is not one" "ready" \
+  "$(dc_static '{"image": "x", "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"}' | cut -d' ' -f1)"
+
+printf '{"broken": }\n' > "$DCC/.devcontainer/devcontainer.json"
+dcc "$DCC"
+assert_contains "a configuration that does not parse is named" "$(dck .REASON)" "does not parse"
+
+DCC="$(dcc_repo compose)"
+printf '%s\n' '{"dockerComposeFile": ["compose.yml"], "service": "app", "workspaceFolder": "/workspace", "remoteUser": "vscode"}' \
+  > "$DCC/.devcontainer/devcontainer.json"
+printf 'services:\n  app:\n    build: ..\n    volumes: ["..:/workspace:cached"]\n' > "$DCC/.devcontainer/compose.yml"
+dcc "$DCC"
+assert_eq "a compose configuration is checked as one" "ready true" "$(dck '"\(.STATUS) \(.COMPOSE)"')"
+assert_contains "under a compose project of its own" "$(grep 'devcontainer up' "$DCC_LOG")" \
+  "COMPOSE_PROJECT_NAME=devsetup-check-dc-check-compose-"
+assert_eq "which is the one taken down with its volumes, and no container is removed alone" "true false" \
+  "$(grep -qE 'docker compose -p devsetup-check-dc-check-compose-[0-9]+ down --volumes --remove-orphans' "$DCC_LOG" \
+       && echo true || echo false) $(logged 'docker rm')"
+STUB_UP=error dcc "$DCC"
+assert_eq "a compose build that fails still takes the check's project down" "not-ready true" \
+  "$(dck .STATUS) $(grep -qE 'docker compose -p devsetup-check-dc-check-compose-[0-9]+ down' "$DCC_LOG" && echo true || echo false)"
+printf 'services:\n  app:\n    volumes: ["/var/autodev:/var/autodev"]\n' > "$DCC/.devcontainer/compose.yml"
+dcc "$DCC"
+assert_contains "a compose file that mounts /var/autodev is not ready" "$(dck .ISSUES)" \
+  ".devcontainer/compose.yml mounts /var/autodev"
+assert_eq "and is not also reported as a host path" "false" "$(dck .ISSUES | grep -q 'binds a host path' && echo true || echo false)"
+cat > "$DCC/.devcontainer/compose.yml" <<'EOF'
+services:
+  app:
+    build: ..
+    volumes:
+      - ..:/workspaces/repo:cached
+      - ~/.gitconfig:/home/vscode/.gitconfig
+      - /var/run/docker.sock:/var/run/docker.sock
+  db:
+    image: mysql:8.0
+    privileged: true
+    network_mode: host
+    volumes:
+      - dbdata:/var/lib/mysql
+volumes:
+  dbdata:
+EOF
+dcc "$DCC"
+assert_eq "a compose file that reaches the host: four issues, the workspace and a named volume not among them" "4" \
+  "$(dck .ISSUES | grep -c .)"
+assert_contains "the host path" "$(dck .ISSUES)" ".devcontainer/compose.yml binds a host path (~/.gitconfig)"
+assert_contains "the socket" "$(dck .ISSUES)" ".devcontainer/compose.yml mounts the Docker socket"
+assert_contains "privileged" "$(dck .ISSUES)" ".devcontainer/compose.yml runs a service privileged"
+assert_contains "the host network" "$(dck .ISSUES)" ".devcontainer/compose.yml puts a service on the host network"
+
+echo ""
+echo "── the devcontainer command ──"
+
+DC_SKILL="$TEMPLATE_ROOT/.claude/skills/devcontainer/SKILL.md"
+assert_eq "it is a command a person starts, never one the model infers" "true true" \
+  "$(frontmatter_of "$DC_SKILL" | sed -n 's/^user-invocable:[[:space:]]*//p') $(frontmatter_of "$DC_SKILL" | sed -n 's/^disable-model-invocation:[[:space:]]*//p')"
+for DC_SCRIPT in devcontainer-facts.sh devcontainer-check.sh; do
+  assert_contains "it calls $DC_SCRIPT through the plugin root" "$(cat "$DC_SKILL")" \
+    "\${CLAUDE_PLUGIN_ROOT}/scripts/$DC_SCRIPT"
+  assert_eq "and the manifest ships $DC_SCRIPT" "true" \
+    "$(jq -r --arg s "$DC_SCRIPT" '.plugin_scripts | index($s) != null' "$TEMPLATE_ROOT/manifest.json")"
+done
+assert_contains "it stops before any write when nothing is declared" "$(flat "$DC_SKILL")" \
+  "\`COMMANDS_SOURCE\` other than \`declared\` → stop, nothing written"
+assert_contains "Testcontainers stops it before anything else" "$(flat "$DC_SKILL")" \
+  "\`TESTCONTAINERS\` set → GCP does not support it, and nothing is written for the runner"
+DC_CONTRACT="$TEMPLATE_ROOT/.claude/skills/devcontainer/reference/contract.md"
+assert_contains "and the contract gives the exclusion, verbatim" "$(cat "$DC_CONTRACT")" \
+  'in n8n, data table `autodev_projects`, the project'"'"'s row,
+column `gcp_excluded` = `testcontainers: <REPOSITORY>`'
+assert_contains "a devcontainer for VS Code is asked, with Stop as the default" "$(flat "$DC_CONTRACT")" \
+  "**Stop here** (the default; nothing written) or **A devcontainer for VS Code**"
+assert_eq "it is not a step of setup" "false" \
+  "$(grep -rq 'devcontainer-' "$TEMPLATE_ROOT/setup" && echo true || echo false)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary

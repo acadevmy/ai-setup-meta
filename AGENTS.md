@@ -254,6 +254,8 @@ status other than 0.
 | `auto-dev-commit.sh --task <id> --message <subject>` | `COMMITTED`, `COMMIT`, `BRANCH`, `RAN`, `SKIPPED`, `UNAVAILABLE_REASON`, `OUTPUT`, `REASON` — the one commit of an `auto-dev` run with a command `unavailable`: the commit gate minus what cannot start. It asks `quality-preflight.sh` itself, runs the commands that can start, and commits with the project's git hooks on. Exit 4 a red command or a refused commit; exit 3 refuses when nothing is unavailable, with a hook manager, or off the task's branch — `git commit` and the gate work there |
 | `auto-dev-checks.sh --task <id> [--wait] [--budget <seconds>]` | `DONE`, `PASSED`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS`, `OUTPUT`, `LOG_DIR`, `TREE`, `REASON` — the quality commands of an `auto-dev` Verify, run so the agent can wait for them however long they take: each command into its own log, each status on disk as it lands. A suite past the Bash call's ceiling goes on in the background, and `--wait` blocks up to 540 s per call until `DONE` (exit 5: call it again). A second start on the same tree joins the live run; a run whose heartbeat stopped answers `stopped`, never green. Exit 0 green, 4 red, 3 no verdict |
 | `auto-dev-report.sh --outcome <file> --launch <file> [--session <id>]`, `--finalize --result <file> --claude-result <file>` | `STATUS`, `STAGE`, `RESULT_FILE`, `BODY_FILE`, `SPEC_FILE`, `PATCH_FILE`, `TITLE`, `LABELS`, `OUTPUT_SOURCE` — `result.json` and `pr-body.md` with no model: title and labels from `mr-meta.sh`, the repository's template with its description and test sections filled. Git decides the outcome: a `ready-for-mr` whose branch holds no commit over the base becomes `failed` at `dev`, the commit subjects are git's, and a failed run's uncommitted work goes to `changes.patch`. Usage per step from the transcripts is a lower bound for output; `--finalize` spreads `claude -p`'s exact per-model totals over the steps |
+| `devcontainer-facts.sh` | `CONFIG`, `NESTED_CONFIGS`, `VERSIONS`, `PHP_EXTENSIONS`, `PHP_COVERAGE`, `TEST_ENV`, `CI_IMAGES`, `DOCKERFILES`, `COMPOSE_FILES`, `ENV_EXAMPLES`, `ENV_SERVICES`, `PRIVATE_DEPS`, `TESTCONTAINERS`, `REPOSITORY` — what the `devcontainer` command proposes from: every version pin with the file that pins it, the CI's job and service images, the Docker files already there, the services `.env.example` points at, the dependencies that need credentials (URLs masked), and the Testcontainers libraries of every manifest — whose tests need the Docker socket, so the repository is excluded from GCP and `REPOSITORY` names it for the exclusion. Read-only, three levels down, never `.env` |
+| `devcontainer-check.sh [--keep]` | `STATUS`, `REASON`, `CONFIG`, `COMPOSE`, `ISSUES`, `DOCKER`, `CLI`, `UP`, `UP_SECONDS`, `CONTAINER`, `REMOTE_USER`, `REMOTE_UID`, `EXPECTED_UID`, `PREFLIGHT`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS`, `OUTPUT`, `LOG_DIR`, `KEPT` — can the job runner use the root devcontainer: the static clauses of its contract (one root config, non-root user, no `/var/autodev` mount and no other host bind, no Docker socket, `privileged`, host network or Docker Feature, no workspace path of its own, no `${localEnv:}` credential — compose files included), then `devcontainer up` fresh under an id label and a compose project of its own, the UID, `bash`/`git`/`curl` and the workspace root probed inside, and the declared preflight and commands run with `devcontainer exec`. Exit 0 ready, 4 not ready (a red command alone is not), 3 unverified: no Docker, no CLI, nothing declared |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug, branch-name parsing |
 
 ### The UPDATE path is part of the contract
@@ -557,7 +559,12 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 `auto-dev`, which a job runner starts inside `claude -p` and no developer types.
 They are user-invocable because `claude -p` starts them by name, and they stay
 out of the generated `AGENTS.md`, whose command table the suite pins to the six:
-every session of every project would otherwise pay to describe them. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
+every session of every project would otherwise pay to describe them. One
+optional command stays out of it for the same reason: `devcontainer`, which
+writes and verifies the root `.devcontainer/` the job runner builds before
+`auto-dev`. Unattended runs move to GCP project by project, so most projects
+never type it; it is in the developer guide and the `/dev-setup` catalogue,
+and it is not a step of `setup`. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
 `sdd-plan`, `sdd-dev`, `verify`, `clickup`, `vcs-ops`) carries
 `user-invocable: false`: the orchestrator invokes it by name, and `/help` stays
 readable. A skill that opens a PR or writes into a project also carries
@@ -993,4 +1000,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.37.0 — bump the version number on every substantial change*
+*Version: 2.38.0 — bump the version number on every substantial change*

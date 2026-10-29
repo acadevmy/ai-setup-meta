@@ -43,7 +43,8 @@
     "sdd-dev",
     "verify",
     "auto-dev",
-    "auto-dev-select"
+    "auto-dev-select",
+    "devcontainer"
   ],
   "workflows": [
     "auto-sdd-run.js",
@@ -70,7 +71,9 @@
     "auto-dev-commit.sh",
     "auto-dev-checks.sh",
     "auto-dev-report.sh",
-    "auto-dev-select.sh"
+    "auto-dev-select.sh",
+    "devcontainer-facts.sh",
+    "devcontainer-check.sh"
   ],
   "hooks": [
     "gate-commit.sh",

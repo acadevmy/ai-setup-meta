@@ -340,6 +340,62 @@ refuses the run at intake. With the Bash sandbox on, the runner also passes
 `--add-dir <outputDir>`, because a sandboxed command writes only in the
 checkout and the directories added. `auto-sdd`, `multi-sdd` and the interactive flow are unchanged.
 
+### A devcontainer for the runner
+
+The runner builds each repository's devcontainer before `auto-dev` and runs the
+quality commands inside it; without one, `auto-dev` runs on the bare machine,
+and every command whose toolchain is not there (Flutter, PHP, …) ends up in
+the merge request as not verified. **`/dev-setup:devcontainer`** writes it and
+proves it. It is optional and not part of `/dev-setup:setup`: run it, in each
+of the project's repositories, when that project's unattended runs move to
+GCP — on a project set up long ago too.
+
+It needs `.claude/quality-commands.json` (the setup's step 3b), because the
+proof is running those commands. It reads what the repository already pins —
+`.tool-versions`, `.nvmrc`, `composer.json` and its `ext-*`, `pubspec.yaml`,
+`.fvmrc`, the CI's images and services, a development Dockerfile or compose
+file, `.env.example` (never `.env`) — through `devcontainer-facts.sh`, shows
+you the files with the origin of every version, and writes them under
+`.devcontainer/` on your yes. A monorepo gets one `.devcontainer/` at the root
+with every toolchain and its services in docker compose: the runner runs
+`devcontainer up` at the root with no `--config`, so a per-package
+configuration is never read.
+
+The files follow the runner's contract: a non-root user with UID 1000 that
+owns every SDK in the image, `bash`, `git` and `curl` inside, the CLI's default
+workspace path, no bind of a host path (`~/.ssh`, `~/.gitconfig` — the runner
+rewrites SSH git URLs to HTTPS, so no key is needed), no Docker socket,
+`privileged`, host network or docker-in-docker, and no secret in the
+environment. The runner holds the git credentials only during `up`, so
+`postCreateCommand` leaves the quality commands runnable at once: dependencies
+installed, uncommitted code generated, the test environment prepared from
+`.env.example` when there is none.
+
+Then `devcontainer-check.sh` builds it fresh, the way the runner does, checks
+those clauses, and runs the declared preflight and commands with
+`devcontainer exec`. A red test is your project's state and is reported as
+such; a command that does not start is the devcontainer's to fix. The check
+needs Docker and the devcontainer CLI (`npm install -g @devcontainers/cli`)
+and runs outside the Bash sandbox, which asks you first; without them the
+files are written and reported as not verified. It builds under a label and a
+compose project of its own, and removes what it built, so your own
+devcontainer is never touched — but `postCreateCommand` runs on your checkout,
+as in any devcontainer: what it installs or generates lands in your working
+tree.
+
+**Testcontainers is not supported on GCP.** Tests that start their own
+containers need the Docker socket the runner refuses, so when a manifest
+declares Testcontainers the command writes nothing for the runner: it names
+the files and dependencies and gives you the exclusion to make — in n8n, data
+table `autodev_projects`, the project's row, column `gcp_excluded` =
+`testcontainers: <owner/repo>`. A devcontainer for VS Code alone is offered,
+never assumed.
+
+An existing configuration is never overwritten unasked: you choose between
+verifying it, a rewrite shown as a diff, or leaving it.
+`/dev-setup:devcontainer --check` only verifies. Commit the result and merge it
+into the branch the runner forks from.
+
 ### The quality commands your project declares
 
 Which command lints the project, which type-checks it and which runs its tests
@@ -883,6 +939,14 @@ absent. Fix that, and launch again; nothing was started, so there is nothing to
 clean up. A program the environment does not have, or a `preflight` that
 failed, does not land here: the run starts and its merge request lists those
 checks as not verified.
+
+### Every headless merge request lists the same checks as not verified
+
+The runner ran `auto-dev` without the toolchain those commands start: the
+repository has no devcontainer, or one that lacks the program. Run
+`/dev-setup:devcontainer` in that repository; with a configuration already
+there, `/dev-setup:devcontainer --check` names the command that does not
+start inside it.
 
 ### A rule I expected did not load
 
