@@ -1882,8 +1882,8 @@ done
 SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
-assert_eq "the surface the check reads is the six public commands" \
-  "auto-sdd multi-sdd quick review sdd setup" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+assert_eq "the surface the check reads is the public commands" \
+  "auto-sdd beowulf multi-sdd quick review sdd setup" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
 
 # The names from $2 (one per line) with no row in $1 matching $3, where `@`
 # stands for the name.
@@ -1956,7 +1956,7 @@ for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DEC
 done
 
 # DE-17079 wants the generated file shorter; these fixes may not lengthen it.
-for BUDGET in "$GEN_SINGLE:131" "$GEN_WORKSPACE:136" "$GEN_PROJECT:30"; do
+for BUDGET in "$GEN_SINGLE:132" "$GEN_WORKSPACE:137" "$GEN_PROJECT:30"; do
   GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
   assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
     "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"

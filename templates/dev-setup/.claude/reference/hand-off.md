@@ -37,9 +37,10 @@ push and merge request creation, stay where they are.
 | `sdd-plan` | `Status: approved` | `sdd-dev` |
 | `sdd-dev` | tests and linter passing | with a task id, `/dev-setup:sdd <id>`: it resumes at closure (gates, commit, merge request) from what is on disk. Without one, `verify` |
 | `verify` | `pass`, or `pass-with-warnings` confirmed | `review` |
-| `review` | `pass` or `pass-with-warnings` | the commit and the merge request through `vcs-ops` |
+| `review` | `pass` or `pass-with-warnings` | `beowulf`, which distills the branch for whoever reviews it |
+| `beowulf` | the document written | the commit and the merge request through `vcs-ops` |
 
 From `sdd-dev` on, a task id means the work belongs to a tracked task: the
 resume through `sdd` is preferred because closure also moves the task and stops
-its clock. The manual `verify` → `review` → `vcs-ops` path is for work with no
-task behind it.
+its clock. The manual `verify` → `review` → `beowulf` → `vcs-ops` path is for
+work with no task behind it.

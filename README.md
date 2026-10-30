@@ -244,7 +244,7 @@ cp -R dist/dev-setup "${TMPDIR:-/tmp}/dev-setup-next"
 jq '.name = "dev-setup-next"' "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json" > "${TMPDIR:-/tmp}/plugin.json" \
   && mv "${TMPDIR:-/tmp}/plugin.json" "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json"
 
-# Smoke test, no model turn: the mod prints the catalogue of the six commands
+# Smoke test, no model turn: the mod prints the catalogue of the commands
 claude -p --plugin-dir "${TMPDIR:-/tmp}/dev-setup-next" "/dev-setup"
 
 # The real thing, from a project of yours or a throwaway one
@@ -298,7 +298,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 
 ## Skills the dev-setup plugin distributes
 
-### The six commands
+### The commands
 
 ```
 /dev-setup:setup      ← one-off, project bootstrap
@@ -311,6 +311,9 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
        │                 /dev-setup:multi-sdd for up to five of those at once)
        ▼
 /dev-setup:review     ← code review against the project rules
+       │
+       ▼
+/dev-setup:beowulf    ← the branch distilled for whoever reviews it
 ```
 
 | Command | Description |
@@ -321,6 +324,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd-run.js`) writes the spec, has three reviewers improve it against the project architecture, develops in an isolated worktree and runs the project real quality commands. It returns `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
 | `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |
 | `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
+| `/dev-setup:beowulf` | Distills the branch for a reader who did not follow the work — what changed, the high-risk points with permalinks, the decisions and their source, what to try by hand. A local document, never committed; with `--comment`, one merge request comment kept up to date |
 
 **Which of the two dev flows.** At most three files, and no new component,
 dependency or public interface → `quick`. Everything else → `sdd`, whose spec is

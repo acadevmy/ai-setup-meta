@@ -103,6 +103,7 @@ own; there is nothing to invoke by hand.
 | `/dev-setup:auto-sdd [TASK_ID]` | Autonomous Spec-Driven Development: a background workflow takes the task to a review-ready MR/PR — it never stops to ask: what it decided on the task's behalf is at the top of the MR |
 | `/dev-setup:multi-sdd` | The autonomous flow on up to five tasks from one session: a pre-flight for the business decisions, then one background run per task in its own worktree |
 | `/dev-setup:review` | Code review of the current branch; updates `REGISTRY.md` |
+| `/dev-setup:beowulf` | Distill the current branch for whoever reviews it: a local document, and on request one merge request comment |
 
 > `/dev-setup:sdd` stops at launch (the fork point, how far the run goes, and
 > the task or the backlog gate when they apply), at the discovery questions

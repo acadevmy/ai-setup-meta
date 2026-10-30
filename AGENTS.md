@@ -551,15 +551,15 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `clickup-contract.md` | How to call the `clickup` agent: intents, parameters, result format, list-id resolution, the bail-out call |
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
 | `fork-point.md` | The one fork-point question: how each flow resolves the default, the shape of the ask, what the answer binds, and where it is deliberately not asked. Cited by `sdd`, `auto-sdd` and `multi-sdd` |
-| `hand-off.md` | What a sub-skill invoked on its own does when it finishes: one question naming the next step of the SDD chain, then that step in the same turn. Cited by `sdd-discovery`, `sdd-spec`, `sdd-plan`, `sdd-dev`, `verify` and `review` |
+| `hand-off.md` | What a sub-skill invoked on its own does when it finishes: one question naming the next step of the SDD chain, then that step in the same turn. Cited by `sdd-discovery`, `sdd-spec`, `sdd-plan`, `sdd-dev`, `verify` and `review`; `beowulf` follows the same rule |
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
-**The public surface is six commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
-`multi-sdd`, `review` — plus two headless ones, `auto-dev-select` and
+**The public surface is the command table of the generated `AGENTS.md`** —
+`setup`, `quick`, `sdd`, `auto-sdd`, `multi-sdd`, `review`, `beowulf` — plus two headless ones, `auto-dev-select` and
 `auto-dev`, which a job runner starts inside `claude -p` and no developer types.
 They are user-invocable because `claude -p` starts them by name, and they stay
-out of the generated `AGENTS.md`, whose command table the suite pins to the six:
+out of the generated `AGENTS.md`, whose command table the suite pins to that list:
 every session of every project would otherwise pay to describe them. One
 optional command stays out of it for the same reason: `devcontainer`, which
 writes and verifies the root `.devcontainer/` the job runner builds before
@@ -571,6 +571,10 @@ and it is not a step of `setup`. Everything else in the chain (`sdd-discovery`, 
 readable. A skill that opens a PR or writes into a project also carries
 `disable-model-invocation: true` — a flow with outward-facing side effects is
 started by a person, not inferred.
+`beowulf` is the exception, on purpose: it writes only an untracked file under
+the git common dir, so the chain reaches it after `review` without a person
+typing it, and its one outward step — the merge request comment — is opt-in
+and behind the `ask` rule on `gh api` / `glab api` writes.
 
 `quick` is the fifth because ceremony has to be proportional (DE-16480): at most
 three files and no new component, dependency or public interface goes branch →
@@ -924,7 +928,7 @@ of these five should have grown a section instead.
 | Page | Answers |
 |---|---|
 | `docs/onboarding.md` | "I have never used this." Install → configure → first task, capped at one page by a test |
-| `docs/developer-guide.md` | "How do I work with it?" The six commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
+| `docs/developer-guide.md` | "How do I work with it?" The commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
 | `docs/migration-v2-to-v3.md` | "What broke?" Every breaking change of the chain, and the UPDATE procedure |
 | `docs/training.md` | "Why is it like this?" Facilitator material: the mental model and three live demos |
 | `docs/workflow.md` | "How do I change the plugin?" Branching, CI, releases |
@@ -1001,4 +1005,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.38.0 — bump the version number on every substantial change*
+*Version: 2.39.0 — bump the version number on every substantial change*
