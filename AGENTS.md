@@ -574,8 +574,12 @@ readable. A skill that opens a PR or writes into a project also carries
 started by a person, not inferred.
 `beowulf` is the exception, on purpose: it writes only an untracked file under
 the git common dir, so the chain reaches it after `review` without a person
-typing it, and its one outward step — the merge request comment — is opt-in
-and behind the `ask` rule on `gh api` / `glab api` writes.
+typing it, and its one outward step — a distill section appended to the merge
+request description, between markers, after the filled template and never in
+its place — is opt-in and behind the `ask` rule on `gh api` / `glab api` writes.
+It gives no score and no merge verdict: an automatic merge, if it ever comes, is
+a CI check over deterministic signals, not a number a model writes into a
+description.
 
 `quick` is the fifth because ceremony has to be proportional (DE-16480): at most
 three files and no new component, dependency or public interface goes branch →
@@ -1006,4 +1010,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.41.0 — bump the version number on every substantial change*
+*Version: 2.42.0 — bump the version number on every substantial change*

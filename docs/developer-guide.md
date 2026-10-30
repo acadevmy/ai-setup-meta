@@ -54,7 +54,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
 | `/dev-setup:multi-sdd` | Several independent tasks, unsupervised, from one chat | `/dev-setup:multi-sdd DE-1 DE-2 DE-3`<br>`/dev-setup:multi-sdd --from-sprint 3` |
 | `/dev-setup:review` | A branch is ready and you want it read before the merge request | `/dev-setup:review` |
-| `/dev-setup:beowulf` | Someone who did not follow the work has to understand it: what changed, the risky points, the decisions, what to try by hand | `/dev-setup:beowulf`<br>`/dev-setup:beowulf --comment` |
+| `/dev-setup:beowulf` | Someone who did not follow the work has to understand it: what changed, the risky points, the decisions, what to try by hand | `/dev-setup:beowulf`<br>`/dev-setup:beowulf --description` |
 | `/dev-setup:odyssey` | Several branches have to run side by side, each with its own ports, `.env`, containers and tunnels — or a problem has to be reproduced on one branch or environment | `/dev-setup:odyssey analyze`<br>`/dev-setup:odyssey list` |
 
 Everything else the flows use — discovery, spec, plan, development, verify, the
