@@ -372,6 +372,15 @@ assert_contains "untracked files are included" \
   "untracked.txt"
 rm -f "$SANDBOX/untracked.txt"
 
+# sdd-spec's template writes the status as a `> Status:` line, not as
+# frontmatter: the status has to be read from that form too.
+cp "$SANDBOX/.specs/DE-999-my-work.md" "$WORK_DIR/DE-999-frontmatter.md"
+printf -- '# Spec: My work [DE-999]\n\n> Status: draft\n> Task: DE-999\n\n## Implementation plan\n' \
+  > "$SANDBOX/.specs/DE-999-my-work.md"
+assert_eq "spec status read from the template's > Status: line" \
+  "draft" "$(cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --json 2>/dev/null | jq -r '.SPEC_STATUS')"
+cp "$WORK_DIR/DE-999-frontmatter.md" "$SANDBOX/.specs/DE-999-my-work.md"
+
 # --require-spec must fail loudly when there is no spec.
 (cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --task DE-404 --require-spec --json) >/dev/null 2>&1
 assert_eq "--require-spec exits non-zero without a spec" "1" "$?"
