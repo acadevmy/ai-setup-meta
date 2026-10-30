@@ -126,6 +126,7 @@ fi
 # Convention: .specs/<TASK_ID>-<slug>.md for the spec, with the plan either in
 # the same file or alongside it as <TASK_ID>-<slug>-plan.md. The newest match
 # wins when several exist.
+# Without a task id, the spec whose `> Branch:` line names the current branch.
 
 SPEC=""
 PLAN=""
@@ -138,6 +139,20 @@ if [ -n "$TASK_ID" ] && [ -d "$REPO_ROOT/.specs" ]; then
     -not -name '*-plan.md' 2>/dev/null | LC_ALL=C sort | tail -1)
   PLAN=$(find "$REPO_ROOT/.specs" -maxdepth 1 -name "$TASK_ID-*-plan.md" \
     2>/dev/null | LC_ALL=C sort | tail -1)
+fi
+
+# A branch with no task id — an idea-first entry (`gilgamesh`) — names its spec
+# the other way round: the spec's `> Branch:` header line holds the branch.
+if [ -z "$SPEC" ] && [ -n "$BRANCH" ] && [ -d "$REPO_ROOT/.specs" ]; then
+  for CANDIDATE in "$REPO_ROOT"/.specs/*.md; do
+    [ -f "$CANDIDATE" ] || continue
+    HEADER_BRANCH=$(sed -n '1,20s/^>[[:space:]]*Branch:[[:space:]]*//p' "$CANDIDATE" | head -1)
+    HEADER_BRANCH=${HEADER_BRANCH#\`}
+    HEADER_BRANCH=${HEADER_BRANCH%%[\` ]*}
+    if [ "$HEADER_BRANCH" = "$BRANCH" ]; then
+      SPEC="$CANDIDATE"
+    fi
+  done
 fi
 
 if [ -n "$SPEC" ] && [ -f "$SPEC" ]; then

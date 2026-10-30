@@ -305,6 +305,8 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
        │
        ├── /dev-setup:quick   ← fix or chore: branch, change, commit, PR
        │
+       ├── /dev-setup:gilgamesh ← an idea with no task: discovery, branch, spec, then the chain
+       │
        ▼
 /dev-setup:sdd        ← the whole flow, with one approval checkpoint
        │                (or /dev-setup:auto-sdd for the same flow unsupervised,
@@ -320,6 +322,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 |---|---|
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
 | `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
+| `/dev-setup:gilgamesh` | Idea-first entry, with no task on the board: a light discovery from what the conversation already knows, a classification (type, single or release branch, development or hotfix), the fork point and the branch, then `quick` under its bar or `sdd-spec` → `sdd-plan` → `sdd-dev` and the rest of the chain |
 | `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify ∥ review on one diff package → one commit → PR |
 | `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd-run.js`) writes the spec, has three reviewers improve it against the project architecture, develops in an isolated worktree and runs the project real quality commands. It returns `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
 | `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |

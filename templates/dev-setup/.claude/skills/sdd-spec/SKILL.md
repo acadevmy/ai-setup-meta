@@ -54,7 +54,8 @@ mkdir -p .specs
 ```
 
 `<slug>` is a short kebab-case form of the task title. Fill in every section of
-`reference/spec-template.md`.
+`reference/spec-template.md`. With no task id (a `gilgamesh` entry) the file is
+`.specs/<slug>.md` and `> Branch:` names the branch: the scripts find it there.
 
 ### 5. Show it
 

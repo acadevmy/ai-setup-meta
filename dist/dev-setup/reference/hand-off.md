@@ -32,6 +32,7 @@ push and merge request creation, stay where they are.
 
 | Ends | On | Next |
 |---|---|---|
+| `gilgamesh` | a spec in `draft` | `sdd-plan`; under `quick`'s bar it ends on `Next: /dev-setup:quick <description>` instead |
 | `sdd-discovery` | the Discovery Summary | `sdd-spec` |
 | `sdd-spec` | a spec in `draft` | `sdd-plan` |
 | `sdd-plan` | `Status: approved` | `sdd-dev` |

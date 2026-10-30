@@ -556,7 +556,8 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
 **The public surface is the command table of the generated `AGENTS.md`** —
-`setup`, `quick`, `sdd`, `auto-sdd`, `multi-sdd`, `review`, `beowulf` — plus two headless ones, `auto-dev-select` and
+`setup`, `quick`, `gilgamesh`, `sdd`, `auto-sdd`, `multi-sdd`, `review`,
+`beowulf` — plus two headless ones, `auto-dev-select` and
 `auto-dev`, which a job runner starts inside `claude -p` and no developer types.
 They are user-invocable because `claude -p` starts them by name, and they stay
 out of the generated `AGENTS.md`, whose command table the suite pins to that list:
@@ -1005,4 +1006,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.39.0 — bump the version number on every substantial change*
+*Version: 2.40.0 — bump the version number on every substantial change*

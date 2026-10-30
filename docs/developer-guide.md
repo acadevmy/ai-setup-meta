@@ -32,6 +32,8 @@ document. [training.md](./training.md) is the long version of that sentence.
        │
        ├── /dev-setup:quick     ← a fix or chore: branch, change, commit, MR
        │
+       ├── /dev-setup:gilgamesh ← an idea with no task: discovery, branch, spec, then the chain
+       │
        ▼
 /dev-setup:sdd        ← the full flow, with one approval
        │                (/dev-setup:auto-sdd for the same flow unsupervised,
@@ -47,6 +49,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 |---|---|---|
 | `/dev-setup:setup` | Configuring a project for the first time, or pulling in a new plugin version | `/dev-setup:setup` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
+| `/dev-setup:gilgamesh` | The work is an idea already discussed in the conversation, with no task on the board: it classifies it, cuts the branch and writes the spec, then hands over to the chain | `/dev-setup:gilgamesh add date filtering to the search page` |
 | `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
 | `/dev-setup:multi-sdd` | Several independent tasks, unsupervised, from one chat | `/dev-setup:multi-sdd DE-1 DE-2 DE-3`<br>`/dev-setup:multi-sdd --from-sprint 3` |
