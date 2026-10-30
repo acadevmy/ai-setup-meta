@@ -28,6 +28,15 @@ their own, migrations to coordinate, changes that break compatibility between
 apps or services, several people or agents on one goal, a discovery that does
 not close in two calls.
 
+**How a release reaches the development branch.** First through whatever
+acceptance the project runs on it — a staging deploy and QA, typically. Only
+after that sign-off does it enter the development branch, and **only through
+its own promotion merge request, merged by a person**. The agent never merges
+a release into the development branch — not through that merge request, not
+any other way, not even when told the acceptance passed: at most it prepares
+the merge request and says the sign-off is needed. Say so when proposing a
+release.
+
 ## 3. Destination — where it lands
 
 | Destination | When | Fork point |
