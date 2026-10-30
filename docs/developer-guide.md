@@ -13,7 +13,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ## Index
 
-- [1. The six commands](#1-the-six-commands)
+- [1. The commands](#1-the-commands)
 - [2. A task, end to end](#2-a-task-end-to-end)
 - [3. The rules, and when each one loads](#3-the-rules-and-when-each-one-loads)
 - [4. The sandbox and the ask rules](#4-the-sandbox-and-the-ask-rules)
@@ -25,7 +25,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ---
 
-## 1. The six commands
+## 1. The commands
 
 ```
 /dev-setup:setup      ← one-off, per project
@@ -38,6 +38,9 @@ document. [training.md](./training.md) is the long version of that sentence.
        │                 /dev-setup:multi-sdd for up to five of those at once)
        ▼
 /dev-setup:review     ← code review against the project rules
+       │
+       ▼
+/dev-setup:beowulf    ← the branch distilled for whoever reviews it
 ```
 
 | Command | Use it when | Example |
@@ -48,6 +51,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
 | `/dev-setup:multi-sdd` | Several independent tasks, unsupervised, from one chat | `/dev-setup:multi-sdd DE-1 DE-2 DE-3`<br>`/dev-setup:multi-sdd --from-sprint 3` |
 | `/dev-setup:review` | A branch is ready and you want it read before the merge request | `/dev-setup:review` |
+| `/dev-setup:beowulf` | Someone who did not follow the work has to understand it: what changed, the risky points, the decisions, what to try by hand | `/dev-setup:beowulf`<br>`/dev-setup:beowulf --description` |
 
 Everything else the flows use — discovery, spec, plan, development, verify, the
 board conventions, the git conventions — is a skill the orchestrator invokes by
@@ -57,7 +61,7 @@ entry point.
 **When one of them runs on its own.** Claude can still pick one up from a plain
 request — "write the spec for this", "verify the branch". Run that way, each one
 ends by offering the next step of the chain (discovery → spec → approval →
-development → verify → review → merge request) and, on a yes, carries on in the
+development → verify → review → distill → merge request) and, on a yes, carries on in the
 same turn. With a task id, development ends on the `/dev-setup:sdd <id>` command
 to type, which resumes at closure. Inside a flow nothing changes: the flow decides what follows.
 
@@ -85,7 +89,7 @@ state of the work without spending a model turn:
   phase with the phase in progress at full strength, and the cost so far; past
   70% of context, a yellow warning before a long phase compacts it;
 - **`/dev-setup`** — a pane with one tab per view (`1`–`6` switch, `r` reloads,
-  `Esc` closes). With no argument, the six commands with when to use each and
+  `Esc` closes). With no argument, the commands with when to use each and
   what each takes, and a `use` button that puts one in the prompt. `/dev-setup
   clock` (one card per open clock — total, current interval, earlier ones, the
   branch's own task marked — and the clocks stopped in the last five minutes),
