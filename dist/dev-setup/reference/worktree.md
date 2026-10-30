@@ -67,7 +67,9 @@ to it rather than copying files by hand.
 
 It is not processed when a `WorktreeCreate` hook is configured, because the hook
 replaces worktree creation wholesale. That is the reason this plugin ships no
-such hook.
+such hook. A project can still opt into one through `odyssey`, for agents that
+each need a running instance: its generated script then creates the worktree
+and copies what `.worktreeinclude` would have.
 
 ## Dependencies
 

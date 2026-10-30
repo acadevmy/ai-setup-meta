@@ -328,6 +328,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |
 | `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
 | `/dev-setup:beowulf` | Distills the branch for a reader who did not follow the work — what changed, the high-risk points with permalinks, the decisions and their source, what to try by hand. A local document, never committed; on request, a section appended to the merge request description and kept up to date |
+| `/dev-setup:odyssey` | Parallel worktrees, each with its own ports, `.env`, compose project and tunnels (outbound port-forwards, an inbound cloudflared URL). The first run reports what keeps the project from running twice and, on a yes, generates a project-local script from a template; the developer runs what the sandbox stops (`new`, tunnels) |
 
 **Which of the two dev flows.** At most three files, and no new component,
 dependency or public interface → `quick`. Everything else → `sdd`, whose spec is
