@@ -29,7 +29,8 @@
 #   MERGE_BASE      the commit the branch forked from — the diff anchor
 #   BRANCH          the current branch
 #   TASK_ID         the task id in use, or ""
-#   SPEC_STATUS     the spec's frontmatter status (draft|approved|implemented), or ""
+#   SPEC_STATUS     the spec's status (draft|approved|implemented), from a
+#                   frontmatter `status:` or the template's `> Status:` line, or ""
 
 set -uo pipefail
 
@@ -141,9 +142,10 @@ if [ -n "$TASK_ID" ] && [ -d "$REPO_ROOT/.specs" ]; then
 fi
 
 if [ -n "$SPEC" ] && [ -f "$SPEC" ]; then
-  # Frontmatter status, read from the first 20 lines only.
+  # Status from the first 20 lines only: a frontmatter `status:` or the
+  # `> Status:` line sdd-spec's template writes in the header block.
   SPEC_STATUS=$(sed -n '1,20p' "$SPEC" \
-    | sed -n 's/^status:[[:space:]]*\([a-zA-Z-]\{1,\}\).*/\1/p' | head -1)
+    | sed -n 's/^\(>[[:space:]]*\)\{0,1\}[Ss]tatus:[[:space:]]*\([a-zA-Z-]\{1,\}\).*/\2/p' | head -1)
   # A spec holding its own "## Implementation plan" section is its own plan.
   if [ -z "$PLAN" ] && grep -qi '^## *\(implementation \)\?plan' "$SPEC" 2>/dev/null; then
     PLAN="$SPEC"
