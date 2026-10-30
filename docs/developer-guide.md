@@ -62,8 +62,8 @@ entry point.
 request — "write the spec for this", "verify the branch". Run that way, each one
 ends by offering the next step of the chain (discovery → spec → approval →
 development → verify → review → distill → merge request) and, on a yes, carries on in the
-same turn. With a task id, development hands over to `/dev-setup:sdd <id>`, which
-resumes at closure. Inside a flow nothing changes: the flow decides what follows.
+same turn. With a task id, development ends on the `/dev-setup:sdd <id>` command
+to type, which resumes at closure. Inside a flow nothing changes: the flow decides what follows.
 
 **Picking between `quick` and `sdd`.** The bar is three files and no new
 component, dependency or public interface. Claude may say a task looks

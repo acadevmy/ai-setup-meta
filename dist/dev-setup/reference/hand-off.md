@@ -24,6 +24,11 @@ approval is not handed off: show what has to change and end there.
    already in the conversation — the task, the spec path, the result. Do not
    ask again for what the previous step already established.
 
+**A command only a person starts.** `sdd` and `quick` carry
+`disable-model-invocation: true`, so the model cannot invoke them. When one of
+them is the next step there is no question: end with a `Next:` line and the
+exact command to type — the same last line `sdd`'s stop points end on.
+
 The question is the only checkpoint the hand-off adds. It replaces none of the
 existing ones: the spec approval in `sdd-plan`, and the `ask` rules on commit,
 push and merge request creation, stay where they are.
@@ -35,7 +40,7 @@ push and merge request creation, stay where they are.
 | `sdd-discovery` | the Discovery Summary | `sdd-spec` |
 | `sdd-spec` | a spec in `draft` | `sdd-plan` |
 | `sdd-plan` | `Status: approved` | `sdd-dev` |
-| `sdd-dev` | tests and linter passing | with a task id, `/dev-setup:sdd <id>`: it resumes at closure (gates, commit, merge request) from what is on disk. Without one, `verify` |
+| `sdd-dev` | tests and linter passing | with a task id, `Next: /dev-setup:sdd <id>` — it resumes at closure (gates, commit, merge request) from what is on disk. Without one, `verify` |
 | `verify` | `pass`, or `pass-with-warnings` confirmed | `review` |
 | `review` | `pass` or `pass-with-warnings` | `beowulf`, which distills the branch for whoever reviews it |
 | `beowulf` | the document written | the commit and the merge request through `vcs-ops` |
