@@ -92,12 +92,14 @@ own; there is nothing to invoke by hand.
 | **code-reviewer** | Isolated code review against the project rules. Proposes REGISTRY updates; does not modify files directly. |
 | **spec-verifier** | Checks the branch's diff against its approved spec: every requirement covered, every planned test present, the Impact list respected. |
 | **finding-validator** | Re-checks every blocking finding of a review against the cited file, line and rule, and drops the ones the code does not support. |
+| **story-reviewer** | Reviews drafted user stories and epics against INVEST, the writing rules and `product.md`, and returns proposals without editing anything. |
 
 ## Workflows
 
 | Command | When to use |
 |---|---|
 | `/dev-setup:setup` | Re-run the setup: refresh the generated rules and files from the current plugin |
+| `/dev-setup:story` | (Beta) A user story, or an epic with its stories, from a short description and optional Figma links, checked against INVEST and `product.md`, published to ClickUp once you approve it |
 | `/dev-setup:quick` | A fix or chore touching at most three files, with no new component, dependency or public interface: branch, change, commit behind the gate, merge request — no spec |
 | `/dev-setup:sdd [TASK_ID]` | Interactive Spec-Driven Development for everything above that bar: discovery, a spec you approve, development, gates, merge request |
 | `/dev-setup:auto-sdd [TASK_ID]` | Autonomous Spec-Driven Development: a background workflow takes the task to a review-ready MR/PR — it never stops to ask: what it decided on the task's behalf is at the top of the MR |

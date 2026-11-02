@@ -244,7 +244,7 @@ cp -R dist/dev-setup "${TMPDIR:-/tmp}/dev-setup-next"
 jq '.name = "dev-setup-next"' "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json" > "${TMPDIR:-/tmp}/plugin.json" \
   && mv "${TMPDIR:-/tmp}/plugin.json" "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json"
 
-# Smoke test, no model turn: the mod prints the catalogue of the six commands
+# Smoke test, no model turn: the mod prints the catalogue of the seven commands
 claude -p --plugin-dir "${TMPDIR:-/tmp}/dev-setup-next" "/dev-setup"
 
 # The real thing, from a project of yours or a throwaway one
@@ -298,10 +298,12 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 
 ## Skills the dev-setup plugin distributes
 
-### The six commands
+### The seven commands
 
 ```
 /dev-setup:setup      ← one-off, project bootstrap
+       │
+/dev-setup:story      ← (beta) writes the story (or the epic) on ClickUp, from product.md
        │
        ├── /dev-setup:quick   ← fix or chore: branch, change, commit, PR
        │
@@ -316,6 +318,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | Command | Description |
 |---|---|
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
+| `/dev-setup:story` (beta) | Writes a user story — or an epic with its stories — from a short description and Figma links, against INVEST and the project's `product.md`; drafts in `.stories/`, creates on ClickUp after the developer's approval |
 | `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
 | `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify ∥ review on one diff package → one commit → PR |
 | `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd-run.js`) writes the spec, has three reviewers improve it against the project architecture, develops in an isolated worktree and runs the project real quality commands. It returns `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |

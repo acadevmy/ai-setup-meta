@@ -31,6 +31,14 @@ must be verifiable.>
 - REQ-1: <requirement>
 - REQ-2: <requirement>
 
+<When the task is a story (`FORMAT: story`), each Gherkin scenario is one REQ,
+in the story's order, named after it and keeping its wording:
+`REQ-1 (scenario "archiving fails"): when the archiving fails, the manager is
+told and can edit the path again`. Its test in the Test strategy is that
+scenario. A REQ that comes from no scenario — a constraint from the discovery —
+follows them, and says where it comes from. Never merge two scenarios into one
+REQ, never drop one: the scenarios are what the reviewer of the task approved.>
+
 ## Technical decisions
 <Architectural and technical decisions for this implementation: chosen approach,
 patterns, libraries, and why. Reference the patterns already in REGISTRY.md
