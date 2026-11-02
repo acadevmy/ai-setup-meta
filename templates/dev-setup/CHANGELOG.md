@@ -6,6 +6,28 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.3.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.2.0...dev-setup-v4.3.0) (2026-11-02)
+
+
+### Features
+
+* **clickup:** Typed create, parent, tags and task links ([e3327b8](https://github.com/acadevmy/ai-setup-meta/commit/e3327b8fc2549293aa847591f54f22ce589cadb4))
+* **sdd:** Read the story format ([aa9058a](https://github.com/acadevmy/ai-setup-meta/commit/aa9058ae6b396e2814d93706c49de619850a7b1e))
+* **setup:** ClickUp creates, updates and links no longer ask ([e806bbd](https://github.com/acadevmy/ai-setup-meta/commit/e806bbd812bc1c62ce050e7878ab715c1713379a))
+* **setup:** Product.md from ClickUp Doc, Drive, file or interview ([0e9fd8e](https://github.com/acadevmy/ai-setup-meta/commit/0e9fd8e2649809c4818881a39fc76ae7ea2e21dd))
+* **story:** Port the user-story-writer refinements made after the snapshot ([#155](https://github.com/acadevmy/ai-setup-meta/issues/155)) ([240f22b](https://github.com/acadevmy/ai-setup-meta/commit/240f22b227d743b6cf9f8af9983f780a9c391d86))
+* **story:** User stories and epics on ClickUp with /dev-setup:story (beta) ([62e294e](https://github.com/acadevmy/ai-setup-meta/commit/62e294ec555426ad651d8b2fb21ded266ec80f95))
+* **story:** Write a user story or an epic with its stories ([e34245b](https://github.com/acadevmy/ai-setup-meta/commit/e34245b03a5b490823015bfc75f65b9830a07a8c))
+* **story:** Write the story map as a ClickUp Doc page on --map ([c74825d](https://github.com/acadevmy/ai-setup-meta/commit/c74825d16eb416737d007166273284134396359f))
+
+
+### Bug Fixes
+
+* **setup:** Ask for the backlog status in the auto-dev configuration ([be94e1a](https://github.com/acadevmy/ai-setup-meta/commit/be94e1a4088bfabf4b7e5d01221941fc94e0c0c1))
+* **story:** Align the story command with next's surface and setup checks ([93995e6](https://github.com/acadevmy/ai-setup-meta/commit/93995e6eb23ad13bae9458eae6cd19bb55729286))
+* **story:** Product context first, similar stories, a frame per story ([a8aa804](https://github.com/acadevmy/ai-setup-meta/commit/a8aa804e8e6da78d324d82cdf90f2305540f71c1))
+* **story:** Ship the story-reviewer agent and keep the skills in budget ([f29649a](https://github.com/acadevmy/ai-setup-meta/commit/f29649a485013edbdd5fa014d8c4028d1dab9eec))
+
 ## [4.2.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.1.1...dev-setup-v4.2.0) (2026-10-29)
 
 
