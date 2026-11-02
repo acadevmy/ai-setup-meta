@@ -14,8 +14,9 @@ draft.
 ## Example 1 — a structured brief becomes an epic
 
 **What it teaches:** splitting a whole lifecycle with Operations and
-Variations in Data, isolating the view from the actions, and keeping the
-business rules of each role in scenarios rather than in stories per role.
+Variations in Data, isolating the view from the actions, keeping the
+business rules of each role in scenarios rather than in stories per role, and
+writing an asynchronous action as one cycle per outcome.
 
 **The request.** A brief for a learning platform: paths and units that are
 deleted should go to a trash bin, from which they can be restored or deleted
@@ -91,7 +92,9 @@ An archived path disappears from the catalogue and from every form that lets you
 **Scenario:** archiving a path
 **Given** a manager editing a path they are responsible for
 **When** they archive it
-**Then** they are told the path was archived
+**Then** they see the loading indicator and cannot edit the path meanwhile
+**And** once processing ends the indicator disappears
+**And** they are told the path was archived
 **And** the path no longer appears in the catalogue, in its units or in any path selection
 
 **Scenario:** a role that may not archive
@@ -99,17 +102,14 @@ An archived path disappears from the catalogue and from every form that lets you
 **When** they look for a way to delete it
 **Then** archiving is not available to them
 
-**Scenario:** archiving in progress
-**Given** a manager who asked to archive a path
-**When** the archiving is still running
-**Then** they see that it is in progress
-**And** they cannot edit the path meanwhile
-
 **Scenario:** archiving fails
-**Given** a manager who asked to archive a path
-**When** the archiving fails
-**Then** they are told it failed
-**And** they can edit the path again
+**Given** a manager editing a path they are responsible for
+**And** the system cannot archive it
+**When** they archive it
+**Then** they see the loading indicator and cannot edit the path meanwhile
+**And** once the attempt ends the indicator disappears
+**And** they are told it failed
+**And** they can edit the path again, and archiving is available again
 
 **Additional Notes**
 - Paths with active enrolments are a separate story: archiving them needs a warning first
@@ -119,8 +119,8 @@ The other five, listed in release order with the pattern that produced each:
 
 - `US [US-02] Archive a unit` — Variations in Data: editors may archive units, not paths.
 - `US [US-03] Archive a path with active enrolments` — Business Rule Variations: the warning and its refusal, for managers and administrators only; blocked by "Archive a path".
-- `US [US-04] Browse the trash bin` — Operations, the read side: the list filtered by role, with its empty, loading and error states.
-- `US [US-05] Restore an archived item` — Operations: restoring brings a unit's path relation back; blocked by "Browse the trash bin".
+- `US [US-04] Browse the trash bin` — Operations, the read side: the list filtered by role, each outcome (the list, the empty bin, the loading error with its retry action) through the loading cycle, plus one retry scenario. Only the list: nothing about a single archived item beyond its row.
+- `US [US-05] Restore an archived item` — Operations: restoring brings a unit's path relation back; blocked by "Browse the trash bin", the real dependency of an action on the list it starts from.
 - `US [US-06] Delete an archived item for good` — Operations: an irreversibility warning first; blocked by "Browse the trash bin".
 
 ## Example 2 — an architectural request: ask first
@@ -169,7 +169,9 @@ Any visitor, signed in or not, can leave their email in the homepage section and
 **Scenario:** signing up
 **Given** a visitor on the homepage
 **When** they sign up with a valid email
-**Then** they are told the sign-up succeeded
+**Then** they see the loading indicator and cannot submit twice
+**And** once processing ends the indicator disappears
+**And** they are told the sign-up succeeded
 
 **Scenario:** an invalid email
 **Given** a visitor on the homepage
@@ -177,15 +179,14 @@ Any visitor, signed in or not, can leave their email in the homepage section and
 **Then** they are told the email is not valid
 **And** nothing is sent
 
-**Scenario:** sign-up in progress
-**Given** a visitor who submitted their email
-**When** the sign-up is still running
-**Then** they see that it is in progress and cannot submit it twice
-
 **Scenario:** sign-up fails
-**Given** a visitor who submitted their email
-**When** the sign-up fails
-**Then** they are told it failed and can try again
+**Given** a visitor on the homepage
+**And** the system cannot register the sign-up
+**When** they sign up with a valid email
+**Then** they see the loading indicator and cannot submit twice
+**And** once the attempt ends the indicator disappears
+**And** they are told it failed
+**And** the sign-up is available again, with their email still there
 
 **Additional Notes**
 - The integration follows a provider/adapter design: no vendor logic in the core, one adapter per provider, Mailchimp first
@@ -241,11 +242,6 @@ A visitor on a sold-out or coming-soon product page becomes a profiled lead in t
 **When** they submit it without accepting the privacy policy
 **Then** the submission is refused and they are told why
 
-**Scenario:** submission in progress
-**Given** a visitor with valid data
-**When** they submit the box
-**Then** they see it is in progress and cannot edit the fields
-
 **Scenario:** the product reaches the marketing audience
 **Given** a submission in progress
 **When** the interest is recorded
@@ -262,9 +258,20 @@ A visitor on a sold-out or coming-soon product page becomes a profiled lead in t
 **Then** the existing contact gains the new product's tag and keeps the previous ones
 
 **Scenario:** success
-**Given** a submission
-**When** the sign-up is confirmed
-**Then** the box is replaced by a thank-you message
+**Given** a visitor with valid data
+**When** they submit the box
+**Then** they see the loading indicator and cannot edit the fields
+**And** once processing ends the indicator disappears
+**And** the box is replaced by a thank-you message
+
+**Scenario:** the submission fails
+**Given** a visitor with valid data
+**And** the system cannot record the interest
+**When** they submit the box
+**Then** they see the loading indicator and cannot edit the fields
+**And** once the attempt ends the indicator disappears
+**And** they are told it failed
+**And** the fields are editable again and the submission is available again
 
 **Additional Notes**
 - Provider: Mailchimp, audience "Newsletter"; the product data travels as merge tags

@@ -11,6 +11,7 @@ bold keywords — not a `.feature` file; the rules are the same.
 - [Keywords](#keywords)
 - [Given, When, Then](#given-when-then)
 - [A good scenario](#a-good-scenario)
+- [Asynchronous operations](#asynchronous-operations)
 - [Many scenarios for data variants](#many-scenarios-for-data-variants)
 
 ## Why scenarios
@@ -49,7 +50,8 @@ working, valuable software; tests and documentation are side effects.
 ## A good scenario
 
 - **One behaviour**, ideally one `When`.
-- **Concise**: three to five steps. More usually means mixed behaviours.
+- **Concise**: three to five steps. More usually means mixed behaviours —
+  except the wait of an asynchronous operation, below.
 - **Declarative, not imperative**: what the user wants to achieve, not the
   mechanical steps.
 - **No UI mechanics**: no "clicks", "fills in the field", "presses the
@@ -73,6 +75,98 @@ Declarative — prefer:
 **When** I sign in with valid credentials
 **Then** I land in my personal area
 ```
+
+## Asynchronous operations
+
+An asynchronous operation — a save, a list that loads, a sync — is written as
+the user lives it: from the trigger to the final outcome, through the wait. A
+scenario that skips the wait ("When they confirm, Then they see the success")
+leaves the developer to decide what to show meanwhile, and the decision is
+often "nothing": the user feels nothing is happening.
+
+- **The whole cycle in every outcome scenario.** Each scenario ending in an
+  outcome — success, error, no data — walks the cycle: trigger, the loading
+  indicator appears, it disappears at the end, the outcome. Never isolate "in
+  progress" in a scenario of its own: the wait is a phase of every behaviour,
+  not a behaviour. The failure goes in the `Given` ("the system cannot…");
+  the `When` stays the user's action.
+- **No explicit wait.** Never "And I wait 5 seconds": the automation framework
+  handles the wait. Use a semantic trigger — "once processing ends", "once the
+  attempt ends".
+- **UI-agnostic.** "Loading indicator", not "spinner" or "skeleton"; "the
+  submission is available again", not "the button turns blue".
+- **Visual reset and interactivity.** The indicator disappears before the
+  outcome is checked. On error, the scenario says how the interface gets
+  ready for another attempt — and the answer depends on the case.
+- **Length.** Error scenarios reach six or seven steps: the admitted exception
+  to three-to-five, because the steps of the wait are phases of one
+  behaviour. There is still one `When`.
+
+**Case 1 — asynchronous action (active trigger).** The user starts the
+operation: confirms a form, saves, deletes, syncs. The command is locked while
+it runs, to prevent double submissions. On failure **no new command
+appears**: the error is shown and the original command is enabled again, with
+the data entered still there.
+
+```markdown
+**Scenario:** the submission succeeds
+**Given** the user has filled in the form
+**When** they confirm the submission
+**Then** they see the loading indicator
+**And** once processing ends the indicator disappears
+**And** they see the success message "Data saved"
+
+**Scenario:** the submission fails
+**Given** the user has filled in the form
+**And** the system cannot save the data
+**When** they confirm the submission
+**Then** they see the loading indicator
+**And** once the attempt ends the indicator disappears
+**And** they see the message "The data could not be saved"
+**And** the submission is available again
+```
+
+**Case 2 — resource loading (passive trigger).** The operation starts by
+itself: a navigation, a page opening, a filter applied. On failure the screen
+is an empty error state: there is no original command to enable again, so **a
+dedicated retry action appears**. No data (the empty state) is a third outcome
+of the same cycle: same indicator, same disappearing, then the empty-state
+message.
+
+```markdown
+**Scenario:** the list loads
+**When** the user opens the "My todos" page
+**Then** they see the loading indicator
+**And** once the data is retrieved the indicator disappears
+**And** they see the list of their todos
+
+**Scenario:** the list fails to load
+**Given** the system cannot retrieve the data
+**When** the user opens the "My todos" page
+**Then** they see the loading indicator
+**And** once the attempt ends the indicator disappears
+**And** they see the message "The data could not be loaded"
+**And** the "Retry" action is available
+```
+
+**Declarative retry.** When the user tries again — confirms again in case 1,
+uses "Retry" in case 2 — **do not rewrite the full flows** "retry and succeed"
+and "retry and fail": success and error are already covered, and repeating
+them doubles the tests without adding a rule. One scenario checks that the
+attempt restarts the cycle.
+
+```markdown
+**Scenario:** retrying restarts the loading
+**Given** the user sees the loading error on the "My todos" page
+**When** they retry the loading
+**Then** the system starts a new attempt
+**And** they see the loading indicator again
+```
+
+For case 1 the scenario is the same, with "Given the user sees the submission
+error" and "When they confirm the submission again". If the second attempt
+behaves differently — a cap on attempts, a different message — that is a new
+business rule and earns its own scenario.
 
 ## Many scenarios for data variants
 

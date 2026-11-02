@@ -20,7 +20,7 @@ Archived paths and units leave the catalogue but stay recoverable; each role res
 - SPIKE [SPIKE-01] Can a restore keep the active enrolments?: the data risk behind restoring
 
 **Release lanes**
-*Release 1 — MVP.* Objective: no deletion is final by accident. Metrics: no support ticket for lost content.
+*Release 1 — No content lost to a wrong click.* A manager archives instead of deleting and can undo it; slicing by outcome. Objective: no deletion is final by accident. Metrics: no support ticket for lost content.
 - EPIC [EPIC-01] Trash bin: US [US-01] Archive a path; US [US-02] Ripristinare un elemento archiviato
 
 **DoR Check**
@@ -29,4 +29,5 @@ Archived paths and units leave the catalogue but stay recoverable; each role res
 - Gravity — archiving comes before restoring, which needs something archived
 - Functional — every step is something a manager does, none is a layer
 - Walking skeleton vs MVP — the spike tests the data risk; the MVP is the two stories
+- Outcome lanes — archiving and restoring are both needed to lose nothing by mistake
 - Elevator pitch — "deleted content waits in a trash bin until someone decides" fits in one breath

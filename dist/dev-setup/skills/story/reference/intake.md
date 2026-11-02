@@ -94,7 +94,9 @@ step 4.
 ## 3. The shape
 
 Count the distinct user activities in the request (search, choose, pay; read
-a list, act on an item). Then decide, as `model.md` says:
+a list, act on an item). A list and the detail of its items are two
+capabilities, so two stories (`writing-rules.md` §4). Then decide, as
+`model.md` says:
 
 - one activity, one INVEST story → a standalone story;
 - one activity, several stories → an Epic with its stories;

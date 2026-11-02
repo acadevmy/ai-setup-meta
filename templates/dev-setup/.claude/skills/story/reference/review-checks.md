@@ -25,13 +25,21 @@ Per **story**:
 1. **INVEST**, letter by letter, with a reason for each — not a tick.
 2. **The persona** is one of `product.md`'s personas or actors, never a
    technical role; **the value** is a benefit, not the action repeated.
-3. **Vertical.** Not a layer, not a piece of engine, no phantom UI. If it
-   would not survive the aliens question, say what is missing.
-4. **Read vs write.** No complex view and transactional action in one story.
+3. **Vertical.** Not a layer, not a piece of engine, no phantom UI — a
+   visible command without its logic, not a list row that does not open yet.
+   If it would not survive the aliens question, say what is missing; a
+   read-only list is complete, not maimed.
+4. **Read vs write, list vs detail.** No complex view and transactional
+   action in one story; no detail behaviour inside a list's story — opening
+   an item from the list belongs to the detail's story.
 5. **Scenarios.** Each one behaviour, declarative, binary, relevant to the
-   "I want" clause; loading, error and empty states for every asynchronous
-   operation; a scenario for the user who may not act, when the product has a
-   permission matrix.
+   "I want" clause — never justified by the "so that" alone; grouped by
+   business capability, not by screen; every asynchronous outcome walks the
+   whole cycle (trigger, indicator, its end, outcome) with the failure in the
+   `Given`, no "in progress" scenario of its own, the right reset on error
+   (the original command for an action, a retry action for a loading) and a
+   single declarative retry scenario; a scenario for the user who may not
+   act, when the product has a permission matrix.
 6. **Language.** The glossary's terms, one per concept; no vague adjectives;
    no application layers; no item cited by id alone.
 7. **Inventions.** Anything stated as fact that neither the request, nor the
@@ -45,10 +53,14 @@ Per **story map**, when there is one: the backbone reads as a story in time,
 with no architecture column; every lane crosses every Epic (no Epic finished
 before another starts); each Epic's stories are in priority order with no tie;
 the walking skeleton holds tasks and spikes only and is not the MVP; every
-line of the DoR Check carries real reasoning, not a tick.
+lane is titled with the outcome it unlocks, never a label like "MVP" or
+"Release 2", and every story in it is strictly necessary to that outcome;
+every line of the DoR Check carries real reasoning, not a tick.
 
 Across the run: no two stories overlap; every `BLOCKED_BY` is a real
-dependency; no story is missing from the flow (walk it as the user would).
+dependency — it follows causality, like a detail on the list that opens it —
+and no real dependency was dodged by duplicating behaviour across stories; no
+story is missing from the flow (walk it as the user would).
 
 ## The result block
 
