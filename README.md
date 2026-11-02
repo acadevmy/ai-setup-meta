@@ -244,7 +244,7 @@ cp -R dist/dev-setup "${TMPDIR:-/tmp}/dev-setup-next"
 jq '.name = "dev-setup-next"' "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json" > "${TMPDIR:-/tmp}/plugin.json" \
   && mv "${TMPDIR:-/tmp}/plugin.json" "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json"
 
-# Smoke test, no model turn: the mod prints the catalogue of the six commands
+# Smoke test, no model turn: the mod prints the catalogue of the seven commands
 claude -p --plugin-dir "${TMPDIR:-/tmp}/dev-setup-next" "/dev-setup"
 
 # The real thing, from a project of yours or a throwaway one

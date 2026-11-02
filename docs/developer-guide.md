@@ -96,7 +96,7 @@ state of the work without spending a model turn:
   phase with the phase in progress at full strength, and the cost so far; past
   70% of context, a yellow warning before a long phase compacts it;
 - **`/dev-setup`** — a pane with one tab per view (`1`–`6` switch, `r` reloads,
-  `Esc` closes). With no argument, the six commands with when to use each and
+  `Esc` closes). With no argument, the seven commands with when to use each and
   what each takes, and a `use` button that puts one in the prompt. `/dev-setup
   clock` (one card per open clock — total, current interval, earlier ones, the
   branch's own task marked — and the clocks stopped in the last five minutes),
