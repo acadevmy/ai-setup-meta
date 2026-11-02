@@ -174,11 +174,11 @@ As a <persona>, I want <overall goal>, so that <value>.
 - TASK [TASK-01] <title>: <…>
 
 **Release lanes**
-*Release 1 — MVP.* Objective: <…>. Metrics: <…>.
+*Release 1 — <the outcome it unlocks>.* <what the user gets, and the slicing pattern that drew the line>. Objective: <…>. Metrics: <…>.
 - EPIC [EPIC-01] <title>: US [US-01] <title>; US [US-02] <title>
 - EPIC [EPIC-02] <title>: US [US-03] <title>
 
-*Release 2 — <name>.* Objective: <…>.
+*Release 2 — <the outcome it unlocks>.* <…>. Objective: <…>.
 - EPIC [EPIC-01] <title>: US [US-04] <title>
 
 **DoR Check**
@@ -187,13 +187,16 @@ As a <persona>, I want <overall goal>, so that <value>.
 - Gravity — <each epic's stories are in priority order, no ties>
 - Functional — <the map describes the experience, not the system>
 - Walking skeleton vs MVP — <how they differ here>
+- Outcome lanes — <each lane titled with its outcome, every story in it strictly necessary to it>
 - Elevator pitch — <the base product explained in under sixty seconds>
 ```
 
 Every Epic of the run is a column of the backbone; every story sits in a
 lane, under its Epic, in priority order; the walking skeleton lists tasks and
-spikes, never stories. The number of lanes is whatever the plan needs. The
-lanes live here only: no tag or field on the tasks repeats them.
+spikes, never stories. The number of lanes is whatever the plan needs, and
+each is titled with its outcome — never "MVP", "Enhancements", "Delight" or a
+bare number (`story-mapping.md`). The lanes live here only: no tag or field
+on the tasks repeats them.
 
 ## The optional sections
 

@@ -17,6 +17,12 @@
 # skeleton holds tasks and spikes only. English and Italian keywords are both
 # accepted.
 #
+# Warned, not refused: one scenario, or over five; a scenario over five steps
+# (six or seven are allowed when it walks a loading cycle, the wait being a
+# phase of the one behaviour); a release lane titled with a label ("MVP",
+# "Enhancements", "v1.0") instead of the outcome it unlocks; a DoR Check short
+# of its seven lines.
+#
 # Usage:
 #   validate-story.sh [--json] <draft.md | folder>…
 #
@@ -99,7 +105,8 @@ check_file() {
         if (whens != 1) err("scenario \"" scen "\" has " whens " When steps (exactly one)")
         if (givens == 0) err("scenario \"" scen "\" has no Given step")
         if (thens == 0) err("scenario \"" scen "\" has no Then step")
-        if (steps > 5) warn("scenario \"" scen "\" has " steps " steps (three to five read best)")
+        if (steps > 7 || (steps > 5 && !loading))
+          warn("scenario \"" scen "\" has " steps " steps (three to five read best; up to seven when it walks a loading cycle)")
       }
       in_scen = 0
     }
@@ -210,6 +217,12 @@ check_file() {
         rest = substr(rest, RSTART + RLENGTH)
       }
       if (bsection == "DoR Check" && line ~ /^[-*][ \t]+/) dor++
+      # A lane is titled with the outcome it unlocks: a label is no filter.
+      if (bsection == "Release lanes" && line ~ /^\*Release [0-9]+ (-|—|–|:)/) {
+        lane = line; sub(/^\*Release [0-9]+ (-|—|–|:)[ \t]*/, "", lane); sub(/[.*].*$/, "", lane)
+        if (tolower(trim(lane)) ~ /^(mvp|minimum viable product|enhancements?|delight|nice to have|v?[0-9]+(\.[0-9]+)*|release [0-9]+|phase [0-9]+|fase [0-9]+)( \(.*\))?$/)
+          warn("the lane \"" trim(lane) "\" is a label: title it with the outcome it unlocks")
+      }
 
       if (line ~ /figma\.com/) figma = 1
       if (bsection == "Design" && line ~ /figma\.com\/.*node-id=/) frame = 1
@@ -219,7 +232,7 @@ check_file() {
         close_scenario()
         in_scen = 1; scenarios++
         scen = line; sub(/^\*\*Scenario:\*\*[ \t]*/, "", scen)
-        whens = 0; givens = 0; thens = 0; steps = 0
+        whens = 0; givens = 0; thens = 0; steps = 0; loading = 0
         next
       }
       if (in_scen && line ~ /^\*\*(Given|When|Then|And|But|Dato|Data|Dati|Date|Quando|Allora|E|Ma)\*\*/) {
@@ -227,6 +240,7 @@ check_file() {
         if (line ~ /^\*\*(When|Quando)\*\*/) whens++
         if (line ~ /^\*\*(Given|Dato|Data|Dati|Date)\*\*/) givens++
         if (line ~ /^\*\*(Then|Allora)\*\*/) thens++
+        if (tolower(line) ~ /loading|caricamento/) loading = 1
       }
       next
     }
@@ -283,7 +297,7 @@ check_file() {
       if (type == "MAP") {
         n = split("Introduction|Outcome|Backbone|Walking Skeleton|Release lanes|DoR Check", req, "|")
         for (i = 1; i <= n; i++) if (!(req[i] in heading)) err("no **" req[i] "** section")
-        if (("DoR Check" in heading) && dor < 6) warn("the DoR Check has " dor + 0 " lines (six: narrative, vertical, gravity, functional, walking skeleton vs MVP, elevator pitch)")
+        if (("DoR Check" in heading) && dor < 7) warn("the DoR Check has " dor + 0 " lines (seven: narrative, vertical, gravity, functional, walking skeleton vs MVP, outcome lanes, elevator pitch)")
       }
 
       if (figma) print "F\t" id

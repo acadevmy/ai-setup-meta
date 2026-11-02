@@ -31,7 +31,7 @@ Read these only when the situation calls for them:
 |---|---|
 | A story too big, with no clean cut | `reference/splitting.md` |
 | An INVEST check fails and the fix is not obvious; or you write a task | `reference/invest.md` |
-| Over five scenarios or steps, or an imperative one | `reference/gherkin.md` |
+| Over five scenarios or steps, an imperative one, or an asynchronous operation | `reference/gherkin.md` |
 | Story or delivery task? How much detail? | `reference/card-essentials.md` |
 | More than one user activity, or `--map` | `reference/story-mapping.md` |
 | The first draft of a run | `reference/examples.md` |

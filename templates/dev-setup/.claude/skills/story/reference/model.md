@@ -53,7 +53,7 @@ two sides cannot drift apart.
 | `relationType` | Meaning | On ClickUp |
 |---|---|---|
 | `PARENT` | The referenced item is this one's parent. At most one. | the subtask's parent |
-| `BLOCKED_BY` | This item cannot start or close before the referenced one. Real dependencies only — an artificial one breaks the I of INVEST. | a dependency, "waiting on" |
+| `BLOCKED_BY` | This item cannot start or close before the referenced one. Real dependencies only, the ones that follow causality (a detail on the list that opens it) — an artificial one, against causality, breaks the I of INVEST. | a dependency, "waiting on" |
 | `RELATED` | A link with no blocking and no hierarchy. Symmetric: declare it on one side only. | a task link |
 
 Order the entries of `relations` by `relationType` (`PARENT`, `BLOCKED_BY`,

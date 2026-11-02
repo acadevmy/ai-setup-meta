@@ -23,6 +23,7 @@ Deletions are reversible.
 - US [US-01] Archive a path: a story is not a skeleton item
 
 **Release lanes**
+*Release 1 — MVP.* Objective: ship.
 - US [US-09] Not drafted
 
 **DoR Check**

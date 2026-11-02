@@ -2101,6 +2101,13 @@ assert_contains "a relation to a provisional id nobody drafted is refused" "$STO
   "relation to US-99, which is not drafted in this run"
 assert_contains "one scenario is a warning, not an error" \
   "$(story "$STORY_FIX/invalid" | jq -r '.WARNINGS')" "US-10.md: one scenario"
+# An asynchronous outcome walks the whole loading cycle, so it may take six or
+# seven steps; a long scenario with no loading cycle is still warned.
+assert_contains "a long scenario with no loading cycle is a warning" \
+  "$(story "$STORY_FIX/invalid" | jq -r '.WARNINGS')" \
+  "scenario \"a long scenario with no loading cycle\" has 6 steps"
+assert_eq "a seven-step loading cycle, English or Italian, is not warned" "" \
+  "$(story "$STORY_FIX/valid" | jq -r '.WARNINGS')"
 assert_eq "no argument is a usage error" "1" "$(story_exit)"
 
 # The story map (--map) is checked against the drafts it lays out: a map that
@@ -2125,6 +2132,9 @@ assert_eq "a frame link, or No design, passes" "" \
   "$(printf '%s\n' "$STORY_BAD_FIGMA" | grep -E 'US-0[14]' || true)"
 assert_contains "a short DoR Check is a warning" \
   "$(story "$STORY_FIX/invalid-map" | jq -r '.WARNINGS')" "the DoR Check has 1 lines"
+# A lane titled "MVP" filters nothing: its title is the outcome it unlocks.
+assert_contains "a lane titled with a label is a warning" \
+  "$(story "$STORY_FIX/invalid-map" | jq -r '.WARNINGS')" "the lane \"MVP\" is a label"
 
 assert_eq "the script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/validate-story.sh" ] && echo true || echo false)"
@@ -2139,7 +2149,7 @@ parse() { bash "$PLUGIN_SCRIPTS/parse-story.sh" --json 2>/dev/null; }
 
 assert_eq "a story description is recognised" "story" \
   "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.FORMAT')"
-assert_eq "its scenarios are counted" "4" \
+assert_eq "its scenarios are counted" "3" \
   "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.SCENARIO_COUNT')"
 assert_eq "and named, in order" "archiving a path" \
   "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.SCENARIOS' | head -1)"
