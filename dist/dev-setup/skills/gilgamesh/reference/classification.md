@@ -75,5 +75,5 @@ After the hand-off, the developer can open the first piece without dependencies
 starts from what the release already decided.
 
 Pieces with no dependency between them can run side by side: once their
-branches exist, `/dev-setup:odyssey` gives each one its own worktree, ports and
+branches exist, `/dev-setup:parallel` gives each one its own worktree, ports and
 `.env`, so several agents or developers work on the release at once.

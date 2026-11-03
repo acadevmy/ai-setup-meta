@@ -31,10 +31,10 @@ the team:
 {
   "hooks": {
     "WorktreeCreate": [
-      { "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/odyssey.mjs\" hook-create" }] }
+      { "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/parallel.mjs\" hook-create" }] }
     ],
     "WorktreeRemove": [
-      { "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/odyssey.mjs\" hook-remove" }] }
+      { "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/parallel.mjs\" hook-remove" }] }
     ]
   }
 }

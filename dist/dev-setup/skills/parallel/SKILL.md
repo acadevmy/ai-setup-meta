@@ -1,5 +1,5 @@
 ---
-name: odyssey
+name: parallel
 description: Runs a project on several git worktrees at once, each with its own ports, .env, compose project and tunnels, and readies a project that cannot yet — a readiness report, then a project-local script from a template. Use when branches have to run side by side, when each agent needs its own instance, when a problem has to be reproduced on a branch or environment, or when tunnels are needed.
 effort: medium
 argument-hint: "[analyze | new | up | list | rm | tunnels | expose] [branch]"
@@ -7,7 +7,7 @@ user-invocable: true
 disable-model-invocation: true
 ---
 
-# Odyssey
+# Parallel
 
 Several copies of the project running together, one per worktree, without
 sharing ports, sessions, containers or a database. The skill holds no runtime:
@@ -22,21 +22,21 @@ each project owns its script, and the skill knows which command to run.
 
 ## 1. Find the commands
 
-Read `.claude/odyssey.json` in the main checkout (the parent of
+Read `.claude/parallel.json` in the main checkout (the parent of
 `git rev-parse --path-format=absolute --git-common-dir`): one command line per
 key — `new`, `dev`, `up`, `list`, `rm`, `tunnels`, `expose` — `null` when the
 project has none.
 
 Present → step 3. Absent → look for the project's own scripts first (`package.json`,
 `Makefile`, `scripts/`, the README: worktree, tunnel, port-forward). If they
-exist, propose recording them in `.claude/odyssey.json` and go to step 3.
+exist, propose recording them in `.claude/parallel.json` and go to step 3.
 
 ## 2. First time: readiness and the script
 
 1. Analyse with `reference/readiness.md` and show the report.
 2. On the developer's yes, and only for the fixes approved: apply them; copy
-   `${CLAUDE_SKILL_DIR}/templates/odyssey.mjs` to `scripts/odyssey.mjs` and fill
-   in **only** its `CONFIG` block; write `.claude/odyssey.json`.
+   `${CLAUDE_SKILL_DIR}/templates/parallel.mjs` to `scripts/parallel.mjs` and fill
+   in **only** its `CONFIG` block; write `.claude/parallel.json`.
 3. Have the developer try it on a throwaway branch: `new` → `list` → `dev` →
    stop → `rm`. Fix `CONFIG` and repeat until it holds.
 
@@ -62,5 +62,5 @@ developer's call.
 ## Expected output
 
 - a readiness report, or the project's commands found;
-- with the developer's yes, `scripts/odyssey.mjs` and `.claude/odyssey.json`;
+- with the developer's yes, `scripts/parallel.mjs` and `.claude/parallel.json`;
 - instances running on distinct ports, each named with its port.

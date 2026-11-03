@@ -557,7 +557,7 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 
 **The public surface is the command table of the generated `AGENTS.md`** —
 `setup`, `quick`, `gilgamesh`, `sdd`, `auto-sdd`, `multi-sdd`, `review`,
-`distill`, `odyssey` — plus two headless ones, `auto-dev-select` and
+`distill`, `parallel` — plus two headless ones, `auto-dev-select` and
 `auto-dev`, which a job runner starts inside `claude -p` and no developer types.
 They are user-invocable because `claude -p` starts them by name, and they stay
 out of the generated `AGENTS.md`, whose command table the suite pins to that list:
