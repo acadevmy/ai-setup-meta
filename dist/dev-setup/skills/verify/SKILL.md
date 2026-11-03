@@ -74,6 +74,8 @@ Parse the `---VERIFY-RESULT---` block the agent returns.
 - **error** — the agent could not run the check (a spec or a package it could
   not read). Report what it says and stop: an error is not a pass.
 
+Invoked on its own: `${CLAUDE_PLUGIN_ROOT}/reference/hand-off.md`.
+
 ## Expected output
 
 - a `---VERIFY-RESULT---` report: the counts, and every gap with its id;

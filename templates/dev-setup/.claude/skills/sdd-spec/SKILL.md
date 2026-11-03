@@ -65,6 +65,8 @@ Status: draft
 <spec content>
 ```
 
+Invoked on its own: `${CLAUDE_PLUGIN_ROOT}/reference/hand-off.md`.
+
 ## Expected output
 
 - `.specs/<customId>-<slug>.md` created with status `draft`;

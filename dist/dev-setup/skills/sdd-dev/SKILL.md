@@ -81,6 +81,8 @@ the work, runs `simplify` once, verifies, reviews and produces the single
 commit. The summary is not a stop: the `sdd` flow decides what follows, in
 this same turn, without waiting for a prompt.
 
+Invoked on its own: `${CLAUDE_PLUGIN_ROOT}/reference/hand-off.md`.
+
 ## Expected output
 
 - the code implemented as the approved spec describes;
