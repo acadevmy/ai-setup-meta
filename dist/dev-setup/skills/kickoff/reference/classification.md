@@ -71,5 +71,5 @@ A release spec adds this section after `## Implementation plan`:
 ```
 
 After the hand-off, the developer can open the first piece without dependencies
-— a new run of `gilgamesh`, with the release spec as context, so its discovery
+— a new run of `kickoff`, with the release spec as context, so its discovery
 starts from what the release already decided.

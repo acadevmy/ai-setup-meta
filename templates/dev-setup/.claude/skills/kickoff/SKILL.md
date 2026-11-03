@@ -1,5 +1,5 @@
 ---
-name: gilgamesh
+name: kickoff
 description: Starts work from an idea already in the conversation, with no tracked task — a light discovery from what the session knows, a classification (fix, feat or chore; single branch or release branch; development or hotfix), the fork point and the branch, then the existing chain — quick under its bar, otherwise sdd-spec, sdd-plan, sdd-dev. Use when the developer describes new work to start and there is no task id; with one, use sdd.
 effort: medium
 argument-hint: "[idea]"
@@ -7,7 +7,7 @@ user-invocable: true
 disable-model-invocation: true
 ---
 
-# Gilgamesh
+# Kickoff
 
 The idea-first entry into the chain. `sdd` starts from a task on the board;
 this starts from what the conversation already holds, which is cheaper and

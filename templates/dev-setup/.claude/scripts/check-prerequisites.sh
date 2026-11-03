@@ -141,7 +141,7 @@ if [ -n "$TASK_ID" ] && [ -d "$REPO_ROOT/.specs" ]; then
     2>/dev/null | LC_ALL=C sort | tail -1)
 fi
 
-# A branch with no task id — an idea-first entry (`gilgamesh`) — names its spec
+# A branch with no task id — an idea-first entry (`kickoff`) — names its spec
 # the other way round: the spec's `> Branch:` header line holds the branch.
 if [ -z "$SPEC" ] && [ -n "$BRANCH" ] && [ -d "$REPO_ROOT/.specs" ]; then
   for CANDIDATE in "$REPO_ROOT"/.specs/*.md; do
