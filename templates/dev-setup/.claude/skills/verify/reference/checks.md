@@ -74,8 +74,8 @@ is listed.
 STATUS: pass | fail | pass-with-warnings
 COUNTS: requirements <covered>/<total> · tests <found>/<total> · decisions <followed>/<total> · Impact files <touched>/<total>
 GAPS:
-  - REQ-<N>: <partial|not-found> — <file>:<line> that shows it, or what is missing
-  - Test <N>: not-found — <what is missing>
+  - REQ-<N> (<what it requires, in a few words>): <partial|not-found> — <file>:<line> that shows it, or what is missing
+  - Test <N> (<what it tests, in a few words>): not-found — <what is missing>
   - Missing: <file listed in Impact, absent from the diff>
   - Unexpected: <file>:<line> — <why it is not support for a listed change>
   - Dependency: <name> — not added to <manifest>
@@ -84,8 +84,10 @@ SUMMARY: <one-line overall assessment>
 ---END---
 ```
 
-- Every `GAPS` entry names its id and either the `<file>:<line>` that shows it
-  or what is missing.
+- Every `GAPS` entry names its id, what that id stands for in a few words —
+  the developer reads the block without the spec open, and `REQ-4` alone
+  tells them nothing — and either the `<file>:<line>` that shows it or what
+  is missing.
 - Covered requirements, found tests and followed decisions are not listed:
   `COUNTS` already says how many there are, and a list of what matches is read
   by nobody.

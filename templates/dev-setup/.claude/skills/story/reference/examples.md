@@ -111,8 +111,8 @@ An archived path disappears from the catalogue and from every form that lets you
 **And** they are told it failed
 **And** they can edit the path again, and archiving is available again
 
-**Additional Notes**
-- Paths with active enrolments are a separate story: archiving them needs a warning first
+**Out of Scope**
+- Archiving a path with active enrolments, which needs a warning first: US [US-03] Archive a path with active enrolments
 ```
 
 The other five, listed in release order with the pattern that produced each:

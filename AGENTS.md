@@ -554,6 +554,7 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
 | `fork-point.md` | The one fork-point question: how each flow resolves the default, the shape of the ask, what the answer binds, and where it is deliberately not asked. Cited by `sdd`, `auto-sdd` and `multi-sdd` |
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
+| `readable-references.md` | How every reference a person reads is written — a document as a link whose text names the topic, a rule by its name, an id with its title — and the test each one passes. Cited by `sdd-spec`, `sdd-discovery`, `sdd-plan`, `vcs-ops` and both workflows |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
 **The public surface is seven commands** — `setup`, `story`, `quick`, `sdd`,
@@ -710,7 +711,7 @@ harness loads every `*.js` there and registers it as `<plugin>:<meta.name>`, so
 piece of the plugin the model never reads. Its control flow stays out of the
 context window, and a bound written in code — one revision is one `agent()` call,
 with no loop around it — cannot be re-read charitably the way "max 3 iterations"
-in prose was (audit §1-C).
+in prose was.
 
 The split that keeps it safe to run in the background:
 
@@ -1026,4 +1027,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.38.0 — bump the version number on every substantial change*
+*Version: 2.39.0 — bump the version number on every substantial change*

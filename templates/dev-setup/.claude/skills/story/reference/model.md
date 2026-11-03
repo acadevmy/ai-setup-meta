@@ -69,6 +69,8 @@ provisional id with the real one (`publish.md`).
 
 **Never make the reader keep a table in their head.** Wherever a person reads
 the text — the summary, a scenario, a `reason`, the approval tree — cite an
-item as `type [id] title` the first time, and by its title or its function
-after that. "US-03 and US-04 follow US-01" forces the reader to resolve ids;
-"the deletion follows the archiving" does not. The id is for the machine.
+item as `type [id] title` the first time in a block, and by its title or its
+function after that; for an item already on ClickUp, `[id]` is its link.
+"US-03 and US-04 follow US-01" forces the reader to resolve ids; "the
+deletion follows the archiving" does not. The id is for the machine. The same
+rule covers documents and topics — `writing-rules.md`, No mental maps.
