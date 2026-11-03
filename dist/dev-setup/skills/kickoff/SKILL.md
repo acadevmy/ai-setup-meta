@@ -1,6 +1,6 @@
 ---
 name: kickoff
-description: Starts work from an idea already in the conversation, with no tracked task — a light discovery from what the session knows, a classification (fix, feat or chore; single branch or release branch; development or hotfix), the fork point and the branch, then the existing chain — quick under its bar, otherwise sdd-spec, sdd-plan, sdd-dev. Use when the developer describes new work to start and there is no task id; with one, use sdd.
+description: Starts work from an idea already in the conversation, with no task yet — a light discovery from what the session knows, a classification (type, single or release branch, development or hotfix), the fork point, the task on the board on a yes, the branch, then the existing chain — quick under its bar, otherwise sdd-spec, sdd-plan, sdd-dev. Use when the developer describes new work to start and there is no task id; with one, use sdd.
 effort: medium
 argument-hint: "[idea]"
 user-invocable: true
@@ -11,12 +11,13 @@ disable-model-invocation: true
 
 The idea-first entry into the chain. `sdd` starts from a task on the board;
 this starts from what the conversation already holds, which is cheaper and
-keeps the knowledge in context. It creates nothing on any tracker.
+keeps the knowledge in context. On a yes it also creates the task on the board.
 
 ## Before you start
 
 - **`reference/classification.md`** — the three axes, the question that
   proposes them, the release's pieces.
+- **`reference/board.md`** — the optional ClickUp task.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md`** — the base question.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — after you ask,
   the turn ends.
@@ -39,9 +40,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" --type <type> --title "<title 
 ```
 
 Without `--create` it only reports `BRANCH` and `BASE_BRANCH`. Then one
-`AskUserQuestion` with two questions: the classification, as
-`reference/classification.md` shapes it, and the fork point, as
-`fork-point.md` shapes it. End the turn on the call.
+`AskUserQuestion`: the classification (`reference/classification.md`), the
+fork point (`fork-point.md`) and, with a list configured, the task on the
+board (`reference/board.md`). End the turn on the call.
 
 ### 3. Route
 
@@ -72,4 +73,5 @@ As `hand-off.md` says: the next step is `sdd-plan`, then the chain.
 - a branch cut from the fork point the developer confirmed — or, under the
   bar, the `quick` command to type;
 - `.specs/<slug>.md` in `draft`, its `> Branch:` naming the branch;
-- nothing pushed, nothing written to a tracker.
+- on a yes, the task `IN PROGRESS`;
+- nothing pushed.
