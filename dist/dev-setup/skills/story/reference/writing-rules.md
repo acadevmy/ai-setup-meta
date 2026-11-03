@@ -119,8 +119,10 @@ they are suggestions for whoever builds it, not requirements.
   cannot picture the test, the criterion is vague: rewrite it.
 - **Relevance.** A scenario about something the "I want" clause does not cover
   is scope creep: it belongs to another story. Compare with the "I want"
-  alone, never with the "so that" (§1): a benefit that presupposes a
-  capability does not make it relevant.
+  alone, never with the "so that" (see the Connextra sentence): a benefit
+  that presupposes a capability does not make it relevant. If a reader could
+  assume it is included, declare it in the story's **Out of Scope** section
+  with the item that covers it (`templates.md`).
 - **Group by business capability, not by screen.** Scenarios sit in the story
   of what the user obtains, not of the screen they obtain it on. Two
   recurring cases:
@@ -131,8 +133,8 @@ they are suggestions for whoever builds it, not requirements.
     the user picks an item of the list, their goal is not "using the list"
     but "seeing the detail": the scenario of opening it from the list goes
     **here**, in the detail's story, which declares the list as `BLOCKED_BY`
-    (a real dependency, §2). A list whose items do not open yet is a
-    complete story (§4, §5).
+    (a real dependency, see INVEST). A list whose items do not open yet is a
+    complete story (see Splitting, and phantom UI under the anti-patterns).
 - **Ubiquitous language.** The domain's terms, one per concept, the ones in
   `product.md`'s glossary. No synonyms for the same thing inside a story.
 - **Roles.** When `product.md` has a permission matrix, a story whose action is
@@ -145,7 +147,8 @@ they are suggestions for whoever builds it, not requirements.
 - **List vs detail.** Within reading too, browsing the collection (the list)
   and consulting one item (the detail) are two capabilities and two stories.
   Opening the detail from the list belongs to the detail's story, which
-  depends on the list with `BLOCKED_BY` (§3).
+  depends on the list with `BLOCKED_BY` (see the acceptance criteria, group
+  by business capability).
 - **Core value vs NFR.** Functional value first; performance, scalability and
   advanced security in later stories — unless `product.md` sets a default the
   story simply inherits.
@@ -205,5 +208,36 @@ they are suggestions for whoever builds it, not requirements.
 - **No application layers.** Readable by someone non-technical: "the order is
   processed", "the order creation fails" — not "the server processes the
   order", "it fails on a network error".
-- **No mental maps.** Cite items as `model.md` says: type, id and title the
-  first time, the title or the function after.
+- **No mental maps** (Robert C. Martin, *Clean Code*). Every reference in
+  text a person reads — the body, a relation's `reason`, the shape you state
+  before drafting, the approval tree and its judgement calls, the map's DoR
+  Check, the report — must be readable without the context it was written
+  in. Whoever reads the item never saw the sources, often months later, when
+  this conversation is closed and your local files are gone. A reference is
+  one of three things and nothing else:
+  - **Another backlog item** — `type [id] title` the first time in a block,
+    then its title or its function ("the deletion story"), as `model.md`
+    says; for an item already on ClickUp, `[id]` is its link. "US-03 and
+    US-04 follow US-01 and US-02" is a mental map.
+  - **A document** — a Markdown link whose *text* is the topic in words a
+    person understands and whose *address* gets as close as it can to the
+    right spot: the heading anchor, the specific wiki or doc page, the Figma
+    frame, the attachment the developer supplied.
+    `[SCORM export rules for materials](https://…/spec.md#export-scorm)` is
+    a reference; `see https://…/spec.md#export-scorm` is still a mental map
+    — the reader must open it to learn what it is about — and `SPEC §6.6`
+    cannot even be opened. When the address cannot reach the spot, say it in
+    the text: `[spec v2, section 6.6 "SCORM and materials export"](https://…)`.
+  - **A topic with no link** — plain words, when the source has no address
+    the reader can reach: "as decided in the October 29 meeting", "in the
+    mockup, the export screen".
+
+  Never: an abbreviation coined while working (`SPEC`, `INV`, `R14/10`); a
+  section number without its title (`§6.1`, `sec. 9`); a bare URL; a path or
+  file the reader cannot open — a file on your machine, an inventory or
+  digest you made for yourself: cite the original source it derives from;
+  an internal id without saying what it is (`screen: 'publish'` → "the
+  export screen of the mockup"). **The test:** with only a browser and
+  access to the workspace, can the reader tell what the reference is about
+  before opening it, and find the intended spot when opening it? If either
+  answer is no, rewrite it.

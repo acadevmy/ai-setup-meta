@@ -70,6 +70,7 @@ developer wrote the request in.
 | Connextra | `As a <persona>, I want <goal>, so that <value>.` | `Come <persona>, voglio <obiettivo>, così da <valore>.` |
 | Gherkin | `**Given**` `**When**` `**Then**` `**And**` `**But**` | `**Dato**` `**Quando**` `**Allora**` `**E**` `**Ma**` |
 | Open point | `To confirm: …` | `Da confermare: …` |
+| Out of scope, with no item | `not planned` | `non pianificato` |
 
 ## User Story
 
@@ -97,6 +98,10 @@ As a <persona>, I want <goal>, so that <value>.
 
 Two to five scenarios, each opened by its `**Scenario:**` line, each with one
 `When`. Then the optional sections that have content.
+
+**Out of Scope** — optional section, include only if filled: the nearby
+capabilities, cases or variants that are not part of this story. Its scope is
+fixed by the "I want" clause.
 
 ## Epic
 
@@ -131,8 +136,12 @@ has no scenarios of its own — its stories do.
 - <what will be observable once it is done>
 ```
 
-Optionally **Additional Notes**, **Assumptions**, **Risks**, **Resources**.
-A task is SMART (`invest.md`).
+Optionally **Out of Scope**, **Additional Notes**, **Assumptions**, **Risks**,
+**Resources**. A task is SMART (`invest.md`).
+
+**Out of Scope** — optional section, include only if filled: the nearby
+technical work this task does not touch — a refactoring, an optimisation, an
+adjacent part.
 
 ## Spike
 
@@ -150,6 +159,9 @@ A task is SMART (`invest.md`).
 - The question has a documented answer
 - The items it blocks can be estimated or revised
 ```
+
+**Out of Scope** — optional section, include only if filled: the nearby
+questions this spike does not answer and the alternatives it does not explore.
 
 ## Story map
 
@@ -198,6 +210,11 @@ each is titled with its outcome — never "MVP", "Enhancements", "Delight" or a
 bare number (`story-mapping.md`). The lanes live here only: no tag or field
 on the tasks repeats them.
 
+**Out of Scope** — optional section, include only if filled, and only when the
+product is split into several maps: the activities, personas or flows this map
+does not cover, each pointing at the map or the item that does. A map that
+covers the whole product omits it.
+
 ## The optional sections
 
 Include a section only when it has content, in this order, after the type's
@@ -206,10 +223,11 @@ required ones:
 | Section | On | Holds |
 |---|---|---|
 | **Scope** | Epic | `In:` and `Out:` lists — the boundaries that stop scope creep |
+| **Out of Scope** | Story, Task, Spike, Map | one bullet per item, `- <what is not included>: <where it goes>` — where it goes is the item that covers it, `type [id] title`, or `not planned`. Only what a reader could reasonably assume is included, never everything the item does not do. The Epic draws the same line with **Scope** |
 | **Story map** | Epic | never in a draft: publication adds it, with the link to the map page, when the run has `--map` |
 | **Design** | Story, Epic | the Figma links, one per line: `- [<frame name>](<url>) — <what it shows>`. Each link points at a frame (`node-id` in the URL), never at the bare file. **When the run has Figma links, every story has this section** with the frames it covers — or `No design: <why>` for a story with no screen. Only links the developer gave or the Figma file returned |
 | **Open points** | all | one `To confirm: …` per unanswered question. **Its presence is what adds the `da dettagliare` tag** |
-| **Additional Notes** | all | refinement details, business logic, constraints the developer stated; `[AI-suggested]` for your own |
+| **Additional Notes** | all | refinement details, business logic, constraints the developer stated; `[AI-suggested]` for your own. Every link as `[topic in clear words](address that reaches the spot: section anchor, page, Figma frame)` — never a bare URL, an abbreviation or a section number without its title (`writing-rules.md`, No mental maps) |
 | **Assumptions** | all | what is assumed and needs validating |
 | **Risks** | all | what could go wrong, and who could mitigate it |
 

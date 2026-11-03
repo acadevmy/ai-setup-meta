@@ -13,6 +13,14 @@ The approval, the ClickUp writes, the cleanup. Every write goes through the
 
 ## 7. The approval
 
+**Before you show anything, reread every reference** in the drafts and in
+what you are about to write — bodies, `reason`s, the DoR Check, the judgement
+calls — with the test of `writing-rules.md`, No mental maps: can a reader with
+only a browser and the workspace tell what it is about before opening it, and
+find the spot when opening it? Rewrite every sigil or coined abbreviation,
+section number without its title, bare URL and file the reader cannot open,
+then re-run `validate-story.sh`.
+
 Show the tree, in release order, each item as `type [id] title`, with its
 scenario count, its tags and its open points:
 

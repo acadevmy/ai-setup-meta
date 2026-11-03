@@ -2072,6 +2072,8 @@ assert_eq "a valid epic, its stories and a spike pass" "true" \
 assert_eq "and the caller sees a zero exit" "0" "$(story_exit "$STORY_FIX/valid")"
 assert_eq "every draft in the folder is read" "5" \
   "$(story "$STORY_FIX/valid" | jq -r '.CHECKED')"
+assert_eq "a story with the optional Out of Scope section passes" "true" \
+  "$(story "$STORY_FIX/valid/US-01.md" "$STORY_FIX/valid/EPIC-01.md" | jq -r '.VALID')"
 # The open points are what the da dettagliare tag is applied from.
 assert_eq "the draft with an Open points section is reported" "US-02" \
   "$(story "$STORY_FIX/valid" | jq -r '.OPEN_POINTS')"

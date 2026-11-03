@@ -95,7 +95,7 @@ step 4.
 
 Count the distinct user activities in the request (search, choose, pay; read
 a list, act on an item). A list and the detail of its items are two
-capabilities, so two stories (`writing-rules.md` §4). Then decide, as
+capabilities, so two stories (`writing-rules.md`, Splitting). Then decide, as
 `model.md` says:
 
 - one activity, one INVEST story → a standalone story;
