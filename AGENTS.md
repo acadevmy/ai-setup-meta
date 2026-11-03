@@ -551,13 +551,13 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `clickup-contract.md` | How to call the `clickup` agent: intents, parameters, result format, list-id resolution, the bail-out call |
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
 | `fork-point.md` | The one fork-point question: how each flow resolves the default, the shape of the ask, what the answer binds, and where it is deliberately not asked. Cited by `sdd`, `auto-sdd` and `multi-sdd` |
-| `hand-off.md` | What a sub-skill invoked on its own does when it finishes: one question naming the next step of the SDD chain, then that step in the same turn. Cited by `sdd-discovery`, `sdd-spec`, `sdd-plan`, `sdd-dev`, `verify` and `review`; `beowulf` follows the same rule |
+| `hand-off.md` | What a sub-skill invoked on its own does when it finishes: one question naming the next step of the SDD chain, then that step in the same turn. Cited by `sdd-discovery`, `sdd-spec`, `sdd-plan`, `sdd-dev`, `verify` and `review`; `distill` follows the same rule |
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
 **The public surface is the command table of the generated `AGENTS.md`** —
 `setup`, `quick`, `gilgamesh`, `sdd`, `auto-sdd`, `multi-sdd`, `review`,
-`beowulf`, `odyssey` — plus two headless ones, `auto-dev-select` and
+`distill`, `odyssey` — plus two headless ones, `auto-dev-select` and
 `auto-dev`, which a job runner starts inside `claude -p` and no developer types.
 They are user-invocable because `claude -p` starts them by name, and they stay
 out of the generated `AGENTS.md`, whose command table the suite pins to that list:
@@ -572,7 +572,7 @@ and it is not a step of `setup`. Everything else in the chain (`sdd-discovery`, 
 readable. A skill that opens a PR or writes into a project also carries
 `disable-model-invocation: true` — a flow with outward-facing side effects is
 started by a person, not inferred.
-`beowulf` is the exception, on purpose: it writes only an untracked file under
+`distill` is the exception, on purpose: it writes only an untracked file under
 the git common dir, so the chain reaches it after `review` without a person
 typing it, and its one outward step — a distill section appended to the merge
 request description, between markers, after the filled template and never in

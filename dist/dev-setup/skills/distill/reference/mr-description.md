@@ -4,12 +4,12 @@ The distill reaches the reviewer inside the merge request description, where it
 is read before the diff. It **adds** to the description, it never stands in for
 it: the repository's template, filled by `vcs-ops`, stays the body, and the
 distill is one more section at its end, between two hidden markers. Only that
-section is beowulf's — the filled template and whatever a person added are
+section is distill's — the filled template and whatever a person added are
 never rewritten, reordered or trimmed. The local document is not visible to
 reviewers, so the section stands on its own.
 
 ```markdown
-<!-- beowulf:start -->
+<!-- distill:start -->
 ## Distill
 
 <In short, 3–5 lines>
@@ -21,7 +21,7 @@ reviewers, so the section stands on its own.
 - [ ] <item>
 
 <sub>Updated at <short sha>. Medium and low risk, decisions and the full map are in the local document of whoever generated it.</sub>
-<!-- beowulf:end -->
+<!-- distill:end -->
 ```
 
 In `LANGUAGE`, headings included. No high-risk point → `**High risk**: none`, in
@@ -33,8 +33,8 @@ the brevity rule of `vcs-ops`: a description longer than the diff is not read.
 
 1. Read the current description (table below) and write it to `body.md` in the
    scratchpad. Read it right before writing: a person may have edited it since.
-2. Markers present → replace everything from `<!-- beowulf:start -->` to
-   `<!-- beowulf:end -->`, both included, with the new section. Markers absent →
+2. Markers present → replace everything from `<!-- distill:start -->` to
+   `<!-- distill:end -->`, both included, with the new section. Markers absent →
    append the section at the end, after a blank line. Nothing else in the file
    changes.
 3. Write `body.md` back.

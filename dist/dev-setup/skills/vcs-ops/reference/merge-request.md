@@ -69,9 +69,9 @@ page exists to prevent.
 
 `TEMPLATE` from `mr-meta.sh` is the path it found, the host's own folder first.
 
-A section between `<!-- beowulf:start -->` and `<!-- beowulf:end -->` is the
+A section between `<!-- distill:start -->` and `<!-- distill:end -->` is the
 branch's distill, added after the filled template — never in its place. When
-`beowulf` hands one over, append it at the end of the body; when you edit a body
+`distill` hands one over, append it at the end of the body; when you edit a body
 that holds one, keep it whole.
 
 Filling it means:

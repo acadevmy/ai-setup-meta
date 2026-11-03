@@ -1896,7 +1896,7 @@ SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/sha
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
 assert_eq "the surface the check reads is the public commands" \
-  "auto-sdd beowulf gilgamesh multi-sdd odyssey quick review sdd setup" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+  "auto-sdd distill gilgamesh multi-sdd odyssey quick review sdd setup" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
 
 # The names from $2 (one per line) with no row in $1 matching $3, where `@`
 # stands for the name.
