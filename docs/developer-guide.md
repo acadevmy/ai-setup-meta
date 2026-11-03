@@ -702,6 +702,12 @@ uses) after entering. There is no post-create hook on purpose — a
 whose agents each need their own running instance can opt into one through
 `/dev-setup:parallel`, whose generated script takes over that copy.
 
+To try the result of an `auto-sdd` or `multi-sdd` run without the hook,
+`parallel`'s script adopts the run's worktree after the fact: `adopt` gives it
+a slot, its ports and its `.env`, then `dev` starts it beside the others. When
+the project has the script, the run's report ends with the two commands filled
+in — `multi-sdd` writes the code, `parallel` runs it.
+
 **While you are in a worktree**, the harness blocks anything reaching back into
 the main checkout: an edit outside it, a Bash command whose working directory
 resolves there, a `git -C` or `cd` that redirects git out of it. Those are not

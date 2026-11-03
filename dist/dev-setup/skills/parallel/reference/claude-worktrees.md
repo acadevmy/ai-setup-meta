@@ -1,9 +1,29 @@
-# Claude Code's worktrees, opt-in
+# Worktrees made elsewhere
 
 Claude Code creates worktrees of its own — `claude --worktree`, subagents with
 `isolation: "worktree"`, background sessions — under `.claude/worktrees/`,
 copying what `.worktreeinclude` lists. They get no port and no `.env` of their
-own: two agents that each start the server collide.
+own: two agents that each start the server collide. So does a worktree made by
+hand with `git worktree add`. Two ways to give them an instance: `adopt` one
+after the fact, or let the hook create every one.
+
+## Adopt one after the fact
+
+```bash
+node scripts/parallel.mjs adopt <name | branch | path> [--skip-setup]
+```
+
+It gives the worktree the first free slot, rewrites its `.env` from the main
+checkout's with that slot's values — a copied `.env` still carries the main
+checkout's ports — and runs `CONFIG.setup` unless `--skip-setup` says the
+dependencies are already there. Then `dev` starts it like any other. A
+worktree that already has a slot is left as it is; the main checkout is slot 0
+and is refused.
+
+This is the way to try the result of an `auto-sdd` or `multi-sdd` run: the
+run's `worktreePath` is the argument. It writes `.env`, so the developer runs
+it, like `new`. `rm` on an adopted worktree removes it the git way, which the
+run's own cleanup would have done anyway.
 
 ## The hook
 

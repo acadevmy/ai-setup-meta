@@ -2041,6 +2041,47 @@ assert_eq "the script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/multi-preflight.sh" ] && echo true || echo false)"
 
 echo ""
+echo "── parallel.mjs adopt (a worktree the script did not create) ──"
+
+# A run of auto-sdd or multi-sdd lands in a worktree the harness created, with
+# no slot: `adopt` is what lets `dev` start it on ports of its own.
+PARALLEL_MJS="$REPO_ROOT/templates/dev-setup/.claude/skills/parallel/templates/parallel.mjs"
+if command -v node >/dev/null 2>&1; then
+  PA_MAIN="$WORK_DIR/pa-main"
+  PA_SIDE="$WORK_DIR/pa-side"
+  PA_THIRD="$WORK_DIR/pa-third"
+  git_init "$PA_MAIN"
+  git -C "$PA_MAIN" config user.email "test@example.com"
+  git -C "$PA_MAIN" config user.name "Test"
+  git -C "$PA_MAIN" commit --quiet --allow-empty -m "chore: base"
+  printf 'PORT=3000\nDB=app\n' > "$PA_MAIN/.env"
+  mkdir -p "$PA_MAIN/scripts"
+  # The CONFIG a project fills in: ports and a database per slot, a setup that leaves a trace
+  sed -e 's/setup: \["npm ci"\]/setup: ["touch .setup-ran"]/' \
+      -e 's/vars: {},/vars: { PORT: "{port:web}", DB: "app_{slot}" },/' \
+      "$PARALLEL_MJS" > "$PA_MAIN/scripts/parallel.mjs"
+  git -C "$PA_MAIN" worktree add --quiet -b feat/DE-1-side "$PA_SIDE" >/dev/null 2>&1
+  git -C "$PA_MAIN" worktree add --quiet -b feat/DE-2-third "$PA_THIRD" >/dev/null 2>&1
+  # What .worktreeinclude would have copied: the main checkout's ports
+  cp "$PA_MAIN/.env" "$PA_SIDE/.env"
+  pa() { (cd "$PA_MAIN" && node scripts/parallel.mjs "$@" 2>&1); }
+
+  assert_contains "dev on a worktree with no slot names adopt" "$(pa dev pa-side)" "parallel adopt pa-side"
+  pa adopt pa-side >/dev/null
+  assert_eq "adopt gives the first free slot its ports" "PORT=3100" "$(grep '^PORT=' "$PA_SIDE/.env")"
+  assert_eq "and the rest of the slot's variables" "DB=app_1" "$(grep '^DB=' "$PA_SIDE/.env")"
+  assert_eq "adopt runs the project's setup" "true" "$([ -f "$PA_SIDE/.setup-ran" ] && echo true || echo false)"
+  assert_contains "a second adopt changes nothing" "$(pa adopt feat/DE-1-side)" "already has slot 1"
+  assert_eq "the main checkout is refused" "1" "$(cd "$PA_MAIN" && node scripts/parallel.mjs adopt pa-main >/dev/null 2>&1; echo $?)"
+  pa adopt pa-third --skip-setup >/dev/null
+  assert_eq "--skip-setup skips the setup" "false" "$([ -f "$PA_THIRD/.setup-ran" ] && echo true || echo false)"
+  assert_contains "the next worktree takes the next slot" "$(pa list)" "pa-third  feat/DE-2-third  2"
+  unset -f pa
+else
+  echo "  (skipped: node not available)"
+fi
+
+echo ""
 echo "── worktree-info.sh --impact (the overlap before the fan-out) ──"
 
 # At pre-flight there is no spec and no worktree yet, only an estimate per task.
