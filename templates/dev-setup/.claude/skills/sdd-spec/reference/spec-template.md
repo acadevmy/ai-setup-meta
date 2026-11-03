@@ -81,7 +81,7 @@ per non-obvious choice, when it is made.>
   incomplete.
 - **The decision log is for choices, not for events.** An alternative
   discarded, a trade-off accepted, a constraint found in the code: each goes in
-  when it is made, because nobody can reconstruct the reason later. `beowulf`
+  when it is made, because nobody can reconstruct the reason later. `distill`
   reads it for the reviewer.
 - **Nothing in here records how the run went.** The spec states what to build;
   which gate ran on which day is in git and in the merge request.

@@ -1,5 +1,5 @@
 ---
-name: beowulf
+name: distill
 description: Distills a branch into a document for someone who did not follow the work — what the system does now, the high-risk points with permalinks, the decisions taken and where they come from, what to try by hand. Written locally, never committed; a short version goes in the merge request description. Use when a branch is done or nearly done, before opening or updating a merge request, or when asked to summarise, explain or distill the work on a branch.
 effort: medium
 argument-hint: "[branch] [--description]"
@@ -7,7 +7,7 @@ user-invocable: true
 disable-model-invocation: false
 ---
 
-# Beowulf
+# Distill
 
 Turn a diff into something a person can read: what changed, what matters, where
 to look first. It is not a reviewer — `verify` and `review` look for gaps. It
