@@ -188,7 +188,7 @@ The interview's output, in this exact shape:
 - <constraint or preference>
 
 ### Existing Components to Reuse
-- <component from REGISTRY.md or the codebase>
+- <the REGISTRY.md entry, by its heading, or the component and its file>
 (or: "None identified")
 
 ### Gray Areas
@@ -196,3 +196,10 @@ The interview's output, in this exact shape:
 - <gray area>
 (or: "None — all requirements have been clarified")
 ```
+
+The summary is read by the developer and becomes the spec, so its references
+follow `${CLAUDE_PLUGIN_ROOT}/reference/readable-references.md`: a scenario by
+its title, a REGISTRY entry by its heading, a rule by its name, a document as a
+link whose text names the topic, the task with its id and title. A source with
+no address — the developer's answer, a meeting — is named in plain words.
+Check each one against the test there before you show the summary.

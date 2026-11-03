@@ -123,7 +123,9 @@ set).
 
 Fill `${CLAUDE_SKILL_DIR}/templates/product.template.md` — and, per product in
 a monorepo, `${CLAUDE_SKILL_DIR}/templates/product.product-template.md` — with
-what you mapped. Every `{{…}}` gets its value (`SOURCES` names the source,
+what you mapped. Every `{{…}}` gets its value (`SOURCES` names each source
+as a Markdown link whose text says what it is — `[Product brief](https://…)`
+— or in plain words when it has no address: "interview with the developer";
 `LAST_UPDATED` is `date +%F`); every `<…>` gets content or `TBD`; the HTML
 comments stay, they tell the team what each section is for. In a repository
 with one product, delete the `## Products` section.

@@ -61,7 +61,8 @@ DISCARDED:
 ---END---
 ```
 
-An empty list stays as its bare heading. Never rewrite a confirmed entry: the
+A reason that points at a rule names it the way the entries do — rule file
+and heading, never a number of your own. An empty list stays as its bare heading. Never rewrite a confirmed entry: the
 caller shows it as the reviewer wrote it.
 
 ## Error handling

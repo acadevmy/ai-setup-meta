@@ -236,5 +236,7 @@ PARAMS: task_id: <task_id>, status: BLOCKED, comment: "<the note>"
 ```
 
 The note says which step failed, why, which branch holds the work, and what a
-human should try next. Leave the local branch in place — it is the debugging
-material.
+human should try next — in words a person reads on the board without the
+session: the step by its name, a requirement or a rule by what it says, never
+an internal id or a path on your machine alone. Leave the local branch in
+place — it is the debugging material.
