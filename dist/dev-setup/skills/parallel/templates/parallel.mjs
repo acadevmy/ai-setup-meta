@@ -41,6 +41,7 @@ const RETRY_MS = 3000;
 
 const USAGE = `Usage:
   parallel new <branch> [--from <base>]   create the worktree with its own ports and .env
+  parallel adopt [name] [--skip-setup]    give a worktree created elsewhere its slot, ports and .env
   parallel dev [name]                     start the worktree's services (default: the current one)
   parallel up [name...]                   outbound tunnels + every worktree's services, in one terminal
   parallel list                           worktrees, slots, ports and state
@@ -161,7 +162,18 @@ const writeEnv = (worktree) => {
   }
 };
 
-// `from` is a remote branch (the new command) or a local commit (the Claude Code hook)
+// --from takes a fork point as a flow confirms it: `origin/next`, `next`, or a
+// local branch a stacked task starts from. A short name is the remote branch
+// whenever origin has one, as it always was
+const baseRef = (from) => {
+  const has = (ref) =>
+    spawnSync("git", ["rev-parse", "--verify", "--quiet", ref], { cwd: mainRoot() }).status === 0;
+  if (from.startsWith("origin/")) return from;
+  if (has(`refs/remotes/origin/${from}`) || !has(from)) return `origin/${from}`;
+  return from;
+};
+
+// `from` is a remote branch, a local ref (the new command) or a local commit (the Claude Code hook)
 const createWorktree = (branch, { from = `origin/${CONFIG.baseBranch}`, path } = {}) => {
   const main = mainRoot();
   const target = path ?? join(worktreesRoot(), branch.replaceAll("/", "-"));
@@ -188,16 +200,48 @@ const createWorktree = (branch, { from = `origin/${CONFIG.baseBranch}`, path } =
   return target;
 };
 
-const findWorktree = (name) => {
+// By name, branch or path; with no name, the worktree the current directory is in
+const locateWorktree = (name) => {
   const cwd = process.cwd();
   const match = name
-    ? listWorktrees().find((worktree) => worktree.name === name || worktree.branch === name)
+    ? listWorktrees().find(
+        (worktree) => worktree.name === name || worktree.branch === name || worktree.path === resolve(name),
+      )
     : listWorktrees()
         .filter((worktree) => cwd === worktree.path || cwd.startsWith(`${worktree.path}/`))
         .sort((a, b) => b.path.length - a.path.length)[0];
   if (!match) throw new Error(`worktree not found: ${name ?? cwd}`);
-  if (match.slot === undefined) throw new Error(`${match.name} has no slot: this script did not create it`);
   return match;
+};
+
+const findWorktree = (name) => {
+  const match = locateWorktree(name);
+  if (match.slot === undefined) {
+    throw new Error(`${match.name} has no slot: this script did not create it (parallel adopt ${match.name})`);
+  }
+  return match;
+};
+
+// A worktree created elsewhere (an auto-sdd run, `git worktree add`) gets a slot, its ports and its .env
+const adoptWorktree = (name, { skipSetup = false } = {}) => {
+  const worktree = locateWorktree(name);
+  if (worktree.path === mainRoot()) throw new Error("the main checkout is slot 0 already");
+  if (worktree.slot !== undefined) {
+    log(`✔ ${worktree.name} already has slot ${worktree.slot}: nothing to do`);
+    return worktree;
+  }
+  const adopted = { ...worktree, slot: nextFreeSlot() };
+  writeState({ ...readState(), [adopted.path]: adopted.slot });
+  // Rewritten from the main checkout's: a copied .env still carries the main checkout's ports
+  writeEnv(adopted);
+  if (!skipSetup) for (const command of CONFIG.setup) run(command, adopted.path, composeEnv(adopted));
+
+  const ports = Object.entries(portsFor(adopted.slot))
+    .map(([service, port]) => `${service} :${port}`)
+    .join(", ");
+  log(`\n✔ ${adopted.branch}\n  folder: ${adopted.path}\n  slot:   ${adopted.slot} (${ports})`);
+  if (CONFIG.productionBranch?.test(adopted.branch)) log("  ⚠️  PRODUCTION branch");
+  return adopted;
 };
 
 const children = new Set();
@@ -327,14 +371,16 @@ const readHookInput = () => JSON.parse(readFileSync(0, "utf8"));
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
-  options: { from: { type: "string" }, service: { type: "string" } },
+  options: { from: { type: "string" }, service: { type: "string" }, "skip-setup": { type: "boolean" } },
 });
 const [command, name] = positionals;
 
 try {
   if (command === "new") {
     if (!name) throw new Error("a branch name is required");
-    createWorktree(name, values.from ? { from: `origin/${values.from}` } : {});
+    createWorktree(name, values.from ? { from: baseRef(values.from) } : {});
+  } else if (command === "adopt") {
+    adoptWorktree(name, { skipSetup: values["skip-setup"] });
   } else if (command === "dev") {
     stopOnSignal();
     startServices(findWorktree(name));

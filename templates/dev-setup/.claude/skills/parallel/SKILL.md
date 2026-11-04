@@ -2,7 +2,7 @@
 name: parallel
 description: Runs a project on several git worktrees at once, each with its own ports, .env, compose project and tunnels, and readies a project that cannot yet — a readiness report, then a project-local script from a template. Use when branches have to run side by side, when each agent needs its own instance, when a problem has to be reproduced on a branch or environment, or when tunnels are needed.
 effort: medium
-argument-hint: "[analyze | new | up | list | rm | tunnels | expose] [branch]"
+argument-hint: "[analyze | new | adopt | up | list | rm | tunnels | expose] [branch]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -17,14 +17,14 @@ each project owns its script, and the skill knows which command to run.
 
 - **`reference/readiness.md`** — what blocks parallel instances, and the report.
 - **`reference/tunnels.md`** — outbound port-forwards and the inbound URL.
-- **`reference/claude-worktrees.md`** — the opt-in `WorktreeCreate` hook.
+- **`reference/claude-worktrees.md`** — worktrees made elsewhere: `adopt`, the opt-in hook.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/worktree.md`** — worktrees in this plugin.
 
 ## 1. Find the commands
 
 Read `.claude/parallel.json` in the main checkout (the parent of
 `git rev-parse --path-format=absolute --git-common-dir`): one command line per
-key — `new`, `dev`, `up`, `list`, `rm`, `tunnels`, `expose` — `null` when the
+key — `new`, `adopt`, `dev`, `up`, `list`, `rm`, `tunnels`, `expose` — `null` when the
 project has none.
 
 Present → step 3. Absent → look for the project's own scripts first (`package.json`,
@@ -39,25 +39,25 @@ exist, propose recording them in `.claude/parallel.json` and go to step 3.
    in **only** its `CONFIG` block; write `.claude/parallel.json`.
 3. Have the developer try it on a throwaway branch: `new` → `list` → `dev` →
    stop → `rm`. Fix `CONFIG` and repeat until it holds.
+4. Offer the guards that let agents run `new` and `adopt` (`reference/agent-runs.md`).
 
-The script, the config and the fixes are project code: committing them is the
-developer's call.
+Committing the script, the config and the fixes is the developer's call.
 
 ## 3. Run
 
-- **The developer runs** what the sandbox stops: `new` writes `.env`, and
-  `tunnels`, `expose` — usually `up` too — reach beyond the sandbox's network
-  or `~/.kube`. Give the exact line, run from the main checkout, to type in
-  their terminal or after `!`.
+- **The developer runs** what the sandbox stops: `new` and `adopt` write `.env`
+  (unless `parallel-guard.sh` says `GUARDED`), and `tunnels`, `expose` — usually
+  `up` too — reach beyond the sandbox's network or `~/.kube`. Give the exact
+  line, from the main checkout, for their terminal or `!`.
 - **You run** `list`, and `dev` when the project's server needs nothing outside
   the sandbox — in the background, then check with `list` that it listens.
-- **Before starting**, `list`: an instance already up on another branch is not
-  the one to verify this branch on.
-- **Reproducing a problem** on a branch or environment: that branch's worktree,
-  never a branch switch in the main checkout.
+- **Before starting**, `list`: an instance up on another branch is not this
+  branch's.
+- **Reproducing a problem**: that branch's worktree, never a branch switch in
+  the main checkout.
 - **Production**: say so before anything starts — data, payments and email are
   real.
-- **`rm`** never forces: with uncommitted changes it fails, and that is right.
+- **`rm`** never forces: uncommitted changes make it fail.
 
 ## Expected output
 
