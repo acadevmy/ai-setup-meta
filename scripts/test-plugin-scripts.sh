@@ -2090,6 +2090,42 @@ else
 fi
 
 echo ""
+echo "── parallel-guard.sh (new and adopt outside the sandbox, guarded) ──"
+
+# An excluded command runs project code past every OS boundary. The agent may
+# run new and adopt only when the settings carry all three guards, and an alias
+# can never be guarded: it runs whatever an editable package.json says.
+PG_DIR="$WORK_DIR/pg-main"
+git_init "$PG_DIR"
+mkdir -p "$PG_DIR/.claude"
+pg() { (cd "$PG_DIR" && bash "$PLUGIN_SCRIPTS/parallel-guard.sh" --json 2>/dev/null); }
+pgf() { pg | jq -r ".$1"; }
+
+assert_contains "no parallel.json: not guarded, and said so" "$(pgf REASON)" "no .claude/parallel.json"
+printf '{"new":"node scripts/parallel.mjs new","adopt":"node scripts/parallel.mjs adopt"}\n' > "$PG_DIR/.claude/parallel.json"
+printf '{}\n' > "$PG_DIR/.claude/settings.json"
+assert_eq "no sandbox: nothing to guard" "false false" "$(pgf GUARDED) $(pgf SANDBOX)"
+printf '{"sandbox":{"enabled":true}}\n' > "$PG_DIR/.claude/settings.json"
+assert_eq "the sandbox alone is not enough: six entries missing" "false 6" \
+  "$(pgf GUARDED) $(pgf MISSING | grep -c .)"
+assert_contains "and each is named, ready to paste" "$(pgf MISSING)" "permissions.deny: Edit(**/scripts/parallel.mjs)"
+cat > "$PG_DIR/.claude/settings.json" <<'JSON'
+{"sandbox":{"enabled":true,
+  "excludedCommands":["node scripts/parallel.mjs new *","node scripts/parallel.mjs adopt *"],
+  "filesystem":{"denyWrite":["scripts/parallel.mjs"]}},
+ "permissions":{"ask":["Bash(node scripts/parallel.mjs new *)"],"deny":["Edit(**/scripts/parallel.mjs)"]}}
+JSON
+assert_eq "one ask missing: not guarded" "false" "$(pgf GUARDED)"
+printf '{"permissions":{"ask":["Bash(node scripts/parallel.mjs adopt *)"]}}\n' > "$PG_DIR/.claude/settings.local.json"
+assert_eq "the local settings complete it: guarded" "true scripts/parallel.mjs" "$(pgf GUARDED) $(pgf SCRIPTS)"
+printf '{"new":"pnpm wt new","adopt":null}\n' > "$PG_DIR/.claude/parallel.json"
+assert_eq "an alias is never guarded" "false" "$(pgf GUARDED)"
+assert_contains "and the reason asks for the direct invocation" "$(pgf REASON)" "not an alias"
+assert_eq "it writes nothing" "parallel.json settings.json settings.local.json" \
+  "$(cd "$PG_DIR/.claude" && ls | tr '\n' ' ' | sed 's/ $//')"
+unset -f pg pgf
+
+echo ""
 echo "── worktree-info.sh --impact (the overlap before the fan-out) ──"
 
 # At pre-flight there is no spec and no worktree yet, only an estimate per task.

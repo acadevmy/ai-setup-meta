@@ -718,6 +718,16 @@ the project without a clash, and a finished run is one `dev` away from being
 tried. The worktrees live in `.claude/worktrees/`, beside Claude Code's own,
 because that is where the sandbox lets a session write.
 
+To skip typing that line, a project can let the agent run `new` and `adopt`
+itself. They leave the sandbox only with three guards, which `parallel`
+proposes and `${CLAUDE_PLUGIN_ROOT}/scripts/parallel-guard.sh` checks: the
+excluded pattern is the direct invocation of the script file, never an alias
+such as `pnpm wt` or `npm run wt` (an alias runs whatever `package.json` says,
+and that file stays editable); the script is in `denyWrite` and under an
+`Edit(...)` deny; and every run asks. With them in place each `new` is one
+approval instead of a line to paste. In auto mode the line comes back, since
+the approval would no longer reach you.
+
 **While you are in a worktree**, the harness blocks anything reaching back into
 the main checkout: an edit outside it, a Bash command whose working directory
 resolves there, a `git -C` or `cd` that redirects git out of it. Those are not

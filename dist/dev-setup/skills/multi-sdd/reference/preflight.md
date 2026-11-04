@@ -190,12 +190,27 @@ On a yes:
    ```
 
    `BRANCH` is the name; nothing is created.
-2. **One line for the developer**, every task chained with `&&`: the `new`
-   command of `parallel.json`, then the branch in single quotes, then
-   `--from <fork point>`. They run it — in their terminal or after `!` — because
-   it writes `.env`, which the sandbox denies. It installs as many times as
-   there are tasks, before any run starts. **The turn ends on that line.**
-3. **When they say it ran**, map each branch to its worktree:
+2. **Who runs `new`.** Each task's command is the `new` command of
+   `parallel.json`, then the branch in single quotes, then `--from <fork
+   point>`. It writes `.env`, which the sandbox denies, so ask the script
+   whether the project lets you run it:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/parallel-guard.sh" --json
+   ```
+
+   - **`GUARDED` true, and the session not in auto mode** → run it yourself,
+     one Bash call per task, from the main checkout, inside the sandbox: the
+     command is excluded from it, and the `ask` rule puts each run in front of
+     the developer. A declined one is that task's line to run, below.
+   - **Otherwise** → one line for the developer, every task chained with `&&`,
+     in their terminal or after `!`. Say why in one sentence: `REASON`, or auto
+     mode, where the approval would not reach a person. **The turn ends on that
+     line.**
+
+   Either way it installs as many times as there are tasks, before any run
+   starts.
+3. **Once the worktrees exist**, map each branch to its worktree:
 
    ```bash
    git worktree list --porcelain
