@@ -162,7 +162,18 @@ const writeEnv = (worktree) => {
   }
 };
 
-// `from` is a remote branch (the new command) or a local commit (the Claude Code hook)
+// --from takes a fork point as a flow confirms it: `origin/next`, `next`, or a
+// local branch a stacked task starts from. A short name is the remote branch
+// whenever origin has one, as it always was
+const baseRef = (from) => {
+  const has = (ref) =>
+    spawnSync("git", ["rev-parse", "--verify", "--quiet", ref], { cwd: mainRoot() }).status === 0;
+  if (from.startsWith("origin/")) return from;
+  if (has(`refs/remotes/origin/${from}`) || !has(from)) return `origin/${from}`;
+  return from;
+};
+
+// `from` is a remote branch, a local ref (the new command) or a local commit (the Claude Code hook)
 const createWorktree = (branch, { from = `origin/${CONFIG.baseBranch}`, path } = {}) => {
   const main = mainRoot();
   const target = path ?? join(worktreesRoot(), branch.replaceAll("/", "-"));
@@ -367,7 +378,7 @@ const [command, name] = positionals;
 try {
   if (command === "new") {
     if (!name) throw new Error("a branch name is required");
-    createWorktree(name, values.from ? { from: `origin/${values.from}` } : {});
+    createWorktree(name, values.from ? { from: baseRef(values.from) } : {});
   } else if (command === "adopt") {
     adoptWorktree(name, { skipSetup: values["skip-setup"] });
   } else if (command === "dev") {

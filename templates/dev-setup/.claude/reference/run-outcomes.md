@@ -168,7 +168,9 @@ and the two commands filled in with `worktreePath`, `adopt` first, to run from
 the main checkout. It is a line, not a question — under `multi-sdd` the other
 runs are still landing — and the developer runs it: `adopt` writes the
 worktree's `.env`, which the sandbox stops. The worktree gets ports of its own,
-so it runs beside the others without a clash. No `parallel.json`, no line.
+so it runs beside the others without a clash. A run launched on a worktree
+`parallel` prepared (`multi-sdd`, phase A) has its ports already: the line is
+`dev` alone. No `parallel.json`, no line.
 
 ## The merge request
 

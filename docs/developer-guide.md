@@ -708,6 +708,16 @@ a slot, its ports and its `.env`, then `dev` starts it beside the others. When
 the project has the script, the run's report ends with the two commands filled
 in — `multi-sdd` writes the code, `parallel` runs it.
 
+Better still, `multi-sdd` can have `parallel` prepare the worktrees before the
+runs start. On a project with the script, the fork-point question carries a
+second one — prepare each run's worktree with `parallel`? On a yes it gives you
+one line of `new` commands, one per task, from the confirmed fork point; you
+run it, and every run then develops in its own prepared worktree, with its
+ports, `.env` and dependencies, instead of a bare one. Its agents can start
+the project without a clash, and a finished run is one `dev` away from being
+tried. The worktrees live in `.claude/worktrees/`, beside Claude Code's own,
+because that is where the sandbox lets a session write.
+
 **While you are in a worktree**, the harness blocks anything reaching back into
 the main checkout: an edit outside it, a Bash command whose working directory
 resolves there, a `git -C` or `cd` that redirects git out of it. Those are not

@@ -2076,6 +2076,14 @@ if command -v node >/dev/null 2>&1; then
   pa adopt pa-third --skip-setup >/dev/null
   assert_eq "--skip-setup skips the setup" "false" "$([ -f "$PA_THIRD/.setup-ran" ] && echo true || echo false)"
   assert_contains "the next worktree takes the next slot" "$(pa list)" "pa-third  feat/DE-2-third  2"
+  # multi-sdd passes the fork point as it was confirmed: here a local branch a
+  # stacked task starts from, with no origin at all
+  pa new feat/DE-3-stack --from feat/DE-1-side >/dev/null
+  PA_NEW="$PA_MAIN/.claude/worktrees/feat-DE-3-stack"
+  assert_eq "new puts the worktree inside the project, beside Claude Code's" \
+    "true" "$([ -d "$PA_NEW" ] && echo true || echo false)"
+  assert_eq "--from takes a local branch as it is" \
+    "$(git -C "$PA_MAIN" rev-parse feat/DE-1-side)" "$(git -C "$PA_NEW" rev-parse HEAD 2>/dev/null)"
   unset -f pa
 else
   echo "  (skipped: node not available)"
@@ -2199,6 +2207,7 @@ const src = fs.readFileSync(process.argv[2], 'utf8');
 const meta = src.match(/^export const meta = \{[\s\S]*?\n\}\n/);
 const scenario = JSON.parse(process.argv[3]);
 const prompts = {};
+const options = {};
 const calls = [];
 const spec = {
   slug: 'sim', specMarkdown: '# spec', planSteps: ['one'],
@@ -2210,6 +2219,7 @@ const spec = {
 async function agent(prompt, opts) {
   const label = opts.label;
   prompts[label] = prompt;
+  options[label] = opts;
   calls.push(label);
   if (label.startsWith('spec:')) return spec;
   if (label.startsWith('revise:')) {
@@ -2228,7 +2238,9 @@ async function agent(prompt, opts) {
     if (answer === 'ok') return { satisfied: true, reason: 'checked' };
     return { satisfied: false, reason: key + ' proposal', suggestion: 'change', grounds: 'an ADR' };
   }
-  if (label.startsWith('dev:')) return { worktreePath: '/wt', branch: 'b', specPath: 'p', commits: [] };
+  if (label.startsWith('dev:')) {
+    return { worktreePath: '/wt', branch: scenario.devBranch || 'b', specPath: 'p', commits: [] };
+  }
   if (label.startsWith('verify:')) {
     return { passed: true, output: 'green', notStarted: scenario.notStarted || [] };
   }
@@ -2272,6 +2284,13 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     devSkips: /lint:\s+make lint\s+\(NOT RUNNABLE HERE/.test(prompts['dev:DE-1'] || '')
       && (prompts['dev:DE-1'] || '').includes('php is 8.3'),
     verifySkips: /lint:\s+make lint\s+\(skip\)/.test(prompts['verify:DE-1'] || ''),
+    reason: out.reason || '',
+    worktree: out.worktreePath || '',
+    branch: out.branch || '',
+    devIsolation: (options['dev:DE-1'] || {}).isolation || '',
+    devInPrepared: (prompts['dev:DE-1'] || '').includes('cd "/repo/.claude/worktrees/feat-DE-1"')
+      && !(prompts['dev:DE-1'] || '').includes('sdd-start.sh'),
+    verifyInPrepared: (prompts['verify:DE-1'] || '').includes('cd "/repo/.claude/worktrees/feat-DE-1"'),
   }));
 });
 NODEJS
@@ -2345,6 +2364,31 @@ NODEJS
   SIM=$(sim '{"scope":"dead"}')
   assert_eq "a reviewer that dies twice is reported, and the run goes on" \
     "ready-for-mr scope 4" "$(field "$SIM" status) $(field "$SIM" unchecked) $(field "$SIM" reviews)"
+
+  # A worktree parallel prepared replaces the isolation: the dev agent works
+  # there on the branch it was made on, and the outcome names that worktree
+  # whatever the agent reports.
+  SIM=$(sim '{}')
+  assert_eq "with no prepared worktree, the dev agent gets an isolated one" \
+    "worktree" "$(field "$SIM" devIsolation)"
+  PREP='{"worktreePath":"/repo/.claude/worktrees/feat-DE-1","branch":"feat/DE-1_thing"}'
+  SIM=$(sim '{"devBranch":"feat/DE-1_thing"}' "$PREP")
+  assert_eq "a prepared worktree: no isolation, and the run reaches the merge request" \
+    "ready-for-mr " "$(field "$SIM" status) $(field "$SIM" devIsolation)"
+  assert_eq "the dev agent works in it and cuts no branch" "true" "$(field "$SIM" devInPrepared)"
+  assert_eq "Verify runs there too" "true" "$(field "$SIM" verifyInPrepared)"
+  assert_eq "the outcome names the prepared worktree, not the agent's report" \
+    "/repo/.claude/worktrees/feat-DE-1 feat/DE-1_thing" "$(field "$SIM" worktree) $(field "$SIM" branch)"
+  SIM=$(sim '{"devBranch":"feat/DE-1_other"}' "$PREP")
+  assert_eq "a dev agent on another branch fails the run at dev" \
+    "failed dev" "$(field "$SIM" status) $(field "$SIM" stage)"
+  SIM=$(sim '{}' '{"worktreePath":"/repo/.claude/worktrees/x"}')
+  assert_eq "a worktree with no branch ends at intake, with no agent" \
+    "failed intake 0" "$(field "$SIM" status) $(field "$SIM" stage) $(field "$SIM" agents)"
+  SIM=$(sim '{}' '{"worktreePath":"relative/x","branch":"feat/x"}')
+  assert_eq "so does a relative path" "failed intake" "$(field "$SIM" status) $(field "$SIM" stage)"
+  SIM=$(sim '{}' '{"worktreePath":"/repo/x","branch":"feat/x;rm -rf ~"}')
+  assert_eq "and a branch a shell would read as syntax" "failed intake" "$(field "$SIM" status) $(field "$SIM" stage)"
 else
   printf '%s  skip%s  node not found: the Challenge simulation needs it\n' "$DIM" "$NC"
 fi
