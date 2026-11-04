@@ -6,6 +6,16 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.4.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.3.0...dev-setup-v4.4.0) (2026-11-04)
+
+
+### Features
+
+* **dev-setup:** Every reference a person reads says what it points at ([a8f208e](https://github.com/acadevmy/ai-setup-meta/commit/a8f208e96c84c1daf8e0f5f72942615932aea1e6))
+* **dev-setup:** Every reference a person reads says what it points at ([8a71210](https://github.com/acadevmy/ai-setup-meta/commit/8a71210d3f984f5131c295252b7a582356b8073c))
+* **setup:** State the readable-references rule in the generated AGENTS.md ([22d1c04](https://github.com/acadevmy/ai-setup-meta/commit/22d1c04d5bb62b9ee365d2287d2d3d81b4664210))
+* **story:** Readable references and an optional Out of Scope section ([1c287c4](https://github.com/acadevmy/ai-setup-meta/commit/1c287c47226017dd59f73a97edbbf435e5dfdd27))
+
 ## [4.3.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.2.0...dev-setup-v4.3.0) (2026-11-02)
 
 
