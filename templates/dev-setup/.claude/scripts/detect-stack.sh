@@ -192,6 +192,16 @@ has_pyproject_table() {
   [ -f pyproject.toml ] && grep -q "^\[$1\]" pyproject.toml 2>/dev/null
 }
 
+# True when the given pubspec.yaml is a Flutter project's: a dependency on the
+# Flutter SDK (`sdk: flutter`, under `flutter:` or `flutter_test:`), or the
+# top-level `flutter:` section only a Flutter app or plugin carries. Any other
+# pubspec is a pure Dart package — a CLI, a server, a library — which has no
+# `flutter` binary to run its tests with.
+is_flutter_pubspec() {
+  [ -f "$1" ] || return 1
+  grep -Eq "^[[:space:]]+sdk:[[:space:]]*[\"']?flutter[\"']?[[:space:]]*(#.*)?$|^flutter:" "$1" 2>/dev/null
+}
+
 # True when at least one file matching the glob exists at depth <= 2, skipping
 # the dependency and build directories.
 has_file_at_depth() {
@@ -219,7 +229,11 @@ LANGS=""
 [ -f package.json ] && LANGS=$(append_csv "$LANGS" node)
 { [ -f pyproject.toml ] || [ -f requirements.txt ] || [ -f setup.py ]; } && LANGS=$(append_csv "$LANGS" python)
 [ -f go.mod ] && LANGS=$(append_csv "$LANGS" go)
-[ -f pubspec.yaml ] && LANGS=$(append_csv "$LANGS" flutter)
+if [ -f pubspec.yaml ]; then
+  if is_flutter_pubspec pubspec.yaml; then LANGS=$(append_csv "$LANGS" flutter)
+  else LANGS=$(append_csv "$LANGS" dart)
+  fi
+fi
 [ -f Cargo.toml ] && LANGS=$(append_csv "$LANGS" rust)
 has_file_at_depth '*.tf' && LANGS=$(append_csv "$LANGS" terraform)
 [ -z "$LANGS" ] && LANGS="unknown"
@@ -275,12 +289,16 @@ done < <(find . -mindepth 2 -maxdepth 3 -name package.json \
   -not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/build/*' \
   -not -path '*/.next/*' 2>/dev/null | LC_ALL=C sort)
 
-# A pubspec.yaml in a sub-project means a Flutter app in the workspace.
-if [ -z "$(find . -maxdepth 1 -name pubspec.yaml 2>/dev/null)" ]; then
-  if find . -mindepth 2 -maxdepth 3 -name pubspec.yaml -not -path '*/node_modules/*' \
-    -print -quit 2>/dev/null | grep -q .; then
-    FRAMEWORKS=$(append_csv "$FRAMEWORKS" flutter)
-  fi
+# A Flutter pubspec.yaml in a sub-project means a Flutter app in the workspace.
+# A pure Dart one (a shared package, a CLI) is not an app.
+if [ ! -f pubspec.yaml ]; then
+  while IFS= read -r SUB_PUBSPEC; do
+    if is_flutter_pubspec "$SUB_PUBSPEC"; then
+      FRAMEWORKS=$(append_csv "$FRAMEWORKS" flutter)
+      break
+    fi
+  done < <(find . -mindepth 2 -maxdepth 3 -name pubspec.yaml -not -path '*/node_modules/*' \
+    2>/dev/null | LC_ALL=C sort)
 fi
 
 lang_has flutter && FRAMEWORKS=$(append_csv "$FRAMEWORKS" flutter)
@@ -418,7 +436,8 @@ heuristic_commands() {
   if [ -z "$TEST_CMD" ]; then
     if has_dep vitest; then TEST_CMD="npx vitest run"
     elif has_dep jest; then TEST_CMD="npx jest"
-    elif [ -f pubspec.yaml ]; then TEST_CMD="flutter test"
+    elif lang_has flutter; then TEST_CMD="flutter test"
+    elif lang_has dart; then TEST_CMD="dart test"
     elif [ -f pytest.ini ] || has_pyproject_table 'tool.pytest.ini_options'; then TEST_CMD="pytest"
     elif [ -f go.mod ]; then TEST_CMD="go test ./..."
     elif [ -f Cargo.toml ]; then TEST_CMD="cargo test"
@@ -432,7 +451,7 @@ heuristic_commands() {
   elif [ -f eslint.config.js ] || [ -f eslint.config.mjs ] || [ -f eslint.config.cjs ] \
     || [ -f eslint.config.ts ] || has_dep eslint; then
     LINT_CMD="npx eslint ."
-  elif [ -f analysis_options.yaml ]; then LINT_CMD="dart analyze"
+  elif [ -f analysis_options.yaml ] || lang_has dart; then LINT_CMD="dart analyze"
   elif has_pyproject_table 'tool.ruff'; then LINT_CMD="ruff check ."
   elif [ -f .flake8 ]; then LINT_CMD="flake8"
   elif [ -f .golangci.yml ] || [ -f .golangci.yaml ]; then LINT_CMD="golangci-lint run"
@@ -449,7 +468,9 @@ heuristic_commands() {
   done
   if [ -z "$TYPECHECK_CMD" ]; then
     if [ -f tsconfig.json ]; then TYPECHECK_CMD="npx tsc --noEmit"
-    elif [ -f pubspec.yaml ]; then TYPECHECK_CMD="flutter analyze"
+    # Flutter only: on a pure Dart package `dart analyze` is the lint and the
+    # type check at once, and running it twice gates nothing more.
+    elif lang_has flutter; then TYPECHECK_CMD="flutter analyze"
     elif has_pyproject_table 'tool.mypy' || [ -f mypy.ini ]; then TYPECHECK_CMD="mypy ."
     elif [ -f go.mod ]; then TYPECHECK_CMD="go build ./..."
     elif [ -f Cargo.toml ]; then TYPECHECK_CMD="cargo check"
