@@ -71,8 +71,9 @@ const run = (command, cwd, env = {}) => {
 const commonDir = () => resolve(git(["rev-parse", "--path-format=absolute", "--git-common-dir"]));
 const mainRoot = () => dirname(commonDir());
 
-// Outside the repository: IDEs do not index twice, and each worktree opens as its own project
-const worktreesRoot = () => join(dirname(mainRoot()), `${basename(mainRoot())}.wt`);
+// Inside the project, beside Claude Code's own: the sandbox lets a session write there,
+// so an agent can work in a worktree this script made. The setup gitignores the folder
+const worktreesRoot = () => join(mainRoot(), ".claude", "worktrees");
 
 // Slots live under the git common dir, beside dev-setup's other state: never tracked, shared by every worktree
 const stateFile = () => join(commonDir(), "dev-setup", "parallel", "slots.json");

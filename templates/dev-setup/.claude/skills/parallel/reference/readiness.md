@@ -20,6 +20,7 @@ the smallest change for each. Nothing is applied before the developer's yes.
 
 | Blocker | How it shows | Typical fix |
 |---|---|---|
+| Worktrees not ignored | `.claude/worktrees/` missing from `.gitignore`; a test runner, linter or watcher that scans the whole tree | the script puts its worktrees there, beside Claude Code's: add the line, and exclude the folder where a tool would read every worktree twice (Jest `modulePathIgnorePatterns`, the ESLint ignores, a watcher's ignore list) |
 | Fixed port | `--port 3000`, `listen(3000)` | read it from `PORT`, with today's value as the default |
 | Fixed container or volume names | `container_name:`, explicit volume `name:` | drop `container_name`; `compose: true` in `CONFIG` gives each worktree its own `COMPOSE_PROJECT_NAME` |
 | Fixed published ports | `"5432:5432"` | `"${DB_PORT:-5432}:5432"`, with `DB_PORT` in `env.vars` |

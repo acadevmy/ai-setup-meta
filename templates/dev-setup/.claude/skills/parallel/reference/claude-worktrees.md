@@ -16,7 +16,7 @@ hook (`worktree.md`).
 
 A project that runs its agents in parallel instances can opt in: the generated
 script already has both ends. `hook-create` cuts `worktree-<name>` from the HEAD
-of `cwd` into `../<repo>.wt/claude-<name>` with its own slot, and copies what
+of `cwd` into `.claude/worktrees/claude-<name>` with its own slot, and copies what
 `CONFIG.env.copy` lists — that list takes over from `.worktreeinclude`, so
 everything the project's `.worktreeinclude` carries has to be in it.
 `hook-remove` stops the containers and removes the worktree, without `--force`.
