@@ -24,7 +24,7 @@ existing ClickUp tag that marks the product's stories. -->
 
 | Product | Platforms | Apps | Context file | ClickUp tag |
 |---|---|---|---|---|
-| <name> | <web, iOS, …> | <apps/web, apps/api> | <apps/web/product.md> | <tag> |
+| <name> | <web, iOS, …> | <apps/web, apps/api> | <[<name> context](apps/web/product.md)> | <tag> |
 
 ## Platforms and distribution
 

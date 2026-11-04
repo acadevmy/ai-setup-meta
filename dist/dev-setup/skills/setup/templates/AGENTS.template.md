@@ -122,6 +122,7 @@ own; there is nothing to invoke by hand.
 | Branch, commit and merge-request conventions | the `vcs-ops` skill, which loads when you reach for git |
 | Rules a machine can check (function length, naming, `any`, coverage floors) | ESLint / the test runner config / branch protection — a failure there is the rule talking |
 | What is already built in this project | `REGISTRY.md` |
+| Documents (specs, docs, merge requests) are read, understood and validated by people | semantic references — `[topic](doc.md#section)`, `[topic, page 32](https://…)` — never opaque ones (`§1`, a bare id) |
 
 `REGISTRY.md` is a concise index of reusable components, adopted patterns and
 architectural decisions, with code references for further investigation. Read it

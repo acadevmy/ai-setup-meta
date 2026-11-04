@@ -1981,9 +1981,10 @@ for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DEC
 done
 
 # DE-17079 wants the generated file shorter; these fixes may not lengthen it.
-# The two extra lines are the `story` command and its `story-reviewer` agent,
-# which the surface checks above require.
-for BUDGET in "$GEN_SINGLE:133" "$GEN_WORKSPACE:138" "$GEN_PROJECT:30"; do
+# The three extra lines are the `story` command, its `story-reviewer` agent,
+# which the surface checks above require, and the one-line rule on readable
+# references.
+for BUDGET in "$GEN_SINGLE:134" "$GEN_WORKSPACE:139" "$GEN_PROJECT:30"; do
   GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
   assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
     "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
@@ -2072,6 +2073,8 @@ assert_eq "a valid epic, its stories and a spike pass" "true" \
 assert_eq "and the caller sees a zero exit" "0" "$(story_exit "$STORY_FIX/valid")"
 assert_eq "every draft in the folder is read" "5" \
   "$(story "$STORY_FIX/valid" | jq -r '.CHECKED')"
+assert_eq "a story with the optional Out of Scope section passes" "true" \
+  "$(story "$STORY_FIX/valid/US-01.md" "$STORY_FIX/valid/EPIC-01.md" | jq -r '.VALID')"
 # The open points are what the da dettagliare tag is applied from.
 assert_eq "the draft with an Open points section is reported" "US-02" \
   "$(story "$STORY_FIX/valid" | jq -r '.OPEN_POINTS')"
@@ -2365,6 +2368,8 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
       && (prompts['dev:DE-1'] || '').includes('say so in `notes`'),
     precedence: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
       .every((l) => prompts[l].includes('settle it in this')),
+    readable: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
+      .every((l) => prompts[l].includes('/reference/readable-references.md')),
     verified: calls.includes('verify:DE-1'),
     unverified: (out.unverified || []).map((u) => u.kind + '=' + u.command).join(','),
     unverifiedReason: (out.unverified || []).map((u) => u.reason).join('|'),
@@ -2393,6 +2398,8 @@ NODEJS
     "the vendoring ADR backs it|" "$(field "$SIM" answers)"
   assert_eq "the author, the reviewers and the reviser read the same precedence" \
     "true" "$(field "$SIM" precedence)"
+  assert_eq "and the same rule for the references a person reads" \
+    "true" "$(field "$SIM" readable)"
   assert_eq "a departure from the task reaches the developer agent" \
     "true" "$(field "$SIM" devSees)"
   assert_eq "and travels in the outcome" "1" "$(field "$SIM" deviations)"
@@ -5046,6 +5053,7 @@ for PART in "## To confirm" "## Open points" "proposals applied to the spec: 1" 
             "Adds the greeting." "**Spec:** \`.specs/DE-7-greeting.md\`" "make test" "1. Open /hello" "3 passed"; do
   assert_contains "the body carries: $PART" "$BODY" "$PART"
 done
+assert_contains "the task reads as its id and its title, not its id alone" "$BODY" "**Issue:** DE-7 Add a greeting"
 assert_eq "the template's own test placeholder is replaced, not kept" "false" \
   "$(printf '%s' "$BODY" | grep -q 'Test A' && echo true || echo false)"
 assert_eq "the commits are the ones git holds, not the ones the agent reported" \
@@ -5821,6 +5829,28 @@ assert_contains "a devcontainer for VS Code is asked, with Stop as the default" 
   "**Stop here** (the default; nothing written) or **A devcontainer for VS Code**"
 assert_eq "it is not a step of setup" "false" \
   "$(grep -rq 'devcontainer-' "$TEMPLATE_ROOT/setup" && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# References a person reads: one rule, written once, followed by what ships
+# ═══════════════════════════════════════════════════════════════════════════════
+
+RR_REF="$TEMPLATE_ROOT/.claude/reference/readable-references.md"
+assert_eq "the rule ships as a plugin reference" "true" \
+  "$(jq -r '.plugin_reference | index("readable-references.md") != null' "$TEMPLATE_ROOT/manifest.json")"
+assert_contains "and closes on the test a reference has to pass" "$(cat "$RR_REF")" "## The test"
+for RR_FILE in .claude/skills/sdd-spec/SKILL.md .claude/skills/sdd-spec/reference/spec-template.md \
+               .claude/skills/sdd-discovery/reference/question-bank.md \
+               .claude/workflows/auto-sdd-run.js .claude/workflows/auto-dev-run.js; do
+  assert_contains "$RR_FILE follows it" "$(cat "$TEMPLATE_ROOT/$RR_FILE")" "readable-references.md"
+done
+# A section number with no title is what the rule forbids; the files that
+# show it as the example not to follow are the only ones allowed to print one.
+RR_SECTIONS="$(grep -rn '§' "$TEMPLATE_ROOT" "$REPO_ROOT/shared" \
+  | grep -v -e '/CHANGELOG.md:' -e '/reference/readable-references.md:' -e '/story/reference/writing-rules.md:' \
+      -e '/AGENTS.template.md:' -e '/AGENTS.workspace-template.md:' || true)"
+assert_eq "nothing that ships cites a section by its number" "" "$RR_SECTIONS"
+assert_contains "the merge request names the task by its title, not its id alone" \
+  "$(cat "$REPO_ROOT/shared/skills/vcs-ops/reference/merge-request.md")" "[DE-XXX <task title>](link to task)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary

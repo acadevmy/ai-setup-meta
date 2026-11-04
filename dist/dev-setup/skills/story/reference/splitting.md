@@ -97,7 +97,7 @@ by Mike Cohn: a more compact mnemonic for a subset of the same cuts.
 1. **Visible value.** Each story adds an observable increment for the user.
    Lawrence accepts stories that are not releasable alone as long as they add
    up to a Minimum Marketable Feature; **this skill does not** — every story
-   is deployable and usable alone (`writing-rules.md`, §4). A form with no
+   is deployable and usable alone (`writing-rules.md`, Splitting). A form with no
    submit or a drag with no save is not a story, even if the MMF would
    complete it.
 2. **Small and similar.** When a story reaches the top of the backlog, six to

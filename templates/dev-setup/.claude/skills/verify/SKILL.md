@@ -66,7 +66,7 @@ this split exists to avoid.
 Parse the `---VERIFY-RESULT---` block the agent returns.
 
 - **fail** — show the block, list exactly what is missing or divergent, suggest
-  the concrete next step ("implement REQ-3", "add a test for the expired token
+  the concrete next step ("implement REQ-3, the expired-token refusal", "add a test for the expired token
   scenario"). Do not proceed: the implementation needs work.
 - **pass-with-warnings** — show the block, highlight the warnings, and ask
   whether they are intentional scope reductions. Proceed on a confirmation.

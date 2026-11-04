@@ -38,6 +38,9 @@
 - `slug` = short name in English (e.g. `refresh-token-rotation`)
 - No duplicates: update the existing entry if it evolves
 - Remove entries only when the code is deleted
+- Written for people: another entry is named by its heading, a document as a
+  Markdown link whose text names the topic, a decision recorded elsewhere by
+  its title — never a bare number, path or coined abbreviation
 
 ---
 

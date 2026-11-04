@@ -595,7 +595,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/render-template.sh \
 ```
 
 **The `Issue:` line ships as an example** — `DE-00000` on the team's ClickUp
-workspace. It is the shape a PR author overwrites, not a live link. If this
+workspace, with the task's title in the link text so a reviewer knows what the
+task is before opening it. It is the shape a PR author overwrites, not a live
+link. If this
 project tracks its work somewhere else, say so in the summary line and leave the
 correction to the developer: the setup does not invent a tracker URL.
 

@@ -41,7 +41,10 @@ Per **story**:
    single declarative retry scenario; a scenario for the user who may not
    act, when the product has a permission matrix.
 6. **Language.** The glossary's terms, one per concept; no vague adjectives;
-   no application layers; no item cited by id alone.
+   no application layers; no reference a reader cannot resolve — an item
+   cited by id alone, a bare URL, a coined abbreviation, a section number
+   without its title, a file only the author can open
+   (`writing-rules.md`, No mental maps).
 7. **Inventions.** Anything stated as fact that neither the request, nor the
    material, nor `product.md` supports — it must become an open point.
 

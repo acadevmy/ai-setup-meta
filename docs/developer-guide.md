@@ -272,7 +272,7 @@ It comes back with one of two outcomes:
 
 | Outcome | What it means | What you do |
 |---|---|---|
-| `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section (§9) |
+| `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section ([the merge request lists points to confirm](#the-merge-request-lists-points-to-confirm)) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
 In a cloud session — a scheduled routine included — the disk goes with the
@@ -443,7 +443,7 @@ three in one question, and runs each one before it finishes.
 |---|---|
 | `lint`, `typecheck`, `test` | the command, or `null` when the project has none — with the reason under `absent`. A `null` is a decision: the flows skip that command and run the others |
 | `preflight` | optional: a readiness check the autonomous launchers run before anything else — a script that checks the toolchain, say |
-| `hook_manager` | optional: your hook tool when detection does not know it (`pre-commit`, `captainhook`, `grumphp`); the commit gate defers to it (§5) |
+| `hook_manager` | optional: your hook tool when detection does not know it (`pre-commit`, `captainhook`, `grumphp`); the commit gate defers to it ([the quality gate on the commit](#5-the-quality-gate-on-the-commit)) |
 
 **Every command runs from the repository root.** One that belongs to a
 sub-directory says so: `make -C api lint`, `cd api && composer test`.
@@ -897,7 +897,7 @@ first time; answering "yes, and don't ask again" records it in
 ### `git push` fails inside the sandbox
 
 Your `origin` is an SSH remote and the push was not the plain form the
-exclusion matches — see §4. `git push origin <branch>` or
+exclusion matches — see [SSH remotes](#ssh-remotes). `git push origin <branch>` or
 `git push -u origin <branch>`, alone on the line, runs outside the sandbox; a
 `cd … &&`, a pipe or a push to a URL keeps it in.
 
