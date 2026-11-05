@@ -130,8 +130,31 @@ one. Work on `.env.example`, which is tracked and carries no values.
    CLICKUP_SETUP_LIST_ID=
    ```
 
-In every case, close with one line for the summary:
-`CLICKUP_SETUP_LIST_ID declared in .env.example — copy it into .env and fill it in (setup cannot write .env)`
+Then check that the file can be committed — a `.env*` line in `.gitignore`
+(the Devmy scaffold has one) ignores it too:
+
+```bash
+git check-ignore -q .env.example && echo ignored
+```
+
+Ignored → ask once: "`.gitignore` ignores `.env.example`, so it is never
+committed. Add `!.env.example` to `.gitignore`? (yes / skip)". A yes appends that
+one line and nothing else.
+
+**Where the value goes.** With `.env.vault` at the root, `.env` is not the
+developer's file: the `postinstall` pull of dotenv-vault rewrites it on every
+install, and a value typed there is lost. The value goes into the vault
+(`npx dotenv-vault open`, or the project's own script for it), and the
+summary line says so.
+
+In every case, close with one line for the summary — one of:
+
+```
+  - CLICKUP_SETUP_LIST_ID declared in .env.example — copy it into .env and fill it in (setup cannot write .env)
+  - CLICKUP_SETUP_LIST_ID declared in .env.example — add it to the dotenv vault: .env is pulled from it on every install
+```
+
+and, when the file was ignored: `.env.example was gitignored: !.env.example <added|not added>`.
 
 ---
 
@@ -157,6 +180,25 @@ It resolves the branch from the repository itself — the upstream, the remote's
 default, then `main`/`master`/`develop`/`next` — and picks the one HEAD actually
 forked from. On a project whose work targets `next`, protecting `main` would
 protect the wrong ref.
+
+### 7b.1b — Keep a protection that is already there
+
+Read what the host already enforces before proposing anything:
+
+```bash
+# GitHub — 404 means no protection
+gh api "repos/{owner}/{repo}/branches/$BASE_BRANCH/protection" 2>/dev/null
+# GitLab
+glab api "projects/:id/protected_branches" | jq --arg b "$BASE_BRANCH" '.[] | select(.name == $b)'
+```
+
+A protection already in place is the team's policy, and it can be **stricter**
+than this step's: the Devmy GitLab addon lets only Maintainers push and merge on
+`main`, `next`, `next-major` and `*.x`, and this step's payload
+(`merge_access_level=30`, developers) would loosen it. So, when one exists:
+write nothing, quote what it enforces, and report
+`branch protection on <branch> kept as the team set it (<what it enforces>)`.
+Only a branch with no protection goes on to 7b.2.
 
 ### 7b.2 — Show the developer what will change, then ask
 

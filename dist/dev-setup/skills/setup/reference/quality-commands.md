@@ -93,6 +93,20 @@ Then **one** `AskUserQuestion` call, four questions, and the turn ends on it
 | "Which command runs its tests?" | the same, from the test candidates, then **None — this project has no tests** | a command |
 | "Write `.claude/quality-commands.json`?" | **Write it** (the default), **Not now** | — |
 
+**Check the candidates before offering them.** Two kinds of candidate look
+right and are not:
+
+- **An Nx target nobody defined.** `npx nx run-many -t typecheck` exits 0 when
+  no project has a `typecheck` target — a check that is green without checking
+  anything. On an Nx workspace, list who has the target before offering it:
+  `npx nx show projects --with-target <target>`. An empty list drops the
+  candidate; when the type-check runs inside another command (the Devmy
+  `lint` is `next typegen && tsc && eslint`), say so in the **None** option's
+  description.
+- **A test command that watches.** `ng test`, `vitest` and `jest --watch` can
+  wait for changes and never exit. When a `test:headless` script or target
+  exists — every Devmy brick defines one — offer it first.
+
 A kind with no candidate is **still asked** — no command is left empty without
 a decision: its options are **I will type it** (the free-text answer) and the
 **None** one. A free-text command is taken as typed; say it runs from the
@@ -138,6 +152,32 @@ that is the team's to know. `not-found`, a `MISSING` program or a refusal is
 the setup's to say plainly: show `REASON` and `OUTPUT`, and name the command to
 correct in the file. Either way the result goes in the summary line, never
 silently.
+
+**A `failed` that is the sandbox, not the project.** The commands run inside
+the Bash sandbox the setup has just installed, so a green codebase can come
+back red. Read `OUTPUT` for these signatures before reporting a red project:
+
+| Signature in `OUTPUT` | Cause | What to offer |
+|---|---|---|
+| `binding to a port` / `listen EPERM` on a TCP port | local port denied | `allowLocalBinding` (3.4b) |
+| `denied permission to use its unix socket` (Nx) | Unix socket denied | the Nx row of 3.4b |
+| `bootstrap_check_in … Permission denied`, `browserType.launch`, `Failed to launch` (Chromium, Playwright, Cypress, Karma) | **macOS Seatbelt refuses the browser's Mach services — no sandbox key fixes it** | the command in `sandbox.excludedCommands`, below |
+| a fetch failing on a host not in `allowedDomains` (`getaddrinfo`, `ENOTFOUND`, a `<sandbox_violations>` block) | domain not allowed | add the host to `sandbox.network.allowedDomains` (3.4) |
+| `Operation not permitted` writing outside the project | path not writable | the path in `sandbox.filesystem.allowWrite`, only if it is the tool's own cache |
+
+The browser row is the one with a trade-off, so ask before writing it:
+
+> "`<test command>` launches a browser, and on macOS no browser can start
+> inside the Bash sandbox. Run that one command outside the sandbox
+> (`sandbox.excludedCommands`)? The permission rules still apply to it; it is no
+> longer isolated. (yes / skip)"
+
+A yes adds the declared command, exactly as declared, plus `*` for its
+arguments (`pnpm run test*`) — never a broader pattern such as `pnpm *`. Every
+other row is additive like 3.4b and follows its rule on the team's own file.
+After a change, run the preflight once more: the summary reports the second
+run, and says what was added. A skip keeps the first result and the reason:
+`test: <cmd> (failed — sandbox: <cause>)`.
 
 ## 3b.6 — Hand the commands to Steps 4 and 5
 

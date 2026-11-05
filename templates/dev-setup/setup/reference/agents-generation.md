@@ -208,6 +208,14 @@ regenerate the inner content. Preserve the block verbatim and append the plugin
 template below the `END` marker. The inner block is Next.js territory —
 rewriting it would conflict with the next `next upgrade`.
 
+**An `AGENTS.md` a scaffolder wrote, without markers** — the Devmy Angular
+brick ships its own Angular guide in the application's `AGENTS.md`. It is
+framework guidance the plugin does not have, not a stale copy of the template:
+offer to keep it verbatim and append the plugin template below it, the way the
+Next.js block is kept, before offering an overwrite. A full regeneration would
+drop it, and the skip that conflict detection falls back to would leave the
+sub-project without the plugin's sections.
+
 **Conventions discovered at runtime**: if the Step 2 check populated
 `{FRAMEWORK_AGENTS_CONVENTION}` for a framework other than Next.js (or for a
 Next.js version newer than what is documented here), apply the same injection

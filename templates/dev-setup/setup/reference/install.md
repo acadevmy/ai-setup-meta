@@ -340,6 +340,10 @@ Start from an empty list and add the rows that apply:
 | `{VCS}` == `gitlab`, host `gitlab.com` | `gitlab.com` |
 | `{VCS}` == `gitlab`, self-hosted | the host from the remote URL (e.g. `gitlab.company.internal`) |
 | `CLICKUP_SETUP_LIST_ID` set (see `mcp-env.md`) | `api.clickup.com` |
+| a source file imports `next/font/google` | `fonts.googleapis.com`, `fonts.gstatic.com` — `next build` downloads the fonts; a warm `.next/cache` hides the miss until a clean build (a worktree, a runner) |
+| `.env.vault` at the root (dotenv-vault) | `vault.dotenv.org` — the `postinstall` pull |
+| root `package.json` has `devEngines.runtime.onFail: "download"` | `nodejs.org` — pnpm downloads the pinned Node |
+| `cypress` in any `package.json` | `download.cypress.io` — its `postinstall` downloads the binary |
 
 **Implementation** (jq, replaces the list wholesale):
 
@@ -378,6 +382,15 @@ Two stacks hit it on every run:
   process — slower, and Nx itself warns that plugins expecting isolation may
   misbehave.
 
+Two more rows come from the package manager itself: an install writes the lock
+file, which the template denies to the sandbox, and Corepack (the one that runs
+`corepack pnpm` in husky hooks and Devmy workspaces) keeps its cache outside
+the project.
+
+A test runner that launches a browser is not here: on macOS, Chromium cannot
+start inside the sandbox at all, and no key fixes it. Step 3b handles it, once
+the test command is declared (`quality-commands.md`, 3b.5).
+
 **Skip if** `.claude/settings.json` was neither written at 3.2 nor migrated at
 3.2b — unless the developer says yes to the question below.
 
@@ -385,15 +398,18 @@ Add the rows that apply, and nothing for a stack the project does not have:
 (GREENFIELD: evaluate them against the stack chosen at Step 2b, as Step 4 does —
 a Next.js choice gets the Next.js row before any code exists.)
 
-
 | Condition | Keys to add |
 |---|---|
 | `FRAMEWORKS` contains `nextjs` (in any sub-project of a workspace) | `sandbox.network.allowLocalBinding: true` |
 | `MONOREPO` is `nx` | `sandbox.network.allowUnixSockets` and `sandbox.filesystem.allowWrite`, each with `/tmp/.nx` and `~/.nx` |
+| `PKG_MANAGER` is unambiguous (3.3) | remove that manager's lock file (`**/pnpm-lock.yaml`, `**/package-lock.json` or `**/yarn.lock`) from `sandbox.filesystem.denyWrite` — keep the `Edit(...)` deny on it |
+| root `package.json` has `packageManager` (Corepack) | `~/.cache/node/corepack` in `sandbox.filesystem.allowWrite` |
 
 `allowLocalBinding` lets a sandboxed command listen on localhost only; it opens
 nothing to the network. The Nx entries cover only Nx's own socket directory.
-Neither reaches `.env`, the credentials or `.git/`, which stay denied.
+The lock-file row lets `<pm> install` and `<pm> add` write the file they own,
+while the file tools still cannot edit it by hand. None of them reaches `.env`,
+the credentials or `.git/`, which stay denied.
 
 **Implementation** (jq, additive, idempotent):
 
@@ -408,6 +424,16 @@ NX='["/tmp/.nx","~/.nx"]'
 jq --argjson p "$NX" '
   .sandbox.network.allowUnixSockets = ((.sandbox.network.allowUnixSockets // []) + $p | unique)
   | .sandbox.filesystem.allowWrite  = ((.sandbox.filesystem.allowWrite  // []) + $p | unique)' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+
+# Unambiguous package manager (example: pnpm)
+jq '.sandbox.filesystem.denyWrite -= ["**/pnpm-lock.yaml"]' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+
+# Corepack
+jq '.sandbox.filesystem.allowWrite = ((.sandbox.filesystem.allowWrite // []) + ["~/.cache/node/corepack"] | unique)' \
   .claude/settings.json > .claude/settings.json.tmp \
   && mv .claude/settings.json.tmp .claude/settings.json
 ```
@@ -426,7 +452,7 @@ the developer would have to make it by hand, after the first red run.
 **Report in the summary** (a single line) — one of:
 
 ```
-  - sandbox tooling allowances: <local binding (Next.js)[, Nx sockets]> added
+  - sandbox tooling allowances: <local binding (Next.js)[, Nx sockets][, <pm> lock file writable][, Corepack cache]> added
   - sandbox tooling allowances DECLINED: <rows> — the test command fails inside the sandbox until they are added
   - sandbox tooling allowances: none needed for this stack
 ```
@@ -561,6 +587,11 @@ so. If the stack needs more than the template's env files — Flutter's
 `android/local.properties`, a `*.tfvars` — say which lines to add rather than
 adding them silently.
 
+With dotenv-vault (`.env.vault` at the root) the identity that pulls the
+environment is `.env.me`: without it a worktree's install cannot pull `.env`.
+It matches no template pattern — say to add `.env.me`, and add it yourself only
+when you wrote the file at 3.2.
+
 **One `.gitignore` line.** Whether the file is the one written at 3.2 or the
 project's own, check it for `.claude/worktrees/`:
 
@@ -608,6 +639,13 @@ keep it, quote its first heading, and say so in the summary: a template is the
 team's own document, and `vcs-ops` fills the one that is there. The destination
 does not exist → write it, in every mode. That is how a project configured
 before this step existed gets the template on its next UPDATE run.
+
+On GitLab, **any** `.md` already in `.gitlab/merge_request_templates/` is the
+team's template, whatever its name — the Devmy GitLab addon writes
+`merge_request_template.md`. Writing `Default.md` beside it leaves two templates
+and a `vcs-ops` that fills the plugin's instead of the team's. Keep it and ask
+once: "Rename `<file>` to `Default.md`, so `vcs-ops` fills it? (yes / keep the
+name)". On a keep, write nothing and report the name.
 
 **The language.** Ask once, with `AskUserQuestion` — **in every mode, on every
 project with a forge**, unless `.claude/merge-request.json` already exists (its
