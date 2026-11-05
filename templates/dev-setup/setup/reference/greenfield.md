@@ -309,7 +309,7 @@ Next steps:
   3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to get started!
 ```
 
-Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, 3b — which
+Add the one-line reports collected along the way (3.3, 3.4, 3.4b, 3.5, 3.6, 3b — which
 runs after Step 8 here — the instruction-file lines of Step 5b in
 `agents-generation.md`, and the ones `rules-generation.md`, `mcp-env.md` and
 `product-context.md` ask for), plus whatever the step-7b branch protection

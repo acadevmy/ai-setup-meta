@@ -13,6 +13,7 @@ reference has produced them.
 - [3.2b — Migrate a pre-sandbox settings.json](#32b--migrate-a-settingsjson-written-before-the-sandbox)
 - [3.3 — Adapt the allowlist to the package manager](#33--adapt-the-allowlist-to-the-detected-package-manager)
 - [3.4 — Compose the sandbox network allowlist](#34--compose-the-sandbox-network-allowlist)
+- [3.4b — Let the stack's own tooling run in the sandbox](#34b--let-the-stacks-own-tooling-run-in-the-sandbox)
 - [3.5 — Credential masking](#35--credential-masking-user-scope-optional)
 - [3.6 — Git over the sandbox: SSH remotes](#36--git-over-the-sandbox-ssh-remotes)
 - [3.7 — The worktree files](#37--the-worktree-files)
@@ -358,6 +359,77 @@ deny.)
 
 **Report in the summary** (a single line):
 `sandbox network allowlist: <n> domains (<pm registry>, <vcs host>[, api.clickup.com])`
+
+### 3.4b — Let the stack's own tooling run in the sandbox
+
+Some build tools need more than files and HTTPS: they open a local port or a
+Unix socket. The sandbox refuses both by default, so the project's own test and
+build commands fail inside it — and Step 3b, the commit gate, `sdd-dev` and
+every autonomous run fail with them, on a codebase that is green outside.
+Two stacks hit it on every run:
+
+- **Next.js with Turbopack** (`next build`, and any test target that builds
+  first) runs its webpack loaders in child processes it talks to over a local
+  port. Inside the sandbox the build stops on
+  `creating new process … binding to a port … Operation not permitted`.
+- **Nx** starts its plugin workers and daemon on Unix sockets under `/tmp/.nx`
+  (or `~/.nx`). Inside the sandbox every `nx` command prints
+  `Nx was denied permission to use its unix socket` and falls back to the main
+  process — slower, and Nx itself warns that plugins expecting isolation may
+  misbehave.
+
+**Skip if** `.claude/settings.json` was neither written at 3.2 nor migrated at
+3.2b — unless the developer says yes to the question below.
+
+Add the rows that apply, and nothing for a stack the project does not have:
+(GREENFIELD: evaluate them against the stack chosen at Step 2b, as Step 4 does —
+a Next.js choice gets the Next.js row before any code exists.)
+
+
+| Condition | Keys to add |
+|---|---|
+| `FRAMEWORKS` contains `nextjs` (in any sub-project of a workspace) | `sandbox.network.allowLocalBinding: true` |
+| `MONOREPO` is `nx` | `sandbox.network.allowUnixSockets` and `sandbox.filesystem.allowWrite`, each with `/tmp/.nx` and `~/.nx` |
+
+`allowLocalBinding` lets a sandboxed command listen on localhost only; it opens
+nothing to the network. The Nx entries cover only Nx's own socket directory.
+Neither reaches `.env`, the credentials or `.git/`, which stay denied.
+
+**Implementation** (jq, additive, idempotent):
+
+```bash
+# Next.js detected
+jq '.sandbox.network.allowLocalBinding = true' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+
+# Nx detected
+NX='["/tmp/.nx","~/.nx"]'
+jq --argjson p "$NX" '
+  .sandbox.network.allowUnixSockets = ((.sandbox.network.allowUnixSockets // []) + $p | unique)
+  | .sandbox.filesystem.allowWrite  = ((.sandbox.filesystem.allowWrite  // []) + $p | unique)' \
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
+```
+
+**On the team's own file** (an UPDATE run, or a `settings.json` kept at 3.2):
+these keys are missing from every project set up before this step, and that is
+exactly where the tests already fail. Show the keys and ask once: "Your test and
+build commands need <the rows> inside the Bash sandbox. Add them to
+`.claude/settings.json`? (yes / skip)". A skip writes nothing.
+
+Write these keys **here, during the setup**. A session can rarely add them
+later: `.claude/settings.json` is a protected path for the shell, and in auto
+mode the classifier refuses an edit that widens the session's own sandbox — so
+the developer would have to make it by hand, after the first red run.
+
+**Report in the summary** (a single line) — one of:
+
+```
+  - sandbox tooling allowances: <local binding (Next.js)[, Nx sockets]> added
+  - sandbox tooling allowances DECLINED: <rows> — the test command fails inside the sandbox until they are added
+  - sandbox tooling allowances: none needed for this stack
+```
 
 ### 3.5 — Credential masking (user scope, optional)
 
