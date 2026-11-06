@@ -1,6 +1,6 @@
 ---
 name: story
-description: (Beta) Writes a user story, or an epic with its stories, from a short description and optional Figma links, checks it against INVEST and the project's product context, and publishes it to ClickUp after the developer approves it. Use when work has to be turned into a ready-to-build backlog item before anyone runs sdd on it.
+description: (Beta) Writes a user story, or an epic with its stories, from a short description and optional Figma links, checks it against INVEST and the project's product context, and publishes it to ClickUp after the developer approves it. Use when work has to be turned into a ready-to-build backlog item before anyone runs sdd on it; to build one piece now, kickoff.
 effort: high
 user-invocable: true
 disable-model-invocation: true
@@ -9,7 +9,7 @@ disable-model-invocation: true
 # Story
 
 **Beta.** Turn a raw request into backlog items a developer can build without asking
-anyone anything — drafted, reviewed, approved, then created on ClickUp.
+anyone — drafted, reviewed, approved, then created on ClickUp.
 
 **Usage**: `/dev-setup:story "<what the feature should do>" [figma-url…] [--map]`.
 `--map` also writes the story map, as a ClickUp Doc page.
@@ -25,7 +25,7 @@ anyone anything — drafted, reviewed, approved, then created on ClickUp.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — every question.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents.
 
-Read these only when the situation calls for them:
+Only when needed:
 
 | Situation | Read |
 |---|---|

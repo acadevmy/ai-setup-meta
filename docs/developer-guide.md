@@ -86,6 +86,13 @@ skeleton, the release lanes — as a page of the ClickUp Doc named under
 `Story maps` in `product.md`; every epic links to it, and the release plan
 lives there only.
 
+**`story` or `kickoff`.** Both start from an idea with no task. `kickoff` is
+for one piece you are about to build yourself, in this session: it cuts the
+branch and writes the spec, and the task it offers to create is written in
+`story`'s format — one format on the board, read the same way by `sdd`. Work
+for the backlog, for someone else, or with several pieces is `story`'s:
+`kickoff` stops on several pieces and hands you the `story` command.
+
 **`story` is in beta.** The drafts, the questions it asks and the shape of
 what it creates on ClickUp may still change between releases. Read the drafts
 before approving them, and report what it got wrong.
