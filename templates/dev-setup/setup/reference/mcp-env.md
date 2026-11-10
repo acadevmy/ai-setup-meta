@@ -310,6 +310,11 @@ tag, statuses) and ask "Reconfigure the autonomous dev flow?" — **default: kee
 it**. On a keep the step ends with the summary line
 `auto-dev configuration kept as it was (<n> list(s), tag <tag>)`.
 
+A kept file with no `status.backlog` predates that field: ask only "What does
+this board call its backlog status?" (default `backlog`), add it with
+`jq '.status.backlog = $b'`, and report
+`auto-dev configuration kept, status.backlog added: <name>` instead.
+
 Otherwise ask, once:
 
 > "Configure the autonomous dev flow (auto-dev)? It writes
@@ -330,7 +335,7 @@ fields of a single file, with no follow-up to lose between them.
 |---|---|---|---|
 | `clickup_list_ids` | "Which ClickUp list does an unattended run read?" | the `CLICKUP_SETUP_LIST_ID` resolved at 6.1, when there is one | one id, or several comma-separated |
 | `tag` | "Which ClickUp tag marks a task as the agent's?" | `claude` | any tag name, as the board spells it |
-| `status` | "What does this board call its statuses?" | `sprint · in progress · in review · blocked`, second option `sprint · in progress · code review · blocked` | four names, in the order ready, in progress, in review, blocked |
+| `status` | "What does this board call its statuses (backlog · ready · in progress · in review · blocked)?" | `backlog · sprint · in progress · code review · blocked`, second option `backlog · sprint · in progress · in review · blocked` | five names, in the order backlog, ready, in progress, in review, blocked |
 | `figma` | "Which Figma file holds this project's designs?" | "No Figma file" | the file URL |
 
 The Figma question is asked under the same condition as 6.3 — `HAS_FRONTEND` or
@@ -375,13 +380,13 @@ fi
 jq -n \
   --argjson lists "$LISTS" \
   --arg tag "$TAG" \
-  --arg ready "$READY" --arg progress "$IN_PROGRESS" \
+  --arg backlog "$BACKLOG" --arg ready "$READY" --arg progress "$IN_PROGRESS" \
   --arg review "$IN_REVIEW" --arg blocked "$BLOCKED" \
   --argjson figma "$FIGMA" \
   '{
      clickup_list_ids: $lists,
      tag: $tag,
-     status: { ready: $ready, in_progress: $progress, in_review: $review, blocked: $blocked },
+     status: { backlog: $backlog, ready: $ready, in_progress: $progress, in_review: $review, blocked: $blocked },
      base_branch: null,
      figma: $figma,
      dry_run: false
@@ -396,7 +401,7 @@ lands looks like this:
 {
   "clickup_list_ids": ["901214692298"],
   "tag": "claudio",
-  "status": { "ready": "sprint", "in_progress": "in progress", "in_review": "in review", "blocked": "blocked" },
+  "status": { "backlog": "backlog", "ready": "sprint", "in_progress": "in progress", "in_review": "code review", "blocked": "blocked" },
   "base_branch": null,
   "figma": { "file_key": "wMJHvCjPaCfK6765aKTfgn", "url": "https://www.figma.com/design/wMJHvCjPaCfK6765aKTfgn/V-Program" },
   "dry_run": false
@@ -406,8 +411,9 @@ lands looks like this:
 **Report in the summary** exactly one line — one of:
 
 ```
-  - auto-dev configured: <n> ClickUp list(s), tag <tag>, statuses <ready>/<in progress>/<in review>/<blocked>, Figma <file_key|none>, dry_run false
+  - auto-dev configured: <n> ClickUp list(s), tag <tag>, statuses <backlog>/<ready>/<in progress>/<in review>/<blocked>, Figma <file_key|none>, dry_run false
   - auto-dev configuration kept as it was (<n> list(s), tag <tag>)
+  - auto-dev configuration kept, status.backlog added: <name>
   - auto-dev declined: .claude/auto-dev.json not written — an unattended run has nothing to read
   - auto-dev not configured: no ClickUp list id available
 ```

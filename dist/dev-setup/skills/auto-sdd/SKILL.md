@@ -39,7 +39,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh" --require-declared --a
 ```
 
 Any non-zero exit → no run, per `run-outcomes.md`. A non-empty `UNAVAILABLE`
-is not a stop: say in one line what this environment cannot run, and go on. `BACKLOG` → the contract's backlog gate.
+is not a stop: say in one line what this environment cannot run, and go on.
+`BACKLOG`, an epic or open points → the contract's gates.
 
 A declined gate or an empty `SPRINT` stops the flow: no run, no board write.
 Otherwise keep `custom_id`, `name`, `description` (verbatim), `url`, `task_id`.
@@ -87,8 +88,8 @@ Workflow({
 `chore`.
 
 The harness asks the developer to approve the workflow script before it runs.
-That and the fork point are this flow's two stops — plus step 1's backlog gate
-when it applies. The run works in the background: wait for its
+That and the fork point are this flow's two stops, plus step 1's gates. The run
+works in the background: wait for its
 notification, never poll.
 
 ## 4. The outcome

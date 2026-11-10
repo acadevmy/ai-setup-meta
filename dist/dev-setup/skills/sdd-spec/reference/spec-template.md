@@ -15,7 +15,7 @@ is an unanswered question moved into the code.
 # Spec: <Task Title> [<customId>]
 
 > Status: draft
-> Task: <ClickUp task URL>
+> Task: [<customId> <Task Title>](<ClickUp task URL>)
 > Branch: <branch name, if already created>
 > Created: <today's date YYYY-MM-DD>
 > Approved: pending
@@ -31,10 +31,21 @@ must be verifiable.>
 - REQ-1: <requirement>
 - REQ-2: <requirement>
 
+<When the task is a story (`FORMAT: story`), each Gherkin scenario is one REQ,
+in the story's order, named after it and keeping its wording:
+`REQ-1 (scenario "archiving fails"): when the archiving fails, the manager is
+told and can edit the path again`. Its test in the Test strategy is that
+scenario. A REQ that comes from no scenario — a constraint from the discovery —
+follows them, and says where it comes from. Wherever the spec mentions a REQ
+outside this list, it names what it requires the first time: `REQ-3 (an
+expired token is refused)`. Never merge two scenarios into one
+REQ, never drop one: the scenarios are what the reviewer of the task approved.>
+
 ## Technical decisions
 <Architectural and technical decisions for this implementation: chosen approach,
 patterns, libraries, and why. Reference the patterns already in REGISTRY.md
-where they apply.>
+where they apply, by their entry heading; cite a rule or an ADR by its name,
+as a link to its heading.>
 
 ## Impact
 - **Files to create**: <new files, relative paths>
@@ -61,7 +72,8 @@ per non-obvious choice, when it is made.>
 - <YYYY-MM-DD> · **<decision>**: <why>. Discarded: <the alternative, and why not>.
 
 ## Notes
-<Risks, open questions, additional considerations, useful references.>
+<Risks, open questions, additional considerations, useful references — each
+one a Markdown link whose text names what it points at.>
 ```
 
 ## Filling it in
@@ -83,5 +95,12 @@ per non-obvious choice, when it is made.>
   discarded, a trade-off accepted, a constraint found in the code: each goes in
   when it is made, because nobody can reconstruct the reason later. `distill`
   reads it for the reviewer.
+- **References are written for the person who approves the spec**, not for the
+  next agent: a document is a link whose text names the topic, with the
+  heading anchor; a rule is cited by its name, never by a number alone; a
+  task, a REQ or an ADR comes with its title. Before showing the spec, read
+  every reference in it once more against the test in
+  `${CLAUDE_PLUGIN_ROOT}/reference/readable-references.md`, and rewrite the
+  ones that fail it.
 - **Nothing in here records how the run went.** The spec states what to build;
   which gate ran on which day is in git and in the merge request.

@@ -10,7 +10,8 @@
     "quality-commands.md",
     "rules-generation.md",
     "agents-generation.md",
-    "mcp-env.md"
+    "mcp-env.md",
+    "product-context.md"
   ],
   "shared_agents": [
     "clickup.md"
@@ -23,6 +24,7 @@
     "clickup-contract.md",
     "fork-point.md",
     "hand-off.md",
+    "readable-references.md",
     "run-outcomes.md",
     "turn-discipline.md",
     "worktree.md"
@@ -30,7 +32,8 @@
   "template_agents": [
     "review.md",
     "validate-findings.md",
-    "verify.md"
+    "verify.md",
+    "story-review.md"
   ],
   "template_skills": [
     "auto-sdd",
@@ -45,6 +48,7 @@
     "sdd-spec",
     "sdd-plan",
     "sdd-dev",
+    "story",
     "verify",
     "auto-dev",
     "auto-dev-select",
@@ -78,7 +82,9 @@
     "auto-dev-report.sh",
     "auto-dev-select.sh",
     "devcontainer-facts.sh",
-    "devcontainer-check.sh"
+    "devcontainer-check.sh",
+    "validate-story.sh",
+    "parse-story.sh"
   ],
   "hooks": [
     "gate-commit.sh",
@@ -149,6 +155,8 @@
     ".claude/settings.json",
     ".claude/settings.user.json",
     ".gitignore",
-    ".worktreeinclude"
+    ".worktreeinclude",
+    "product.template.md",
+    "product.product-template.md"
   ]
 }

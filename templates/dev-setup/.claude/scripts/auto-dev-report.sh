@@ -177,6 +177,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 launch() { jq -r --arg k "$1" '.[$k] // ""' "$LAUNCH"; }
 REPO_ROOT="$(launch repoRoot)"
 TASK_ID="$(launch taskId)"
+TASK_TITLE="$(launch title)"
 
 # A run that broke — no outcome at all, or not one of the two — is a failed run
 # at stage broken, whose reason is what came back.
@@ -467,9 +468,12 @@ if [ "$STATUS" = ready-for-mr ]; then
         ] | map("> " + .) | join("\n") | select(. != "") )
     ] | join("\n\n")' "$O" > "$TMP_DIR/top.md"
 
-  jq -r --argjson L "$LABELS_JSON" --arg url "$(launch url)" '
-    (.mr.description // "") + "\n\n"
-    + "**Issue:** " + (if $url != "" then "[\(.taskId)](\($url))" else .taskId end) + "\n"
+  # The task reads as its id and its title, so a reviewer knows what it is
+  # before opening it.
+  jq -r --argjson L "$LABELS_JSON" --arg url "$(launch url)" --arg title "$TASK_TITLE" '
+    ((.taskId) + (if $title != "" then " " + $title else "" end)) as $task
+    | (.mr.description // "") + "\n\n"
+    + "**Issue:** " + (if $url != "" then "[\($task)](\($url))" else $task end) + "\n"
     + "**Spec:** `\(.spec.path // "")`"' "$O" > "$TMP_DIR/description.md"
 
   jq -r --argjson L "$LABELS_JSON" '
@@ -483,7 +487,8 @@ if [ "$STATUS" = ready-for-mr ]; then
       + (if (.output // "") != "" then "```text\n" + .output + "\n```" else $L.noOutput end)
     ] | join("\n\n")' "$O" > "$TMP_DIR/test.md"
 
-  printf '## %s\n\n- [%s](%s)\n' "$(printf '%s' "$LABELS_JSON" | jq -r .task)" "$TASK_ID" "$(launch url)" > "$TMP_DIR/task.md"
+  TASK_TEXT="$TASK_ID${TASK_TITLE:+ $TASK_TITLE}"
+  printf '## %s\n\n- [%s](%s)\n' "$(printf '%s' "$LABELS_JSON" | jq -r .task)" "$TASK_TEXT" "$(launch url)" > "$TMP_DIR/task.md"
 
   # The repository's template, its description and test sections replaced; with
   # no template, the fallback body of vcs-ops' merge-request.md, shortened to
