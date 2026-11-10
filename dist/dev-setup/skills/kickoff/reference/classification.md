@@ -1,8 +1,8 @@
 # Classifying the work
 
-Two independent questions, and one check before them. A fix can be large and
-a feature small. There are no thresholds: the skill proposes, with the reason,
-and the developer decides.
+Three independent questions. A fix can be large and a feature small; a release
+is a way of packaging work, not "a complex feature". There are no thresholds:
+the skill proposes, with the reason, and the developer decides.
 
 ## 1. Type — what changes
 
@@ -16,33 +16,37 @@ A fix that needs new behaviour is a feat when the user notices the difference.
 The type is `sdd-start.sh`'s `--type`: `docs`, `refactor`, `perf` and `test`
 are also accepted when they fit better than `chore`.
 
-## One branch, or a story first
+## 2. Packaging — how many branches
 
-Kickoff opens **one** piece of work: one branch, one merge request. When the
-discovery shows several pieces — ones that would leave the product
-inconsistent on their own, migrations to coordinate, changes that break
-compatibility between apps or services, several people or agents on one goal,
-a discovery that does not close in two calls — it is an epic, and writing an
-epic is `story`'s job. Say so in two lines, then stop on
-`Next: /dev-setup:story <the idea>`: the epic and its stories land on the
-board, and each story is built with `sdd`, or with `multi-sdd` when several
-can run at once. Nothing is created here — no branch, no spec, no task.
+| Packaging | When |
+|---|---|
+| **single branch** | the work can be reviewed and released in one go |
+| **release branch** | several pieces that ship together but are reviewed apart: each gets its own branch, with its merge request into the release branch |
 
-**When the stories have to ship together** — a release branch, reviewed piece
-by piece — say it in the same answer: the project cuts that branch by hand and
-each story's run takes it as its fork point. It reaches the development branch
-only through its own promotion merge request, after the project's acceptance,
-merged by a person; the agent never merges it.
+Signals of a release: pieces that would leave the product inconsistent on
+their own, migrations to coordinate, changes that break compatibility between
+apps or services, several people or agents on one goal, a discovery that does
+not close in two calls.
 
-## 2. Destination — where it lands
+**How a release reaches the development branch.** First through whatever
+acceptance the project runs on it — a staging deploy and QA, typically. Only
+after that sign-off does it enter the development branch, and **only through
+its own promotion merge request, merged by a person**. The agent never merges
+a release into the development branch — not through that merge request, not
+any other way, not even when told the acceptance passed: at most it prepares
+the merge request and says the sign-off is needed. Say so when proposing a
+release.
+
+## 3. Destination — where it lands
 
 | Destination | When | Fork point |
 |---|---|---|
 | **development** | the normal case | the resolved default |
 | **hotfix** | a production problem that cannot wait for the next release | the production ref — offer it first in the fork-point question |
 
-A hotfix is always a fix. Remind the developer that it has to reach the
-development branch after the merge, when the project works that way.
+A hotfix is always a fix on a single branch. Remind the developer that it has
+to reach the development branch after the merge, when the project works that
+way.
 
 ## The question
 
@@ -51,6 +55,21 @@ the proposal first, marked "(Recommended)", then at most two plausible
 alternatives. Each description states the reason in one line.
 
 ```
-Classification: feat · development
+Classification: feat · single branch · development
   — adds date filtering, which does not exist; one merge request, nothing to coordinate
 ```
+
+## A release's pieces
+
+A release spec adds this section after `## Implementation plan`:
+
+```markdown
+## Pieces
+| # | Piece | Branch | Depends on |
+|---|---|---|---|
+| 1 | <what it delivers> | <type>/<slug>, cut from the release branch | — |
+```
+
+After the hand-off, the developer can open the first piece without dependencies
+— a new run of `kickoff`, with the release spec as context, so its discovery
+starts from what the release already decided.
