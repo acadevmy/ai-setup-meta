@@ -25,7 +25,7 @@ The input consists of:
 | Intent | Required parameters | Optional parameters |
 |--------|----------------------|---------------------|
 | `read` | `task_id` | — |
-| `update` | `task_id`, `status` | `comment` |
+| `update` | `task_id`, and `status` or `description` | `comment` |
 | `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` |
 | `relate` | `task_id`, `relation`, `target_id` | — |
 | `search` | `list_id`, `keywords` | — |
@@ -64,9 +64,13 @@ Do NOT use abbreviated names like `clickup_get_task` — they will fail.
 3. Return ALL task fields in the output, without omissions
 
 ### Intent: `update`
-1. Validate the status transition against the workflow (see below)
-2. If the transition is not valid, return STATUS: error with the reason
-3. Call `mcp__clickup__clickup_update_task` with task_id and status
+1. With `status`: validate the transition against the workflow (see below);
+   if it is not valid, return STATUS: error with the reason
+2. Call `mcp__clickup__clickup_update_task` with task_id, the status when
+   given, and `markdown_description` set to the `description` when given —
+   the whole text, replacing the old one, never merged or reworded
+3. With `description`: read the task once more and check its description is
+   exactly the one you wrote; if not, return STATUS: error with the url
 4. If `comment` is provided, call `mcp__clickup__clickup_create_task_comment`
 5. Return the updated task
 

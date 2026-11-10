@@ -38,7 +38,7 @@ summarised) and the transition validation live in one place.
 | `read` | `task_id` | — | one task, every field |
 | `filter` | `list_id` | `status`, `assignee`, `tag` | every matching task |
 | `next-task` | `list_id` | — | the highest-priority task in `SPRINT` |
-| `update` | `task_id`, `status` | `comment` | the updated task |
+| `update` | `task_id`, and `status` or `description` | `comment` | the updated task — a `description` replaces the whole text |
 | `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` | the created task, plus `TAGS_MISSING` |
 | `relate` | `task_id`, `relation` (`blocked_by` \| `related`), `target_id` | — | the task |
 | `search` | `list_id`, `keywords` | — | the matching tasks, compact: id, name, status, type, url — no description |
