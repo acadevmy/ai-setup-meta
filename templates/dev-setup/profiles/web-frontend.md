@@ -216,7 +216,7 @@ theme is declared in the stylesheet with `@theme`, and the PostCSS plugin is
 export default { plugins: { '@tailwindcss/postcss': {} } };
 ```
 
-## Specific rules (in addition to the Constitution)
+## Specific rules (in addition to the project rules in `.claude/rules/`)
 
 - Use `'use client'` only when necessary — prefer Server Components
 - API calls happen in Server Components or Route Handlers, not on the client

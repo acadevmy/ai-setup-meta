@@ -30,6 +30,7 @@ coverage/
 # Claude Code
 .claude/todos.md
 .claude/worktrees/
+.stories/
 
 # Misc
 *.log

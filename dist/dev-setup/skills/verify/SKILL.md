@@ -58,16 +58,16 @@ launched. Otherwise launch the `spec-verifier` agent with:
 - `CHECKS_PATH`: `${CLAUDE_PLUGIN_ROOT}/skills/verify/reference/checks.md`
 - `TASK_ID`: the `TASK_ID` from step 1, if there is one
 
-**Do not read the package here.** The agent reads it; reading it twice is what
-this split exists to avoid.
+**Do not read the package here.** The agent reads it; reading it twice is
+what this split avoids.
 
 ### 3. Read the result
 
 Parse the `---VERIFY-RESULT---` block the agent returns.
 
 - **fail** — show the block, list exactly what is missing or divergent, suggest
-  the concrete next step ("implement REQ-3", "add a test for the expired token
-  scenario"). Do not proceed: the implementation needs work.
+  the concrete next step ("implement REQ-3, the expired-token refusal", "add a test for the
+  expired token scenario"). Do not proceed: the implementation needs work.
 - **pass-with-warnings** — show the block, highlight the warnings, and ask
   whether they are intentional scope reductions. Proceed on a confirmation.
 - **pass** — show the block and confirm the implementation matches the spec.
