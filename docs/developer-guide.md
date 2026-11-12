@@ -13,7 +13,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ## Index
 
-- [1. The seven commands](#1-the-seven-commands)
+- [1. The commands](#1-the-commands)
 - [2. A task, end to end](#2-a-task-end-to-end)
 - [3. The rules, and when each one loads](#3-the-rules-and-when-each-one-loads)
 - [4. The sandbox and the ask rules](#4-the-sandbox-and-the-ask-rules)
@@ -25,7 +25,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ---
 
-## 1. The seven commands
+## 1. The commands
 
 ```
 /dev-setup:setup      ← one-off, per project
@@ -34,12 +34,17 @@ document. [training.md](./training.md) is the long version of that sentence.
        │
        ├── /dev-setup:quick     ← a fix or chore: branch, change, commit, MR
        │
+       ├── /dev-setup:kickoff ← an idea with no task: discovery, branch, spec, then the chain
+       │
        ▼
 /dev-setup:sdd        ← the full flow, with one approval
        │                (/dev-setup:auto-sdd for the same flow unsupervised,
        │                 /dev-setup:multi-sdd for up to five of those at once)
        ▼
 /dev-setup:review     ← code review against the project rules
+       │
+       ▼
+/dev-setup:distill    ← the branch distilled for whoever reviews it
 ```
 
 | Command | Use it when | Example |
@@ -47,15 +52,25 @@ document. [training.md](./training.md) is the long version of that sentence.
 | `/dev-setup:setup` | Configuring a project for the first time, or pulling in a new plugin version | `/dev-setup:setup` |
 | `/dev-setup:story` (beta) | The work exists only as an idea, a sentence or a Figma file, and needs to become a story someone can build | `/dev-setup:story "visitors can sign up for updates on a sold-out product" https://figma.com/design/…` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
+| `/dev-setup:kickoff` | The work is an idea already discussed in the conversation, with no task yet: it classifies it, offers to create the ClickUp task, cuts the branch and writes the spec, then hands over to the chain | `/dev-setup:kickoff add date filtering to the search page` |
 | `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
 | `/dev-setup:multi-sdd` | Several independent tasks, unsupervised, from one chat | `/dev-setup:multi-sdd DE-1 DE-2 DE-3`<br>`/dev-setup:multi-sdd --from-sprint 3` |
 | `/dev-setup:review` | A branch is ready and you want it read before the merge request | `/dev-setup:review` |
+| `/dev-setup:distill` | Someone who did not follow the work has to understand it: what changed, the risky points, the decisions, what to try by hand | `/dev-setup:distill`<br>`/dev-setup:distill --description` |
+| `/dev-setup:parallel` | Several branches have to run side by side, each with its own ports, `.env`, containers and tunnels — or a problem has to be reproduced on one branch or environment | `/dev-setup:parallel analyze`<br>`/dev-setup:parallel list` |
 
 Everything else the flows use — discovery, spec, plan, development, verify, the
 board conventions, the git conventions — is a skill the orchestrator invokes by
 name. They are not commands and they do not show up in `/help`: one flow, one
 entry point.
+
+**When one of them runs on its own.** Claude can still pick one up from a plain
+request — "write the spec for this", "verify the branch". Run that way, each one
+ends by offering the next step of the chain (discovery → spec → approval →
+development → verify → review → distill → merge request) and, on a yes, carries on in the
+same turn. With a task id, development ends on the `/dev-setup:sdd <id>` command
+to type, which resumes at closure. Inside a flow nothing changes: the flow decides what follows.
 
 **Picking between `quick` and `sdd`.** The bar is three files and no new
 component, dependency or public interface. Claude may say a task looks
@@ -96,7 +111,7 @@ state of the work without spending a model turn:
   phase with the phase in progress at full strength, and the cost so far; past
   70% of context, a yellow warning before a long phase compacts it;
 - **`/dev-setup`** — a pane with one tab per view (`1`–`6` switch, `r` reloads,
-  `Esc` closes). With no argument, the seven commands with when to use each and
+  `Esc` closes). With no argument, the commands with when to use each and
   what each takes, and a `use` button that puts one in the prompt. `/dev-setup
   clock` (one card per open clock — total, current interval, earlier ones, the
   branch's own task marked — and the clocks stopped in the last five minutes),
@@ -706,7 +721,35 @@ Four pieces make it actually work:
 Dependencies are a step, not a hook: `pnpm install` (or whatever the project
 uses) after entering. There is no post-create hook on purpose — a
 `WorktreeCreate` hook replaces worktree creation wholesale and would disable
-`.worktreeinclude`, which is the one thing that has to keep working.
+`.worktreeinclude`, which is the one thing that has to keep working. A project
+whose agents each need their own running instance can opt into one through
+`/dev-setup:parallel`, whose generated script takes over that copy.
+
+To try the result of an `auto-sdd` or `multi-sdd` run without the hook,
+`parallel`'s script adopts the run's worktree after the fact: `adopt` gives it
+a slot, its ports and its `.env`, then `dev` starts it beside the others. When
+the project has the script, the run's report ends with the two commands filled
+in — `multi-sdd` writes the code, `parallel` runs it.
+
+Better still, `multi-sdd` can have `parallel` prepare the worktrees before the
+runs start. On a project with the script, the fork-point question carries a
+second one — prepare each run's worktree with `parallel`? On a yes it gives you
+one line of `new` commands, one per task, from the confirmed fork point; you
+run it, and every run then develops in its own prepared worktree, with its
+ports, `.env` and dependencies, instead of a bare one. Its agents can start
+the project without a clash, and a finished run is one `dev` away from being
+tried. The worktrees live in `.claude/worktrees/`, beside Claude Code's own,
+because that is where the sandbox lets a session write.
+
+To skip typing that line, a project can let the agent run `new` and `adopt`
+itself. They leave the sandbox only with three guards, which `parallel`
+proposes and `${CLAUDE_PLUGIN_ROOT}/scripts/parallel-guard.sh` checks: the
+excluded pattern is the direct invocation of the script file, never an alias
+such as `pnpm wt` or `npm run wt` (an alias runs whatever `package.json` says,
+and that file stays editable); the script is in `denyWrite` and under an
+`Edit(...)` deny; and every run asks. With them in place each `new` is one
+approval instead of a line to paste. In auto mode the line comes back, since
+the approval would no longer reach you.
 
 **While you are in a worktree**, the harness blocks anything reaching back into
 the main checkout: an edit outside it, a Bash command whose working directory

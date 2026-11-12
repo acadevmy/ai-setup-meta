@@ -374,6 +374,19 @@ assert_contains "untracked files are included" \
   "untracked.txt"
 rm -f "$SANDBOX/untracked.txt"
 
+# A branch with no task id finds its spec through the spec's `> Branch:` line.
+git -C "$SANDBOX" checkout --quiet -b 'feat(search)/idea-first-entry'
+printf -- '# Spec: Idea-first entry\n\n> Status: draft\n> Branch: `feat(search)/idea-first-entry` (off `next`)\n\n## Implementation plan\n' \
+  > "$SANDBOX/.specs/idea-first-entry.md"
+printf -- '# Spec: Other\n\n> Branch: `feat(search)/idea-first-entry-2`\n' > "$SANDBOX/.specs/other.md"
+IDEA=$(cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --json 2>/dev/null)
+assert_eq "no task id on a branch without one" "" "$(printf '%s' "$IDEA" | jq -r '.TASK_ID')"
+assert_contains "spec found through its > Branch: line" \
+  "$(printf '%s' "$IDEA" | jq -r '.SPEC')" ".specs/idea-first-entry.md"
+rm -f "$SANDBOX/.specs/idea-first-entry.md" "$SANDBOX/.specs/other.md"
+git -C "$SANDBOX" checkout --quiet feat/DE-999-my-work
+git -C "$SANDBOX" branch --quiet -D 'feat(search)/idea-first-entry'
+
 # --require-spec must fail loudly when there is no spec.
 (cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --task DE-404 --require-spec --json) >/dev/null 2>&1
 assert_eq "--require-spec exits non-zero without a spec" "1" "$?"
@@ -1907,8 +1920,8 @@ done
 SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
-assert_eq "the surface the check reads is the seven public commands" \
-  "auto-sdd multi-sdd quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+assert_eq "the surface the check reads is the public commands" \
+  "auto-sdd distill kickoff multi-sdd parallel quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
 
 # The names from $2 (one per line) with no row in $1 matching $3, where `@`
 # stands for the name.
@@ -1981,10 +1994,10 @@ for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DEC
 done
 
 # DE-17079 wants the generated file shorter; these fixes may not lengthen it.
-# The three extra lines are the `story` command, its `story-reviewer` agent,
-# which the surface checks above require, and the one-line rule on readable
-# references.
-for BUDGET in "$GEN_SINGLE:134" "$GEN_WORKSPACE:139" "$GEN_PROJECT:30"; do
+# The extra lines over the base are the `kickoff`, `distill` and `parallel`
+# commands, the `story` command and its `story-reviewer` agent, which the
+# surface checks above require, and the one-line rule on readable references.
+for BUDGET in "$GEN_SINGLE:137" "$GEN_WORKSPACE:142" "$GEN_PROJECT:30"; do
   GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
   assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
     "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
@@ -2054,6 +2067,91 @@ assert_eq "ids and --from-sprint together are refused" "3" \
 
 assert_eq "the script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/multi-preflight.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── parallel.mjs adopt (a worktree the script did not create) ──"
+
+# A run of auto-sdd or multi-sdd lands in a worktree the harness created, with
+# no slot: `adopt` is what lets `dev` start it on ports of its own.
+PARALLEL_MJS="$REPO_ROOT/templates/dev-setup/.claude/skills/parallel/templates/parallel.mjs"
+if command -v node >/dev/null 2>&1; then
+  PA_MAIN="$WORK_DIR/pa-main"
+  PA_SIDE="$WORK_DIR/pa-side"
+  PA_THIRD="$WORK_DIR/pa-third"
+  git_init "$PA_MAIN"
+  git -C "$PA_MAIN" config user.email "test@example.com"
+  git -C "$PA_MAIN" config user.name "Test"
+  git -C "$PA_MAIN" commit --quiet --allow-empty -m "chore: base"
+  printf 'PORT=3000\nDB=app\n' > "$PA_MAIN/.env"
+  mkdir -p "$PA_MAIN/scripts"
+  # The CONFIG a project fills in: ports and a database per slot, a setup that leaves a trace
+  sed -e 's/setup: \["npm ci"\]/setup: ["touch .setup-ran"]/' \
+      -e 's/vars: {},/vars: { PORT: "{port:web}", DB: "app_{slot}" },/' \
+      "$PARALLEL_MJS" > "$PA_MAIN/scripts/parallel.mjs"
+  git -C "$PA_MAIN" worktree add --quiet -b feat/DE-1-side "$PA_SIDE" >/dev/null 2>&1
+  git -C "$PA_MAIN" worktree add --quiet -b feat/DE-2-third "$PA_THIRD" >/dev/null 2>&1
+  # What .worktreeinclude would have copied: the main checkout's ports
+  cp "$PA_MAIN/.env" "$PA_SIDE/.env"
+  pa() { (cd "$PA_MAIN" && node scripts/parallel.mjs "$@" 2>&1); }
+
+  assert_contains "dev on a worktree with no slot names adopt" "$(pa dev pa-side)" "parallel adopt pa-side"
+  pa adopt pa-side >/dev/null
+  assert_eq "adopt gives the first free slot its ports" "PORT=3100" "$(grep '^PORT=' "$PA_SIDE/.env")"
+  assert_eq "and the rest of the slot's variables" "DB=app_1" "$(grep '^DB=' "$PA_SIDE/.env")"
+  assert_eq "adopt runs the project's setup" "true" "$([ -f "$PA_SIDE/.setup-ran" ] && echo true || echo false)"
+  assert_contains "a second adopt changes nothing" "$(pa adopt feat/DE-1-side)" "already has slot 1"
+  assert_eq "the main checkout is refused" "1" "$(cd "$PA_MAIN" && node scripts/parallel.mjs adopt pa-main >/dev/null 2>&1; echo $?)"
+  pa adopt pa-third --skip-setup >/dev/null
+  assert_eq "--skip-setup skips the setup" "false" "$([ -f "$PA_THIRD/.setup-ran" ] && echo true || echo false)"
+  assert_contains "the next worktree takes the next slot" "$(pa list)" "pa-third  feat/DE-2-third  2"
+  # multi-sdd passes the fork point as it was confirmed: here a local branch a
+  # stacked task starts from, with no origin at all
+  pa new feat/DE-3-stack --from feat/DE-1-side >/dev/null
+  PA_NEW="$PA_MAIN/.claude/worktrees/feat-DE-3-stack"
+  assert_eq "new puts the worktree inside the project, beside Claude Code's" \
+    "true" "$([ -d "$PA_NEW" ] && echo true || echo false)"
+  assert_eq "--from takes a local branch as it is" \
+    "$(git -C "$PA_MAIN" rev-parse feat/DE-1-side)" "$(git -C "$PA_NEW" rev-parse HEAD 2>/dev/null)"
+  unset -f pa
+else
+  echo "  (skipped: node not available)"
+fi
+
+echo ""
+echo "── parallel-guard.sh (new and adopt outside the sandbox, guarded) ──"
+
+# An excluded command runs project code past every OS boundary. The agent may
+# run new and adopt only when the settings carry all three guards, and an alias
+# can never be guarded: it runs whatever an editable package.json says.
+PG_DIR="$WORK_DIR/pg-main"
+git_init "$PG_DIR"
+mkdir -p "$PG_DIR/.claude"
+pg() { (cd "$PG_DIR" && bash "$PLUGIN_SCRIPTS/parallel-guard.sh" --json 2>/dev/null); }
+pgf() { pg | jq -r ".$1"; }
+
+assert_contains "no parallel.json: not guarded, and said so" "$(pgf REASON)" "no .claude/parallel.json"
+printf '{"new":"node scripts/parallel.mjs new","adopt":"node scripts/parallel.mjs adopt"}\n' > "$PG_DIR/.claude/parallel.json"
+printf '{}\n' > "$PG_DIR/.claude/settings.json"
+assert_eq "no sandbox: nothing to guard" "false false" "$(pgf GUARDED) $(pgf SANDBOX)"
+printf '{"sandbox":{"enabled":true}}\n' > "$PG_DIR/.claude/settings.json"
+assert_eq "the sandbox alone is not enough: six entries missing" "false 6" \
+  "$(pgf GUARDED) $(pgf MISSING | grep -c .)"
+assert_contains "and each is named, ready to paste" "$(pgf MISSING)" "permissions.deny: Edit(**/scripts/parallel.mjs)"
+cat > "$PG_DIR/.claude/settings.json" <<'JSON'
+{"sandbox":{"enabled":true,
+  "excludedCommands":["node scripts/parallel.mjs new *","node scripts/parallel.mjs adopt *"],
+  "filesystem":{"denyWrite":["scripts/parallel.mjs"]}},
+ "permissions":{"ask":["Bash(node scripts/parallel.mjs new *)"],"deny":["Edit(**/scripts/parallel.mjs)"]}}
+JSON
+assert_eq "one ask missing: not guarded" "false" "$(pgf GUARDED)"
+printf '{"permissions":{"ask":["Bash(node scripts/parallel.mjs adopt *)"]}}\n' > "$PG_DIR/.claude/settings.local.json"
+assert_eq "the local settings complete it: guarded" "true scripts/parallel.mjs" "$(pgf GUARDED) $(pgf SCRIPTS)"
+printf '{"new":"pnpm wt new","adopt":null}\n' > "$PG_DIR/.claude/parallel.json"
+assert_eq "an alias is never guarded" "false" "$(pgf GUARDED)"
+assert_contains "and the reason asks for the direct invocation" "$(pgf REASON)" "not an alias"
+assert_eq "it writes nothing" "parallel.json settings.json settings.local.json" \
+  "$(cd "$PG_DIR/.claude" && ls | tr '\n' ' ' | sed 's/ $//')"
+unset -f pg pgf
 
 echo ""
 echo "── validate-story.sh (the structural checks on the story drafts) ──"
@@ -2301,6 +2399,7 @@ const src = fs.readFileSync(process.argv[2], 'utf8');
 const meta = src.match(/^export const meta = \{[\s\S]*?\n\}\n/);
 const scenario = JSON.parse(process.argv[3]);
 const prompts = {};
+const options = {};
 const calls = [];
 const spec = {
   slug: 'sim', specMarkdown: '# spec', planSteps: ['one'],
@@ -2312,6 +2411,7 @@ const spec = {
 async function agent(prompt, opts) {
   const label = opts.label;
   prompts[label] = prompt;
+  options[label] = opts;
   calls.push(label);
   if (label.startsWith('spec:')) return spec;
   if (label.startsWith('revise:')) {
@@ -2330,7 +2430,9 @@ async function agent(prompt, opts) {
     if (answer === 'ok') return { satisfied: true, reason: 'checked' };
     return { satisfied: false, reason: key + ' proposal', suggestion: 'change', grounds: 'an ADR' };
   }
-  if (label.startsWith('dev:')) return { worktreePath: '/wt', branch: 'b', specPath: 'p', commits: [] };
+  if (label.startsWith('dev:')) {
+    return { worktreePath: '/wt', branch: scenario.devBranch || 'b', specPath: 'p', commits: [] };
+  }
   if (label.startsWith('verify:')) {
     return { passed: true, output: 'green', notStarted: scenario.notStarted || [] };
   }
@@ -2376,6 +2478,13 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     devSkips: /lint:\s+make lint\s+\(NOT RUNNABLE HERE/.test(prompts['dev:DE-1'] || '')
       && (prompts['dev:DE-1'] || '').includes('php is 8.3'),
     verifySkips: /lint:\s+make lint\s+\(skip\)/.test(prompts['verify:DE-1'] || ''),
+    reason: out.reason || '',
+    worktree: out.worktreePath || '',
+    branch: out.branch || '',
+    devIsolation: (options['dev:DE-1'] || {}).isolation || '',
+    devInPrepared: (prompts['dev:DE-1'] || '').includes('cd "/repo/.claude/worktrees/feat-DE-1"')
+      && !(prompts['dev:DE-1'] || '').includes('sdd-start.sh'),
+    verifyInPrepared: (prompts['verify:DE-1'] || '').includes('cd "/repo/.claude/worktrees/feat-DE-1"'),
   }));
 });
 NODEJS
@@ -2451,6 +2560,31 @@ NODEJS
   SIM=$(sim '{"scope":"dead"}')
   assert_eq "a reviewer that dies twice is reported, and the run goes on" \
     "ready-for-mr scope 4" "$(field "$SIM" status) $(field "$SIM" unchecked) $(field "$SIM" reviews)"
+
+  # A worktree parallel prepared replaces the isolation: the dev agent works
+  # there on the branch it was made on, and the outcome names that worktree
+  # whatever the agent reports.
+  SIM=$(sim '{}')
+  assert_eq "with no prepared worktree, the dev agent gets an isolated one" \
+    "worktree" "$(field "$SIM" devIsolation)"
+  PREP='{"worktreePath":"/repo/.claude/worktrees/feat-DE-1","branch":"feat/DE-1_thing"}'
+  SIM=$(sim '{"devBranch":"feat/DE-1_thing"}' "$PREP")
+  assert_eq "a prepared worktree: no isolation, and the run reaches the merge request" \
+    "ready-for-mr " "$(field "$SIM" status) $(field "$SIM" devIsolation)"
+  assert_eq "the dev agent works in it and cuts no branch" "true" "$(field "$SIM" devInPrepared)"
+  assert_eq "Verify runs there too" "true" "$(field "$SIM" verifyInPrepared)"
+  assert_eq "the outcome names the prepared worktree, not the agent's report" \
+    "/repo/.claude/worktrees/feat-DE-1 feat/DE-1_thing" "$(field "$SIM" worktree) $(field "$SIM" branch)"
+  SIM=$(sim '{"devBranch":"feat/DE-1_other"}' "$PREP")
+  assert_eq "a dev agent on another branch fails the run at dev" \
+    "failed dev" "$(field "$SIM" status) $(field "$SIM" stage)"
+  SIM=$(sim '{}' '{"worktreePath":"/repo/.claude/worktrees/x"}')
+  assert_eq "a worktree with no branch ends at intake, with no agent" \
+    "failed intake 0" "$(field "$SIM" status) $(field "$SIM" stage) $(field "$SIM" agents)"
+  SIM=$(sim '{}' '{"worktreePath":"relative/x","branch":"feat/x"}')
+  assert_eq "so does a relative path" "failed intake" "$(field "$SIM" status) $(field "$SIM" stage)"
+  SIM=$(sim '{}' '{"worktreePath":"/repo/x","branch":"feat/x;rm -rf ~"}')
+  assert_eq "and a branch a shell would read as syntax" "failed intake" "$(field "$SIM" status) $(field "$SIM" stage)"
 else
   printf '%s  skip%s  node not found: the Challenge simulation needs it\n' "$DIM" "$NC"
 fi

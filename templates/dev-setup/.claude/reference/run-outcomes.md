@@ -162,6 +162,16 @@ end on one line: `Next:` and the follow-its-CI command from the host reference
 checkout is not on that branch, so name it. It is not a question: the developer
 runs it, or asks you to.
 
+**To try it running.** When the main checkout has a `.claude/parallel.json`
+whose `adopt` and `dev` are not `null`, add one line before `Next:` — `Try it:`
+and the two commands filled in with `worktreePath`, `adopt` first, to run from
+the main checkout. It is a line, not a question — under `multi-sdd` the other
+runs are still landing — and the developer runs it: `adopt` writes the
+worktree's `.env`, which the sandbox stops. The worktree gets ports of its own,
+so it runs beside the others without a clash. A run launched on a worktree
+`parallel` prepared (`multi-sdd`, phase A) has its ports already: the line is
+`dev` alone. No `parallel.json`, no line.
+
 ## The merge request
 
 Title, language and labels from `mr-meta.sh`, as `vcs-ops` describes —

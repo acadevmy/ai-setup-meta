@@ -46,6 +46,8 @@ Spec: .specs/<filename>
 Status: <updated status>
 ```
 
+Invoked on its own: `${CLAUDE_PLUGIN_ROOT}/reference/hand-off.md`.
+
 ## Expected output
 
 - the spec presented and discussed with the developer;

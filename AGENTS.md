@@ -241,6 +241,7 @@ status other than 0.
 | `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS`, `UNCHECKED_AT_COMMIT` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this. `UNCHECKED_AT_COMMIT` is what the commit gate let through on the branch when it ran out of time, and the merge request opens with it |
 | `save-failed-run.sh --task <id> --stage <spec\|dev\|verify\|broken> --reason-file <path> [--dir <worktree>] [--spec-file <path> --spec-path <path> --base <ref> --title <text>]` | `SAVED`, `COMMIT`, `BRANCH`, `WORKTREE`, `CREATED`, `FILES`, `PUSHED`, `REMOTE`, `PUSH_ERROR`, `REASON` — the one way past the gates: a failed `auto-sdd` run in a cloud session commits what the task's worktree holds (an empty commit when nothing; on a branch with no worktree, without a checkout; with no branch, a new one holding the spec) with the failure report as the body, and pushes it as it is, past the commit and push hooks, never forced. Exit 3 refuses outside `CLAUDE_CODE_REMOTE=true` or with nothing that carries the task id; exit 4 saved but not pushed |
 | `multi-preflight.sh [--task <id>]… \| --from-sprint <n> \| --from-epic <id>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
+| `parallel-guard.sh` | `GUARDED`, `REASON`, `SANDBOX`, `NEW_CMD`, `ADOPT_CMD`, `SCRIPTS`, `MISSING` — may the agent run the project's `parallel` `new` and `adopt` itself. They write `.env`, so they leave the sandbox only with three guards, read from both settings files: the excluded pattern is the direct invocation of a script file (never an alias like `pnpm wt`, which runs whatever an editable `package.json` says), that file is in `denyWrite` and under an `Edit(...)` deny, and every run asks. `MISSING` names each entry still lacking. Read-only |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `review-package.sh --base <ref>` | `PACKAGE`, `MERGE_BASE`, `EMPTY`, `COMMITS`, `FILES`, `CHANGED_LINES`, `SIZE` — the diff `verify` and `review` read, built once: commits, stat and `git diff -U10` of the working tree against `--base`, in one file under the common git directory, named after the branch. `EMPTY` is decided by the diff, never by the commits; `SIZE` is `large` above 300 changed lines or 10 files. It never stages — the caller does |
 | `task-clock.sh --task <id> --start \| --stop`, `task-clock.sh [--task <id>] --status` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON`, `OPEN_TASKS`, `OPEN_COUNT`, `RECENT_TASKS` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why. `--status` reads without writing and, with no task, answers for the whole repository: asking whether work is open must not consume the measurement. `RECENT_TASKS` names the clocks stopped less than 300 s ago, so a failed run's `BLOCKED` prompt is still its task |
@@ -553,15 +554,17 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `clickup-contract.md` | How to call the `clickup` agent: intents, parameters, result format, list-id resolution, the bail-out call |
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
 | `fork-point.md` | The one fork-point question: how each flow resolves the default, the shape of the ask, what the answer binds, and where it is deliberately not asked. Cited by `sdd`, `auto-sdd` and `multi-sdd` |
+| `hand-off.md` | What a sub-skill invoked on its own does when it finishes: one question naming the next step of the SDD chain, then that step in the same turn. Cited by `sdd-discovery`, `sdd-spec`, `sdd-plan`, `sdd-dev`, `verify` and `review`; `distill` follows the same rule |
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
 | `readable-references.md` | How every reference a person reads is written — a document as a link whose text names the topic, a rule by its name, an id with its title — and the test each one passes. Cited by `sdd-spec`, `sdd-discovery`, `sdd-plan`, `vcs-ops` and both workflows |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
-**The public surface is seven commands** — `setup`, `story`, `quick`, `sdd`,
-`auto-sdd`, `multi-sdd`, `review` — plus two headless ones, `auto-dev-select` and
+**The public surface is the command table of the generated `AGENTS.md`** —
+`setup`, `story`, `quick`, `kickoff`, `sdd`, `auto-sdd`, `multi-sdd`, `review`,
+`distill`, `parallel` — plus two headless ones, `auto-dev-select` and
 `auto-dev`, which a job runner starts inside `claude -p` and no developer types.
 They are user-invocable because `claude -p` starts them by name, and they stay
-out of the generated `AGENTS.md`, whose command table the suite pins to the seven:
+out of the generated `AGENTS.md`, whose command table the suite pins to that list:
 every session of every project would otherwise pay to describe them. One
 optional command stays out of it for the same reason: `devcontainer`, which
 writes and verifies the root `.devcontainer/` the job runner builds before
@@ -573,6 +576,14 @@ and it is not a step of `setup`. Everything else in the chain (`sdd-discovery`, 
 readable. A skill that opens a PR or writes into a project also carries
 `disable-model-invocation: true` — a flow with outward-facing side effects is
 started by a person, not inferred.
+`distill` is the exception, on purpose: it writes only an untracked file under
+the git common dir, so the chain reaches it after `review` without a person
+typing it, and its one outward step — a distill section appended to the merge
+request description, between markers, after the filled template and never in
+its place — is opt-in and behind the `ask` rule on `gh api` / `glab api` writes.
+It gives no score and no merge verdict: an automatic merge, if it ever comes, is
+a CI check over deterministic signals, not a number a model writes into a
+description.
 
 `quick` is the fifth because ceremony has to be proportional (DE-16480): at most
 three files and no new component, dependency or public interface goes branch →
@@ -580,7 +591,7 @@ change → commit → merge request, with no discovery and no spec. The bar is i
 both descriptions, `sdd`'s and `quick`'s, and the routing decision stays with the
 developer — the command they type *is* the decision.
 
-`story` is the seventh (DE-17141) because the flows were only as good as the
+`story` joined the surface (DE-17141) because the flows were only as good as the
 task they were handed: hand-written tasks prescribe the build and contradict
 themselves, which is what kept stopping the `auto-sdd` Challenge on DE-16864.
 `story` writes the input instead — a story or an epic with its stories, INVEST
@@ -950,7 +961,7 @@ of these five should have grown a section instead.
 | Page | Answers |
 |---|---|
 | `docs/onboarding.md` | "I have never used this." Install → configure → first task, capped at one page by a test |
-| `docs/developer-guide.md` | "How do I work with it?" The seven commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
+| `docs/developer-guide.md` | "How do I work with it?" The commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
 | `docs/migration-v2-to-v3.md` | "What broke?" Every breaking change of the chain, and the UPDATE procedure |
 | `docs/training.md` | "Why is it like this?" Facilitator material: the mental model and three live demos |
 | `docs/workflow.md` | "How do I change the plugin?" Branching, CI, releases |
@@ -1027,4 +1038,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.39.0 — bump the version number on every substantial change*
+*Version: 2.43.0 — bump the version number on every substantial change*

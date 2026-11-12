@@ -244,7 +244,7 @@ cp -R dist/dev-setup "${TMPDIR:-/tmp}/dev-setup-next"
 jq '.name = "dev-setup-next"' "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json" > "${TMPDIR:-/tmp}/plugin.json" \
   && mv "${TMPDIR:-/tmp}/plugin.json" "${TMPDIR:-/tmp}/dev-setup-next/.claude-plugin/plugin.json"
 
-# Smoke test, no model turn: the mod prints the catalogue of the seven commands
+# Smoke test, no model turn: the mod prints the catalogue of the commands
 claude -p --plugin-dir "${TMPDIR:-/tmp}/dev-setup-next" "/dev-setup"
 
 # The real thing, from a project of yours or a throwaway one
@@ -298,7 +298,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 
 ## Skills the dev-setup plugin distributes
 
-### The seven commands
+### The commands
 
 ```
 /dev-setup:setup      ← one-off, project bootstrap
@@ -307,12 +307,17 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
        │
        ├── /dev-setup:quick   ← fix or chore: branch, change, commit, PR
        │
+       ├── /dev-setup:kickoff ← an idea with no task: discovery, branch, spec, then the chain
+       │
        ▼
 /dev-setup:sdd        ← the whole flow, with one approval checkpoint
        │                (or /dev-setup:auto-sdd for the same flow unsupervised,
        │                 /dev-setup:multi-sdd for up to five of those at once)
        ▼
 /dev-setup:review     ← code review against the project rules
+       │
+       ▼
+/dev-setup:distill    ← the branch distilled for whoever reviews it
 ```
 
 | Command | Description |
@@ -320,10 +325,13 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
 | `/dev-setup:story` (beta) | Writes a user story — or an epic with its stories — from a short description and Figma links, against INVEST and the project's `product.md`; drafts in `.stories/`, creates on ClickUp after the developer's approval |
 | `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
+| `/dev-setup:kickoff` | Idea-first entry, with no task yet — it offers to create one on ClickUp: a light discovery from what the conversation already knows, a classification (type, single or release branch, development or hotfix), the fork point and the branch, then `quick` under its bar or `sdd-spec` → `sdd-plan` → `sdd-dev` and the rest of the chain |
 | `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify ∥ review on one diff package → one commit → PR |
 | `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd-run.js`) writes the spec, has three reviewers improve it against the project architecture, develops in an isolated worktree and runs the project real quality commands. It returns `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
 | `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |
 | `/dev-setup:review` | Code review against the project rules; updates `REGISTRY.md` |
+| `/dev-setup:distill` | Distills the branch for a reader who did not follow the work — what changed, the high-risk points with permalinks, the decisions and their source, what to try by hand. A local document, never committed; on request, a section appended to the merge request description and kept up to date |
+| `/dev-setup:parallel` | Parallel worktrees, each with its own ports, `.env`, compose project and tunnels (outbound port-forwards, an inbound cloudflared URL). The first run reports what keeps the project from running twice and, on a yes, generates a project-local script from a template; the developer runs what the sandbox stops (`new`, tunnels) |
 
 **Which of the two dev flows.** At most three files, and no new component,
 dependency or public interface → `quick`. Everything else → `sdd`, whose spec is

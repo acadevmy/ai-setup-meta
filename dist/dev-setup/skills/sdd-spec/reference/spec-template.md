@@ -65,6 +65,12 @@ recorded here: the layer fixes it and the project's `tests.md` rule states it.>
 - Test 1: <description>
 - Test 2: <description>
 
+## Decision log
+<Empty when the spec is written. Filled in during development: one entry
+per non-obvious choice, when it is made.>
+
+- <YYYY-MM-DD> · **<decision>**: <why>. Discarded: <the alternative, and why not>.
+
 ## Notes
 <Risks, open questions, additional considerations, useful references — each
 one a Markdown link whose text names what it points at.>
@@ -85,6 +91,10 @@ one a Markdown link whose text names what it points at.>
 - **Test cases** cover the listed requirements. If a requirement has no test
   case, either it is not verifiable — rewrite it — or the strategy is
   incomplete.
+- **The decision log is for choices, not for events.** An alternative
+  discarded, a trade-off accepted, a constraint found in the code: each goes in
+  when it is made, because nobody can reconstruct the reason later. `distill`
+  reads it for the reviewer.
 - **References are written for the person who approves the spec**, not for the
   next agent: a document is a link whose text names the topic, with the
   heading anchor; a rule is cited by its name, never by a number alone; a
