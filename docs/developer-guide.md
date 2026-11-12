@@ -13,7 +13,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ## Index
 
-- [1. The six commands](#1-the-six-commands)
+- [1. The seven commands](#1-the-seven-commands)
 - [2. A task, end to end](#2-a-task-end-to-end)
 - [3. The rules, and when each one loads](#3-the-rules-and-when-each-one-loads)
 - [4. The sandbox and the ask rules](#4-the-sandbox-and-the-ask-rules)
@@ -25,10 +25,12 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ---
 
-## 1. The six commands
+## 1. The seven commands
 
 ```
 /dev-setup:setup      ← one-off, per project
+       │
+/dev-setup:story      ← (beta) writes the story (or the epic) on ClickUp
        │
        ├── /dev-setup:quick     ← a fix or chore: branch, change, commit, MR
        │
@@ -43,6 +45,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 | Command | Use it when | Example |
 |---|---|---|
 | `/dev-setup:setup` | Configuring a project for the first time, or pulling in a new plugin version | `/dev-setup:setup` |
+| `/dev-setup:story` (beta) | The work exists only as an idea, a sentence or a Figma file, and needs to become a story someone can build | `/dev-setup:story "visitors can sign up for updates on a sold-out product" https://figma.com/design/…` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
 | `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
@@ -65,6 +68,21 @@ to type, which resumes at closure. Inside a flow nothing changes: the flow decid
 component, dependency or public interface. Claude may say a task looks
 misrouted; the routing is yours, and the command you type is the decision.
 
+**Where `story` sits.** Before the others: it turns a request into a user
+story — or an epic with its stories — with Gherkin scenarios, checked against
+INVEST and against the project's `product.md`, and creates it on ClickUp only
+after you approve the drafts. The drafts live in `.stories/` (gitignored) until
+then; choose **Keep the drafts** at the approval to try it without touching the
+board. A story that still has open points is tagged `da dettagliare`. With
+`--map` it also writes the story map — the backbone of epics, the walking
+skeleton, the release lanes — as a page of the ClickUp Doc named under
+`Story maps` in `product.md`; every epic links to it, and the release plan
+lives there only.
+
+**`story` is in beta.** The drafts, the questions it asks and the shape of
+what it creates on ClickUp may still change between releases. Read the drafts
+before approving them, and report what it got wrong.
+
 **Which one does `review` belong to?** It runs inside `sdd` already, before the
 commit. Invoked on its own it reviews the current branch, updates `REGISTRY.md`
 in your working tree and commits nothing.
@@ -85,7 +103,7 @@ state of the work without spending a model turn:
   phase with the phase in progress at full strength, and the cost so far; past
   70% of context, a yellow warning before a long phase compacts it;
 - **`/dev-setup`** — a pane with one tab per view (`1`–`6` switch, `r` reloads,
-  `Esc` closes). With no argument, the six commands with when to use each and
+  `Esc` closes). With no argument, the seven commands with when to use each and
   what each takes, and a `use` button that puts one in the prompt. `/dev-setup
   clock` (one card per open clock — total, current interval, earlier ones, the
   branch's own task marked — and the clocks stopped in the last five minutes),
@@ -261,7 +279,7 @@ It comes back with one of two outcomes:
 
 | Outcome | What it means | What you do |
 |---|---|---|
-| `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section (§9) |
+| `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section ([the merge request lists points to confirm](#the-merge-request-lists-points-to-confirm)) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
 In a cloud session — a scheduled routine included — the disk goes with the
@@ -432,7 +450,7 @@ three in one question, and runs each one before it finishes.
 |---|---|
 | `lint`, `typecheck`, `test` | the command, or `null` when the project has none — with the reason under `absent`. A `null` is a decision: the flows skip that command and run the others |
 | `preflight` | optional: a readiness check the autonomous launchers run before anything else — a script that checks the toolchain, say |
-| `hook_manager` | optional: your hook tool when detection does not know it (`pre-commit`, `captainhook`, `grumphp`); the commit gate defers to it (§5) |
+| `hook_manager` | optional: your hook tool when detection does not know it (`pre-commit`, `captainhook`, `grumphp`); the commit gate defers to it ([the quality gate on the commit](#5-the-quality-gate-on-the-commit)) |
 
 **Every command runs from the repository root.** One that belongs to a
 sub-directory says so: `make -C api lint`, `cd api && composer test`.
@@ -571,9 +589,14 @@ These are not blocked — they wait for you:
   the flow used to spend as a summary in chat: you see the real command instead.
 - `gh api` / `glab api` with `POST`, `PUT`, `PATCH`, `DELETE` — anything that
   writes to the forge.
-- Every ClickUp write: create, update, delete, move, merge, add, remove.
+- The destructive ClickUp writes: delete, move, merge, remove.
 
 The pattern is the same throughout: **reads are free, outward-facing writes ask.**
+One exception, on purpose: ClickUp creates, updates and links do not ask.
+`/dev-setup:story` makes a dozen of them after you approved the drafts, and a
+flow moves a task's status at fixed points; asking again for each call turned
+one real checkpoint into ten reflexive ones. UPDATE removes those three `ask`
+entries from a project that still has them (`REASON: ask-retired`).
 
 ### If a deny is in your way
 
@@ -881,7 +904,7 @@ first time; answering "yes, and don't ask again" records it in
 ### `git push` fails inside the sandbox
 
 Your `origin` is an SSH remote and the push was not the plain form the
-exclusion matches — see §4. `git push origin <branch>` or
+exclusion matches — see [SSH remotes](#ssh-remotes). `git push origin <branch>` or
 `git push -u origin <branch>`, alone on the line, runs outside the sandbox; a
 `cd … &&`, a pipe or a push to a URL keeps it in.
 
