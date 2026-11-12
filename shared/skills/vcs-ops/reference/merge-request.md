@@ -94,6 +94,11 @@ the diff is not read at all. Keep the body to what the diff cannot say:
   task link. Not a file-by-file tour; the diff is the tour.
 - **lists over prose**, one line per item; no restating the title, no
   repeating the spec — link it.
+- **every link says what it points at**: the task as `[DE-123 <its title>](…)`,
+  never its id alone; the spec, a rule or an ADR by its name or title as the
+  link text, never a bare path or URL; a rule by its name, never by a number
+  alone. A reviewer decides what to open from the text, before opening it;
+  `${CLAUDE_PLUGIN_ROOT}/reference/readable-references.md` has the forms.
 - **sections that do not apply are deleted** when the template says so, and
   otherwise get one line (`No screenshot: no UI change`).
 - the whole body fits on one screen. When it does not, cut the narrative, never
@@ -165,7 +170,7 @@ the headings in `LANGUAGE`:
 - [ ] project rules respected
 
 ## Task
-- [DE-XXX](link to task)
+- [DE-XXX <task title>](link to task)
 ```
 
 The test section's rules hold here too: this body is shorter, not vaguer.
