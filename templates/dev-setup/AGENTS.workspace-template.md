@@ -111,6 +111,7 @@ own; there is nothing to invoke by hand.
 | `/dev-setup:setup` | Re-run the setup: refresh the generated rules and files from the current plugin |
 | `/dev-setup:story` | (Beta) A user story, or an epic with its stories, from a short description and optional Figma links, checked against INVEST and `product.md`, published to ClickUp once you approve it |
 | `/dev-setup:quick` | A fix or chore touching at most three files, with no new component, dependency or public interface: branch, change, commit behind the gate, merge request — no spec |
+| `/dev-setup:kickoff` | An idea with no task yet: classify it, create the ClickUp task on a yes, cut the branch, write the spec, then the chain |
 | `/dev-setup:sdd [TASK_ID]` | Interactive Spec-Driven Development for everything above that bar: discovery, a spec you approve, development, gates, merge request |
 | `/dev-setup:auto-sdd [TASK_ID]` | Autonomous Spec-Driven Development: a background workflow takes the task to a review-ready MR/PR — it never stops to ask: what it decided on the task's behalf is at the top of the MR |
 | `/dev-setup:multi-sdd` | The autonomous flow on up to five tasks from one session: a pre-flight for the business decisions, then one background run per task in its own worktree |

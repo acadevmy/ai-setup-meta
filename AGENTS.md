@@ -559,7 +559,8 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
 **The public surface is the command table of the generated `AGENTS.md`** —
-`setup`, `story`, `quick`, `sdd`, `auto-sdd`, `multi-sdd`, `review`, `distill` — plus two headless ones, `auto-dev-select` and
+`setup`, `story`, `quick`, `kickoff`, `sdd`, `auto-sdd`, `multi-sdd`, `review`,
+`distill` — plus two headless ones, `auto-dev-select` and
 `auto-dev`, which a job runner starts inside `claude -p` and no developer types.
 They are user-invocable because `claude -p` starts them by name, and they stay
 out of the generated `AGENTS.md`, whose command table the suite pins to that list:
@@ -589,7 +590,7 @@ change → commit → merge request, with no discovery and no spec. The bar is i
 both descriptions, `sdd`'s and `quick`'s, and the routing decision stays with the
 developer — the command they type *is* the decision.
 
-`story` is the seventh (DE-17141) because the flows were only as good as the
+`story` joined the surface (DE-17141) because the flows were only as good as the
 task they were handed: hand-written tasks prescribe the build and contradict
 themselves, which is what kept stopping the `auto-sdd` Challenge on DE-16864.
 `story` writes the input instead — a story or an epic with its stories, INVEST
@@ -1036,4 +1037,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.40.0 — bump the version number on every substantial change*
+*Version: 2.41.0 — bump the version number on every substantial change*

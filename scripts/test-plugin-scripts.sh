@@ -374,6 +374,19 @@ assert_contains "untracked files are included" \
   "untracked.txt"
 rm -f "$SANDBOX/untracked.txt"
 
+# A branch with no task id finds its spec through the spec's `> Branch:` line.
+git -C "$SANDBOX" checkout --quiet -b 'feat(search)/idea-first-entry'
+printf -- '# Spec: Idea-first entry\n\n> Status: draft\n> Branch: `feat(search)/idea-first-entry` (off `next`)\n\n## Implementation plan\n' \
+  > "$SANDBOX/.specs/idea-first-entry.md"
+printf -- '# Spec: Other\n\n> Branch: `feat(search)/idea-first-entry-2`\n' > "$SANDBOX/.specs/other.md"
+IDEA=$(cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --json 2>/dev/null)
+assert_eq "no task id on a branch without one" "" "$(printf '%s' "$IDEA" | jq -r '.TASK_ID')"
+assert_contains "spec found through its > Branch: line" \
+  "$(printf '%s' "$IDEA" | jq -r '.SPEC')" ".specs/idea-first-entry.md"
+rm -f "$SANDBOX/.specs/idea-first-entry.md" "$SANDBOX/.specs/other.md"
+git -C "$SANDBOX" checkout --quiet feat/DE-999-my-work
+git -C "$SANDBOX" branch --quiet -D 'feat(search)/idea-first-entry'
+
 # --require-spec must fail loudly when there is no spec.
 (cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --task DE-404 --require-spec --json) >/dev/null 2>&1
 assert_eq "--require-spec exits non-zero without a spec" "1" "$?"
@@ -1908,7 +1921,7 @@ SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/sha
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
 assert_eq "the surface the check reads is the public commands" \
-  "auto-sdd distill multi-sdd quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+  "auto-sdd distill kickoff multi-sdd quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
 
 # The names from $2 (one per line) with no row in $1 matching $3, where `@`
 # stands for the name.
@@ -1981,10 +1994,10 @@ for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DEC
 done
 
 # DE-17079 wants the generated file shorter; these fixes may not lengthen it.
-# The extra lines over the base are the `distill` command, the `story`
-# command and its `story-reviewer` agent, which the surface checks above
-# require, and the one-line rule on readable references.
-for BUDGET in "$GEN_SINGLE:135" "$GEN_WORKSPACE:140" "$GEN_PROJECT:30"; do
+# The extra lines over the base are the `kickoff` and `distill` commands,
+# the `story` command and its `story-reviewer` agent, which the surface checks
+# above require, and the one-line rule on readable references.
+for BUDGET in "$GEN_SINGLE:136" "$GEN_WORKSPACE:141" "$GEN_PROJECT:30"; do
   GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
   assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
     "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
