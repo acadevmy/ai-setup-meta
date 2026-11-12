@@ -17,8 +17,8 @@ you take must improve the quality, the coherence or the automation of the templa
 ```
 ai-setup-meta/
 ├── shared/                 # Common assets TO DISTRIBUTE (not used by the meta-repo)
-│   ├── agents/             # Reusable agents (e.g. clickup.md)
-│   └── skills/             # Reusable skills (e.g. clickup, vcs-ops)
+│   ├── agents/             # Reusable agents (e.g. tracker.md)
+│   └── skills/             # Reusable skills (e.g. tracker, vcs-ops)
 │
 ├── templates/              # One template per domain
 │   └── <domain>/           # e.g. dev-setup
@@ -191,7 +191,7 @@ Agents are isolated sub-processes with their own context.
 
 | Agent | File | Role |
 |---|---|---|
-| **clickup** | `shared/agents/clickup.md` | Generic ClickUp CRUD. Distributed to every template that declares it in its manifest. |
+| **tracker** | `shared/agents/tracker.md` | Task tracker CRUD on the provider the project configured (ClickUp, Linear), through that provider's adapter. Distributed to every template that declares it in its manifest. |
 
 ## Available skills
 
@@ -217,7 +217,7 @@ Releases have no command: release-please derives them from the conventional comm
 
 | Skill | Description |
 |---|---|
-| `clickup` | The board's documentation: the workflow statuses, the OAuth prerequisites, what each operation is for. The calling contract lives in the plugin-level `reference/clickup-contract.md`. |
+| `tracker` | The board's documentation: the canonical workflow statuses, what each operation is for, and the install-time provider and list. The calling contract lives in the plugin-level `reference/tracker-contract.md`; each provider's tools and status names in `reference/tracker-<provider>.md`. |
 | `vcs-ops` | Branch, commit, PR/MR, tag and release. The SKILL.md holds the conventions that are the same on both hosts; it reads `git remote` and then loads `reference/github.md` (`gh`) or `reference/gitlab.md` (`glab`, including the `--template` discovery GitLab needs). |
 
 ## The plugin's scripts and hooks
@@ -251,7 +251,8 @@ status other than 0.
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
 | `auto-dev-select.sh --args <file> [--choose <repo> --reason <text> \| --block --reason <text>]` | `STATUS`, `REPO`, `SLUG`, `BASE_BRANCH`, `BASE_SOURCE`, `SOURCE`, `REASON`, `SELECTION_FILE`, `CANDIDATES_FILE`, `TASK_FILE` — which clone a headless task belongs to and the base it forks from: a `repo:` line or a single clone with no model, otherwise `undecided` and a capped `candidates.md` for the model; blocked moves the task to `BLOCKED` itself. Writes `selection.json`, whose `hasDevcontainer` is true only for a root configuration `devcontainer up` reads with no `--config`: a nested one alone runs the task on the host, named in `devcontainerNote`, never a block |
 | `auto-dev-args.sh --args <file>` | `ACCEPTED`, `REASON`, `TASK_ID`, `TITLE`, `TRACKER`, `OUTPUT_DIR`, `TASK_FILE`, `WORKFLOW_ARGS`, `WORKFLOW_ARGS_FILE`, `LAUNCH_FILE`, `PLUGIN_ROOT` — everything `auto-dev` needs before its first agent: the task (from the board or inline), the base (passed, or from `selection.json`, refused in another clone), the quality commands, the MR language. It refuses unless the runner set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`: `claude -p` otherwise stops the workflow ten minutes after the launcher's last turn. Exit 3 also writes a `failed`/`intake` `result.json` |
-| `auto-dev-clickup.sh --task <id> --read \| --start \| --finish --result <file> [--mr-url <url>] [--pushed true\|false]` | `TASK_ID`, `CUSTOM_ID`, `NAME`, `DESCRIPTION`, `STATUS`, `PRIORITY`, `URL`, `MOVED_TO`, `COMMENTED`, `TIME_LOGGED`, `MINUTES`, `REASON` — the board for a headless run, over the REST API with `CLICKUP_API_TOKEN` read by curl from stdin, never from argv: a disposable machine has no OAuth login for the MCP. `BACKLOG` is refused; `--finish` logs the clock in ClickUp's own time tracking |
+| `auto-dev-tracker.sh --task <id> --read \| --start \| --finish --result <file> [--mr-url <url>] [--pushed true\|false] [--provider <p>]` | `PROVIDER`, `TASK_ID`, `KEY`, `NAME`, `DESCRIPTION`, `STATUS`, `PRIORITY`, `URL`, `IS_BACKLOG`, `MOVED_TO`, `COMMENTED`, `TIME_LOGGED`, `MINUTES`, `REASON` — the board for a headless run, over the tracker's API with a personal token (`CLICKUP_API_TOKEN`, `LINEAR_API_KEY`) read by curl from stdin, never from argv: a disposable machine has no OAuth login for the MCP. What every tracker shares lives here; the tracker's own calls are a backend it sources, `tracker-clickup.sh` or `tracker-linear.sh`. `BACKLOG` is refused; `--finish` logs the clock in the tracker's time tracking when it has one, in the comment otherwise |
+| `tracker-config.sh [--config <file>] [--status <canonical>]` | `PROVIDER`, `LIST_ID`, `LISTS`, `SOURCE`, `CONFIG_FILE`, `STATUS_NAMES`, `REASON` — which task tracker the project uses: `TRACKER_PROVIDER` / `TRACKER_LIST_ID`, then `.claude/tracker.json`, then `none`. `--status` gives the board's names for a canonical status, the project's first and the adapter's default behind. The one reader of that file |
 | `auto-dev-commit.sh --task <id> --message <subject>` | `COMMITTED`, `COMMIT`, `BRANCH`, `RAN`, `SKIPPED`, `UNAVAILABLE_REASON`, `OUTPUT`, `REASON` — the one commit of an `auto-dev` run with a command `unavailable`: the commit gate minus what cannot start. It asks `quality-preflight.sh` itself, runs the commands that can start, and commits with the project's git hooks on. Exit 4 a red command or a refused commit; exit 3 refuses when nothing is unavailable, with a hook manager, or off the task's branch — `git commit` and the gate work there |
 | `auto-dev-checks.sh --task <id> [--wait] [--budget <seconds>]` | `DONE`, `PASSED`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS`, `OUTPUT`, `LOG_DIR`, `TREE`, `REASON` — the quality commands of an `auto-dev` Verify, run so the agent can wait for them however long they take: each command into its own log, each status on disk as it lands. A suite past the Bash call's ceiling goes on in the background, and `--wait` blocks up to 540 s per call until `DONE` (exit 5: call it again). A second start on the same tree joins the live run; a run whose heartbeat stopped answers `stopped`, never green. Exit 0 green, 4 red, 3 no verdict |
 | `auto-dev-report.sh --outcome <file> --launch <file> [--session <id>]`, `--finalize --result <file> --claude-result <file>` | `STATUS`, `STAGE`, `RESULT_FILE`, `BODY_FILE`, `SPEC_FILE`, `PATCH_FILE`, `TITLE`, `LABELS`, `OUTPUT_SOURCE` — `result.json` and `pr-body.md` with no model: title and labels from `mr-meta.sh`, the repository's template with its description and test sections filled. Git decides the outcome: a `ready-for-mr` whose branch holds no commit over the base becomes `failed` at `dev`, the commit subjects are git's, and a failed run's uncommitted work goes to `changes.patch`. Usage per step from the transcripts is a lower bound for output; `--finalize` spreads `claude -p`'s exact per-model totals over the steps |
@@ -549,7 +550,8 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 
 | Reference | Holds |
 |---|---|
-| `clickup-contract.md` | How to call the `clickup` agent: intents, parameters, result format, list-id resolution, the bail-out call |
+| `tracker-contract.md` | How to call the `tracker` agent: intents, parameters, result format, the canonical statuses, provider and list resolution, the bail-out call |
+| `tracker-clickup.md`, `tracker-linear.md` | The adapters: each provider's MCP server and tools, default status map, key format and capabilities. Only the `tracker` agent reads them |
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
 | `fork-point.md` | The one fork-point question: how each flow resolves the default, the shape of the ask, what the answer binds, and where it is deliberately not asked. Cited by `sdd`, `auto-sdd` and `multi-sdd` |
 | `hand-off.md` | What a sub-skill invoked on its own does when it finishes: one question naming the next step of the SDD chain, then that step in the same turn. Cited by `sdd-discovery`, `sdd-spec`, `sdd-plan`, `sdd-dev`, `verify` and `review`; `distill` follows the same rule |
@@ -568,7 +570,7 @@ writes and verifies the root `.devcontainer/` the job runner builds before
 `auto-dev`. Unattended runs move to GCP project by project, so most projects
 never type it; it is in the developer guide and the `/dev-setup` catalogue,
 and it is not a step of `setup`. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
-`sdd-plan`, `sdd-dev`, `verify`, `clickup`, `vcs-ops`) carries
+`sdd-plan`, `sdd-dev`, `verify`, `tracker`, `vcs-ops`) carries
 `user-invocable: false`: the orchestrator invokes it by name, and `/help` stays
 readable. A skill that opens a PR or writes into a project also carries
 `disable-model-invocation: true` — a flow with outward-facing side effects is
@@ -609,7 +611,7 @@ Four things left `sdd`, and each one was paid for on every task:
   `sdd-plan` — plus one conditional gate: a task read in `BACKLOG`
   is implemented only after the developer explicitly confirms it, and is never
   moved onto the board's flow automatically (the backlog gate in
-  `clickup-contract.md`);
+  `tracker-contract.md`);
 - **the second `simplify` run** — it ran in `sdd-dev` and again in the closure;
   it now runs once, in the closure, over the staged change;
 - **the quality-command question** (DE-17128) — `sdd-dev`'s reference used to
@@ -757,12 +759,12 @@ commands and the agent waits on its `--wait` call, because a suite past the
 Bash call's ceiling goes to the background and is killed with the subagent's
 answer — on DE-17941 a green 13-minute suite was reported red that way.
 Everything around it that needs no judgement is a script
-(`auto-dev-select.sh`, `auto-dev-args.sh`, `auto-dev-clickup.sh`,
+(`auto-dev-select.sh`, `auto-dev-args.sh`, `auto-dev-tracker.sh`,
 `auto-dev-commit.sh`, `auto-dev-checks.sh`, `auto-dev-report.sh`), and the launchers only call them. The order is forced by
 the devcontainer: `auto-dev-select` chooses the clone on the host, the runner
 starts that clone's devcontainer, `auto-dev` runs inside it. Two things to keep:
 a change to `auto-sdd-run.js` is not a change to `auto-dev-run.js` — decide for each —
-and the board there is the REST script, never the `clickup` agent, because the
+and the board there is the API script, never the `tracker` agent, because the
 MCP's OAuth login does not exist on a fresh machine.
 
 Three rules for changing a workflow:
@@ -1011,4 +1013,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.43.0 — bump the version number on every substantial change*
+*Version: 2.44.0 — bump the version number on every substantial change*

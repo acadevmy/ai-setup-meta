@@ -49,7 +49,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 |---|---|---|
 | `/dev-setup:setup` | Configuring a project for the first time, or pulling in a new plugin version | `/dev-setup:setup` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
-| `/dev-setup:kickoff` | The work is an idea already discussed in the conversation, with no task yet: it classifies it, offers to create the ClickUp task, cuts the branch and writes the spec, then hands over to the chain | `/dev-setup:kickoff add date filtering to the search page` |
+| `/dev-setup:kickoff` | The work is an idea already discussed in the conversation, with no task yet: it classifies it, offers to create the task on the tracker, cuts the branch and writes the spec, then hands over to the chain | `/dev-setup:kickoff add date filtering to the search page` |
 | `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
 | `/dev-setup:multi-sdd` | Several independent tasks, unsupervised, from one chat | `/dev-setup:multi-sdd DE-1 DE-2 DE-3`<br>`/dev-setup:multi-sdd --from-sprint 3` |
@@ -346,9 +346,11 @@ never pays to describe them.
   `ready-for-mr`, and a failed run's uncommitted work is saved as
   `changes.patch`.
 
-The board is reached with `auto-dev-clickup.sh` over the ClickUp REST API and a
-personal token in `CLICKUP_API_TOKEN` (with `CLICKUP_TEAM_ID` for custom ids),
-because a disposable machine has no OAuth login for the MCP. Everything around
+The board is reached with `auto-dev-tracker.sh` over the tracker's own API and
+a personal token — `CLICKUP_API_TOKEN` (with `CLICKUP_TEAM_ID` for custom ids)
+on ClickUp, `LINEAR_API_KEY` on Linear — because a disposable machine has no
+OAuth login for the MCP. Which tracker, which lists and what the board calls its
+statuses come from `.claude/tracker.json` (§ "The task tracker", below). Everything around
 the run that does not need judgement is a script — `auto-dev-args.sh`,
 `auto-dev-select.sh`, `auto-dev-commit.sh`, `auto-dev-checks.sh`,
 `auto-dev-report.sh` — and each
@@ -481,13 +483,12 @@ runs them, or waits for the CI that does.
 ### The file an unattended run reads
 
 Step 7d of the setup offers to write `.claude/auto-dev.json` — the project facts
-a run nobody is watching cannot ask anyone for:
+a run nobody is watching cannot ask anyone for, beside the tracker's own in
+`.claude/tracker.json`:
 
 ```json
 {
-  "clickup_list_ids": ["901214692298"],
   "tag": "claudio",
-  "status": { "ready": "sprint", "in_progress": "in progress", "in_review": "in review", "blocked": "blocked" },
   "base_branch": null,
   "figma": { "file_key": "wMJHvCjPaCfK6765aKTfgn", "url": "https://www.figma.com/design/wMJHvCjPaCfK6765aKTfgn/V-Program" },
   "dry_run": false
@@ -496,9 +497,7 @@ a run nobody is watching cannot ask anyone for:
 
 | Field | What it decides |
 |---|---|
-| `clickup_list_ids` | the lists a run pulls work from |
 | `tag` | the tag that marks a task as the agent's |
-| `status` | this board's own status names, for the moves the flow makes |
 | `base_branch` | `null` means "resolve it per run" — the fork point comes from the repository, never from a name frozen on setup day |
 | `figma` | the design file, when the project has one; `null` otherwise |
 | `dry_run` | `true` runs everything up to the push and stops before the push, the merge request and the board write |
@@ -509,6 +508,36 @@ it: `/dev-setup:sdd`, `/dev-setup:quick`, `/dev-setup:auto-sdd` and
 `/dev-setup:multi-sdd` resolve the same facts from your session and from the
 repo. Decline it and nothing else changes; a later `/dev-setup:setup` offers it
 again.
+
+### The task tracker
+
+The flows talk to one board, and the project chooses which: ClickUp or Linear,
+or none. Step 6.1 of the setup asks, registers that tracker's MCP server, adds
+its permissions and writes `.claude/tracker.json`:
+
+```json
+{
+  "provider": "linear",
+  "lists": ["ENG"],
+  "status": { "backlog": "Backlog", "ready": "Todo", "in_progress": "In Progress",
+              "in_review": ["In Review"], "done": "Done", "blocked": "Blocked" }
+}
+```
+
+| Field | What it decides |
+|---|---|
+| `provider` | `clickup` or `linear` |
+| `lists` | where tasks are read from — ClickUp list ids, Linear team keys |
+| `status` | this board's own name for each status the flows speak (`BACKLOG`, `READY`, `IN PROGRESS`, `IN REVIEW`, `DONE`, `BLOCKED`); a list is tried in order |
+
+Every flow reaches the board through the `tracker` agent, and every script
+through `tracker-config.sh`: nothing else knows which tracker it is.
+`TRACKER_PROVIDER` and `TRACKER_LIST_ID` in your environment win over the file,
+for one machine. With no file and no variable the provider is `none`: `quick`
+and `kickoff` run from a description, and a flow that needs a task says so.
+
+A board status the map does not name stops the move with an error that names
+the key to add — a Linear team has no `Blocked` state until someone adds it.
 
 ---
 
@@ -579,7 +608,8 @@ These are not blocked — they wait for you:
   the flow used to spend as a summary in chat: you see the real command instead.
 - `gh api` / `glab api` with `POST`, `PUT`, `PATCH`, `DELETE` — anything that
   writes to the forge.
-- Every ClickUp write: create, update, delete, move, merge, add, remove.
+- Every write to the task tracker: create, update, delete, move, merge, add,
+  remove — the setup adds these for the tracker the project chose.
 
 The pattern is the same throughout: **reads are free, outward-facing writes ask.**
 
@@ -827,6 +857,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | A `CLAUDE.md` holding only `@AGENTS.md` — removed without asking, at the root and in every sub-project; one with your own content is moved into its `AGENTS.md` only on your yes | `CLAUDE.local.md` and any instruction file above the project — reported, never touched |
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
+| `.claude/tracker.json` — asked when absent: a project configured before it existed answers the tracker question once more, since nothing reads `CLICKUP_SETUP_LIST_ID` | `.claude/tracker.json` once you have one |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
 | `.claude/merge-request.json` — written when absent, after asking the language; missing catalogue labels are created on the forge | `.claude/merge-request.json` once you have one |
 | `.claude/quality-commands.json` — proposed when absent (decline it and the autonomous launchers refuse until you accept it), a rewrite offered when malformed | `.claude/quality-commands.json` once you have a valid one — verified, never rewritten |
@@ -921,7 +952,7 @@ exclusion matches — see §4. `git push origin <branch>` or
 `git push -u origin <branch>`, alone on the line, runs outside the sandbox; a
 `cd … &&`, a pipe or a push to a URL keeps it in.
 
-### ClickUp does not respond
+### The task tracker does not respond
 
 The first call opens the browser for OAuth. If the session expired, restart
 Claude Code and the flow starts again on its own.
@@ -939,7 +970,7 @@ hook — the two calls are:
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task DE-123 --stop --json
 ```
 
-then move the task to `CODE REVIEW` with the `COMMENT` it returns, verbatim. To
+then move the task to `IN REVIEW` with the `COMMENT` it returns, verbatim. To
 see what is still open in the repository without closing anything, the same
 script with `--status` and no `--task` lists it.
 

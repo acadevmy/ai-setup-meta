@@ -26,6 +26,7 @@ them.
 - [10. Meta-repo changes](#10-meta-repo-changes)
 - [11. Autonomous runs need declared quality commands](#11-autonomous-runs-need-declared-quality-commands)
 - [12. CLAUDE.md is gone: Claude Code reads AGENTS.md](#12-claudemd-is-gone-claude-code-reads-agentsmd)
+- [13. The task tracker is a project choice](#13-the-task-tracker-is-a-project-choice)
 - [How to migrate a project](#how-to-migrate-a-project)
 - [Post-migration checklist](#post-migration-checklist)
 
@@ -381,6 +382,27 @@ Project instructions can only be configured in your own
 project's settings, so the plugin sets nothing there: it relies on the default.
 To keep a `CLAUDE.local.md` *and* read `AGENTS.md`, choose
 `claude-md-and-agents-md` there. `/memory` shows which file a session loaded.
+
+---
+
+## 13. The task tracker is a project choice
+
+**Breaking — re-run the setup.** The flows no longer assume ClickUp. The
+project chooses its tracker — ClickUp, Linear or none — at setup Step 6.1, which
+writes `.claude/tracker.json`, registers that tracker's MCP server and adds its
+permissions. Nothing migrates an older configuration on its own: a project set
+up before this version resolves to `none` until `/dev-setup:setup` runs again,
+and its flows work without a board meanwhile.
+
+| Before | Now |
+|---|---|
+| the `clickup` agent and skill, `reference/clickup-contract.md` | the `tracker` agent and skill, `reference/tracker-contract.md`, one adapter per tracker (`reference/tracker-clickup.md`, `reference/tracker-linear.md`) |
+| `CLICKUP_SETUP_LIST_ID` (environment or plugin config) | `.claude/tracker.json` (`provider`, `lists`, `status`); `TRACKER_PROVIDER` / `TRACKER_LIST_ID` override it on one machine. `CLICKUP_SETUP_LIST_ID` is not read |
+| `mcp__clickup__*` allow and ask rules in the settings template | the chosen tracker's rules, merged at 6.1. Rules already in a project's settings stay |
+| ClickUp's status names in the flows (`SPRINT`, `CODE REVIEW`) | canonical statuses (`READY`, `IN REVIEW`), mapped to the board's names in `tracker.json` |
+| `custom_id` in the agent's result | `key` (`DE-123`, `ENG-42`) |
+| `auto-dev-clickup.sh` | `auto-dev-tracker.sh`, with a backend per tracker; `LINEAR_API_KEY` for Linear |
+| `clickup_list_ids` and `status` in `.claude/auto-dev.json` | in `.claude/tracker.json`; a job runner that read `clickup_list_ids` reads `lists` there |
 
 ---
 

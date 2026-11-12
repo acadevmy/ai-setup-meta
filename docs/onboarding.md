@@ -96,7 +96,8 @@ managed ones, never the project's `.claude/settings.json`, which ignores
 ```
 
 `"terminal_bell"` rings in any terminal — the default `auto` notifies only in
-iTerm2, Ghostty and Kitty. The second entry makes every `DE-123` a ClickUp link.
+iTerm2, Ghostty and Kitty. The second entry makes every `DE-123` a ClickUp link; on Linear the URL is
+`https://linear.app/<workspace>/issue/{id}`.
 
 ## Where to go next
 

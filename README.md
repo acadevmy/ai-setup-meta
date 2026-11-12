@@ -40,7 +40,7 @@ The agent reads the project and adapts what it installs:
 ### Session context cost
 
 The plugin declares **no** MCP servers of its own: the ones that depend on the stack (Figma)
-or on the team's configuration (ClickUp) are registered by `/dev-setup:setup` at project
+or on the team's configuration (the task tracker: ClickUp or Linear) are registered by `/dev-setup:setup` at project
 scope, and only when they are needed (Step 6 of the setup skill). For library documentation
 the default is the `ctx7` CLI rather than the Context7 server: the CLI does the same job
 without paying for the tool definitions in every session.
@@ -129,9 +129,9 @@ ai-setup-meta/
 │   └── marketplace.json         # Plugin index for Claude Code
 ├── shared/                      # Common assets distributed to the templates
 │   ├── agents/
-│   │   └── clickup.md
+│   │   └── tracker.md
 │   └── skills/
-│       ├── clickup/
+│       ├── tracker/
 │       └── vcs-ops/
 ├── templates/                   # Source of the per-domain templates
 │   └── dev-setup/
@@ -161,7 +161,7 @@ ai-setup-meta/
 │   └── dev-setup/               # Claude Code plugin
 │       ├── .claude-plugin/      # Plugin manifest
 │       ├── skills/              # 13 skills (10 from the template + 2 shared + setup)
-│       ├── agents/              # 4 agents (3 from the template + the shared clickup)
+│       ├── agents/              # 4 agents (3 from the template + the shared tracker)
 │       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
 │       ├── workflows/           # dev-setup:auto-sdd-run
 │       └── hooks/               # hooks.json + hooks/scripts/ + the mod (register.ts, lib/, tests/)
@@ -275,7 +275,7 @@ answers under its own name:
   run the copy's, change that name to `dev-setup-next:auto-sdd` in the copy's
   two launchers (the `auto-sdd` skill and the fan-out reference of `multi-sdd`)
   — the harness registers every workflow as `<plugin>:<meta.name>`;
-- the agents. The skills launch `code-reviewer`, `spec-verifier` and `clickup`
+- the agents. The skills launch `code-reviewer`, `spec-verifier` and `tracker`
   by bare name, and both plugins ship them: the transcript shows which prefix
   answered.
 
@@ -322,7 +322,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 |---|---|
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
 | `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
-| `/dev-setup:kickoff` | Idea-first entry, with no task yet — it offers to create one on ClickUp: a light discovery from what the conversation already knows, a classification (type, single or release branch, development or hotfix), the fork point and the branch, then `quick` under its bar or `sdd-spec` → `sdd-plan` → `sdd-dev` and the rest of the chain |
+| `/dev-setup:kickoff` | Idea-first entry, with no task yet — it offers to create one on the task tracker: a light discovery from what the conversation already knows, a classification (type, single or release branch, development or hotfix), the fork point and the branch, then `quick` under its bar or `sdd-spec` → `sdd-plan` → `sdd-dev` and the rest of the chain |
 | `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify ∥ review on one diff package → one commit → PR |
 | `/dev-setup:auto-sdd` | The same ground, unsupervised: a workflow script (`workflows/auto-sdd-run.js`) writes the spec, has three reviewers improve it against the project architecture, develops in an isolated worktree and runs the project real quality commands. It returns `ready-for-mr` or `failed` — the PR is opened by the launcher, behind a confirmation |
 | `/dev-setup:multi-sdd` | The same workflow, on 1–5 tasks from one session: a sequential pre-flight, then one background run per task in its own worktree, with the outcomes arriving in that chat as events |
@@ -356,12 +356,12 @@ readable.
 | `sdd-plan` | Presents the spec and iterates until it is approved |
 | `sdd-dev` | Development against the approved plan; the layer decides the cycle |
 | `verify` | Checks the diff against the spec: requirements, tests, impact, decisions |
-| `clickup` | The board's conventions: statuses, prerequisites, operations |
+| `tracker` | The board's conventions: the canonical statuses, the configured tracker, operations |
 | `vcs-ops` | Branches, commits, PRs/MRs, releases. Reads `git remote` and loads the GitHub (`gh`) or GitLab (`glab`) reference on demand |
 
 Each `SKILL.md` is a routing document under 500 words; the detail sits in
 `reference/*.md` next to it and is read on demand. The contracts more than one
-skill needs — how to call the ClickUp agent, how to behave at an interactive
+skill needs — how to call the tracker agent, how to behave at an interactive
 step — live once in `dist/dev-setup/reference/`.
 
 The Red-Green-Refactor and Given/When/Then cycles are not skills of their own:
@@ -443,4 +443,4 @@ merge request, so the person reviewing it reads both sides instead.
 | **code-reviewer** | Code review against `.claude/rules/`, proposes the REGISTRY entries |
 | **spec-verifier** | The branch's diff against its approved spec: requirements, tests, Impact list |
 | **finding-validator** | Re-checks every blocking review finding against the cited line before it counts |
-| **clickup** | Generic ClickUp CRUD (MCP passthrough) |
+| **tracker** | Task tracker CRUD on the configured provider — ClickUp or Linear (MCP passthrough) |
