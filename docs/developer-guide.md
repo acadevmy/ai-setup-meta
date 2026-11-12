@@ -725,6 +725,32 @@ uses) after entering. There is no post-create hook on purpose — a
 whose agents each need their own running instance can opt into one through
 `/dev-setup:parallel`, whose generated script takes over that copy.
 
+To try the result of an `auto-sdd` or `multi-sdd` run without the hook,
+`parallel`'s script adopts the run's worktree after the fact: `adopt` gives it
+a slot, its ports and its `.env`, then `dev` starts it beside the others. When
+the project has the script, the run's report ends with the two commands filled
+in — `multi-sdd` writes the code, `parallel` runs it.
+
+Better still, `multi-sdd` can have `parallel` prepare the worktrees before the
+runs start. On a project with the script, the fork-point question carries a
+second one — prepare each run's worktree with `parallel`? On a yes it gives you
+one line of `new` commands, one per task, from the confirmed fork point; you
+run it, and every run then develops in its own prepared worktree, with its
+ports, `.env` and dependencies, instead of a bare one. Its agents can start
+the project without a clash, and a finished run is one `dev` away from being
+tried. The worktrees live in `.claude/worktrees/`, beside Claude Code's own,
+because that is where the sandbox lets a session write.
+
+To skip typing that line, a project can let the agent run `new` and `adopt`
+itself. They leave the sandbox only with three guards, which `parallel`
+proposes and `${CLAUDE_PLUGIN_ROOT}/scripts/parallel-guard.sh` checks: the
+excluded pattern is the direct invocation of the script file, never an alias
+such as `pnpm wt` or `npm run wt` (an alias runs whatever `package.json` says,
+and that file stays editable); the script is in `denyWrite` and under an
+`Edit(...)` deny; and every run asks. With them in place each `new` is one
+approval instead of a line to paste. In auto mode the line comes back, since
+the approval would no longer reach you.
+
 **While you are in a worktree**, the harness blocks anything reaching back into
 the main checkout: an edit outside it, a Bash command whose working directory
 resolves there, a `git -C` or `cd` that redirects git out of it. Those are not

@@ -47,10 +47,15 @@ Workflow({
     "baseBranch": "<the fork point confirmed in phase A>",
     "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" },
     "unavailable": ["<each kind in the intake's UNAVAILABLE>"],
-    "unavailableReason": "<its UNAVAILABLE_REASON, then OUTPUT>"
+    "unavailableReason": "<its UNAVAILABLE_REASON, then OUTPUT>",
+    "worktreePath": "<the worktree parallel prepared at phase A>",
+    "branch": "<its BRANCH>"
   }
 })
 ```
+
+`worktreePath` and `branch` go together, and only for a task whose worktree
+phase A prepared (`preflight.md`, the instances); leave both out otherwise.
 
 Move each task to `IN PROGRESS` — `INTENT: update` — as you launch it, and not
 before: the pre-flight deliberately leaves the board alone so that a dropped
@@ -68,8 +73,9 @@ and each is closed by the outcome that lands for it, never by the set.
 
 `branchType` follows the task — feature → `feat`, bug → `fix`, maintenance →
 `chore`. Each call returns immediately with a `runId`; the run itself works in
-the background, in a worktree the harness gives its dev agent, so the developer
-checkout never moves whatever the five runs are doing.
+the background, in the worktree `parallel` prepared or in one the harness gives
+its dev agent, so the developer checkout never moves whatever the five runs are
+doing.
 
 The harness asks the developer to approve each workflow launch, so `n` tasks is
 `n` approvals up front. That is the last thing they are asked before the runs go.
@@ -84,7 +90,7 @@ Print the table once at launch and keep it as the run of record:
 
 | Task | Run | Branch / worktree | Last seen | Outcome |
 |---|---|---|---|---|
-| DE-1 | `<runId>` | — | Spec | — |
+| DE-1 | `<runId>` | — (or the prepared worktree) | Spec | — |
 
 Record what each launch returned: the `runId`, and the transcript directory when
 the result names one. Both are what makes a resume and a status answer possible

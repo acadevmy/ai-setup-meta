@@ -29,7 +29,8 @@ export const meta = {
 //   - it never touches ClickUp. The board is the launcher business, so the
 //     `ask` rules on ClickUp writes stay in front of a person.
 //   - it never edits the main checkout: development happens in a worktree the
-//     harness creates for the dev agent (`isolation: 'worktree'`).
+//     harness creates for the dev agent (`isolation: 'worktree'`), or in the
+//     one parallel prepared, when the launcher passes it.
 //
 // The contract with the launcher (also documented in the auto-sdd skill):
 //
@@ -46,6 +47,12 @@ export const meta = {
 //     unavailableReason: '<text>',            // declared, but this environment
 //                                             // cannot run them — never run,
 //                                             // reported in `unverified`
+//     worktreePath: '<abs path>',             // optional, with `branch`: a
+//     branch: 'feat/DE-123_slug',             // worktree parallel already made,
+//                                             // on that branch, with its own
+//                                             // ports, .env and dependencies —
+//                                             // the dev agent works there
+//                                             // instead of in an isolated one
 //   }
 //
 // Nothing in this file waits for a person. The Challenge improves the spec and
@@ -86,6 +93,25 @@ if (!TASK_ID_SHAPE.test(String(input.taskId))) {
       ' is not a plain identifier (letters, digits, dot, dash, underscore). ' +
       'It would reach a branch name and a shell command: fix the id on the ' +
       'board, do not work around it.',
+  }
+}
+
+// A prepared worktree reaches a `cd` and a branch check inside an agent
+// prompt, so it is held to a shape too: both or neither, an absolute path on
+// one line, a branch name with nothing a shell would read as syntax.
+const BRANCH_SHAPE = /^[A-Za-z0-9][A-Za-z0-9._/()-]{0,199}$/
+const prepared =
+  input.worktreePath || input.branch
+    ? { path: String(input.worktreePath || ''), branch: String(input.branch || '') }
+    : null
+if (prepared && !(prepared.path.startsWith('/') && !/[\n\r"`$\\]/.test(prepared.path) && BRANCH_SHAPE.test(prepared.branch))) {
+  return {
+    status: 'failed',
+    stage: 'intake',
+    reason:
+      'a prepared worktree needs both an absolute worktreePath and a plain branch name; got ' +
+      JSON.stringify({ worktreePath: prepared.path, branch: prepared.branch }) +
+      '. Launch without them and the run makes its own worktree.',
   }
 }
 
@@ -707,30 +733,80 @@ const reqLines = draft.reqs.map((req) => '  - ' + req.id + ': ' + req.statement)
 // whatever the worktree happened to start on: a fresh worktree branches from
 // the remote default, which is `main` on plenty of projects whose work targets
 // `next`.
+//
+// A prepared worktree replaces the isolation: parallel made it on the branch,
+// from the same base, with its own ports, .env and dependencies, so the agent
+// works there and an instance of the project can run beside the others.
 
 phase('Dev')
-log('Dev — implementing ' + draft.planSteps.length + ' planned steps in an isolated worktree')
+log(
+  'Dev — implementing ' +
+    draft.planSteps.length +
+    ' planned steps in ' +
+    (prepared ? 'the prepared worktree ' + prepared.path : 'an isolated worktree'),
+)
+
+const devWhere = prepared
+  ? [
+      'Implement one task in the git worktree at ' + JSON.stringify(prepared.path) + '.',
+      'Start every shell session with',
+      '',
+      '  cd ' + JSON.stringify(prepared.path),
+      '',
+      'It is yours: nothing else is running in it, and the developer main checkout',
+      'must stay untouched — so never work outside it, and use paths inside it.',
+    ]
+  : [
+      'Implement one task in the git worktree you are standing in. It is yours:',
+      'nothing else is running in it, and the developer main checkout must stay',
+      'untouched — so never `cd` out of it.',
+    ]
+
+const devBranch = prepared
+  ? [
+      'Step 1 — the branch. It exists already: the worktree was made on',
+      JSON.stringify(prepared.branch) + ', from the base this run resolved. Check',
+      'that `git branch --show-current` prints it, and report it back as `branch`.',
+      'If it prints anything else, stop and say so in `notes` — do not create or',
+      'switch branches.',
+    ]
+  : [
+      'Step 1 — the branch. Ask the plugin for the name, then create it from the',
+      'base branch this run resolved:',
+      '',
+      '  bash "' + plugin + '/scripts/sdd-start.sh" --json \\',
+      '    --task ' + task.id + ' --type ' + branchType + ' \\',
+      '    --title "<the task title, in English>" \\',
+      '    --base ' + JSON.stringify(base) + ' --create',
+      '',
+      'Branch names are English: pass the task title (' + JSON.stringify(task.title) + ')',
+      'as it is when it already is, translated to a short English phrase when not.',
+      'Report its BRANCH key back as `branch`. If it exits non-zero, stop and say',
+      'why in `notes` — do not invent a branch name.',
+    ]
+
+const devInstall = prepared
+  ? [
+      'The worktree was prepared for this: its dependencies are installed and its',
+      '.env carries ports of its own, so a server you start does not collide with',
+      'the other runs. Install again only if a command fails because something is',
+      'missing, with the package manager the lock file names. Never edit .env.',
+    ]
+  : [
+      'You are in a fresh worktree, so its dependencies are not installed and the',
+      'gitignored files it needs arrive only through .worktreeinclude. Install',
+      'first, with the package manager the lock file names (pnpm-lock.yaml ->',
+      '`pnpm install`, and so on): every command below otherwise fails for a',
+      'reason that has nothing to do with the task.',
+    ]
 
 const dev = await agent(
   [
-    'Implement one task in the git worktree you are standing in. It is yours:',
-    'nothing else is running in it, and the developer main checkout must stay',
-    'untouched — so never `cd` out of it.',
+    ...devWhere,
     '',
     TASK_BLOCK,
     '',
-    'Step 1 — the branch. Ask the plugin for the name, then create it from the',
-    'base branch this run resolved:',
-    '',
-    '  bash "' + plugin + '/scripts/sdd-start.sh" --json \\',
-    '    --task ' + task.id + ' --type ' + branchType + ' \\',
-    '    --title "<the task title, in English>" \\',
-    '    --base ' + JSON.stringify(base) + ' --create',
-    '',
-    'Branch names are English: pass the task title (' + JSON.stringify(task.title) + ')',
-    'as it is when it already is, translated to a short English phrase when not.',
-    'Report its BRANCH key back as `branch`. If it exits non-zero, stop and say',
-    'why in `notes` — do not invent a branch name.',
+    ...devBranch,
     '',
     'Step 2 — the spec. Write this document to ' + specPath + ', exactly as it',
     'is, and commit it as `docs(spec): add ' + task.id + ' spec`:',
@@ -774,11 +850,7 @@ const dev = await agent(
     'names. One commit per plan step, Conventional Commits, the task id in the',
     'subject: `feat(<scope>): <what changed> [' + task.id + ']`.',
     '',
-    'You are in a fresh worktree, so its dependencies are not installed and the',
-    'gitignored files it needs arrive only through .worktreeinclude. Install',
-    'first, with the package manager the lock file names (pnpm-lock.yaml ->',
-    '`pnpm install`, and so on): every command below otherwise fails for a',
-    'reason that has nothing to do with the task.',
+    ...devInstall,
     '',
     'The project own commands, which you run yourself as you go (an empty one',
     'means the project does not define it — skip it, say so in `notes`, do not',
@@ -807,14 +879,17 @@ const dev = await agent(
     'run reports back and a human decides. Leave the work committed on the',
     'branch and report the worktree path (`git rev-parse --show-toplevel`).',
   ].join('\n'),
-  {
-    label: 'dev:' + task.id,
-    phase: 'Dev',
-    effort: 'high',
-    isolation: 'worktree',
-    schema: DEV_SCHEMA,
-  },
+  Object.assign(
+    { label: 'dev:' + task.id, phase: 'Dev', effort: 'high', schema: DEV_SCHEMA },
+    prepared ? {} : { isolation: 'worktree' },
+  ),
 )
+
+// The prepared worktree is the launcher's fact, not the agent's report
+if (dev && prepared) {
+  dev.worktreePath = prepared.path
+  if (dev.branch !== prepared.branch) dev.branch = ''
+}
 
 if (!dev || !dev.branch || !dev.worktreePath) {
   return {

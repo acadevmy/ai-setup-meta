@@ -14,6 +14,7 @@ ends.
 - [Where the answers go](#where-the-answers-go)
 - [The overlap warning](#the-overlap-warning)
 - [The fork point](#the-fork-point)
+- [The instances](#the-instances)
 - [The board](#the-board)
 
 ## The intake
@@ -173,6 +174,73 @@ only means something while the tasks share one base, and `n` runs answered `n`
 times is the braiding this command exists to avoid. A task that genuinely needs
 a different base is a stacked task — run it on its own with `sdd` or
 `auto-sdd`.
+
+## The instances
+
+Only when `.claude/parallel.json` in the main checkout has a `new` command: the
+project can run on several worktrees at once, each with its own ports, `.env`,
+containers and dependencies. Then `parallel` prepares each run's worktree, and
+the run develops in it instead of in one the harness makes bare — so its agents
+can start the project without colliding, and the developer can try every
+result the moment it lands.
+
+**Ask it in the fork-point call**, as a second question, so it costs no stop of
+its own:
+
+```json
+{ "question": "Prepare each run's worktree with parallel?",
+  "header": "Worktrees",
+  "options": [
+    { "label": "Yes, with parallel (Recommended)",
+      "description": "Each run gets its own ports, .env and dependencies, and can be started as it lands" },
+    { "label": "No, the run's own worktree",
+      "description": "Bare worktrees made by the harness: faster to start, nothing to run them with" }
+  ],
+  "multiSelect": false }
+```
+
+On a yes:
+
+1. **The branch of each task**, from the main checkout, without `--create`:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" --json --task <custom_id> \
+     --type <branchType> --title "<the task title, in English>" --base <fork point>
+   ```
+
+   `BRANCH` is the name; nothing is created.
+2. **Who runs `new`.** Each task's command is the `new` command of
+   `parallel.json`, then the branch in single quotes, then `--from <fork
+   point>`. It writes `.env`, which the sandbox denies, so ask the script
+   whether the project lets you run it:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/parallel-guard.sh" --json
+   ```
+
+   - **`GUARDED` true, and the session not in auto mode** → run it yourself,
+     one Bash call per task, from the main checkout, inside the sandbox: the
+     command is excluded from it, and the `ask` rule puts each run in front of
+     the developer. A declined one is that task's line to run, below.
+   - **Otherwise** → one line for the developer, every task chained with `&&`,
+     in their terminal or after `!`. Say why in one sentence: `REASON`, or auto
+     mode, where the approval would not reach a person. **The turn ends on that
+     line.**
+
+   Either way it installs as many times as there are tasks, before any run
+   starts.
+3. **Once the worktrees exist**, map each branch to its worktree:
+
+   ```bash
+   git worktree list --porcelain
+   ```
+
+   The `worktree` line above `branch refs/heads/<BRANCH>` is that task's
+   `worktreePath`. A task whose branch has no worktree launches without one,
+   on the harness's, and the ledger says so.
+
+On a no, or with no `parallel.json`, nothing here happens and every run makes
+its own worktree, as before.
 
 ## The board
 

@@ -67,6 +67,7 @@
     "check-prerequisites.sh",
     "review-package.sh",
     "multi-preflight.sh",
+    "parallel-guard.sh",
     "task-clock.sh",
     "migrate-settings.sh",
     "render-template.sh",
