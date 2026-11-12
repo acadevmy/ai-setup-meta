@@ -14,7 +14,8 @@
     "tracker-permissions.json"
   ],
   "shared_agents": [
-    "tracker.md"
+    "tracker.md",
+    "clickup.md"
   ],
   "shared_skills": [
     "tracker",

@@ -40,10 +40,15 @@ Which tracker the team uses is a project fact, and the flows read it from
   it**. A keep skips the questions and the file, and goes on to the permissions
   and the MCP check below: they only add, and a settings file rewritten at 3.2
   or migrated at 3.2b has lost them.
-- **anything else** — no file yet, a project configured by an older version
-  included — ask the questions below. An older project's
-  `CLICKUP_SETUP_LIST_ID` is not read any more: its value is the default of the
-  list question, when the session can see it, and nothing more.
+- **`SOURCE` is `legacy`**, or no file but an install-time ClickUp list the
+  `tracker` skill states → a project configured before the tracker choice
+  existed: ClickUp, with that list. It already works as it is; ask once
+  "Record this ClickUp configuration in `.claude/tracker.json`?" — **default:
+  yes**. A yes writes the file below with `provider: clickup`, that list and
+  ClickUp's default status map, with no other question; a no writes nothing and
+  the project keeps working from the variable. Either way, go on to the
+  permissions and the MCP check.
+- **anything else** — no file and no ClickUp list — ask the questions below.
 
 Two calls, because the second one's options depend on the first answer. End
 the turn on each:
@@ -116,6 +121,7 @@ Close with **exactly one** line for the summary — one of:
 ```
   - task tracker: <provider>, <n> list(s), statuses <ready>/<in progress>/<in review>/<blocked> — MCP <registered|already there>
   - task tracker kept: <provider>, <n> list(s)
+  - task tracker: clickup from CLICKUP_SETUP_LIST_ID — <recorded in .claude/tracker.json|left in the variable>
   - task tracker: none — the flows run from a description and write to no board
 ```
 

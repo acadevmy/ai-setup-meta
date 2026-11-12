@@ -5,8 +5,9 @@
 # The tracker is a project choice (ClickUp, Linear, or none), written by the
 # setup into .claude/tracker.json. Every flow and every script that touches the
 # board asks this script instead of reading that file its own way, so the
-# resolution order lives in one place: the environment, then the file, then
-# nothing. The third source the contract names — the values the plugin's
+# resolution order lives in one place: the environment, then the file, then a
+# project configured before the file existed — CLICKUP_SETUP_LIST_ID, which
+# still means ClickUp with that list — then nothing. The third source the contract names — the values the plugin's
 # userConfig substitutes into the `tracker` skill — is visible to a model only,
 # never to a script, so a script that finds nothing here answers `none`.
 #
@@ -25,12 +26,15 @@
 #   TRACKER_PROVIDER   clickup | linear | none — wins over the file
 #   TRACKER_LIST_ID    the list (ClickUp list id, Linear team key) — wins over
 #                      the file's first one
+#   CLICKUP_SETUP_LIST_ID  the variable every project used before tracker.json:
+#                      with neither of the above nor the file, ClickUp and this
+#                      list — so an existing project needs no step to keep working
 #
 # Keys:
 #   PROVIDER       clickup | linear | none
 #   LIST_ID        the default list: the first of LISTS
 #   LISTS          every list, comma-separated
-#   SOURCE         env | file | none — where PROVIDER came from
+#   SOURCE         env | file | legacy | none — where PROVIDER came from
 #   CONFIG_FILE    the tracker.json read, empty when there was none
 #   STATUS_NAMES   with --status: the names to try, newline-separated
 #   REASON         why the configuration was refused, empty otherwise
@@ -113,6 +117,8 @@ if [ -n "$PROVIDER" ]; then
   SOURCE="env"
 elif [ -n "$FILE_PROVIDER" ]; then
   PROVIDER="$FILE_PROVIDER"; SOURCE="file"
+elif [ -n "${CLICKUP_SETUP_LIST_ID:-}" ]; then
+  PROVIDER="clickup"; SOURCE="legacy"; FILE_LISTS="$CLICKUP_SETUP_LIST_ID"
 else
   PROVIDER="none"; SOURCE="none"
 fi

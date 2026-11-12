@@ -3977,14 +3977,14 @@ assert_contains "the contract resolves the install-time values through the track
 # tracker's MCP tools, its old configuration or a board's own status spelling,
 # outside the adapters, their backends and the setup step that registers them.
 TRACKER_LEAKS="$(cd "$REPO_ROOT/dist/dev-setup" && grep -rnE \
-  'mcp__clickup|mcp__linear|CLICKUP_SETUP_LIST_ID|clickup-contract|`clickup` agent|`SPRINT`|status: SPRINT|CODE REVIEW' \
+  'mcp__clickup|mcp__linear|clickup-contract|`SPRINT`|status: SPRINT|CODE REVIEW' \
   skills agents reference hooks workflows scripts 2>/dev/null \
-  | grep -vE '^(agents/tracker\.md|reference/tracker-(clickup|linear)\.md|scripts/(tracker-[a-z]+|auto-dev-tracker|auto-dev-clickup|tracker-config)\.sh|skills/setup/reference/(mcp-env\.md|tracker-permissions\.json)|hooks/tests/)' || true)"
+  | grep -vE '^(agents/(tracker|clickup)\.md|reference/tracker-(clickup|linear)\.md|scripts/(tracker-[a-z]+|auto-dev-tracker|auto-dev-clickup|tracker-config)\.sh|skills/setup/reference/(mcp-env\.md|tracker-permissions\.json)|hooks/tests/)' || true)"
 assert_eq "no shipped file outside the adapters names a tracker's tools or statuses" "" "$TRACKER_LEAKS"
 # The pages a developer reads say the same — the migration page excepted, whose
 # subject is what was removed.
 TRACKER_DOC_LEAKS="$(cd "$REPO_ROOT" && grep -nE \
-  'CLICKUP_SETUP_LIST_ID|clickup-contract|`clickup` agent|CODE REVIEW' \
+  'clickup-contract|CODE REVIEW' \
   README.md AGENTS.md docs/*.md templates/dev-setup/AGENTS*.md templates/dev-setup/boilerplate/PULL_REQUEST_TEMPLATE.*.md 2>/dev/null \
   | grep -v '^docs/migration-v2-to-v3\.md:' | grep -v 'IN PROGRESS -> CODE REVIEW. with the PR link' || true)"
 assert_eq "no documentation page names the ClickUp-only configuration" "" "$TRACKER_DOC_LEAKS"
@@ -5268,7 +5268,12 @@ assert_eq "every list it names" "ENG,OPS" "$(tc | jq -r .LISTS)"
 assert_eq "the environment wins over the file" "clickup|901|env" "$(tcf TRACKER_PROVIDER=clickup TRACKER_LIST_ID=901)"
 assert_eq "a list in the environment alone keeps the file's provider" "linear|WEB|file" "$(tcf TRACKER_LIST_ID=WEB)"
 rm -f "$TC_REPO/.claude/tracker.json"
-assert_eq "the old ClickUp variable alone is not read any more" "none||none" "$(tcf CLICKUP_SETUP_LIST_ID=901)"
+assert_eq "an existing project's ClickUp variable still means ClickUp, that list" "clickup|901|legacy" "$(tcf CLICKUP_SETUP_LIST_ID=901)"
+echo '{"provider":"linear","lists":["ENG"]}' > "$TC_REPO/.claude/tracker.json"
+assert_eq "and a tracker.json, once written, wins over it" "linear|ENG|file" "$(tcf CLICKUP_SETUP_LIST_ID=901)"
+rm -f "$TC_REPO/.claude/tracker.json"
+assert_eq "the old name keeps its ClickUp status names" "SPRINT" \
+  "$(cd "$TC_REPO" && env -u TRACKER_PROVIDER CLICKUP_SETUP_LIST_ID=901 bash "$PLUGIN_SCRIPTS/tracker-config.sh" --status ready --json | jq -r .STATUS_NAMES)"
 assert_eq "an unknown tracker is refused" "3" "$(tc TRACKER_PROVIDER=jira >/dev/null; echo $?)"
 echo 'not json' > "$TC_REPO/.claude/tracker.json"
 assert_contains "a broken file is refused, not read as none" "$(tc | jq -r .REASON)" "not a JSON object"

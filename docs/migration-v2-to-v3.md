@@ -387,18 +387,20 @@ To keep a `CLAUDE.local.md` *and* read `AGENTS.md`, choose
 
 ## 13. The task tracker is a project choice
 
-**Breaking — re-run the setup.** The flows no longer assume ClickUp. The
+**Not breaking — nothing to do.** The flows no longer assume ClickUp: the
 project chooses its tracker — ClickUp, Linear or none — at setup Step 6.1, which
 writes `.claude/tracker.json`, registers that tracker's MCP server and adds its
-permissions. Nothing migrates an older configuration on its own: a project set
-up before this version resolves to `none` until `/dev-setup:setup` runs again,
-and its interactive flows work without a board meanwhile. Headless `auto-dev`
-on ClickUp is not affected: it reads what it always read.
+permissions. A project set up before this version keeps working as it is:
+`CLICKUP_SETUP_LIST_ID` (environment or plugin config) still means ClickUp with
+that list and its usual status names, the `clickup` agent still answers under
+that name, and headless `auto-dev` on ClickUp reads what it always read. The
+next `/dev-setup:setup` offers to record the same configuration in
+`tracker.json`, with one yes.
 
 | Before | Now |
 |---|---|
-| the `clickup` agent and skill, `reference/clickup-contract.md` | the `tracker` agent and skill, `reference/tracker-contract.md`, one adapter per tracker (`reference/tracker-clickup.md`, `reference/tracker-linear.md`) |
-| `CLICKUP_SETUP_LIST_ID` (environment or plugin config) | `.claude/tracker.json` (`provider`, `lists`, `status`); `TRACKER_PROVIDER` / `TRACKER_LIST_ID` override it on one machine. `CLICKUP_SETUP_LIST_ID` is not read |
+| the `clickup` agent and skill, `reference/clickup-contract.md` | the `tracker` agent and skill, `reference/tracker-contract.md`, one adapter per tracker (`reference/tracker-clickup.md`, `reference/tracker-linear.md`). The `clickup` agent stays, as the tracker pinned to ClickUp |
+| `CLICKUP_SETUP_LIST_ID` (environment or plugin config) | `.claude/tracker.json` (`provider`, `lists`, `status`); `TRACKER_PROVIDER` / `TRACKER_LIST_ID` override it on one machine. `CLICKUP_SETUP_LIST_ID` is still read, after both, as ClickUp with that list |
 | `mcp__clickup__*` allow and ask rules in the settings template | the chosen tracker's rules, merged at 6.1. Rules already in a project's settings stay |
 | ClickUp's status names in the flows (`SPRINT`, `CODE REVIEW`) | canonical statuses (`READY`, `IN REVIEW`), mapped to the board's names in `tracker.json` |
 | `custom_id` in the agent's result | `key` (`DE-123`, `ENG-42`) |

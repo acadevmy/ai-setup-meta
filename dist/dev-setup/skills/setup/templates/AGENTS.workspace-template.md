@@ -93,12 +93,12 @@ from PATH.
 
 ## Available agents
 
-Isolated sub-processes with their own context. Commands launch them on their
-own; there is nothing to invoke by hand.
+Isolated sub-processes with their own context. Commands launch them on their own; there is nothing to invoke by hand.
 
 | Agent | Role |
 |---|---|
 | **tracker** | All task tracker operations (read, update, create, filter), on the tracker the project configured. Faithful passthrough — returns data in full without reprocessing. |
+| **clickup** | The tracker agent pinned to ClickUp, under its earlier name — kept for callers that still launch it; new ones launch `tracker`. |
 | **code-reviewer** | Isolated code review against the project rules. Proposes REGISTRY updates; does not modify files directly. |
 | **spec-verifier** | Checks the branch's diff against its approved spec: every requirement covered, every planned test present, the Impact list respected. |
 | **finding-validator** | Re-checks every blocking finding of a review against the cited file, line and rule, and drops the ones the code does not support. |

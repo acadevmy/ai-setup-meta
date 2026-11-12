@@ -233,6 +233,13 @@ if [ "$NAME" = "dev-setup" ]; then
       "sensitive": false,
       "required": false
     },
+    "CLICKUP_SETUP_LIST_ID": {
+      "title": "ClickUp Sprint List ID",
+      "description": "ClickUp list id for the sprint tasks (find it in the URL: app.clickup.com/.../li/<ID>). Still honoured: with no tracker chosen, it means ClickUp with this list",
+      "type": "string",
+      "sensitive": false,
+      "required": false
+    },
     "TRACKER_LIST_ID": {
       "title": "Task list",
       "description": "Where the tasks are read from: a ClickUp list id (app.clickup.com/.../li/<ID>) or a Linear team key (ENG)",

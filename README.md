@@ -129,7 +129,8 @@ ai-setup-meta/
 │   └── marketplace.json         # Plugin index for Claude Code
 ├── shared/                      # Common assets distributed to the templates
 │   ├── agents/
-│   │   └── tracker.md
+│   │   ├── tracker.md
+│   │   └── clickup.md
 │   └── skills/
 │       ├── tracker/
 │       └── vcs-ops/
@@ -161,7 +162,7 @@ ai-setup-meta/
 │   └── dev-setup/               # Claude Code plugin
 │       ├── .claude-plugin/      # Plugin manifest
 │       ├── skills/              # 13 skills (10 from the template + 2 shared + setup)
-│       ├── agents/              # 4 agents (3 from the template + the shared tracker)
+│       ├── agents/              # 5 agents (3 from the template + the shared tracker and clickup)
 │       ├── scripts/             # ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
 │       ├── workflows/           # dev-setup:auto-sdd-run
 │       └── hooks/               # hooks.json + hooks/scripts/ + the mod (register.ts, lib/, tests/)
@@ -444,3 +445,4 @@ merge request, so the person reviewing it reads both sides instead.
 | **spec-verifier** | The branch's diff against its approved spec: requirements, tests, Impact list |
 | **finding-validator** | Re-checks every blocking review finding against the cited line before it counts |
 | **tracker** | Task tracker CRUD on the configured provider — ClickUp or Linear (MCP passthrough) |
+| **clickup** | The tracker agent pinned to ClickUp, under its earlier name (kept for existing callers) |

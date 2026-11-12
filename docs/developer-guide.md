@@ -536,8 +536,11 @@ its permissions and writes `.claude/tracker.json`:
 Every flow reaches the board through the `tracker` agent, and every script
 through `tracker-config.sh`: nothing else knows which tracker it is.
 `TRACKER_PROVIDER` and `TRACKER_LIST_ID` in your environment win over the file,
-for one machine. With no file and no variable the provider is `none`: `quick`
-and `kickoff` run from a description, and a flow that needs a task says so.
+for one machine. A project configured before the file existed keeps working
+from `CLICKUP_SETUP_LIST_ID`, which still means ClickUp with that list; the next
+setup offers to record it in the file. With none of these the provider is
+`none`: `quick` and `kickoff` run from a description, and a flow that needs a
+task says so.
 
 A board status the map does not name stops the move with an error that names
 the key to add — a Linear team has no `Blocked` state until someone adds it.
@@ -860,7 +863,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | A `CLAUDE.md` holding only `@AGENTS.md` — removed without asking, at the root and in every sub-project; one with your own content is moved into its `AGENTS.md` only on your yes | `CLAUDE.local.md` and any instruction file above the project — reported, never touched |
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
-| `.claude/tracker.json` — asked when absent: a project configured before it existed answers the tracker question once more: the old ClickUp list variable is not read | `.claude/tracker.json` once you have one |
+| `.claude/tracker.json` — asked when absent; a ClickUp project configured before it existed is offered its current configuration, recorded with one yes, and works unchanged on a no | `.claude/tracker.json` once you have one |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
 | `.claude/merge-request.json` — written when absent, after asking the language; missing catalogue labels are created on the forge | `.claude/merge-request.json` once you have one |
 | `.claude/quality-commands.json` — proposed when absent (decline it and the autonomous launchers refuse until you accept it), a rewrite offered when malformed | `.claude/quality-commands.json` once you have a valid one — verified, never rewritten |

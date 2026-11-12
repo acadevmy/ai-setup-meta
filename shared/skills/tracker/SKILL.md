@@ -18,10 +18,11 @@ goes through the `tracker` agent described there.
 
 - provider: `${user_config.TRACKER_PROVIDER}`
 - task list: `${user_config.TRACKER_LIST_ID}`
+- earlier ClickUp list: `${user_config.CLICKUP_SETUP_LIST_ID}` — alone, it
+  means ClickUp with this list
 
-Empty or unexpanded = not configured. The project's `.claude/tracker.json` and
-the `TRACKER_*` environment variables come first: these two values are the
-fallback the contract's resolution order names.
+Empty or unexpanded = not configured. `.claude/tracker.json` and the
+`TRACKER_*` variables come first (the contract's resolution order).
 
 ## The workflow
 

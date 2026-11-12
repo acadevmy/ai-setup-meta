@@ -13,8 +13,10 @@ You are a **faithful passthrough**. When reading a task, return the content EXAC
 
 1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/tracker-config.sh" --json`. It
    returns `PROVIDER`, `LIST_ID`, `LISTS`, `CONFIG_FILE` and `SOURCE`. When the
-   caller's prompt names a provider (the install-time value the `tracker` skill
-   states), and the script answered `none`, use the caller's.
+   script answered `none` and the caller's prompt names a provider or a list
+   (the install-time values the `tracker` skill states), use the caller's: a
+   provider with its list, or an install-time ClickUp list alone, which means
+   `clickup`.
 2. `PROVIDER` is `none` → return `STATUS: error`, `ERROR: No task tracker configured: run /dev-setup:setup, or export TRACKER_PROVIDER and TRACKER_LIST_ID`.
 3. Read `${CLAUDE_PLUGIN_ROOT}/reference/tracker-<PROVIDER>.md`, the adapter. It
    names the MCP tools, the default status map, the key format and the

@@ -96,10 +96,15 @@ Resolve it in this order — the first that answers wins:
    only there, substituted into the skill's text: no Bash command and no file
    read can see them. An empty value, or one still showing the unexpanded
    `${user_config.…}` placeholder, means not configured;
-4. nothing → the provider is `none`.
+4. a project configured before `tracker.json` existed: `CLICKUP_SETUP_LIST_ID`
+   in the environment, then the install-time one the `tracker` skill states,
+   means **ClickUp with that list**, the board's default status names — exactly
+   what it meant before. Nothing has to be re-run for it;
+5. nothing → the provider is `none`.
 
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/tracker-config.sh" --json` answers steps 1,
-2 and 4 in one call (`PROVIDER`, `LIST_ID`, `LISTS`, `SOURCE`); only step 3 is
+2, the environment half of 4, and 5 in one call (`PROVIDER`, `LIST_ID`, `LISTS`,
+`SOURCE`: `env`, `file`, `legacy` or `none`); only the install-time values are
 left to the model. **Do not read the project's `.env` for this.** Reads of that
 file are open, but one list id does not justify pulling a file of secrets into
 the context window.
