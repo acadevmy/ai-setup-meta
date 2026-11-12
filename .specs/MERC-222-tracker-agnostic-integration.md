@@ -1,6 +1,6 @@
 # Spec: Tracker-agnostic task integration — ClickUp and Linear [MERC-222]
 
-> Status: approved
+> Status: implemented
 > Task: MERC-222 (Multica)
 > Branch: `feat/MERC-222-tracker-agnostic`, from `feat/parallel-adopt`
 > Created: 2026-11-11
