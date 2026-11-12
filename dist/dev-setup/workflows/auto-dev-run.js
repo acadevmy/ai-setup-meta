@@ -219,6 +219,19 @@ const PRECEDENCE = [
   'and list it in `toConfirm` for the person who reviews the merge request.',
 ].join('\n')
 
+// Everything the run writes ends up in front of a person: the spec on the
+// branch, the entries at the top of the merge request. Every reference in it
+// has to say what it points at, for a reader who never saw the run.
+const READABLE = [
+  'Everything you write here is read by a person who never saw this run: the',
+  'spec by whoever approves the merge request, your other fields at its top.',
+  'Write every reference the way ' + plugin + '/reference/readable-references.md',
+  'says: a rule by its name (its file and heading), an ADR by its number and',
+  'title, a REQ with what it requires, a task with its title, a document as a',
+  'Markdown link whose text names the topic. Never a section number alone, an',
+  'abbreviation you coined, or a bare id, path or URL used as a pointer.',
+].join('\n')
+
 const CONTEXT_PACK_ITEM = {
   type: 'object',
   required: ['path', 'kind', 'why'],
@@ -302,7 +315,7 @@ const REVISION_SCHEMA = {
           applied: { type: 'boolean' },
           note: {
             type: 'string',
-            description: 'what changed in the spec — or, when declined, the rule, ADR, file or task sentence that backs keeping it',
+            description: 'what changed in the spec — or, when declined, the rule (by its file and heading), the ADR (by its title), the file or the task sentence that backs keeping it',
           },
         },
       },
@@ -370,7 +383,7 @@ const REVIEW_SCHEMA = {
           reason: {
             type: 'string',
             description:
-              'what is wrong or missing, in one or two sentences, naming the REQ, section or file — or, when satisfied, what you checked',
+              'what is wrong or missing, in one or two sentences, naming the REQ (with what it requires), the section or the file — or, when satisfied, what you checked',
           },
           suggestion: {
             type: 'string',
@@ -378,7 +391,7 @@ const REVIEW_SCHEMA = {
           },
           grounds: {
             type: 'string',
-            description: 'what the proposal rests on: the ADR, the rule, the file, the library behaviour or the task sentence',
+            description: 'what the proposal rests on, named so a person can find it: the ADR by its title, the rule by its file and heading, the file, the library behaviour or the task sentence',
           },
         },
       },
@@ -523,6 +536,8 @@ const spec = await agent(
     '',
     PRECEDENCE,
     '',
+    READABLE,
+    '',
     'A reviewer will look at the spec next through three focuses and propose',
     'what would make it better. Check your draft against them before you return',
     'it:',
@@ -578,6 +593,8 @@ function reviewPrompt(draft) {
     '',
     PRECEDENCE,
     '',
+    READABLE,
+    '',
     TASK_BLOCK,
     '',
     'The spec under review (it is not on disk yet — this is the whole',
@@ -613,10 +630,12 @@ function reviewPrompt(draft) {
     'For each focus: `satisfied: true` when, through it, nothing is left worth',
     'changing, and say in `reason` what you checked. Otherwise',
     '`satisfied: false`, with:',
-    '  - `reason` — what is wrong or missing, naming the REQ, section or file;',
+    '  - `reason` — what is wrong or missing, naming the REQ (with what it',
+    '    requires), the section or the file;',
     '  - `suggestion` — the concrete change, written so the author can apply it',
     '    as it is;',
-    '  - `grounds` — what it rests on: the ADR, the rule, the file, the library',
+    '  - `grounds` — what it rests on, named so a person can find it: the ADR by',
+    '    its title, the rule by its file and heading, the file, the library',
     '    behaviour, the task sentence.',
     'A doubt you cannot ground is not a proposal: be satisfied, and say in',
     '`reason` what you checked.',
@@ -735,6 +754,8 @@ if (proposals.length > 0) {
       '    and one line on what changed or what backs keeping the spec as it was.',
       '',
       PRECEDENCE,
+      '',
+      READABLE,
       '',
       'Rules for the rewrite:',
       '  - same rules as the first draft: read-only, one REQ per verifiable',
@@ -939,7 +960,9 @@ const dev = await agent(
     'why) and `howToTest` (`terminal`: the commands, in order; `app`: the steps',
     'in the running application with the exact routes and the expected result,',
     'empty when the change has no user-facing surface). The test output itself',
-    'is added by the run: do not paste it.',
+    'is added by the run: do not paste it. A rule, an ADR or a requirement the',
+    'description mentions is named by what it says, never by a number or an id',
+    'alone: the reviewer reads it without the spec open.',
     '',
     'Do not push, do not open a merge request, do not touch the tracker: the',
     'runner does that from what this run reports. Report the repository root',

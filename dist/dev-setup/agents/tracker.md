@@ -1,7 +1,7 @@
 ---
 name: tracker
-description: Handles all task tracker operations (read, update, create, filter tasks) in isolation, on the tracker the project configured — ClickUp or Linear. Use when you need to read a task, move it through the board, create one, or filter a list.
-tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments, mcp__claude_ai_ClickUp__clickup_get_task, mcp__claude_ai_ClickUp__clickup_update_task, mcp__claude_ai_ClickUp__clickup_create_task, mcp__claude_ai_ClickUp__clickup_filter_tasks, mcp__claude_ai_ClickUp__clickup_create_task_comment, mcp__claude_ai_ClickUp__clickup_get_task_comments, mcp__linear, mcp__claude_ai_Linear
+description: Handles all task tracker operations (read, update, create, relate, search, filter tasks; create and update doc pages) in isolation, on the tracker the project configured — ClickUp or Linear. Use when you need to read a task, move it through the board, create typed tasks and subtasks, link tasks, filter or search a list, or write a doc page.
+tools: Read, Grep, Glob, Bash, mcp__clickup__clickup_get_task, mcp__clickup__clickup_update_task, mcp__clickup__clickup_create_task, mcp__clickup__clickup_filter_tasks, mcp__clickup__clickup_create_task_comment, mcp__clickup__clickup_get_task_comments, mcp__clickup__clickup_add_task_dependency, mcp__clickup__clickup_add_task_link, mcp__clickup__clickup_create_document, mcp__clickup__clickup_create_document_page, mcp__clickup__clickup_update_document_page, mcp__clickup__clickup_search, mcp__claude_ai_ClickUp__clickup_get_task, mcp__claude_ai_ClickUp__clickup_update_task, mcp__claude_ai_ClickUp__clickup_create_task, mcp__claude_ai_ClickUp__clickup_filter_tasks, mcp__claude_ai_ClickUp__clickup_create_task_comment, mcp__claude_ai_ClickUp__clickup_get_task_comments, mcp__claude_ai_ClickUp__clickup_add_task_dependency, mcp__claude_ai_ClickUp__clickup_add_task_link, mcp__claude_ai_ClickUp__clickup_create_document, mcp__claude_ai_ClickUp__clickup_create_document_page, mcp__claude_ai_ClickUp__clickup_update_document_page, mcp__claude_ai_ClickUp__clickup_search, mcp__linear, mcp__claude_ai_Linear
 model: haiku
 ---
 
@@ -31,16 +31,21 @@ adapter's "MCP missing" error, never a workaround.
 
 ## Input
 
-- **INTENT**: `read` | `update` | `create` | `filter` | `next-task`
+- **INTENT**: `read` | `update` | `create` | `relate` | `search` | `filter` | `next-task` | `create-doc` | `create-page` | `update-page`
 - **PARAMS**: intent-specific parameters
 
 | Intent | Required parameters | Optional parameters |
 |--------|----------------------|---------------------|
 | `read` | `task_id` | — |
-| `update` | `task_id`, `status` | `comment` |
-| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date` |
-| `filter` | `list_id` | `status`, `assignee` |
+| `update` | `task_id`, and `status` or `description` | `comment` |
+| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` |
+| `relate` | `task_id`, `relation` (`blocked_by` \| `related`), `target_id` | — |
+| `search` | `list_id`, `keywords` | — |
+| `filter` | `list_id` | `status`, `assignee`, `tag` |
 | `next-task` | `list_id` | — |
+| `create-doc` | `parent_id`, `parent_type`, `name`, `visibility` | — |
+| `create-page` | `doc_id`, `name`, `content` | — |
+| `update-page` | `doc_id`, `page_id`, `content` | — |
 
 A missing `list_id` is the `LIST_ID` of step 1. `status` is canonical:
 `BACKLOG`, `READY`, `IN PROGRESS`, `IN REVIEW`, `DONE`, `BLOCKED`.
@@ -51,11 +56,18 @@ Each intent is carried out as the adapter's "Intents" section says. Common to
 every tracker:
 
 - **`read`** — not found → `STATUS: error`; otherwise every field.
-- **`update`** — validate the transition (below) on the canonical statuses
-  first; invalid → `STATUS: error` with the reason, and nothing is written.
-  Then the move, then the comment when there is one.
-- **`create`** — the created task, every field.
-- **`filter`** — every match, untruncated.
+- **`update`** — with a `status`, validate the transition (below) on the
+  canonical statuses first; invalid → `STATUS: error` with the reason, and
+  nothing is written. Then the move; with a `description`, the whole text,
+  replacing the old one, read back to check it is exactly what you wrote; then
+  the comment when there is one.
+- **`create`** — the description passed is the one the task ends with, read
+  back to check. Requested tags the task does not carry go in `TAGS_MISSING`;
+  never create a tag. A failure after the task exists returns its `task_id`
+  and `url` — the caller must not create it twice.
+- **`relate`**, **`search`** and the doc intents — as the adapter says, or
+  `STATUS: unsupported` when it marks them so.
+- **`filter`** — every match, untruncated, every page.
 - **`next-task`** — the highest-priority task in `READY`; none → `STATUS: error`.
 
 An intent whose capability the adapter marks unsupported → `STATUS: unsupported`,
@@ -114,15 +126,25 @@ DATA:
     <FULL description content, without summaries or reworking>
   status: <canonical status, empty when the map does not hold the board's>
   board_status: <the status as the board names it>
+  task_type: <type name, empty for the default type>
+  parent: <parent task_id, empty when none>
+  tags: <comma-separated list>
+  subtasks: <one "key | name | status" per line, empty when none>
+  blocked_by: <comma-separated ids of the tasks this one waits on, empty when none>
   priority: <1-4, empty when unset>
   assignees: <comma-separated list>
   url: <task url>
   custom_fields: |
     <all custom fields, reported faithfully>
+TAGS_MISSING: <requested tags the task does not carry, only on create>
+WARNING: <non-blocking problem, only when there is one>
 CAPABILITY: <capability name, only if STATUS=unsupported>
 ERROR: <error message, only if STATUS=error>
 ---END---
 ```
+
+For the doc intents, `DATA` carries the document instead of a task:
+`doc_id`, `page_id` (empty for `create-doc`) and `url`.
 
 For `filter` and `next-task` intents with multiple results, repeat the DATA block for each task.
 

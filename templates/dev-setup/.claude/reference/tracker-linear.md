@@ -73,6 +73,12 @@ The issue identifier (`ENG-42`) is the key. Every Linear issue has one.
 |---|---|
 | `comments` | yes |
 | `time_tracking` | no — the work clock's line travels in the closing comment |
+| `parent` | yes — a sub-issue (`parentId`) |
+| `tags` | yes — Linear labels, which must exist on the team |
+| `task_types` | as a label of the same name (`Epic`, `User Story`), when the team has it; otherwise `TAGS_MISSING` names it |
+| `relations` | yes — `blocks` / `related` issue relations |
+| `search` | yes |
+| `docs` | no — `create-doc`, `create-page` and `update-page` answer `STATUS: unsupported`, `CAPABILITY: docs` |
 
 ## Intents
 
@@ -81,8 +87,15 @@ The issue identifier (`ENG-42`) is the key. Every Linear issue has one.
 - **`update`** — validate the canonical transition, resolve the state (above),
   `update_issue`; with a `comment`, `create_comment`.
 - **`create`** — `create_issue` in the team `list_id`, with `title` = `name`
-  and `description`. `priority` maps one to one: Linear's `1` urgent … `4` low
-  is the contract's scale.
+  and `description`, `parentId` for a `parent`, and the labels named by `tags`
+  and `task_type`. `priority` maps one to one: Linear's `1` urgent … `4` low
+  is the contract's scale. Read it back and compare the description.
+- **`update`** with a `description` — `update_issue` with the whole text, read
+  back to check.
+- **`relate`** — `blocked_by`: a `blocks` relation from `target_id` to
+  `task_id`; `related`: a `related` relation.
+- **`search`** — `list_issues` for the team with the keywords as the query;
+  compact blocks, no description.
 - **`filter`** — `list_issues` for the team, with the state's name for a
   `status` and the assignee. Every result, untruncated.
 - **`next-task`** — `filter` on `READY`, sorted by priority (`0` means none:

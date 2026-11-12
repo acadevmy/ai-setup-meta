@@ -12,7 +12,7 @@ Si prega di includere anche la motivazione e il contesto pertinenti.
 -->
 ...
 
-**Issue:** [DE-00000](<the task URL on the tracker>)
+**Issue:** [DE-00000 <task title>](<the task URL on the tracker>)
 
 ## Screenshots
 

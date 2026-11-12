@@ -66,7 +66,7 @@ them.
 **Changed.**
 
 - `/dev-setup:auto-sdd` is now a **launcher** for a workflow script, not a prose
-  skill. Same entry point, different machine behind it (§2).
+  skill. Same entry point, different machine behind it ([the agents it replaced](#2-agents)).
 - `/dev-setup:sdd` lost four things it charged for on every task: the
   methodology question, the final OK in chat (the `ask` rule on the merge
   request replaces it), a duplicate `simplify` run, and three bookkeeping

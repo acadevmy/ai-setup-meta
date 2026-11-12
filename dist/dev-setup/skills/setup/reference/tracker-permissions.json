@@ -4,12 +4,9 @@
       "mcp__clickup__*"
     ],
     "ask": [
-      "mcp__clickup__clickup_create_*",
-      "mcp__clickup__clickup_update_*",
       "mcp__clickup__clickup_delete_*",
       "mcp__clickup__clickup_move_*",
       "mcp__clickup__clickup_merge_*",
-      "mcp__clickup__clickup_add_*",
       "mcp__clickup__clickup_remove_*"
     ],
     "network": [
@@ -21,8 +18,6 @@
       "mcp__linear__*"
     ],
     "ask": [
-      "mcp__linear__create_*",
-      "mcp__linear__update_*",
       "mcp__linear__delete_*",
       "mcp__linear__archive_*"
     ],

@@ -10,8 +10,8 @@ disable-model-invocation: true
 # Kickoff
 
 The idea-first entry into the chain. `sdd` starts from a task on the board;
-this starts from what the conversation already holds, which is cheaper and
-keeps the knowledge in context. On a yes it also creates the task on the board.
+this starts from what the conversation already holds: cheaper, and the
+knowledge stays in context. On a yes it creates the task too.
 
 ## Before you start
 
@@ -55,7 +55,7 @@ board (`reference/board.md`). End the turn on the call.
   with the release spec as context and the release branch as its base.
 - **Otherwise**: `sdd-start.sh` again, with `--base <ref> --create`.
 
-Show the command before running it. Nothing is pushed here.
+Show the command before running it; nothing is pushed.
 
 ### 4. Spec
 
@@ -63,6 +63,7 @@ Invoke `sdd-spec` with the Discovery Summary and no task id: it writes
 `.specs/<slug>.md` with `> Branch:` naming the branch, which is how
 `check-prerequisites.sh` finds the spec on a branch without one. A release
 spec also carries the `## Pieces` table from `reference/classification.md`.
+Then point the task at it (`board.md`).
 
 ### 5. Hand off
 

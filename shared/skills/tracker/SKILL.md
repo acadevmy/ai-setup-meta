@@ -21,7 +21,7 @@ goes through the `tracker` agent described there.
 - earlier ClickUp list: `${user_config.CLICKUP_SETUP_LIST_ID}` — alone, it
   means ClickUp with this list
 
-Empty or unexpanded = not configured. `.claude/tracker.json` and the
+Empty or unexpanded = unset. `.claude/tracker.json` and the
 `TRACKER_*` variables come first (the contract's resolution order).
 
 ## The workflow
@@ -52,19 +52,20 @@ ClickUp, `Todo` on Linear — are mapped in `.claude/tracker.json`, and only the
 
 **Read a task.** Returns title, description, status, assignees, custom fields and
 `key`. The description comes back in full: it is the requirement text, and
-a summarised requirement is a lost requirement.
+a summarised requirement is lost.
 
 **Move a task.** A status change, optionally with a note. The transition is
 validated against the workflow above, so ask for the one the flow has actually
 reached.
 
-**Create a task.** Needs the destination `list_id`, a `name` and a `description`
-(markdown is supported); `priority`, `assignees` and `due_date` are optional.
+**Create a task.** A `list_id`, a `name`, a markdown `description`; optionally
+a `task_type`, a `parent` and existing `tags`. An Epic is a task with
+subtasks, one level deep.
 
 ## What not to do
 
 - Do not close or delete tasks: status updates and comments only.
 - Do not move a task out of `BACKLOG` without the developer's explicit
   confirmation — the flows ask first, and nothing moves it automatically.
-- Do not write a task's description from a flow — it is the human's input to the
-  work, not the work's output.
+- Do not rewrite an existing task's description from a flow — it is the
+  human's input to the work. Only `story` writes one, on the tasks it creates.

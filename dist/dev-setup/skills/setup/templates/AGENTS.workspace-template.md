@@ -102,12 +102,14 @@ Isolated sub-processes with their own context. Commands launch them on their own
 | **code-reviewer** | Isolated code review against the project rules. Proposes REGISTRY updates; does not modify files directly. |
 | **spec-verifier** | Checks the branch's diff against its approved spec: every requirement covered, every planned test present, the Impact list respected. |
 | **finding-validator** | Re-checks every blocking finding of a review against the cited file, line and rule, and drops the ones the code does not support. |
+| **story-reviewer** | Reviews drafted user stories and epics against INVEST, the writing rules and `product.md`, and returns proposals without editing anything. |
 
 ## Workflows
 
 | Command | When to use |
 |---|---|
 | `/dev-setup:setup` | Re-run the setup: refresh the generated rules and files from the current plugin |
+| `/dev-setup:story` | (Beta) A user story, or an epic with its stories, from a short description and optional Figma links, checked against INVEST and `product.md`, published to ClickUp once you approve it |
 | `/dev-setup:quick` | A fix or chore touching at most three files, with no new component, dependency or public interface: branch, change, commit behind the gate, merge request — no spec |
 | `/dev-setup:kickoff` | An idea with no task yet: classify it, create the task on the tracker on a yes, cut the branch, write the spec, then the chain |
 | `/dev-setup:sdd [TASK_ID]` | Interactive Spec-Driven Development for everything above that bar: discovery, a spec you approve, development, gates, merge request |
@@ -133,6 +135,7 @@ Isolated sub-processes with their own context. Commands launch them on their own
 | Branch, commit and merge-request conventions | the `vcs-ops` skill, which loads when you reach for git |
 | Rules a machine can check (function length, naming, `any`, coverage floors) | ESLint / the test runner config / branch protection — a failure there is the rule talking |
 | What is already built in a sub-project | that sub-project's `REGISTRY.md` |
+| Documents (specs, docs, merge requests) are read, understood and validated by people | semantic references — `[topic](doc.md#section)`, `[topic, page 32](https://…)` — never opaque ones (`§1`, a bare id) |
 
 ---
 *Version: 2.1.0*

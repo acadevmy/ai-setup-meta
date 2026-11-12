@@ -14,6 +14,8 @@ is that contract, written once — cite it, do not restate it.
 - [Canonical statuses and transitions](#canonical-statuses-and-transitions)
 - [The work clock](#the-work-clock)
 - [The backlog gate](#the-backlog-gate)
+- [The story format](#the-story-format)
+- [The open-points gate](#the-open-points-gate)
 - [The bail-out call](#the-bail-out-call)
 
 ## How to call the agent
@@ -37,14 +39,36 @@ reads.
 | Intent | Required | Optional | Returns |
 |---|---|---|---|
 | `read` | `task_id` | — | one task, every field |
-| `filter` | `list_id` | `status`, `assignee` | every matching task |
+| `filter` | `list_id` | `status`, `assignee`, `tag` | every matching task |
 | `next-task` | `list_id` | — | the highest-priority task in `READY` |
-| `update` | `task_id`, `status` | `comment` | the updated task |
-| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date` | the created task |
+| `update` | `task_id`, and `status` or `description` | `comment` | the updated task — a `description` replaces the whole text |
+| `create` | `list_id`, `name`, `description` | `priority`, `assignees`, `due_date`, `task_type`, `parent`, `tags` | the created task, plus `TAGS_MISSING` |
+| `relate` | `task_id`, `relation` (`blocked_by` \| `related`), `target_id` | — | the task |
+| `search` | `list_id`, `keywords` | — | the matching tasks, compact: id, key, name, status, type, url — no description |
+| `create-doc` | `parent_id`, `parent_type` (`space` \| `folder` \| `list`), `name`, `visibility` | — | `doc_id`, `url` |
+| `create-page` | `doc_id`, `name`, `content` | — | `page_id`, `url` |
+| `update-page` | `doc_id`, `page_id`, `content` | — | `page_id`, `url` |
 
 `task_id` is the task's key (`DE-123`, `ENG-42`) or the tracker's own id.
 `list_id` is what the provider groups tasks by — a ClickUp list, a Linear team.
 `status` is always a canonical status (below), never a board's own name.
+
+A `create` passes the final description once and gets it back intact, whatever
+the tracker does after creating a task (ClickUp applies its task-type template
+asynchronously: the adapter waits for it). `task_type` is a name (`Epic`,
+`User Story`), `parent` makes the task a subtask, and `tags` are names that
+must already exist: the agent never creates one, and reports each one the
+tracker did not apply in `TAGS_MISSING`. On an error after the task was
+created, the result still carries its `task_id` and `url` — never create it a
+second time.
+
+`relate` writes one relation, from the side of the task that is blocked or
+that declares it: `blocked_by` (`task_id` waits on `target_id`) or `related`.
+
+The three doc intents write documents, which hold what is not a task — the
+story map. `update-page` replaces the whole page with the content it receives.
+They are the intents a tracker is most likely not to have: on `unsupported`,
+the caller says where the content went instead.
 
 `priority` is numeric and ascending in urgency: `1` urgent, `2` high, `3`
 normal, `4` low. When a flow has to pick one task out of a list, sort by that
@@ -56,7 +80,9 @@ The agent answers with a `---TRACKER-RESULT---` block ending in `---END---`. It
 carries `STATUS: success | error | unsupported`, the provider, the intent, and
 one `DATA:` block per task with `task_id`, `key` (`DE-123`), `name`,
 `description`, `status` (canonical), `board_status` (the board's own name),
-`priority`, `assignees`, `url` and `custom_fields`.
+`task_type`, `parent`, `tags`, `subtasks`, `blocked_by`, `priority`,
+`assignees`, `url` and `custom_fields`. The doc intents return `doc_id`,
+`page_id` and `url` instead.
 
 `key` is what goes into a branch name, a spec file name and the work clock:
 it has the shape `PREFIX-123`. A task with no key is reported with an empty
@@ -209,6 +235,56 @@ the task exactly as it was found. The move never happens automatically: a path
 with nobody to ask (`next-task`, a scheduled run) treats a backlog task as out
 of scope and says so instead of moving it.
 
+## The story format
+
+A task written by `/dev-setup:story` has a fixed shape, and a flow that reads
+one uses it instead of rediscovering it. Recognising it is a script, run on the
+description the agent returned:
+
+```bash
+printf '%s\n' "<description>" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/parse-story.sh" --json
+```
+
+| `FORMAT` | What it is | What the flow does |
+|---|---|---|
+| `story` | a user story: a Connextra sentence and Gherkin scenarios | the scenarios are the requirements — one REQ per scenario, its test the scenario; the discovery skips what they already answer |
+| `epic` | a container of stories, not something to implement | stop before any branch or board write: name its stories (the task's `subtasks`) and point to `sdd` on one of them, or to `multi-sdd --from-epic` |
+| `other` | anything else — a task written by hand | the flow runs exactly as it always did |
+
+The new format is used when it is there and never required. The story's
+**Open points**, **Assumptions** and **Risks** sections travel with it: what
+they say is not settled is not settled by the flow either.
+
+## The open-points gate
+
+A story with open points carries the `da dettagliare` tag: somebody still owes
+an answer. When a `read` returns that tag — or `OPEN_POINTS` is not empty —
+show the open points and ask, before any branch or board write:
+
+```json
+AskUserQuestion({
+  "questions": [{
+    "question": "<key> still has open points (da dettagliare): <the points>. Go ahead?",
+    "header": "Open points",
+    "options": [
+      { "label": "Answer them now", "description": "Your answers become constraints for the spec" },
+      { "label": "Go ahead as it is", "description": "The open points go to the top of the merge request" },
+      { "label": "Leave it", "description": "Stop here — the task is not touched" }
+    ],
+    "multiSelect": false
+  }]
+})
+```
+
+End the turn on the call (`turn-discipline.md`). The gate never edits the task
+or removes the tag: closing the open points on the board is the team's job.
+
+A path with nobody to ask does not guess: the launcher of an unattended run
+(`auto-sdd`, `multi-sdd`) asks before the run starts. Answers given there
+reach the run appended to the description it receives, under a final
+`**Answers to open points**` section; with **Go ahead as it is**, the run
+records each point in `openPoints` for the reviewer.
+
 ## The bail-out call
 
 A bail-out is **one** `update` call: the status change and the explanation
@@ -220,5 +296,7 @@ PARAMS: task_id: <task_id>, status: BLOCKED, comment: "<the note>"
 ```
 
 The note says which step failed, why, which branch holds the work, and what a
-human should try next. Leave the local branch in place — it is the debugging
-material.
+human should try next — in words a person reads on the board without the
+session: the step by its name, a requirement or a rule by what it says, never
+an internal id or a path on your machine alone. Leave the local branch in
+place — it is the debugging material.

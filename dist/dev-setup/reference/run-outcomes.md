@@ -201,7 +201,11 @@ plus what this flow owes a reviewer who was not watching:
 - **the focus that never answered**, when `unchecked` names one: its reviewer
   died twice, so the spec was not checked through it. Say so plainly.
 
-Link the task and the spec (`spec.path`, committed on the branch).
+Link the task and the spec (`spec.path`, committed on the branch), each with
+link text that names it — the task's id and title, "the spec for <title>".
+Every entry above is read by someone who never saw the run: a rule, an ADR or
+a requirement in it is named the way `readable-references.md` says, never by a
+number or an id alone.
 
 ## What a run leaves behind
 

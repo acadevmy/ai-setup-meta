@@ -46,9 +46,12 @@ not enough to judge the change.
 The rules live one file per topic in `RULES_DIR`. Read the ones that apply to this
 diff — `dev-setup-core.md` always, plus every rule whose `paths:` frontmatter
 matches a file in the diff — and cite each finding by rule file and heading
-(e.g. "dev-setup-typescript.md → Zod is the boundary"). Never invent a numbering,
-and never carry a citation over from an earlier review: a rule that moved file
-has to be cited where it is now.
+(e.g. "dev-setup-typescript.md → Zod is the boundary"). The citation is the
+rule's name, so the developer knows what was broken before opening the file:
+never a number of your own (`rule 4`, `section 2`), never a heading you shortened,
+and never a citation carried over from an earlier review — a rule that moved
+file has to be cited where it is now. A warning that rests on a rule cites it
+the same way.
 
 What the toolchain already enforces is **not** yours to re-report — function
 length, naming, `any`, coverage floors, and layer imports where
@@ -112,6 +115,13 @@ For each new or updated entry, use the compact REGISTRY format:
 ```
 
 Read the current REGISTRY.md to avoid duplicates and to update existing entries rather than creating new ones.
+
+An entry is read by the next developer, not only by the next agent. `Depends
+on` names other entries by their heading; an architectural decision kept as a
+file elsewhere (an ADR) is named by its title, as a Markdown link to it —
+`[ADR 0007 — server state lives in TanStack Query](docs/adr/0007-server-state.md)`
+— never by its number alone; a summary uses no abbreviation coined during the
+review.
 
 ## Output format
 

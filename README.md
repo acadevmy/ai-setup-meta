@@ -304,6 +304,8 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 ```
 /dev-setup:setup      ← one-off, project bootstrap
        │
+/dev-setup:story      ← (beta) writes the story (or the epic) on ClickUp, from product.md
+       │
        ├── /dev-setup:quick   ← fix or chore: branch, change, commit, PR
        │
        ├── /dev-setup:kickoff ← an idea with no task: discovery, branch, spec, then the chain
@@ -322,6 +324,7 @@ to run by hand. To force a version: `Release-As: X.Y.Z` in a commit footer.
 | Command | Description |
 |---|---|
 | `/dev-setup:setup` | AI-native bootstrap: detects the stack, installs the governance. Also the UPDATE path for a project the plugin already configured |
+| `/dev-setup:story` (beta) | Writes a user story — or an epic with its stories — from a short description and Figma links, against INVEST and the project's `product.md`; drafts in `.stories/`, creates on ClickUp after the developer's approval |
 | `/dev-setup:quick` | Fast path for a fix or chore: branch, change, commit behind the gate, PR. Zero discovery, zero spec |
 | `/dev-setup:kickoff` | Idea-first entry, with no task yet — it offers to create one on the task tracker: a light discovery from what the conversation already knows, a classification (type, single or release branch, development or hotfix), the fork point and the branch, then `quick` under its bar or `sdd-spec` → `sdd-plan` → `sdd-dev` and the rest of the chain |
 | `/dev-setup:sdd` | Interactive spec-driven flow: task → discovery → spec → **one** approval → dev → simplify → verify ∥ review on one diff package → one commit → PR |
