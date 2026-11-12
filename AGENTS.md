@@ -298,6 +298,12 @@ the project already owns, so the checks run once and only once:
   `TEST_CMD` from `detect-stack.sh` and denies with the tail of the real output as
   the reason.
 
+Both modes look at the repository the commit lands in, not the session's: the
+payload's `cwd`, moved by every `cd <dir>` segment before the commit and by its
+`git -C <dir>` flags. While working on acadevmy/devmy_cli#10 agents committing in
+sibling repositories with `git -C` were gated against devmy_cli's suite. A
+directory the command names that does not exist falls back to the `cwd`.
+
 The handler carries `"if": "Bash(*git *commit*)"` (DE-17064), so the harness spawns
 the gate on a git commit call only and a `git status` pays for no process. The rule
 is `is_git_commit` in permission-rule syntax — `*git *commit*`, not `git commit*`: a

@@ -287,6 +287,30 @@ assert_eq "workspace frameworks come out in a stable order" \
   "nestjs,nextjs,terraform" \
   "$( (cd "$WORK_DIR/monorepo" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json) | jq -r '.FRAMEWORKS')"
 
+# ── A pubspec.yaml is not always Flutter ──
+# A pure Dart package (a CLI, a server) has no `flutter` binary: reading every
+# pubspec as Flutter gated acadevmy/devmy_cli's commits on `flutter analyze` and
+# `flutter test`, and every one of them failed with "command not found". The
+# dart-cli snapshot pins the root; a workspace holding a shared Dart package
+# beside a Flutter app is still a Flutter workspace, and one without is not.
+DART_WS="$WORK_DIR/dart-workspace"
+mkdir -p "$DART_WS/packages/core" "$DART_WS/apps/mobile"
+printf 'name: core\nenvironment:\n  sdk: ^3.0.0\ndev_dependencies:\n  test: ^1.24.0\n' \
+  > "$DART_WS/packages/core/pubspec.yaml"
+assert_eq "a workspace with a pure Dart package only is no Flutter workspace" "" \
+  "$( (cd "$DART_WS" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json) | jq -r '.FRAMEWORKS')"
+cp "$FIXTURES/flutter/pubspec.yaml" "$DART_WS/apps/mobile/pubspec.yaml"
+assert_eq "a Flutter app beside it still is" "flutter true" \
+  "$( (cd "$DART_WS" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json) | jq -r '"\(.FRAMEWORKS) \(.HAS_MOBILE)"')"
+# A Flutter plugin may depend on no Flutter package at the root and still
+# declare its `flutter:` section.
+FLUTTER_PLUGIN="$WORK_DIR/flutter-plugin"
+mkdir -p "$FLUTTER_PLUGIN"
+printf 'name: acme_plugin\nenvironment:\n  sdk: ^3.0.0\nflutter:\n  plugin:\n    platforms: {}\n' \
+  > "$FLUTTER_PLUGIN/pubspec.yaml"
+assert_eq "a top-level flutter: section is Flutter" "flutter flutter test" \
+  "$( (cd "$FLUTTER_PLUGIN" && bash "$PLUGIN_SCRIPTS/detect-stack.sh" --json) | jq -r '"\(.LANG) \(.TEST_CMD)"')"
+
 # simple-git-hooks, declared in package.json rather than by a file
 SGH="$WORK_DIR/simple-git-hooks"
 mkdir -p "$SGH"
@@ -735,6 +759,36 @@ if command -v npm >/dev/null 2>&1; then
   make_gate_project "$GREEN_PROJECT" 0
   assert_eq "a green suite lets the commit through" \
     "none" "$(decision_of "$(gate "$GREEN_PROJECT" 'git commit -m "feat: thing"')")"
+
+  # The repository the command commits in, not the session's: on
+  # acadevmy/devmy_cli#10 agents committing in sibling repositories with
+  # `git -C` or `cd … &&` were gated against the session's checkout. The
+  # payload carries the session's cwd, and the hook runs from somewhere else
+  # altogether, as it does under the harness.
+  gate_from() {
+    local cwd="$1" command="$2"
+    jq -n --arg cmd "$command" --arg cwd "$cwd" \
+      '{tool_name: "Bash", tool_input: {command: $cmd}, cwd: $cwd}' \
+      | (cd "$WORK_DIR" && bash "$PLUGIN_HOOKS/gate-commit.sh" 2>/dev/null)
+  }
+  assert_eq "the payload cwd is the repository when the command names none" \
+    "deny" "$(decision_of "$(gate_from "$RED_PROJECT" 'git commit -m "feat: thing"')")"
+  assert_eq "git -C <green repo> from a red session is gated on the green repo" \
+    "none" "$(decision_of "$(gate_from "$RED_PROJECT" "git -C $GREEN_PROJECT commit -m \"feat: thing\"")")"
+  assert_eq "cd <green repo> && git commit from a red session is gated on the green repo" \
+    "none" "$(decision_of "$(gate_from "$RED_PROJECT" "cd $GREEN_PROJECT && git add -A && git commit -m \"feat: thing\"")")"
+  assert_eq "git -C <red repo> from a green session is gated on the red repo" \
+    "deny" "$(decision_of "$(gate_from "$GREEN_PROJECT" "git -C $RED_PROJECT commit -m \"feat: thing\"")")"
+  assert_eq "a relative cd is read from the session's cwd" \
+    "deny" "$(decision_of "$(gate_from "$GREEN_PROJECT" 'cd ../gate-red && git commit -m "feat: thing"')")"
+  assert_eq "a relative -C after a cd is read from the cd" \
+    "none" "$(decision_of "$(gate_from "$RED_PROJECT" 'cd .. && git -C gate-green commit -m "feat: thing"')")"
+  SPACED_PROJECT="$WORK_DIR/gate red spaced"
+  make_gate_project "$SPACED_PROJECT" 1
+  assert_eq "a quoted -C path with a space is one directory" \
+    "deny" "$(decision_of "$(gate_from "$GREEN_PROJECT" "git -C \"$SPACED_PROJECT\" commit -m \"feat: a; cd $GREEN_PROJECT\"")")"
+  assert_eq "a directory that does not exist falls back to the payload cwd" \
+    "deny" "$(decision_of "$(gate_from "$RED_PROJECT" 'git -C ./no-such-dir commit -m "feat: thing"')")"
 
   # Nothing staged: git will refuse the commit itself, so the suite must not run.
   EMPTY_PROJECT="$WORK_DIR/gate-empty"
