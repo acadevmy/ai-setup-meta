@@ -1,8 +1,8 @@
 # Closure — gates, one commit, merge request
 
 Step 9 of the flow: from finished code to an open merge request and a task in
-review. The ClickUp calls follow
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`.
+review. The tracker calls follow
+`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`.
 
 Closure starts the moment `sdd-dev` hands back its summary — same turn, no
 prompt in between. The flow is finished when the merge request is open (or
@@ -147,23 +147,23 @@ GitLab reference accordingly, so there is nothing to pick here. Target the
 The `ask` rule on `gh pr create` / `glab mr create` is the developer's last
 checkpoint, and it is a permission rule — do not ask for the same confirmation
 in chat first, and do not work around a refusal. Declined means declined: report
-it, leave the branch pushed, and end on `Next: /dev-setup:sdd <custom_id>` — the
+it, leave the branch pushed, and end on `Next: /dev-setup:sdd <key>` — the
 resume reaches closure 8 again, with the commit and the push already done.
 
 ## 9. Stop the clock and move the task
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --stop --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --stop --json
 ```
 
 Then one call carries both the move and what the work took:
-`INTENT: update`, `PARAMS: task_id: <task_id>, status: CODE REVIEW, comment:
-"<COMMENT>"` — and `IN REVIEW` if the list does not have `CODE REVIEW`.
+`INTENT: update`, `PARAMS: task_id: <task_id>, status: IN REVIEW, comment:
+"<COMMENT>"`.
 
 `COMMENT` is the clock's own line, posted verbatim. Empty means the clock has
 nothing to report (`REASON` says why): the move goes out without a comment, and
 you say so in one line. Never compose a duration yourself — the work clock
-section of `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` is the rule,
+section of `${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md` is the rule,
 and an estimate posted as a measurement is the one failure it names.
 
 The final report — the merge request link, the task moved — ends on one line:

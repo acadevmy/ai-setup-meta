@@ -83,7 +83,7 @@ from PATH.
 
 | MCP | When to use |
 |---|---|
-| **ClickUp** | Read tasks, update status, retrieve briefs |
+| **Task tracker** (ClickUp or Linear, per `.claude/tracker.json`) | Read tasks, update status, retrieve briefs |
 | **Figma** | Retrieve design tokens, components, specifications |
 | **Context7** | Up-to-date documentation for libraries and frameworks. **Prefer the `ctx7` CLI if available in PATH** — use this MCP only as fallback |
 
@@ -93,12 +93,12 @@ from PATH.
 
 ## Available agents
 
-Isolated sub-processes with their own context. Commands launch them on their
-own; there is nothing to invoke by hand.
+Isolated sub-processes with their own context. Commands launch them on their own; there is nothing to invoke by hand.
 
 | Agent | Role |
 |---|---|
-| **clickup** | All ClickUp operations (read, update, create, filter). Faithful passthrough — returns data in full without reprocessing. |
+| **tracker** | All task tracker operations (read, update, create, filter), on the tracker the project configured. Faithful passthrough — returns data in full without reprocessing. |
+| **clickup** | The tracker agent pinned to ClickUp, under its earlier name — kept for callers that still launch it; new ones launch `tracker`. |
 | **code-reviewer** | Isolated code review against the project rules. Proposes REGISTRY updates; does not modify files directly. |
 | **spec-verifier** | Checks the branch's diff against its approved spec: every requirement covered, every planned test present, the Impact list respected. |
 | **finding-validator** | Re-checks every blocking finding of a review against the cited file, line and rule, and drops the ones the code does not support. |
@@ -111,7 +111,7 @@ own; there is nothing to invoke by hand.
 | `/dev-setup:setup` | Re-run the setup: refresh the generated rules and files from the current plugin |
 | `/dev-setup:story` | (Beta) A user story, or an epic with its stories, from a short description and optional Figma links, checked against INVEST and `product.md`, published to ClickUp once you approve it |
 | `/dev-setup:quick` | A fix or chore touching at most three files, with no new component, dependency or public interface: branch, change, commit behind the gate, merge request — no spec |
-| `/dev-setup:kickoff` | An idea with no task yet: classify it, create the ClickUp task on a yes, cut the branch, write the spec, then the chain |
+| `/dev-setup:kickoff` | An idea with no task yet: classify it, create the task on the tracker on a yes, cut the branch, write the spec, then the chain |
 | `/dev-setup:sdd [TASK_ID]` | Interactive Spec-Driven Development for everything above that bar: discovery, a spec you approve, development, gates, merge request |
 | `/dev-setup:auto-sdd [TASK_ID]` | Autonomous Spec-Driven Development: a background workflow takes the task to a review-ready MR/PR — it never stops to ask: what it decided on the task's behalf is at the top of the MR |
 | `/dev-setup:multi-sdd` | The autonomous flow on up to five tasks from one session: a pre-flight for the business decisions, then one background run per task in its own worktree |

@@ -26,7 +26,8 @@
 #     "runId":      "<id>",                echoed into the result
 #     "challenge":  "auto|always|never",   default auto
 #     "branchType": "feat|fix|chore",      default feat
-#     "tracker":    "clickup|none",        default clickup
+#     "tracker":    "clickup|linear|none", default clickup (linear when the
+#                                          project's .claude/tracker.json says so)
 #     "task":       { "title", "description", "url", "priority" }
 #                                          required with tracker none
 #     "stack":      { "lint", "typecheck", "test" }
@@ -57,7 +58,7 @@
 #   REASON              why it may not, empty when accepted
 #   TASK_ID             the task id
 #   TITLE               the task title
-#   TRACKER             clickup | none
+#   TRACKER             clickup | linear | none
 #   OUTPUT_DIR          the absolute output directory
 #   TASK_FILE           the task text's file
 #   WORKFLOW_ARGS       the workflow arguments, as compact JSON
@@ -141,7 +142,12 @@ OUTPUT_DIR="$(arg outputDir)"
 RUN_ID="$(arg runId)"
 CHALLENGE="$(arg challenge)"; CHALLENGE="${CHALLENGE:-auto}"
 BRANCH_TYPE="$(arg branchType)"; BRANCH_TYPE="${BRANCH_TYPE:-feat}"
-TRACKER="$(arg tracker)"; TRACKER="${TRACKER:-clickup}"
+TRACKER="$(arg tracker)"
+# No tracker named: ClickUp, as always — unless the project chose Linear.
+if [ -z "$TRACKER" ]; then
+  [ "$(bash "$SCRIPT_DIR/tracker-config.sh" --json 2>/dev/null | jq -r '.PROVIDER // ""' 2>/dev/null)" = linear ] \
+    && TRACKER=linear || TRACKER=clickup
+fi
 
 json_set TASK_ID "$TASK_ID"
 json_set TRACKER "$TRACKER"
@@ -154,7 +160,7 @@ printf '%s' "$TASK_ID" | grep -qE "$TASK_ID_SHAPE" \
   || refuse "\"$TASK_ID\" is not a plain task id (letters, digits, dot, dash, underscore): it reaches a branch name and a shell command"
 case "$CHALLENGE" in auto|always|never) ;; *) refuse "challenge is \"$CHALLENGE\": it takes auto, always or never" ;; esac
 case "$BRANCH_TYPE" in feat|fix|chore) ;; *) refuse "branchType is \"$BRANCH_TYPE\": it takes feat, fix or chore" ;; esac
-case "$TRACKER" in clickup|none) ;; *) refuse "tracker is \"$TRACKER\": it takes clickup or none" ;; esac
+case "$TRACKER" in clickup|linear|none) ;; *) refuse "tracker is \"$TRACKER\": it takes clickup, linear or none" ;; esac
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || refuse "not inside a git repository: run auto-dev from the project's checkout"
 
@@ -215,7 +221,21 @@ git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null \
 
 # ── The task ──────────────────────────────────────────────────────────────────
 
-if [ "$TRACKER" = clickup ]; then
+if [ "$TRACKER" = linear ]; then
+  BOARD="$(bash "$SCRIPT_DIR/auto-dev-tracker.sh" --provider linear --task "$TASK_ID" --read --json)"
+  BOARD_EXIT=$?
+  if [ "$BOARD_EXIT" -ne 0 ]; then
+    REASON="$(printf '%s' "$BOARD" | jq -r '.REASON // ""' 2>/dev/null)"
+    refuse "the task could not be read from Linear: ${REASON:-see stderr}"
+  fi
+  board() { printf '%s' "$BOARD" | jq -r --arg k "$1" '.[$k] // ""'; }
+  [ "$(board IS_BACKLOG)" != true ] \
+    || refuse "$TASK_ID is in BACKLOG: it was never planned, and the backlog gate needs a person — move it to the team's ready state first"
+  TITLE="$(board NAME)"
+  DESCRIPTION="$(board DESCRIPTION)"
+  URL="$(board URL)"
+  PRIORITY="$(board PRIORITY)"
+elif [ "$TRACKER" = clickup ]; then
   BOARD="$(bash "$SCRIPT_DIR/auto-dev-clickup.sh" --task "$TASK_ID" --read --json)"
   BOARD_EXIT=$?
   if [ "$BOARD_EXIT" -ne 0 ]; then

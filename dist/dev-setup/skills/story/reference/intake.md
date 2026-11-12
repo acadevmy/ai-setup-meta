@@ -70,7 +70,7 @@ step 4.
   or a question for step 4.
 - **Similar stories** — before writing anything, look for what the board
   already has, so the run does not duplicate a story or contradict one:
-  - `INTENT: search` through the `clickup` agent, with the product's
+  - `INTENT: search` through the `tracker` agent, with the product's
     `list_id` and three or four keywords from the request — the domain terms,
     not filler words; one search per distinct concept. It returns names,
     statuses and links only, never descriptions;

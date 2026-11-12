@@ -210,8 +210,8 @@ and ask once:
 
 > "`.claude/settings.json` predates the Bash sandbox. Migrating it adds the
 > sandbox block (filesystem, network and credential isolation), the `ask`
-> checkpoints on `gh pr create` / `glab mr create` and on deleting, moving or
-> merging ClickUp tasks,
+> checkpoints on `gh pr create` / `glab mr create` and on the task tracker's
+> destructive writes (Step 6.1),
 > `<ADDED_DENY>` deny rules (force push, protected branches, `--no-verify`,
 > `.env` writes, lock files), and drops `<RETIRED_ALLOW>` from the allowlist.
 > Your own entries are kept: `<KEPT_ALLOW>`. Apply it? (yes / skip)"
@@ -286,7 +286,7 @@ leaves it is exactly the case that deserves a prompt.
 `Bash(npm publish*)`, `Bash(pnpm publish*)`, `Bash(yarn publish*)` all stay — an
 accidental `publish` through the "wrong" PM is still an event worth blocking —
 and the `ask` entries are the human checkpoints on `gh pr create` /
-`glab mr create` and on deleting, moving or merging ClickUp tasks.
+`glab mr create`, and those Step 6.1 adds on the task tracker's destructive writes.
 
 **Implementation** (jq, idempotent, preserves the rest of the file):
 
@@ -338,13 +338,12 @@ Start from an empty list and add the rows that apply:
 | `{VCS}` == `github` | `github.com`, `api.github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com` |
 | `{VCS}` == `gitlab`, host `gitlab.com` | `gitlab.com` |
 | `{VCS}` == `gitlab`, self-hosted | the host from the remote URL (e.g. `gitlab.company.internal`) |
-| `CLICKUP_SETUP_LIST_ID` set (see `mcp-env.md`) | `api.clickup.com` |
 
 **Implementation** (jq, replaces the list wholesale):
 
 ```bash
-# Example: Node + pnpm project on GitHub with ClickUp configured
-DOMAINS='["registry.npmjs.org","github.com","api.github.com","codeload.github.com","objects.githubusercontent.com","raw.githubusercontent.com","api.clickup.com"]'
+# Example: Node + pnpm project on GitHub
+DOMAINS='["registry.npmjs.org","github.com","api.github.com","codeload.github.com","objects.githubusercontent.com","raw.githubusercontent.com"]'
 jq --argjson d "$DOMAINS" '.sandbox.network.allowedDomains = $d' \
   .claude/settings.json > .claude/settings.json.tmp \
   && mv .claude/settings.json.tmp .claude/settings.json
@@ -357,7 +356,8 @@ the prompts the project is guaranteed to hit. (3.5 changes that prompt into a
 deny.)
 
 **Report in the summary** (a single line):
-`sandbox network allowlist: <n> domains (<pm registry>, <vcs host>[, api.clickup.com])`
+`sandbox network allowlist: <n> domains (<pm registry>, <vcs host>)` — the task
+tracker's API domain is added at Step 6.1, with its permissions
 
 ### 3.5 — Credential masking (user scope, optional)
 
@@ -594,12 +594,11 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/render-template.sh \
   --var CODE_CONVENTIONS_LINK="[CODE_CONVENTIONS.md]($BLOB/CODE_CONVENTIONS.md)"
 ```
 
-**The `Issue:` line ships as an example** — `DE-00000` on the team's ClickUp
-workspace, with the task's title in the link text so a reviewer knows what the
+**The `Issue:` line ships as an example** — `DE-00000` on the team's task
+tracker, with the task's title in the link text so a reviewer knows what the
 task is before opening it. It is the shape a PR author overwrites, not a live
-link. If this
-project tracks its work somewhere else, say so in the summary line and leave the
-correction to the developer: the setup does not invent a tracker URL.
+link. The setup does not invent a tracker URL: the correction is the
+developer's.
 
 **Report in the summary** (a single line) — one of:
 

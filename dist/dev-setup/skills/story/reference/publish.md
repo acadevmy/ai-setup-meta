@@ -1,7 +1,9 @@
 # Publication — steps 7 and 8
 
-The approval, the ClickUp writes, the cleanup. Every write goes through the
-`clickup` agent (`clickup-contract.md`); never call the ClickUp MCP directly.
+The approval, the tracker writes, the cleanup. Every write goes through the
+`tracker` agent (`tracker-contract.md`); never call a tracker's MCP directly.
+The text names ClickUp, the tracker `story` was written for; on another one the
+same intents apply, and what it lacks answers `unsupported`.
 
 ## Index
 
@@ -50,7 +52,7 @@ End the turn on the call. Only **Publish** authorises a ClickUp write.
 ## 8. Publication
 
 **The list** is the `ClickUp list` of `product.md`'s backlog conventions; with
-none, resolve `CLICKUP_SETUP_LIST_ID` as the contract says. **The tags** are the
+none, resolve the task list as the contract says. **The tags** are the
 draft's `products`, plus `da dettagliare` when its body has an **Open points**
 section. **The description** is the draft's body: everything after the closing
 `---` of the frontmatter, unchanged.
@@ -83,6 +85,11 @@ doc link**, or **Create a doc** — `INTENT: create-doc` in the product's ClickU
 list (`parent_type: list`), named `<product> story maps`, `visibility` as the
 developer chooses — and suggest adding its link to `product.md`.
 
+**A tracker without documents** (`create-doc` or `create-page` answers
+`STATUS: unsupported`, `CAPABILITY: docs` — Linear): the map stays in the
+draft, which the cleanup then keeps instead of deleting, and each Epic's
+`**Story map**` section names that file. Say so in the summary.
+
 **The three writes.**
 
 1. `INTENT: create-page`, `name` the map's title, `content` the draft's body as
@@ -103,7 +110,7 @@ update.
 
 A draft is deleted **only after its create and its relations succeeded**.
 Before deleting it, replace its provisional id with the real one — the
-`custom_id`, or the `task_id` while ClickUp has not assigned a custom id yet —
+`key`, or the `task_id` while ClickUp has not assigned a custom id yet —
 in every draft still in the folder, so the ones not yet created point at the item
 that now exists:
 

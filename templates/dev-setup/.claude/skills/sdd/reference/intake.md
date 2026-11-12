@@ -4,8 +4,8 @@ Steps 1 to 4 of the flow: from "start this task" to a working branch with the
 task in progress, the developer looking at the brief, and the flow's phases on
 screen as a task list. The judgement calls
 here are two questions — the task and the fork point — and a script does the
-rest. The ClickUp calls follow
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`, the fork point
+rest. The tracker calls follow
+`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`, the fork point
 `${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md`; the turn rule for every
 question here is in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 
@@ -20,21 +20,21 @@ question here is in `${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`.
 ## 1. Task selection
 
 **With a task id in `$ARGUMENTS`** (e.g. `DE-123`): read it through the
-`clickup` agent (`INTENT: read`, `PARAMS: task_id: <id>`). On `STATUS: error`,
+`tracker` agent (`INTENT: read`, `PARAMS: task_id: <id>`). On `STATUS: error`,
 tell the developer and stop.
 
 A task that comes back in `BACKLOG` was never planned: before the branch
 exists, put it through the backlog gate in
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` — ask whether to
+`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md` — ask whether to
 implement it anyway, and **end the turn on the tool call**. Declined → stop,
 leaving the task exactly where it was. Confirmed → carry on: step 3's status
 move is the one the developer just authorised, and the rest of the flow is
 unchanged.
 
-**Without one**: resolve the task list id as the ClickUp contract describes,
+**Without one**: resolve the task list id as the tracker contract describes,
 then list what is available:
 
-- `INTENT: filter`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`,
+- `INTENT: filter`, `PARAMS: list_id: <LIST_ID>, status: READY`,
   plus `tag: <product tag>` in a monorepo whose `product.md` index maps the
   folder you are in to a product — the developer's backlog, not every
   product's;
@@ -59,16 +59,16 @@ then list what is available:
 - **end the turn on the tool call**;
 - read the chosen task in full (`INTENT: read`).
 
-From the result, keep `custom_id`, `name`, `description` (in full, as the agent
+From the result, keep `key`, `name`, `description` (in full, as the agent
 returned it), `priority`, `task_id`, `url` and `tags`. Everything downstream
 refers to these.
 
 **Read the description's format** with `parse-story.sh`, as "The story format"
-in the ClickUp contract says, and keep `FORMAT`, `SCENARIOS` and
+in the tracker contract says, and keep `FORMAT`, `SCENARIOS` and
 `OPEN_POINTS`:
 
 - `epic` → stop here, before the branch: list its stories and point to one of
-  them, or to `/dev-setup:multi-sdd --from-epic <custom_id>`;
+  them, or to `/dev-setup:multi-sdd --from-epic <key>`;
 - `story` with open points, or the `da dettagliare` tag → the open-points gate
   of the same contract, ending the turn on it. Answers given there are carried
   into the discovery as constraints; **Leave it** stops with the task
@@ -84,7 +84,7 @@ confirms the fork point, and the script creates the branch. First, report only
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --task <custom_id> --type <feat|fix|chore> [--context <area>] \
+  --task <key> --type <feat|fix|chore> [--context <area>] \
   --title "<name, in English>" --json
 ```
 
@@ -116,7 +116,7 @@ Then create the branch from the answer:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-  --task <custom_id> --type <type> [--context <area>] --title "<name, in English>" \
+  --task <key> --type <type> [--context <area>] --title "<name, in English>" \
   --base <the chosen ref> --stop <the chosen stop point> --create --json
 ```
 
@@ -142,13 +142,13 @@ authorised through the backlog gate — never make it without that answer.
 Then start the clock the closure reads back:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --start --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --start --json
 ```
 
 `STARTED_AT` goes in the brief below. A `REASON: already-running` means this
 task was here before and its first stamp stands — say the clock is being
 resumed, and report the `TOTAL_DURATION` it already holds. The work clock
-section of the ClickUp contract holds the rest.
+section of the tracker contract holds the rest.
 
 ## 4. The brief, and what is already on disk
 
@@ -185,7 +185,7 @@ from and why, then show the brief.
 
 When the task meets `quick`'s bar — at most three files, and no new component,
 dependency or public interface — the brief says so with the exact command:
-`Route: looks like quick — /dev-setup:quick <custom_id>`. Then the flow goes on
+`Route: looks like quick — /dev-setup:quick <key>`. Then the flow goes on
 in `sdd`, as launched: it never moves itself to a lighter flow, and the choice
 stays with the developer, who can stop here and type the command. Under the bar
 or not, nothing is asked. Leave the line out when the task does not meet it.

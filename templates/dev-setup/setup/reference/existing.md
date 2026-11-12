@@ -208,10 +208,10 @@ NOT modified (existing tooling respected):
   - Git hooks, ESLint, Prettier, CI/CD, .gitignore
 
 Next steps:
-  1. Copy CLICKUP_SETUP_LIST_ID from .env.example into .env and fill it in
-     (setup cannot write .env: the sandbox denies it)
+  1. For headless runs only: copy the tracker's API key from .env.example into
+     .env and fill it in (setup cannot write .env: the sandbox denies it)
   2. Check MCP: claude mcp list
-  3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to start a ClickUp task
+  3. Use /dev-setup:sdd (interactive) or /dev-setup:auto-sdd (autonomous) to start a task
 ```
 
 Add the one-line reports collected along the way (3.3, 3.4, 3.5, 3.6, 3b, the

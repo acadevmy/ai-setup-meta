@@ -30,7 +30,7 @@ clause it can observe; the last section says which ones it cannot.
    reaches the service-account token, which reads the git secrets.
 5. Runs `/dev-setup:auto-dev` inside as `autodev`, UID 1000, with `claude` and
    `jq` from `/var/autodev/bin` on the PATH, an `agent.env` holding only the
-   Anthropic and ClickUp keys, and Claude Code's sandbox off (bubblewrap
+   Anthropic and task tracker keys, and Claude Code's sandbox off (bubblewrap
    cannot create namespaces in the container).
 6. Builds the image again on every run: about five minutes on the Invictus
    app, plus one and a half for its code generation.
@@ -44,7 +44,7 @@ If `up` fails — a lifecycle command included — the job dies before
 |---|---|
 | One configuration, at the root. A monorepo gets one `.devcontainer/` with every toolchain its commands need, never one per package | The runner passes no `--config`: `.devcontainer/<name>/` is never read |
 | `remoteUser` is the image's non-root user with UID 1000 (`vscode`, `node`), it owns every SDK installed in the image (Flutter in `/opt/flutter` belongs to `vscode`), and `updateRemoteUserUID` is not `false` | When the image's UID differs from the host's, the CLI changes it, and an SDK owned by the previous UID stops being writable — its caches (pub, Composer) fail |
-| `bash`, `git` and `curl` in the image | auto-dev's scripts are bash, the run commits, the board is reached over the ClickUp REST API |
+| `bash`, `git` and `curl` in the image | auto-dev's scripts are bash, the run commits, the board is reached over the tracker's REST or GraphQL API |
 | No `workspaceMount`, no `workspaceFolder` of its own (compose, which has to name one, uses `/workspaces/<repo>`), and no script that assumes an absolute path of the repository | The agent works at the host path under `/var/autodev/`, not at the workspace folder |
 | No bind mount of a host path — `~/.ssh`, `~/.gitconfig`, `~/.aws`, `${localEnv:HOME}/…`, `/var/autodev` | None of them exists on the VM, and a missing source fails `up`; the runner adds `/var/autodev` itself. SSH is not needed (3); VS Code forwards the SSH agent with no mount |
 | No Docker socket, `privileged`, host network, docker-in-docker or docker-outside-of-docker | Each one lets the agent start a root container on the host network and read the token (4). Services go in docker compose, on a bridge network |

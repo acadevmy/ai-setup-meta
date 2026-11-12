@@ -14,7 +14,7 @@ holds no development logic, and every line of spec → challenge → dev → ver
 lives in `workflows/auto-sdd-run.js`.
 
 **Usage**: `/dev-setup:multi-sdd DE-1 DE-2 …`, `--from-sprint <n>` (the first
-`n` `SPRINT` tasks) or `--from-epic <id>` (an epic's stories).
+`n` `READY` tasks) or `--from-epic <id>` (an epic's stories).
 
 The chat is a control tower: the human parts happen **before** the fan-out or
 **after**, never braided through it. Parallel *interactive* work stays
@@ -49,7 +49,7 @@ cost is `n` times a single run** — five tasks means fifteen verifiers.
   to do about it.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — the rule for every
   question phase A asks.
-- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the
+- **`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`** — the intents, the
   transitions, the list id.
 
 ## The three phases

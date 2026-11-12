@@ -171,7 +171,7 @@ Expect four to six questions, not ten.
 The interview's output, in this exact shape:
 
 ```markdown
-## Discovery Summary: <custom_id> — <name>
+## Discovery Summary: <key> — <name>
 
 ### Core Value
 <Why this task exists. Business problem, user objective, expected value.>

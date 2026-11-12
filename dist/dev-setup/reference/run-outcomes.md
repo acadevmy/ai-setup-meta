@@ -4,7 +4,7 @@ The `auto-sdd` workflow returns one object. Its `status` decides everything that
 happens next; the rest of the object is what you report. Two skills launch that
 workflow — `auto-sdd` for one task, `multi-sdd` for up to five — and both act on
 an outcome exactly the way this file describes, one outcome at a time. The
-ClickUp calls follow `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`.
+Tracker calls follow `${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`.
 
 ## Index
 
@@ -151,11 +151,11 @@ Finally, stop the clock and let the move carry what the task took:
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <taskId> --stop --json
 ```
 
-`INTENT: update`, `PARAMS: task_id: <task_id>, status: CODE REVIEW, comment:
-"<COMMENT>"` (`IN REVIEW` when the list has no `CODE REVIEW`) — `COMMENT`
+`INTENT: update`, `PARAMS: task_id: <task_id>, status: IN REVIEW, comment:
+"<COMMENT>"` — `COMMENT`
 verbatim, or no comment at all when the clock has nothing (`REASON` says why).
 Never write a duration of your own: the work clock section of
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` is the rule. Then show
+`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md` is the rule. Then show
 the merge request link, the branch, the spec path and the commit subjects, and
 end on one line: `Next:` and the follow-its-CI command from the host reference
 `vcs-ops` loaded, filled in with the merge request's number or branch — this
@@ -238,7 +238,7 @@ Three failures happen before any phase does, and none is a task problem:
   not verified. `REASON` says which, `OUTPUT` carries what failed. Nothing has
   started — no fork-point question, no `IN PROGRESS`, no clock, no `Workflow` —
   and what happens to the task depends on where it was read:
-  - read in `SPRINT` (`auto-sdd`) → one bail-out call, `SPRINT → BLOCKED`, its
+  - read in `READY` (`auto-sdd`) → one bail-out call, `READY → BLOCKED`, its
     note `REASON` and `OUTPUT`: the board says why the task cannot run here;
   - read in `BACKLOG` (`auto-sdd`) → left as found, and `REASON` and `OUTPUT`
     shown in chat. The backlog gate never moves a task on the flow's
