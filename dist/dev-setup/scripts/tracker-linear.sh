@@ -66,11 +66,8 @@ backend_read() {
     | jq -r '{"1": "urgent", "2": "high", "3": "normal", "4": "low"}[(.priority // 0) | tostring] // ""')"
   json_set URL "$(printf '%s' "$issue" | jq -r '.url // ""')"
   # Linear says what a state is, whatever the team calls it.
-  if [ "$(printf '%s' "$issue" | jq -r '.state.type // ""')" = backlog ]; then
-    BOARD_IS_BACKLOG=true
-  else
-    BOARD_IS_BACKLOG=false
-  fi
+  # shellcheck disable=SC2034  # read by auto-dev-tracker.sh
+  BOARD_IS_BACKLOG="$([ "$(printf '%s' "$issue" | jq -r '.state.type // ""')" = backlog ] && echo true || echo false)"
 }
 
 # A move is the id of the team's state with that name, each candidate in order,

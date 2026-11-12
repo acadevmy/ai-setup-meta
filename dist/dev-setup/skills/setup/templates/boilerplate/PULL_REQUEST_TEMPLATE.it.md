@@ -12,7 +12,7 @@ Si prega di includere anche la motivazione e il contesto pertinenti.
 -->
 ...
 
-**Issue:** [DE-00000](https://app.clickup.com/t/2428116/DE-00000)
+**Issue:** [DE-00000](<the task URL on the tracker>)
 
 ## Screenshots
 

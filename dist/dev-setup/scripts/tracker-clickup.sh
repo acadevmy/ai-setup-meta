@@ -68,6 +68,7 @@ backend_read() {
   json_set STATUS "$(printf '%s' "$task_json" | jq -r '.status.status // "" | ascii_upcase')"
   json_set PRIORITY "$(printf '%s' "$task_json" | jq -r '.priority.priority // "" | ascii_downcase')"
   json_set URL "$(printf '%s' "$task_json" | jq -r '.url // ""')"
+  # shellcheck disable=SC2034  # read by auto-dev-tracker.sh
   BOARD_IS_BACKLOG=false
   CLICKUP_TEAM="${CLICKUP_TEAM:-$(printf '%s' "$task_json" | jq -r '.team_id // ""')}"
 }

@@ -78,6 +78,7 @@ source "$SCRIPT_DIR/common.sh"
 TASK_ID_SHAPE='^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
 
 # A task key is a prefix, a dash and a number; anything else is the tracker's own id.
+# shellcheck disable=SC2034  # read by the backend
 KEY_SHAPE='^[A-Za-z][A-Za-z0-9]*-[0-9]+$'
 
 # The tail of a failed run's output that goes on the board: enough to see the
@@ -210,6 +211,7 @@ api_error() {
   exit 1
 }
 
+# shellcheck disable=SC2034  # set and read by the backend
 TOKEN=""
 BOARD_IS_BACKLOG=false
 # shellcheck source=./tracker-clickup.sh

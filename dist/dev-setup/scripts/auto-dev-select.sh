@@ -188,9 +188,10 @@ for REPO in "${REPOS[@]}"; do
   fi
 done
 if [ -z "$TRACKER" ]; then
-  TRACKER="$(bash "$SCRIPT_DIR/tracker-config.sh" ${TRACKER_CONFIG_ARGS[@]+"${TRACKER_CONFIG_ARGS[@]}"} --json 2>/dev/null \
-    | jq -r '.PROVIDER // ""')"
-  TRACKER="${TRACKER:-none}"
+  RESOLVED="$(bash "$SCRIPT_DIR/tracker-config.sh" ${TRACKER_CONFIG_ARGS[@]+"${TRACKER_CONFIG_ARGS[@]}"} --json 2>/dev/null)"
+  TRACKER="$(printf '%s' "$RESOLVED" | jq -r '.PROVIDER // ""' 2>/dev/null)"
+  [ -n "$TRACKER" ] \
+    || die "the project's tracker configuration was refused: $(printf '%s' "$RESOLVED" | jq -r '.REASON // "tracker-config.sh failed"' 2>/dev/null)"
 fi
 
 # ── The task ──────────────────────────────────────────────────────────────────

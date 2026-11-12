@@ -89,7 +89,7 @@ state of the work without spending a model turn:
   an open task clock (`● DE-123  in progress  42m`, green); after a `gh pr
   create` / `glab mr create` that created a merge request, its link and a
   `close DE-123` button that fills — never sends — the prompt that stops the
-  clock and moves the task to `CODE REVIEW`; while an `sdd` runs, its tokens per
+  clock and moves the task to `IN REVIEW`; while an `sdd` runs, its tokens per
   phase with the phase in progress at full strength, and the cost so far; past
   70% of context, a yellow warning before a long phase compacts it;
 - **`/dev-setup`** — a pane with one tab per view (`1`–`6` switch, `r` reloads,
@@ -857,7 +857,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | A `CLAUDE.md` holding only `@AGENTS.md` — removed without asking, at the root and in every sub-project; one with your own content is moved into its `AGENTS.md` only on your yes | `CLAUDE.local.md` and any instruction file above the project — reported, never touched |
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
-| `.claude/tracker.json` — asked when absent: a project configured before it existed answers the tracker question once more, since nothing reads `CLICKUP_SETUP_LIST_ID` | `.claude/tracker.json` once you have one |
+| `.claude/tracker.json` — asked when absent: a project configured before it existed answers the tracker question once more: the old ClickUp list variable is not read | `.claude/tracker.json` once you have one |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
 | `.claude/merge-request.json` — written when absent, after asking the language; missing catalogue labels are created on the forge | `.claude/merge-request.json` once you have one |
 | `.claude/quality-commands.json` — proposed when absent (decline it and the autonomous launchers refuse until you accept it), a rewrite offered when malformed | `.claude/quality-commands.json` once you have a valid one — verified, never rewritten |

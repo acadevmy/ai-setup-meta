@@ -375,7 +375,7 @@ holds nothing to commit either.
 `gh pr create` / `glab mr create` that actually created a merge request — the URL
 in the output is the proof — and, when a task's work clock is still open in the
 repository, it names that task and asks for the two calls that end it: `--stop`,
-then the `CODE REVIEW` move with `COMMENT` as the comment.
+then the `IN REVIEW` move with `COMMENT` as the comment.
 
 It exists because the closure was context-bound. Both calls live in the last step
 of the skill that opens the merge request, which holds until the merge request is

@@ -110,11 +110,11 @@ fi
 
 PROVIDER="$(printf '%s' "${TRACKER_PROVIDER:-}" | tr '[:upper:]' '[:lower:]')"
 if [ -n "$PROVIDER" ]; then
-  SOURCE=env
+  SOURCE="env"
 elif [ -n "$FILE_PROVIDER" ]; then
-  PROVIDER="$FILE_PROVIDER"; SOURCE=file
+  PROVIDER="$FILE_PROVIDER"; SOURCE="file"
 else
-  PROVIDER=none; SOURCE=none
+  PROVIDER="none"; SOURCE="none"
 fi
 
 case "$PROVIDER" in

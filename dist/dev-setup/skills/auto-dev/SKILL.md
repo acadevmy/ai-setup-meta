@@ -77,8 +77,9 @@ merge request against the short name of `baseBranch` with `mr.title`,
 Then close the task:
 
 ```bash
-bash "<plugin>/scripts/auto-dev-tracker.sh" --task <taskId> --finish \
-  --result <OUTPUT_DIR>/result.json [--mr-url <url>] [--pushed true|false]
+bash "<plugin>/scripts/auto-dev-tracker.sh" --provider <TRACKER> --task <taskId> --finish \
+  --result <OUTPUT_DIR>/result.json [--mr-url <url>] [--pushed true|false] \
+  [--config <clone>/.claude/tracker.json]
 ```
 
 After `claude -p --output-format json` exits, the exact token counts:

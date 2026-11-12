@@ -3981,6 +3981,13 @@ TRACKER_LEAKS="$(cd "$REPO_ROOT/dist/dev-setup" && grep -rnE \
   skills agents reference hooks workflows scripts 2>/dev/null \
   | grep -vE '^(agents/tracker\.md|reference/tracker-(clickup|linear)\.md|scripts/(tracker-[a-z]+|auto-dev-tracker|tracker-config)\.sh|skills/setup/reference/(mcp-env\.md|tracker-permissions\.json)|hooks/tests/)' || true)"
 assert_eq "no shipped file outside the adapters names a tracker's tools or statuses" "" "$TRACKER_LEAKS"
+# The pages a developer reads say the same — the migration page excepted, whose
+# subject is what was removed.
+TRACKER_DOC_LEAKS="$(cd "$REPO_ROOT" && grep -nE \
+  'CLICKUP_SETUP_LIST_ID|clickup-contract|auto-dev-clickup|`clickup` agent|CODE REVIEW|clickup_list_ids' \
+  README.md AGENTS.md docs/*.md templates/dev-setup/AGENTS*.md templates/dev-setup/boilerplate/PULL_REQUEST_TEMPLATE.*.md 2>/dev/null \
+  | grep -v '^docs/migration-v2-to-v3\.md:' | grep -v 'IN PROGRESS -> CODE REVIEW. with the PR link' || true)"
+assert_eq "no documentation page names the ClickUp-only configuration" "" "$TRACKER_DOC_LEAKS"
 for P in clickup linear; do
   assert_eq "the $P adapter has every section the agent reads" "7" \
     "$(grep -cE '^## (Server|Tools|Status map|Key format|Capabilities|Intents|Headless backend)$' "$REPO_ROOT/templates/dev-setup/.claude/reference/tracker-$P.md")"

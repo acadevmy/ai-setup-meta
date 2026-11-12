@@ -142,8 +142,12 @@ RUN_ID="$(arg runId)"
 CHALLENGE="$(arg challenge)"; CHALLENGE="${CHALLENGE:-auto}"
 BRANCH_TYPE="$(arg branchType)"; BRANCH_TYPE="${BRANCH_TYPE:-feat}"
 TRACKER="$(arg tracker)"
-[ -n "$TRACKER" ] || TRACKER="$(bash "$SCRIPT_DIR/tracker-config.sh" --json 2>/dev/null | jq -r '.PROVIDER // ""')"
-TRACKER="${TRACKER:-none}"
+TRACKER_REFUSED=""
+if [ -z "$TRACKER" ]; then
+  RESOLVED="$(bash "$SCRIPT_DIR/tracker-config.sh" --json 2>/dev/null)"
+  TRACKER="$(printf '%s' "$RESOLVED" | jq -r '.PROVIDER // ""' 2>/dev/null)"
+  [ -n "$TRACKER" ] || TRACKER_REFUSED="$(printf '%s' "$RESOLVED" | jq -r '.REASON // "tracker-config.sh failed"' 2>/dev/null)"
+fi
 
 json_set TASK_ID "$TASK_ID"
 json_set TRACKER "$TRACKER"
@@ -156,6 +160,7 @@ printf '%s' "$TASK_ID" | grep -qE "$TASK_ID_SHAPE" \
   || refuse "\"$TASK_ID\" is not a plain task id (letters, digits, dot, dash, underscore): it reaches a branch name and a shell command"
 case "$CHALLENGE" in auto|always|never) ;; *) refuse "challenge is \"$CHALLENGE\": it takes auto, always or never" ;; esac
 case "$BRANCH_TYPE" in feat|fix|chore) ;; *) refuse "branchType is \"$BRANCH_TYPE\": it takes feat, fix or chore" ;; esac
+[ -z "$TRACKER_REFUSED" ] || refuse "the project's tracker configuration was refused: $TRACKER_REFUSED"
 case "$TRACKER" in clickup|linear|none) ;; *) refuse "tracker is \"$TRACKER\": it takes clickup, linear or none" ;; esac
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || refuse "not inside a git repository: run auto-dev from the project's checkout"

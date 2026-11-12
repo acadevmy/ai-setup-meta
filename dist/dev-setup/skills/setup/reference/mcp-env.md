@@ -37,26 +37,33 @@ Which tracker the team uses is a project fact, and the flows read it from
 
 - **`SOURCE` is `file`** → the project already chose. Print the provider and
   its lists, and ask "Keep the task tracker configuration?" — **default: keep
-  it**. A keep goes straight to the MCP check below.
+  it**. A keep skips the questions and the file, and goes on to the permissions
+  and the MCP check below: they only add, and a settings file rewritten at 3.2
+  or migrated at 3.2b has lost them.
 - **anything else** — no file yet, a project configured by an older version
   included — ask the questions below. An older project's
   `CLICKUP_SETUP_LIST_ID` is not read any more: its value is the default of the
   list question, when the session can see it, and nothing more.
 
-Ask them in **one** `AskUserQuestion` call and end the turn on it:
+Two calls, because the second one's options depend on the first answer. End
+the turn on each:
+
+1. "Which task tracker does the team use?" — `clickup` (the default), `linear`,
+   `none`.
+2. For `clickup` or `linear`, in **one** `AskUserQuestion` call:
 
 | Field | Question | Options (the first is the default) |
 |---|---|---|
-| `provider` | "Which task tracker does the team use?" | `clickup`, `linear`, `none` |
-| `lists` | "Which list do the tasks come from?" | a ClickUp list id (`app.clickup.com/.../li/<ID>`) or a Linear team key (`ENG`); several comma-separated |
-| `status` | "What does the board call its statuses (backlog · ready · in progress · in review · done · blocked)?" | the adapter's default map (`tracker-<provider>.md`, "Status map") |
+| `lists` | "Which list do the tasks come from?" | ClickUp: a list id (`app.clickup.com/.../li/<ID>`); Linear: a team key (`ENG`). Several comma-separated |
+| `status` | "What does the board call its statuses (backlog · ready · in progress · in review · done · blocked)?" | the chosen adapter's default map (`${CLAUDE_PLUGIN_ROOT}/reference/tracker-<provider>.md`, "Status map") |
 
 The status names are the board's own, copied exactly as it shows them: a name
 the board does not have makes every transition of the flow fail. On Linear,
 `blocked` is not a default state — the answer may name another state the team
 has, or leave `Blocked` for the team to add.
 
-**`none`** writes no file, registers no server and ends the step with
+**`none`** writes `{"provider": "none"}` to `.claude/tracker.json` — so an
+earlier choice stops applying — registers no server and ends the step with
 `task tracker: none — the flows run from a description and write to no board`.
 
 Otherwise write the file:
