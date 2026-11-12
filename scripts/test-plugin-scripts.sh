@@ -1921,7 +1921,7 @@ SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/sha
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
 assert_eq "the surface the check reads is the public commands" \
-  "auto-sdd distill kickoff multi-sdd quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+  "auto-sdd distill kickoff multi-sdd parallel quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
 
 # The names from $2 (one per line) with no row in $1 matching $3, where `@`
 # stands for the name.
@@ -1994,10 +1994,10 @@ for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DEC
 done
 
 # DE-17079 wants the generated file shorter; these fixes may not lengthen it.
-# The extra lines over the base are the `kickoff` and `distill` commands,
-# the `story` command and its `story-reviewer` agent, which the surface checks
-# above require, and the one-line rule on readable references.
-for BUDGET in "$GEN_SINGLE:136" "$GEN_WORKSPACE:141" "$GEN_PROJECT:30"; do
+# The extra lines over the base are the `kickoff`, `distill` and `parallel`
+# commands, the `story` command and its `story-reviewer` agent, which the
+# surface checks above require, and the one-line rule on readable references.
+for BUDGET in "$GEN_SINGLE:137" "$GEN_WORKSPACE:142" "$GEN_PROJECT:30"; do
   GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
   assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
     "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
