@@ -6,6 +6,31 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.5.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.4.0...dev-setup-v4.5.0) (2026-11-12)
+
+
+### Features
+
+* **distill:** Explain a branch to a reader who did not follow the work ([c1c3c05](https://github.com/acadevmy/ai-setup-meta/commit/c1c3c057bb6c50e556c2ba745985a8d9d32c409b))
+* **kickoff:** Create the ClickUp task repository first ([abe8e74](https://github.com/acadevmy/ai-setup-meta/commit/abe8e74dc1213a29da03c0cb5f3511fae6987877))
+* **kickoff:** Start work from an idea, with no task on the board ([d3d4cde](https://github.com/acadevmy/ai-setup-meta/commit/d3d4cde004d288365e8b1eddd76949267b2783f5))
+* **kickoff:** Write the task in story's format and send epics to story ([2bc1b71](https://github.com/acadevmy/ai-setup-meta/commit/2bc1b71fcc678384b361270d5a251a3a5eabc8ed))
+* **multi-sdd:** Develop each run in a worktree parallel prepared ([425fc56](https://github.com/acadevmy/ai-setup-meta/commit/425fc568d490403bcfcb1757b81b913d35cd79af))
+* **multi-sdd:** Develop each run in a worktree parallel prepared ([1c7e50a](https://github.com/acadevmy/ai-setup-meta/commit/1c7e50a4e1757dac68c745645ba6ee34f3008517))
+* **parallel:** Let the agent run new and adopt, behind three guards ([e47b6fc](https://github.com/acadevmy/ai-setup-meta/commit/e47b6fc6d6028d327164d239265926db443c25a1))
+* **parallel:** Run several branches side by side, each with its own instance ([cc12e4b](https://github.com/acadevmy/ai-setup-meta/commit/cc12e4bb820399f8bee0c50c122770d499da7db4))
+* **sdd:** Hand off to the next step when a sub-skill runs on its own ([e99c602](https://github.com/acadevmy/ai-setup-meta/commit/e99c602efb6481ad37f679b35928414ff2e975a7))
+
+
+### Bug Fixes
+
+* **parallel:** Create worktrees inside the project, beside Claude Code's ([ba7f8ac](https://github.com/acadevmy/ai-setup-meta/commit/ba7f8ac70cb36015ff40a28535de760d8499c102))
+
+
+### Reverts
+
+* **kickoff:** Keep the release branch and the task format it had ([b448b46](https://github.com/acadevmy/ai-setup-meta/commit/b448b46a4d53bd72550367f12068c8309e70fabe))
+
 ## [4.4.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.3.0...dev-setup-v4.4.0) (2026-11-04)
 
 
