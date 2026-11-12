@@ -15,7 +15,7 @@ is an unanswered question moved into the code.
 # Spec: <Task Title> [<customId>]
 
 > Status: draft
-> Task: <ClickUp task URL>
+> Task: <task URL on the tracker>
 > Branch: <branch name, if already created>
 > Created: <today's date YYYY-MM-DD>
 > Approved: pending

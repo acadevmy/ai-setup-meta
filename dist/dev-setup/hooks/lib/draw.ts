@@ -119,7 +119,7 @@ export function drawBand(ui: Ui, band: BandModel, actions: BandActions, theirs: 
             onPress: () => actions.close(task, url),
           }),
         ),
-        ui.Text({ dimColor: true, children: ['stops the clock · moves it to CODE REVIEW'] }),
+        ui.Text({ dimColor: true, children: ['stops the clock · moves it to IN REVIEW'] }),
       ]),
     )
   }

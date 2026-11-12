@@ -20,7 +20,7 @@ several.
 
 - **`${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`** — the two outcomes,
   the merge request, the bail-out, the resume.
-- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the
+- **`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`** — the intents, the
   transitions, the backlog gate, the list id.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md`** — step 2's question.
 
@@ -29,8 +29,8 @@ several.
 **With a task id in `$ARGUMENTS`**: `INTENT: read`, `PARAMS: task_id: <id>`.
 
 **Without one**: resolve the list id as the contract describes, then
-`INTENT: next-task`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>` — the
-highest-priority `SPRINT` task.
+`INTENT: next-task`, `PARAMS: list_id: <LIST_ID>` — the
+highest-priority `READY` task.
 
 Before any question or board write:
 
@@ -41,8 +41,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/quality-preflight.sh" --require-declared --a
 Any non-zero exit → no run, per `run-outcomes.md`. A non-empty `UNAVAILABLE`
 is not a stop: say in one line what this environment cannot run, and go on. `BACKLOG` → the contract's backlog gate.
 
-A declined gate or an empty `SPRINT` stops the flow: no run, no board write.
-Otherwise keep `custom_id`, `name`, `description` (verbatim), `url`, `task_id`.
+A declined gate or an empty `READY` stops the flow: no run, no board write.
+Otherwise keep `key`, `name`, `description` (verbatim), `url`, `task_id`.
 
 ## 2. The project context, and the fork point
 
@@ -60,7 +60,7 @@ Then `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`, then
 the clock:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --start --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --start --json
 ```
 
 ## 3. The run
@@ -69,7 +69,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --start --
 Workflow({
   "name": "dev-setup:auto-sdd-run",
   "args": {
-    "taskId": "<custom_id>",
+    "taskId": "<key>",
     "title": "<name>",
     "description": "<description, verbatim>",
     "url": "<url>",
@@ -99,7 +99,7 @@ Exactly one of `ready-for-mr` or `failed`, each handled in
 
 ## Expected output
 
-- the task moved `SPRINT` → `IN PROGRESS` → `CODE REVIEW` or `BLOCKED`;
+- the task moved `READY` → `IN PROGRESS` → `IN REVIEW` or `BLOCKED`;
 - on `ready-for-mr`, a pushed branch and a merge request;
 - otherwise the failing output, the branch and the worktree left in place —
   pushed in a cloud session, with what is missing and why on the board;

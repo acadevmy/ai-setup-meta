@@ -36,9 +36,9 @@ task is read or touched — the board stays as `multi-preflight.sh`'s exit 3
 leaves it. `${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`, "When the run
 does not start", says what fixes it.
 
-**Ids on the command line.** Read each one through the `clickup` agent —
+**Ids on the command line.** Read each one through the `tracker` agent —
 `INTENT: read`, `PARAMS: task_id: <id>`, per
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`. Keep `custom_id`, `name`,
+`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`. Keep `key`, `name`,
 `description` **verbatim**, `url` and `task_id`.
 
 A task that comes back in `BACKLOG` was never planned: put it through the
@@ -48,7 +48,7 @@ of the set with the board untouched — rerun `multi-preflight.sh` with the ids
 that remain, and zero remaining is a refusal like any other.
 
 **`--from-sprint <n>`.** Resolve the list id as the contract describes, then
-`INTENT: filter`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`.
+`INTENT: filter`, `PARAMS: list_id: <LIST_ID>, status: READY`.
 Sort by `priority` ascending — `1` is urgent — and take the first `n`. Then run
 the gate again with the ids you got, one quoted `--task` each:
 
@@ -56,7 +56,7 @@ the gate again with the ids you got, one quoted `--task` each:
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/multi-preflight.sh" --json --task "DE-1" --task "DE-2"
 ```
 
-Nothing in `SPRINT` means zero ids, which that call refuses: say so and stop. No
+Nothing in `READY` means zero ids, which that call refuses: say so and stop. No
 run, no board write. This is why the intake goes back through the gate rather
 than trusting the count — the board decides how many there really were.
 
@@ -185,7 +185,7 @@ On a yes:
 1. **The branch of each task**, from the main checkout, without `--create`:
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" --json --task <custom_id> \
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" --json --task <key> \
      --type <branchType> --title "<the task title, in English>" --base <fork point>
    ```
 
@@ -226,5 +226,5 @@ its own worktree, as before.
 ## The board
 
 Phase A writes nothing to it. A task the developer drops has to come out of the
-pre-flight exactly as it went in, so the `SPRINT → IN PROGRESS` move happens at
+pre-flight exactly as it went in, so the `READY → IN PROGRESS` move happens at
 launch, per task, in `fan-out.md`.

@@ -28,26 +28,89 @@ not, print the commands to run manually and move on.
 > **Transport**: `-t` accepts `stdio`, `sse`, `http`. `url` is not a valid
 > transport: a server declared with `"type": "url"` is silently discarded.
 
-### 6.1 — ClickUp (user scope, only with the task list configured)
+### 6.1 — The task tracker (user scope MCP, project file)
 
-ClickUp is only useful if the team tracks tasks there. Resolve
-`CLICKUP_SETUP_LIST_ID` as `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`
-describes — environment variable, then the list configured at install time,
-which the `clickup` skill states (no Bash command or file read can see that
-value), and **never** the project's `.env`: one list id does not justify
-pulling a file of secrets into the context window.
+Which tracker the team uses is a project fact, and the flows read it from
+`.claude/tracker.json` (`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`,
+"Resolving the provider and the task list"). Ask
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/tracker-config.sh" --json` first:
 
-- **Set** → check with `claude mcp list` whether `clickup` is already configured.
-  If it is not:
+- **`SOURCE` is `file`** → the project already chose. Print the provider and
+  its lists, and ask "Keep the task tracker configuration?" — **default: keep
+  it**. A keep goes straight to the MCP check below.
+- **anything else** — no file yet, a project configured by an older version
+  included — ask the questions below. An older project's
+  `CLICKUP_SETUP_LIST_ID` is not read any more: its value is the default of the
+  list question, when the session can see it, and nothing more.
 
-  ```bash
-  claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp
-  ```
+Ask them in **one** `AskUserQuestion` call and end the turn on it:
 
-- **Empty or absent** → do **not** register the server. Report in the summary:
-  "ClickUp MCP not configured: set `CLICKUP_SETUP_LIST_ID` in `.env` (Step 7
-  left the key in `.env.example`), then run
-  `claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp`".
+| Field | Question | Options (the first is the default) |
+|---|---|---|
+| `provider` | "Which task tracker does the team use?" | `clickup`, `linear`, `none` |
+| `lists` | "Which list do the tasks come from?" | a ClickUp list id (`app.clickup.com/.../li/<ID>`) or a Linear team key (`ENG`); several comma-separated |
+| `status` | "What does the board call its statuses (backlog · ready · in progress · in review · done · blocked)?" | the adapter's default map (`tracker-<provider>.md`, "Status map") |
+
+The status names are the board's own, copied exactly as it shows them: a name
+the board does not have makes every transition of the flow fail. On Linear,
+`blocked` is not a default state — the answer may name another state the team
+has, or leave `Blocked` for the team to add.
+
+**`none`** writes no file, registers no server and ends the step with
+`task tracker: none — the flows run from a description and write to no board`.
+
+Otherwise write the file:
+
+```bash
+mkdir -p .claude
+LISTS=$(printf '%s\n' "$LIST_ANSWER" | tr ',' '\n' | sed 's/[[:space:]]//g' \
+        | grep -v '^$' | jq -R . | jq -s .)
+jq -n --arg p "$PROVIDER" --argjson lists "$LISTS" \
+  --arg backlog "$BACKLOG" --arg ready "$READY" --arg progress "$IN_PROGRESS" \
+  --argjson review "$IN_REVIEW_JSON" --arg done "$DONE" --arg blocked "$BLOCKED" \
+  '{provider: $p, lists: $lists,
+    status: {backlog: $backlog, ready: $ready, in_progress: $progress,
+             in_review: $review, done: $done, blocked: $blocked}}' > .claude/tracker.json
+```
+
+`IN_REVIEW_JSON` is a JSON array: `["CODE REVIEW", "IN REVIEW"]` for the ClickUp
+default, one name otherwise. The file holds no credential and is tracked.
+
+**Permissions and network.** Merge the provider's fragment from
+`${CLAUDE_SKILL_DIR}/reference/tracker-permissions.json` into
+`.claude/settings.json` — `allow` and `ask` into `permissions`, `network` into
+`sandbox.network.allowedDomains` — de-duplicated, never replacing what is there:
+
+```bash
+jq --slurpfile f "${CLAUDE_SKILL_DIR}/reference/tracker-permissions.json" --arg p "$PROVIDER" '
+  ($f[0][$p]) as $x
+  | .permissions.allow = ((.permissions.allow // []) + $x.allow | unique)
+  | .permissions.ask = ((.permissions.ask // []) + $x.ask | unique)
+  | .sandbox.network.allowedDomains = ((.sandbox.network.allowedDomains // []) + $x.network | unique)
+' .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
+```
+
+Unlike 3.3 and 3.4 this runs even when `.claude/settings.json` is the team's own
+file: it only adds, and the `ask` entries are the human checkpoints on the
+board's writes.
+
+**The MCP server.** Check with `claude mcp list` whether the adapter's server
+(`clickup`, `linear`) is already configured — a `plugin:` or claude.ai row for
+the same tracker counts. If it is not, register it with the command the
+adapter's "Server" section gives:
+
+```bash
+claude mcp add clickup -t http -s user https://mcp.clickup.com/mcp
+claude mcp add linear -t http -s user https://mcp.linear.app/mcp
+```
+
+Close with **exactly one** line for the summary — one of:
+
+```
+  - task tracker: <provider>, <n> list(s), statuses <ready>/<in progress>/<in review>/<blocked> — MCP <registered|already there>
+  - task tracker kept: <provider>, <n> list(s)
+  - task tracker: none — the flows run from a description and write to no board
+```
 
 ### 6.2 — Library documentation: the `ctx7` CLI, not MCP
 
@@ -88,7 +151,8 @@ of one of them is a duplicate, not a configuration.
   claude mcp add figma -t http -s project https://mcp.figma.com/mcp
   ```
 
-  On first use, Figma asks for authorization via the browser (like ClickUp).
+  On first use, Figma asks for authorization via the browser (like the task
+  tracker).
 
 Close with **exactly one** line for the summary — one of:
 
@@ -113,25 +177,25 @@ at two levels — the file tools refuse them and the sandbox refuses them to you
 shell commands — and the values are the developer's: nothing in this step needs
 one. Work on `.env.example`, which is tracked and carries no values.
 
-1. `.env.example` exists and already contains `CLICKUP_SETUP_LIST_ID` → do
-   nothing.
-2. `.env.example` exists without the key → append:
+1. `.env.example` exists and already contains `TRACKER_PROVIDER` → do nothing.
+2. `.env.example` exists without it → append:
 
    ```
 
-   # ClickUp — task list ID (added by setup)
-   CLICKUP_SETUP_LIST_ID=
+   # Task tracker — overrides .claude/tracker.json on one machine (added by setup)
+   TRACKER_PROVIDER=
+   TRACKER_LIST_ID=
    ```
 
-3. `.env.example` does not exist → create it with:
+3. `.env.example` does not exist → create it with the same block.
 
-   ```
-   # ClickUp — task list ID
-   CLICKUP_SETUP_LIST_ID=
-   ```
+With a tracker chosen at 6.1, add the key a headless run needs, commented —
+`# CLICKUP_API_TOKEN=` and `# CLICKUP_TEAM_ID=` for ClickUp, `# LINEAR_API_KEY=`
+for Linear — when the file does not already name it. A developer working in a
+session never needs one: the MCP authorises over OAuth.
 
 In every case, close with one line for the summary:
-`CLICKUP_SETUP_LIST_ID declared in .env.example — copy it into .env and fill it in (setup cannot write .env)`
+`task tracker variables declared in .env.example — they override .claude/tracker.json on one machine (setup cannot write .env)`
 
 ---
 
@@ -286,62 +350,60 @@ convention: the port offset, the overlap warning, the dependency install.
 
 ## Step 7d — The auto-dev configuration
 
-An unattended run has nobody to ask. Which board it pulls work from, what that
-board calls its statuses, which tag marks a task as the agent's and where the
-designs live are **project** facts, not session facts — so they belong in a file
-the project owns rather than in answers nobody will be there to give.
+An unattended run has nobody to ask. Which tag marks a task as the agent's and
+where the designs live are **project** facts, not session facts — so they
+belong in a file the project owns rather than in answers nobody will be there
+to give. Which board it pulls work from, and what that board calls its
+statuses, is already one: `.claude/tracker.json`, written at 6.1.
 
-That file is `.claude/auto-dev.json`. It holds ids, status names and a tag, and
-no credential ever: the ClickUp authorization stays in the MCP server's OAuth
-and the Figma one in its own. So the file is tracked — a runner that clones the
-repository is configured by the clone.
+That file is `.claude/auto-dev.json`. It holds a tag and ids, and no credential
+ever: the tracker's authorization stays in its MCP server's OAuth and the Figma
+one in its own. So the file is tracked — a runner that clones the repository is
+configured by the clone.
 
 The plugin's own commands do not read it: `sdd`, `quick`, `auto-sdd` and
 `multi-sdd` resolve those facts from the session and from the repository. This
 file is what a runner with no session to ask — a scheduled routine, a CI job —
-starts from, and writing it is how a project declares itself available for one.
+starts from, together with `tracker.json`, and writing it is how a project
+declares itself available for one.
 
-Runs in every mode, on every project.
+Runs in every mode, on every project with a tracker. With `none` at 6.1 the
+step ends with `auto-dev not configured: no task tracker (6.1)`.
 
 ### 7d.1 — The gate
 
-`.claude/auto-dev.json` **already exists** → print what it configures (lists,
-tag, statuses) and ask "Reconfigure the autonomous dev flow?" — **default: keep
-it**. On a keep the step ends with the summary line
-`auto-dev configuration kept as it was (<n> list(s), tag <tag>)`.
+`.claude/auto-dev.json` **already exists** → print what it configures (tag,
+Figma) and ask "Reconfigure the autonomous dev flow?" — **default: keep it**.
+On a keep the step ends with the summary line
+`auto-dev configuration kept as it was (tag <tag>)`. A kept file that still
+carries `clickup_list_ids` or `status` predates the tracker file: nothing reads
+those keys, and the line says so — `… (tag <tag>; its lists and statuses now
+live in .claude/tracker.json)`.
 
 Otherwise ask, once:
 
 > "Configure the autonomous dev flow (auto-dev)? It writes
-> `.claude/auto-dev.json`: the ClickUp lists an unsupervised run reads, the tag
-> that marks a task as the agent's, this board's status names and the Figma file
-> the designs live in. (yes / skip)"
+> `.claude/auto-dev.json`: the tag that marks a task as the agent's and the
+> Figma file the designs live in. It reads the lists and the statuses from
+> `.claude/tracker.json`. (yes / skip)"
 
 A **skip** writes nothing and ends the step with one line for the summary:
 `auto-dev declined: no .claude/auto-dev.json — an unattended run has nothing to read; run the setup again to add it`.
 Nothing else in the procedure depends on the answer.
 
-### 7d.2 — The four answers
+### 7d.2 — The two answers
 
-Ask them in **one** `AskUserQuestion` call and end the turn on it: they are four
+Ask them in **one** `AskUserQuestion` call and end the turn on it: they are two
 fields of a single file, with no follow-up to lose between them.
 
 | Field | Question | First option (the default) | What free text accepts |
 |---|---|---|---|
-| `clickup_list_ids` | "Which ClickUp list does an unattended run read?" | the `CLICKUP_SETUP_LIST_ID` resolved at 6.1, when there is one | one id, or several comma-separated |
-| `tag` | "Which ClickUp tag marks a task as the agent's?" | `claude` | any tag name, as the board spells it |
-| `status` | "What does this board call its statuses?" | `sprint · in progress · in review · blocked`, second option `sprint · in progress · code review · blocked` | four names, in the order ready, in progress, in review, blocked |
+| `tag` | "Which tag (ClickUp) or label (Linear) marks a task as the agent's?" | `claude` | any name, as the board spells it |
 | `figma` | "Which Figma file holds this project's designs?" | "No Figma file" | the file URL |
 
 The Figma question is asked under the same condition as 6.3 — `HAS_FRONTEND` or
 `HAS_MOBILE`, or a web/mobile/fullstack stack chosen at 2b. On a pure backend it
-is not asked and `figma` is `null`.
-
-The status names are the board's own, copied exactly as ClickUp shows them: a
-name that does not exist there makes every transition of the flow fail, and the
-setup does not invent one. If the list question comes back with nothing — no
-environment variable, nothing typed — write no file and report in the summary
-`auto-dev not configured: no ClickUp list id (set CLICKUP_SETUP_LIST_ID, then run the setup again)`.
+is not asked and `figma` is `null`. Both answers go in the summary line of 7d.4.
 
 ### 7d.3 — The two fields nobody is asked about
 
@@ -360,9 +422,6 @@ environment variable, nothing typed — write no file and report in the summary
 ```bash
 mkdir -p .claude
 
-LISTS=$(printf '%s\n' "$LIST_ANSWER" | tr ',' '\n' | sed 's/[[:space:]]//g' \
-        | grep -v '^$' | jq -R . | jq -s .)
-
 if [ -n "$FIGMA_URL" ]; then
   FILE_KEY=$(printf '%s' "$FIGMA_URL" \
              | sed -E 's#.*figma\.com/(design|file|board|proto)/([A-Za-z0-9]+).*#\2#')
@@ -373,15 +432,10 @@ else
 fi
 
 jq -n \
-  --argjson lists "$LISTS" \
   --arg tag "$TAG" \
-  --arg ready "$READY" --arg progress "$IN_PROGRESS" \
-  --arg review "$IN_REVIEW" --arg blocked "$BLOCKED" \
   --argjson figma "$FIGMA" \
   '{
-     clickup_list_ids: $lists,
      tag: $tag,
-     status: { ready: $ready, in_progress: $progress, in_review: $review, blocked: $blocked },
      base_branch: null,
      figma: $figma,
      dry_run: false
@@ -394,9 +448,7 @@ lands looks like this:
 
 ```json
 {
-  "clickup_list_ids": ["901214692298"],
   "tag": "claudio",
-  "status": { "ready": "sprint", "in_progress": "in progress", "in_review": "in review", "blocked": "blocked" },
   "base_branch": null,
   "figma": { "file_key": "wMJHvCjPaCfK6765aKTfgn", "url": "https://www.figma.com/design/wMJHvCjPaCfK6765aKTfgn/V-Program" },
   "dry_run": false
@@ -406,8 +458,8 @@ lands looks like this:
 **Report in the summary** exactly one line — one of:
 
 ```
-  - auto-dev configured: <n> ClickUp list(s), tag <tag>, statuses <ready>/<in progress>/<in review>/<blocked>, Figma <file_key|none>, dry_run false
-  - auto-dev configuration kept as it was (<n> list(s), tag <tag>)
+  - auto-dev configured: tag <tag>, Figma <file_key|none>, dry_run false — lists and statuses from .claude/tracker.json
+  - auto-dev configuration kept as it was (tag <tag>)
   - auto-dev declined: .claude/auto-dev.json not written — an unattended run has nothing to read
-  - auto-dev not configured: no ClickUp list id available
+  - auto-dev not configured: no task tracker (6.1)
 ```

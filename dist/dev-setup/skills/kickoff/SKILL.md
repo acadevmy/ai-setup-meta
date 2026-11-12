@@ -17,7 +17,7 @@ keeps the knowledge in context. On a yes it also creates the task on the board.
 
 - **`reference/classification.md`** — the three axes, the question that
   proposes them, the release's pieces.
-- **`reference/board.md`** — the optional ClickUp task.
+- **`reference/board.md`** — the optional tracker task.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/fork-point.md`** — the base question.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — after you ask,
   the turn ends.

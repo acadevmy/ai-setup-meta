@@ -81,7 +81,7 @@ The repository's `AGENTS.md` wins over every default here.
 
 **A merge request carrying a task id does not end the task**: the board still
 says `IN PROGRESS` and its work clock is still running. Close both as
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md` describes, here, even when
+`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md` describes, here, even when
 no flow sent you.
 
 ## Tag and release

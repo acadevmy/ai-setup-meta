@@ -14,7 +14,7 @@ holds no development logic, and every line of spec → challenge → dev → ver
 lives in `workflows/auto-sdd-run.js`.
 
 **Usage**: `/dev-setup:multi-sdd DE-1 DE-2 …`, or `--from-sprint <n>` for the
-first `n` `SPRINT` tasks on the board.
+first `n` `READY` tasks on the board.
 
 The chat is a control tower: the human parts happen **before** the fan-out or
 **after**, never braided through it. Parallel *interactive* work stays
@@ -35,7 +35,7 @@ carrying a `;` would run as shell *before* the check meant to reject it.
 Exit 3 means refused — print `REASON` and **stop**: no run starts, no task is
 touched, nothing is negotiated. It refuses six tasks, none at all, a duplicate
 id, and an id that is not a plain identifier. `--from-sprint <n>` validates `n`
-only; call it again with the ids the board returned, and an empty `SPRINT` is
+only; call it again with the ids the board returned, and an empty `READY` is
 refused there.
 
 Five is the ceiling because review is the bottleneck, not compute, and **the
@@ -49,7 +49,7 @@ cost is `n` times a single run** — five tasks means fifteen verifiers.
   to do about it. Unchanged by there being several.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — the rule for every
   question phase A asks.
-- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the
+- **`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`** — the intents, the
   transitions, the list id.
 
 ## The three phases

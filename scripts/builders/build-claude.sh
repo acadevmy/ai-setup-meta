@@ -213,7 +213,7 @@ step "Generating plugin.json"
 
 # The plugin declares MCP servers only if the template ships a .mcp.json.
 # The servers that depend on the stack (figma) or on the team's configuration
-# (clickup) are registered by the setup skill at project/user scope: see Step 6.
+# (the task tracker) are registered by the setup skill at project/user scope: see Step 6.
 MCP_SRC="$TEMPLATE_DIR/.mcp.json"
 if [ -f "$MCP_SRC" ]; then
   MCP_REF='"./.mcp.json"'
@@ -226,9 +226,16 @@ AGENTS_JSON=$(find "$DIST_DIR/agents" -name "*.md" -exec basename {} \; | sort |
 
 if [ "$NAME" = "dev-setup" ]; then
   USER_CONFIG='{
-    "CLICKUP_SETUP_LIST_ID": {
-      "title": "ClickUp Sprint List ID",
-      "description": "ClickUp list id for the sprint tasks (find it in the URL: app.clickup.com/.../li/<ID>)",
+    "TRACKER_PROVIDER": {
+      "title": "Task tracker",
+      "description": "The task tracker the projects use: clickup, linear or none. A project'"'"'s .claude/tracker.json wins over it",
+      "type": "string",
+      "sensitive": false,
+      "required": false
+    },
+    "TRACKER_LIST_ID": {
+      "title": "Task list",
+      "description": "Where the tasks are read from: a ClickUp list id (app.clickup.com/.../li/<ID>) or a Linear team key (ENG)",
       "type": "string",
       "sensitive": false,
       "required": false

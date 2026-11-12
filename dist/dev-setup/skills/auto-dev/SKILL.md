@@ -32,10 +32,10 @@ stderr and stop.
 
 ## 2. The board
 
-Only when `TRACKER` is `clickup`:
+Only when `TRACKER` is not `none`:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/auto-dev-clickup.sh" --task "<TASK_ID>" --start --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/auto-dev-tracker.sh" --provider "<TRACKER>" --task "<TASK_ID>" --start --json
 ```
 
 It moves the task to `IN PROGRESS` and starts its work clock. A non-zero exit
@@ -77,7 +77,7 @@ merge request against the short name of `baseBranch` with `mr.title`,
 Then close the task:
 
 ```bash
-bash "<plugin>/scripts/auto-dev-clickup.sh" --task <taskId> --finish \
+bash "<plugin>/scripts/auto-dev-tracker.sh" --task <taskId> --finish \
   --result <OUTPUT_DIR>/result.json [--mr-url <url>] [--pushed true|false]
 ```
 

@@ -1566,7 +1566,7 @@ if [ -f "$AUTO_SDD" ]; then
   # The workflow reports; the launcher acts. Nothing outward-facing happens
   # inside a background run: no push, no merge request, no board write.
   assert_eq "the workflow itself pushes nothing and opens nothing" "" \
-    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup" "$AUTO_SDD" || true)"
+    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup|mcp__linear" "$AUTO_SDD" || true)"
 
   # The quality commands are the project's own, never a guess.
   assert_contains "the quality commands come from detect-stack" \
@@ -2461,7 +2461,7 @@ assert_contains "and sends any non-zero exit to the outcomes contract" "$AUTO_ST
 
 OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
 NOT_STARTED=$(sed -n '/^## When the run does not start/,$p' "$OUTCOMES")
-assert_contains "the refusal of a SPRINT task is one BLOCKED bail-out" "$NOT_STARTED" "SPRINT → BLOCKED"
+assert_contains "the refusal of a READY task is one BLOCKED bail-out" "$NOT_STARTED" "READY → BLOCKED"
 assert_contains "a BACKLOG task is left as found" "$NOT_STARTED" "left as found"
 assert_contains "the refusal names the check" "$NOT_STARTED" "quality-preflight.sh"
 assert_contains "auto-sdd lets an environment without the toolchain through" \
@@ -2752,7 +2752,7 @@ assert_eq "and reading it leaves every log byte-identical" "$CLOCK_RECENT_BEFORE
 # A clock started and never read is a file nobody looks at; a clock read and
 # never started is the no-start-stamp path on every task. Each flow has to call
 # both sides, and the rule they all cite has to live in one place.
-CLOCK_CONTRACT="$REPO_ROOT/templates/dev-setup/.claude/reference/clickup-contract.md"
+CLOCK_CONTRACT="$REPO_ROOT/templates/dev-setup/.claude/reference/tracker-contract.md"
 assert_contains "the contract owns the clock rule" \
   "$(cat "$CLOCK_CONTRACT")" "## The work clock"
 assert_contains "and forbids composing a duration" \
@@ -2877,9 +2877,9 @@ assert_contains "an open clock turns the merge request into a reminder" \
   "$MR_FIRED" "DE-810 is still IN PROGRESS"
 assert_contains "which quotes the merge request it is about" "$MR_FIRED" "$MR_URL_GH"
 assert_contains "and asks for the clock" "$MR_FIRED" "--task DE-810 --stop --json"
-assert_contains "and for the board" "$MR_FIRED" "CODE REVIEW"
+assert_contains "and for the board" "$MR_FIRED" "IN REVIEW"
 assert_contains "citing the contract that holds the call" \
-  "$MR_FIRED" "reference/clickup-contract.md"
+  "$MR_FIRED" "reference/tracker-contract.md"
 
 # The reminder is additionalContext with exit 0: on PostToolUse that is the
 # channel the hooks reference gives a hook with something to tell the model,
@@ -2981,7 +2981,7 @@ done
 assert_contains "vcs-ops says the merge request does not end the task" \
   "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "does not end the task"
 assert_contains "citing the contract that holds both calls" \
-  "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "reference/clickup-contract.md"
+  "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "reference/tracker-contract.md"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 12b. post-edit.sh: the formatter's report arrives as context (DE-17064)
@@ -3954,22 +3954,57 @@ done
 # REQ-4. A `userConfig` value reaches a plugin in two ways only: substituted as
 # `${user_config.KEY}` in the body of a skill or an agent, and exported to hooks
 # as CLAUDE_PLUGIN_OPTION_<KEY>. Bash and Read see neither, so the contract may
-# not send a flow to "read the plugin's userConfig" — the clickup skill states
+# not send a flow to "read the plugin's userConfig" — the tracker skill states
 # the value, and the contract points there.
-for F in "templates/dev-setup/.claude/reference/clickup-contract.md" \
+for F in "templates/dev-setup/.claude/reference/tracker-contract.md" \
          "templates/dev-setup/setup/reference/mcp-env.md" \
-         "dist/dev-setup/reference/clickup-contract.md" \
+         "dist/dev-setup/reference/tracker-contract.md" \
          "dist/dev-setup/skills/setup/reference/mcp-env.md"; do
   assert_eq "$F does not send a flow to read the plugin's userConfig" "false" \
     "$(grep -qF "plugin's \`userConfig\`" "$REPO_ROOT/$F" && echo true || echo false)"
 done
-for F in "shared/skills/clickup/SKILL.md" "dist/dev-setup/skills/clickup/SKILL.md"; do
+for F in "shared/skills/tracker/SKILL.md" "dist/dev-setup/skills/tracker/SKILL.md"; do
+  assert_contains "$F states the install-time provider" \
+    "$(cat "$REPO_ROOT/$F")" '${user_config.TRACKER_PROVIDER}'
   assert_contains "$F states the install-time list id" \
-    "$(cat "$REPO_ROOT/$F")" '${user_config.CLICKUP_SETUP_LIST_ID}'
+    "$(cat "$REPO_ROOT/$F")" '${user_config.TRACKER_LIST_ID}'
 done
-assert_contains "the contract resolves the list id through the clickup skill" \
-  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/clickup-contract.md")" \
-  "list configured at install time"
+assert_contains "the contract resolves the install-time values through the tracker skill" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/tracker-contract.md")" \
+  "configured at install time"
+
+# MERC-222. The tracker is the project's choice: nothing that ships names a
+# tracker's MCP tools, its old configuration or a board's own status spelling,
+# outside the adapters, their backends and the setup step that registers them.
+TRACKER_LEAKS="$(cd "$REPO_ROOT/dist/dev-setup" && grep -rnE \
+  'mcp__clickup|mcp__linear|CLICKUP_SETUP_LIST_ID|clickup-contract|auto-dev-clickup|`clickup` agent|`SPRINT`|status: SPRINT|CODE REVIEW' \
+  skills agents reference hooks workflows scripts 2>/dev/null \
+  | grep -vE '^(agents/tracker\.md|reference/tracker-(clickup|linear)\.md|scripts/(tracker-[a-z]+|auto-dev-tracker|tracker-config)\.sh|skills/setup/reference/(mcp-env\.md|tracker-permissions\.json)|hooks/tests/)' || true)"
+assert_eq "no shipped file outside the adapters names a tracker's tools or statuses" "" "$TRACKER_LEAKS"
+for P in clickup linear; do
+  assert_eq "the $P adapter has every section the agent reads" "7" \
+    "$(grep -cE '^## (Server|Tools|Status map|Key format|Capabilities|Intents|Headless backend)$' "$REPO_ROOT/templates/dev-setup/.claude/reference/tracker-$P.md")"
+done
+for S in BACKLOG READY 'IN PROGRESS' 'IN REVIEW' DONE BLOCKED; do
+  assert_contains "the contract defines the canonical $S" \
+    "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/tracker-contract.md")" "| \`$S\` |"
+done
+TRACKER_PERMS="$REPO_ROOT/templates/dev-setup/setup/reference/tracker-permissions.json"
+assert_eq "the settings template grants no tracker on its own" "0" \
+  "$(grep -c 'mcp__clickup\|mcp__linear' "$REPO_ROOT/templates/dev-setup/.claude/settings.json")"
+assert_eq "the ClickUp fragment is the allow and ask set the template used to carry" \
+  "mcp__clickup__*|mcp__clickup__clickup_add_*,mcp__clickup__clickup_create_*,mcp__clickup__clickup_delete_*,mcp__clickup__clickup_merge_*,mcp__clickup__clickup_move_*,mcp__clickup__clickup_remove_*,mcp__clickup__clickup_update_*" \
+  "$(jq -r '.clickup | (.allow | join(",")) + "|" + (.ask | sort | join(","))' "$TRACKER_PERMS")"
+assert_eq "the Linear fragment asks on every write" "mcp__linear__*|4" \
+  "$(jq -r '.linear | (.allow | join(",")) + "|" + (.ask | length | tostring)' "$TRACKER_PERMS")"
+MERGED="$(jq --slurpfile f "$TRACKER_PERMS" --arg p linear '
+  ($f[0][$p]) as $x
+  | .permissions.allow = ((.permissions.allow // []) + $x.allow | unique)
+  | .permissions.ask = ((.permissions.ask // []) + $x.ask | unique)
+  | .sandbox.network.allowedDomains = ((.sandbox.network.allowedDomains // []) + $x.network | unique)
+' "$REPO_ROOT/templates/dev-setup/.claude/settings.json")"
+assert_eq "the setup's merge adds the Linear allow, asks and API domain" "true true true" \
+  "$(printf '%s' "$MERGED" | jq -r '[(.permissions.allow | index("mcp__linear__*") != null), (.permissions.ask | index("mcp__linear__create_*") != null), (.sandbox.network.allowedDomains | index("api.linear.app") != null)] | map(tostring) | join(" ")')"
 
 # A placeholder naming a key the manifest does not declare is never substituted:
 # the model would read the literal text. Every one must name a declared key.
@@ -3986,7 +4021,7 @@ assert_eq "every \${user_config.KEY} in a shipped skill or agent is declared" ""
   "$(undeclared_user_config "$REPO_ROOT/dist/dev-setup/skills" "$REPO_ROOT/dist/dev-setup/agents")"
 UC_PROBE="$WORK_DIR/user-config-probe"
 mkdir -p "$UC_PROBE"
-printf 'List: ${user_config.CLICKUP_SETUP_LIST_ID}, team: ${user_config.NOT_DECLARED}\n' \
+printf 'List: ${user_config.TRACKER_LIST_ID}, team: ${user_config.NOT_DECLARED}\n' \
   > "$UC_PROBE/SKILL.md"
 assert_eq "and the check catches an undeclared key" "NOT_DECLARED" \
   "$(undeclared_user_config "$UC_PROBE")"
@@ -4418,7 +4453,7 @@ assert_contains "and the chat carries one line between calls at most" "$PV_INTAK
 assert_contains "the brief template carries the Route line" \
   "$(grep -E '^Route:' "$PV_INTAKE" | tr -s ' ')" "Route: looks like quick — /dev-setup:quick"
 assert_contains "the rule gives the exact line" "$PV_INTAKE_FLAT" \
-  "\`Route: looks like quick — /dev-setup:quick <custom_id>\`"
+  "\`Route: looks like quick — /dev-setup:quick <key>\`"
 assert_contains "and the flow goes on in sdd" "$PV_INTAKE_FLAT" "Then the flow goes on in \`sdd\`"
 assert_contains "never moving itself to a lighter flow" "$PV_INTAKE_FLAT" \
   "it never moves itself to a lighter flow"
@@ -4452,7 +4487,7 @@ for PV_FILE in "$PV_CLOSURE" "$PV_QUICK" "$PV_OUTCOMES"; do
     "$(grep -nE 'gh pr checks|glab ci' "$PV_FILE" || true)"
 done
 assert_contains "a declined merge request in sdd ends on the resume" \
-  "$(flat "$PV_CLOSURE")" "Declined means declined: report it, leave the branch pushed, and end on \`Next: /dev-setup:sdd <custom_id>\`"
+  "$(flat "$PV_CLOSURE")" "Declined means declined: report it, leave the branch pushed, and end on \`Next: /dev-setup:sdd <key>\`"
 assert_contains "in quick, on the host reference's open command" \
   "$(flat "$PV_QUICK")" "(declined: its open command)"
 assert_contains "and in ready-for-mr too" \
@@ -4880,7 +4915,7 @@ fi
 
 if [ -f "$AUTO_DEV" ]; then
   assert_eq "the headless workflow pushes nothing, opens nothing, touches no board" "" \
-    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup" "$AUTO_DEV" || true)"
+    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup|mcp__linear" "$AUTO_DEV" || true)"
   assert_eq "nothing in it goes above high effort" "0" "$(grep -cE "effort: '(xhigh|max)'" "$AUTO_DEV")"
   assert_contains "the task id is validated before it reaches a prompt" "$(cat "$AUTO_DEV")" "TASK_ID_SHAPE"
   assert_contains "the Challenge threshold is a constant" "$(cat "$AUTO_DEV")" "SMALL_TASK = { reqs: 3, steps: 3 }"
@@ -4943,6 +4978,7 @@ chmod +x "$AD_BIN/curl"
 ad() {
   local script="$1"; shift
   (cd "$AD_REPO" && PATH="$AD_BIN:$PATH" CURL_LOG="$AD_LOG" CLICKUP_API_TOKEN=pk_secret CLICKUP_TEAM_ID=42 \
+    TRACKER_PROVIDER="${AD_PROVIDER-clickup}" \
     CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="${AD_CEILING-0}" bash "$PLUGIN_SCRIPTS/$script" "$@" --json 2>/dev/null)
 }
 
@@ -4977,19 +5013,19 @@ OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args.json")"
 assert_eq "with it set, the same args are accepted again" "true" "$(printf '%s' "$OUT" | jq -r .ACCEPTED)"
 
 : > "$AD_LOG"
-OUT="$(ad auto-dev-clickup.sh --task DE-7 --read)"
+OUT="$(ad auto-dev-tracker.sh --task DE-7 --read)"
 assert_eq "the board read returns the task" "Add a greeting|Say hello|SPRINT|high" \
   "$(printf '%s' "$OUT" | jq -r '[.NAME, .DESCRIPTION, .STATUS, .PRIORITY] | join("|")')"
 assert_eq "a custom id is resolved within the workspace" "1" \
   "$(grep -c 'custom_task_ids=true&team_id=42' "$AD_LOG")"
-OUT="$(ad auto-dev-clickup.sh --task DE-8 --start)"
+OUT="$(ad auto-dev-tracker.sh --task DE-8 --start)"
 assert_contains "a BACKLOG task is refused before the board moves" "$(printf '%s' "$OUT" | jq -r .REASON)" "BACKLOG"
 assert_eq "no PUT reached the board for it" "0" "$(grep -c '^PUT' "$AD_LOG")"
-OUT="$(ad auto-dev-clickup.sh --task DE-7 --start)"
+OUT="$(ad auto-dev-tracker.sh --task DE-7 --start)"
 assert_eq "a SPRINT task moves to IN PROGRESS" "IN PROGRESS" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
 assert_eq "the token travels on stdin, every call" "$(grep -c . "$AD_LOG")" "$(grep -c 'stdin-token=1' "$AD_LOG")"
 assert_eq "and never in curl's arguments" "0" "$(grep -c 'argv-token=yes' "$AD_LOG")"
-OUT="$(cd "$AD_REPO" && PATH="$AD_BIN:$PATH" bash "$PLUGIN_SCRIPTS/auto-dev-clickup.sh" --task DE-7 --read --json 2>/dev/null)"
+OUT="$(cd "$AD_REPO" && PATH="$AD_BIN:$PATH" TRACKER_PROVIDER=clickup bash "$PLUGIN_SCRIPTS/auto-dev-tracker.sh" --task DE-7 --read --json 2>/dev/null)"
 assert_contains "no token in the environment: refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "CLICKUP_API_TOKEN"
 
 # The report, on a ready-for-mr outcome as the launcher saves it.
@@ -5103,26 +5139,129 @@ assert_eq "--finalize spreads each model's exact output over its steps" "launche
 : > "$AD_LOG"
 cp "$AD_OUT/outcome.json" "$AD_OUT/outcome3.json"
 ad auto-dev-report.sh --outcome "$AD_OUT/outcome3.json" --launch "$AD_OUT/launch.json" >/dev/null
-OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/result.json")"
+OUT="$(ad auto-dev-tracker.sh --task DE-7 --finish --result "$AD_OUT/result.json")"
 assert_contains "ready-for-mr without its merge request link is refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "--mr-url"
-OUT="$(NO_CODE_REVIEW=1 ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/result.json" --mr-url https://example.test/pr/1)"
+OUT="$(NO_CODE_REVIEW=1 ad auto-dev-tracker.sh --task DE-7 --finish --result "$AD_OUT/result.json" --mr-url https://example.test/pr/1)"
 assert_eq "a list without CODE REVIEW gets IN REVIEW" "IN REVIEW true" \
   "$(printf '%s' "$OUT" | jq -r '.MOVED_TO + " " + .COMMENTED')"
 assert_contains "the comment links the merge request" "$(grep '^POST .*comment' "$AD_LOG")" "https://example.test/pr/1"
 jq '.status = "failed" | .stage = "verify" | .reason = "the project quality commands did not pass"' \
   "$AD_OUT/result.json" > "$AD_OUT/failed.json"
-OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/failed.json" --pushed true)"
+OUT="$(ad auto-dev-tracker.sh --task DE-7 --finish --result "$AD_OUT/failed.json" --pushed true)"
 assert_eq "a failed run moves the task to BLOCKED" "BLOCKED" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
 assert_contains "with why, and where the branch is" "$(grep '^POST .*comment' "$AD_LOG" | tail -1)" "Branch on origin"
 
-# The board's own names, from the project's .claude/auto-dev.json (setup 7d).
-echo '{"status":{"ready":"TODO","in_progress":"DOING","in_review":"IN QA","blocked":"STUCK"}}' \
-  > "$AD_REPO/.claude/auto-dev.json"
-OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/failed.json")"
+# The board's own names, from the project's .claude/tracker.json (setup 6.1).
+echo '{"provider":"clickup","status":{"ready":"TODO","in_progress":"DOING","in_review":"IN QA","blocked":"STUCK"}}' \
+  > "$AD_REPO/.claude/tracker.json"
+OUT="$(ad auto-dev-tracker.sh --task DE-7 --finish --result "$AD_OUT/failed.json")"
 assert_eq "the project's blocked status is the one the task moves to" "STUCK" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
-OUT="$(ad auto-dev-clickup.sh --task DE-7 --start)"
+OUT="$(ad auto-dev-tracker.sh --task DE-7 --start)"
 assert_eq "and its in-progress status the one the work starts in" "DOING" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
-rm -f "$AD_REPO/.claude/auto-dev.json"
+rm -f "$AD_REPO/.claude/tracker.json"
+
+# No tracker at all: the run is refused before any call, never sent to ClickUp
+# by default.
+: > "$AD_LOG"
+OUT="$(AD_PROVIDER="" ad auto-dev-tracker.sh --task DE-7 --read)"
+assert_contains "no tracker configured: refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "no task tracker is configured"
+assert_eq "and no call left the machine" "0" "$(grep -c . "$AD_LOG")"
+
+# ── The Linear backend (MERC-222) ──
+#
+# The GraphQL API, stubbed the same way: every call logged with where the key
+# came from. ENG-8 is in a backlog-type state; the team has no "Blocked".
+AD_LIN_LOG="$AD_DIR/linear.log"
+AD_LIN_BIN="$AD_DIR/linear-bin"
+mkdir -p "$AD_LIN_BIN"
+cat > "$AD_LIN_BIN/curl" <<'STUB'
+#!/usr/bin/env bash
+cfg=$(cat)
+prev=""; body=""
+for a in "$@"; do
+  [ "$prev" = "--data-binary" ] && body="$(cat "${a#@}")"
+  prev="$a"
+done
+leak=no; case "$*" in *lin_api_secret*) leak=yes ;; esac
+query="$(printf '%s' "$body" | jq -r .query | tr -s ' \n' ' ')"
+vars="$(printf '%s' "$body" | jq -c .variables)"
+printf '%s stdin-key=%s argv-key=%s vars=%s\n' "$(printf '%s' "$query" | grep -oE 'issueUpdate|commentCreate|issue\(' | head -1)" \
+  "$(printf '%s' "$cfg" | grep -c 'Authorization: lin_api_secret')" "$leak" "$vars" >> "$CURL_LOG"
+states='{"nodes":[{"id":"s-back","name":"Backlog","type":"backlog"},{"id":"s-todo","name":"Todo","type":"unstarted"},{"id":"s-prog","name":"In Progress","type":"started"},{"id":"s-rev","name":"In Review","type":"started"},{"id":"s-done","name":"Done","type":"completed"}]}'
+case "$query" in
+  *issueUpdate*)
+    sid="$(printf '%s' "$vars" | jq -r .s)"
+    name="$(printf '%s' "$states" | jq -r --arg s "$sid" '.nodes[] | select(.id == $s) | .name')"
+    printf '{"data":{"issueUpdate":{"success":true,"issue":{"state":{"name":"%s"}}}}}\n200' "$name" ;;
+  *commentCreate*) printf '{"data":{"commentCreate":{"success":true}}}\n200' ;;
+  *issue\(*)
+    id="$(printf '%s' "$vars" | jq -r .id)"
+    case "$id" in
+      ENG-7) st='{"name":"Todo","type":"unstarted"}' ;;
+      ENG-8) st='{"name":"Icebox","type":"backlog"}' ;;
+      *) printf '{"data":{"issue":null},"errors":[{"message":"Entity not found"}]}\n200'; exit 0 ;;
+    esac
+    printf '{"data":{"issue":{"id":"uuid-%s","identifier":"%s","title":"Add a greeting","description":"Say hello","url":"https://linear.app/t/%s","priority":2,"state":%s,"team":{"key":"ENG","states":%s}}}}\n200' \
+      "$id" "$id" "$id" "$st" "$states" ;;
+  *) printf '{"errors":[{"message":"unknown query"}]}\n400' ;;
+esac
+STUB
+chmod +x "$AD_LIN_BIN/curl"
+lin() {
+  (cd "$AD_REPO" && PATH="$AD_LIN_BIN:$PATH" CURL_LOG="$AD_LIN_LOG" LINEAR_API_KEY=lin_api_secret \
+    TRACKER_PROVIDER=linear bash "$PLUGIN_SCRIPTS/auto-dev-tracker.sh" "$@" --json 2>/dev/null)
+}
+: > "$AD_LIN_LOG"
+OUT="$(lin --task ENG-7 --read)"
+assert_eq "Linear: the board read returns the issue" "ENG-7|Add a greeting|Say hello|TODO|high|false" \
+  "$(printf '%s' "$OUT" | jq -r '[.KEY, .NAME, .DESCRIPTION, .STATUS, .PRIORITY, .IS_BACKLOG] | join("|")')"
+OUT="$(lin --task ENG-8 --start)"
+assert_contains "Linear: a backlog-type state is refused, whatever the team calls it" \
+  "$(printf '%s' "$OUT" | jq -r .REASON)" "BACKLOG"
+assert_eq "and nothing moved" "0" "$(grep -c '^issueUpdate' "$AD_LIN_LOG")"
+OUT="$(lin --task ENG-7 --start)"
+assert_eq "Linear: work starts in the team's In Progress state" "In Progress" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+assert_eq "by its state id" "1" "$(grep -c '^issueUpdate.*"s":"s-prog"' "$AD_LIN_LOG")"
+assert_eq "Linear: the key travels on stdin, every call" "$(grep -c . "$AD_LIN_LOG")" "$(grep -c 'stdin-key=1' "$AD_LIN_LOG")"
+assert_eq "and never in curl's arguments" "0" "$(grep -c 'argv-key=yes' "$AD_LIN_LOG")"
+OUT="$(lin --task ENG-7 --finish --result "$AD_OUT/result.json" --mr-url https://example.test/pr/2)"
+assert_eq "Linear: a merge request moves the issue to In Review, with its comment" "In Review true false" \
+  "$(printf '%s' "$OUT" | jq -r '[.MOVED_TO, .COMMENTED, .TIME_LOGGED] | join(" ")')"
+assert_contains "the comment links the merge request" "$(grep '^commentCreate' "$AD_LIN_LOG" | tail -1)" "https://example.test/pr/2"
+lin --task ENG-7 --start >/dev/null
+OUT="$(cd "$AD_REPO" && PATH="$AD_LIN_BIN:$PATH" CURL_LOG="$AD_LIN_LOG" LINEAR_API_KEY=lin_api_secret \
+  TRACKER_PROVIDER=linear bash "$PLUGIN_SCRIPTS/auto-dev-tracker.sh" --task ENG-7 --finish \
+  --result "$AD_OUT/failed.json" --json 2>&1 >/dev/null)"
+assert_contains "Linear: a team with no Blocked state is an error naming the fix, not a guess" "$OUT" "tracker.json"
+echo '{"provider":"linear","lists":["ENG"],"status":{"blocked":"Done"}}' > "$AD_REPO/.claude/tracker.json"
+OUT="$(lin --task ENG-7 --finish --result "$AD_OUT/failed.json")"
+assert_eq "Linear: the project's map names the state BLOCKED goes to" "Done" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+rm -f "$AD_REPO/.claude/tracker.json"
+OUT="$(cd "$AD_REPO" && PATH="$AD_LIN_BIN:$PATH" TRACKER_PROVIDER=linear bash "$PLUGIN_SCRIPTS/auto-dev-tracker.sh" --task ENG-7 --read --json 2>/dev/null)"
+assert_contains "Linear: no key in the environment: refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "LINEAR_API_KEY"
+
+# ── tracker-config.sh: the resolution order (MERC-222) ──
+TC_REPO="$AD_DIR/tracker-config"
+mkdir -p "$TC_REPO/.claude"
+git -C "$TC_REPO" init --quiet
+tc() { (cd "$TC_REPO" && env -u TRACKER_PROVIDER -u TRACKER_LIST_ID "$@" bash "$PLUGIN_SCRIPTS/tracker-config.sh" --json 2>/dev/null); }
+tcf() { tc "$@" | jq -r '[.PROVIDER, .LIST_ID, .SOURCE] | join("|")'; }
+assert_eq "nothing anywhere: provider none" "none||none" "$(tcf)"
+echo '{"provider":"linear","lists":["ENG","OPS"]}' > "$TC_REPO/.claude/tracker.json"
+assert_eq "the project file" "linear|ENG|file" "$(tcf)"
+assert_eq "every list it names" "ENG,OPS" "$(tc | jq -r .LISTS)"
+assert_eq "the environment wins over the file" "clickup|901|env" "$(tcf TRACKER_PROVIDER=clickup TRACKER_LIST_ID=901)"
+assert_eq "a list in the environment alone keeps the file's provider" "linear|WEB|file" "$(tcf TRACKER_LIST_ID=WEB)"
+rm -f "$TC_REPO/.claude/tracker.json"
+assert_eq "the old ClickUp variable alone is not read any more" "none||none" "$(tcf CLICKUP_SETUP_LIST_ID=901)"
+assert_eq "an unknown tracker is refused" "3" "$(tc TRACKER_PROVIDER=jira >/dev/null; echo $?)"
+echo 'not json' > "$TC_REPO/.claude/tracker.json"
+assert_contains "a broken file is refused, not read as none" "$(tc | jq -r .REASON)" "not a JSON object"
+echo '{"provider":"clickup","status":{"in_review":["IN QA"]}}' > "$TC_REPO/.claude/tracker.json"
+assert_eq "a status: the project's names first, the adapter's behind them" "IN QA,CODE REVIEW,IN REVIEW" \
+  "$(cd "$TC_REPO" && env -u TRACKER_PROVIDER bash "$PLUGIN_SCRIPTS/tracker-config.sh" --status in_review --json | jq -r '.STATUS_NAMES | split("\n") | join(",")')"
+assert_eq "Linear's default for READY is Todo" "Todo" \
+  "$(cd "$TC_REPO" && TRACKER_PROVIDER=linear bash "$PLUGIN_SCRIPTS/tracker-config.sh" --status ready --json | jq -r '.STATUS_NAMES')"
 
 # The commit of a run with a command this machine cannot start: adtest is not
 # installed, adlint is a stub whose verdict LINT_RED sets.

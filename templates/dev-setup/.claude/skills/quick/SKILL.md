@@ -31,9 +31,9 @@ feature without a spec, and never abandon a nearly-done change.
 
 ## The flow
 
-1. **The change.** With a task id, read it through the `clickup` agent
+1. **The change.** With a task id, read it through the `tracker` agent
    (`INTENT: read`, per
-   `${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`), move it to
+   `${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`), move it to
    `IN PROGRESS` and start that contract's work clock (`task-clock.sh
    --start`). A `BACKLOG` task first
    passes its backlog gate (declined → stop, task untouched). Without one,
@@ -48,7 +48,7 @@ feature without a spec, and never abandon a nearly-done change.
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" \
-     --type <fix|chore> --title "<what changes, in English>" [--task <custom_id>] --create --json
+     --type <fix|chore> --title "<what changes, in English>" [--task <key>] --create --json
    ```
 
    It resolves `BASE_BRANCH` itself — never a hard-coded `main`.
@@ -67,7 +67,7 @@ feature without a spec, and never abandon a nearly-done change.
    confirmation in chat first.
 
 6. **The board.** With a task id: stop the clock, then `INTENT: update`,
-   status `CODE REVIEW`, comment `COMMENT` — its line verbatim, nothing when
+   status `IN REVIEW`, comment `COMMENT` — its line verbatim, nothing when
    it is empty. End on `Next:` and the host reference's follow-its-CI command
    (declined: its open command).
 

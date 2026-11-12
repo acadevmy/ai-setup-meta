@@ -10,17 +10,20 @@
     "quality-commands.md",
     "rules-generation.md",
     "agents-generation.md",
-    "mcp-env.md"
+    "mcp-env.md",
+    "tracker-permissions.json"
   ],
   "shared_agents": [
-    "clickup.md"
+    "tracker.md"
   ],
   "shared_skills": [
-    "clickup",
+    "tracker",
     "vcs-ops"
   ],
   "plugin_reference": [
-    "clickup-contract.md",
+    "tracker-contract.md",
+    "tracker-clickup.md",
+    "tracker-linear.md",
     "fork-point.md",
     "hand-off.md",
     "run-outcomes.md",
@@ -72,7 +75,10 @@
     "mr-meta.sh",
     "save-failed-run.sh",
     "auto-dev-args.sh",
-    "auto-dev-clickup.sh",
+    "tracker-config.sh",
+    "auto-dev-tracker.sh",
+    "tracker-clickup.sh",
+    "tracker-linear.sh",
     "auto-dev-commit.sh",
     "auto-dev-checks.sh",
     "auto-dev-report.sh",
