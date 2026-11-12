@@ -357,60 +357,66 @@ convention: the port offset, the overlap warning, the dependency install.
 
 ## Step 7d — The auto-dev configuration
 
-An unattended run has nobody to ask. Which tag marks a task as the agent's and
-where the designs live are **project** facts, not session facts — so they
-belong in a file the project owns rather than in answers nobody will be there
-to give. Which board it pulls work from, and what that board calls its
-statuses, is already one: `.claude/tracker.json`, written at 6.1.
+An unattended run has nobody to ask. Which board it pulls work from, what that
+board calls its statuses, which tag marks a task as the agent's and where the
+designs live are **project** facts, not session facts — so they belong in a file
+the project owns rather than in answers nobody will be there to give.
 
-That file is `.claude/auto-dev.json`. It holds a tag and ids, and no credential
-ever: the tracker's authorization stays in its MCP server's OAuth and the Figma
-one in its own. So the file is tracked — a runner that clones the repository is
-configured by the clone.
+That file is `.claude/auto-dev.json`. It holds ids, status names and a tag, and
+no credential ever: the ClickUp authorization stays in the MCP server's OAuth
+and the Figma one in its own. So the file is tracked — a runner that clones the
+repository is configured by the clone.
 
 The plugin's own commands do not read it: `sdd`, `quick`, `auto-sdd` and
 `multi-sdd` resolve those facts from the session and from the repository. This
 file is what a runner with no session to ask — a scheduled routine, a CI job —
-starts from, together with `tracker.json`, and writing it is how a project
-declares itself available for one.
+starts from, and writing it is how a project declares itself available for one.
 
-Runs in every mode, on every project with a tracker. With `none` at 6.1 the
-step ends with `auto-dev not configured: no task tracker (6.1)`.
+Runs in every mode, on every project with a tracker (6.1). On a **Linear**
+project the lists and the statuses are already in `.claude/tracker.json`: the
+two questions on them are not asked, and the file carries neither
+`clickup_list_ids` nor `status`. On ClickUp the step is exactly as below.
+With `none` at 6.1 the step ends with `auto-dev not configured: no task tracker (6.1)`.
 
 ### 7d.1 — The gate
 
-`.claude/auto-dev.json` **already exists** → print what it configures (tag,
-Figma) and ask "Reconfigure the autonomous dev flow?" — **default: keep it**.
-On a keep the step ends with the summary line
-`auto-dev configuration kept as it was (tag <tag>)`. A kept file that still
-carries `clickup_list_ids` or `status` predates the tracker file: nothing reads
-those keys, and the line says so — `… (tag <tag>; its lists and statuses now
-live in .claude/tracker.json)`.
+`.claude/auto-dev.json` **already exists** → print what it configures (lists,
+tag, statuses) and ask "Reconfigure the autonomous dev flow?" — **default: keep
+it**. On a keep the step ends with the summary line
+`auto-dev configuration kept as it was (<n> list(s), tag <tag>)`.
 
 Otherwise ask, once:
 
 > "Configure the autonomous dev flow (auto-dev)? It writes
-> `.claude/auto-dev.json`: the tag that marks a task as the agent's and the
-> Figma file the designs live in. It reads the lists and the statuses from
-> `.claude/tracker.json`. (yes / skip)"
+> `.claude/auto-dev.json`: the ClickUp lists an unsupervised run reads, the tag
+> that marks a task as the agent's, this board's status names and the Figma file
+> the designs live in. (yes / skip)"
 
 A **skip** writes nothing and ends the step with one line for the summary:
 `auto-dev declined: no .claude/auto-dev.json — an unattended run has nothing to read; run the setup again to add it`.
 Nothing else in the procedure depends on the answer.
 
-### 7d.2 — The two answers
+### 7d.2 — The four answers
 
-Ask them in **one** `AskUserQuestion` call and end the turn on it: they are two
+Ask them in **one** `AskUserQuestion` call and end the turn on it: they are four
 fields of a single file, with no follow-up to lose between them.
 
 | Field | Question | First option (the default) | What free text accepts |
 |---|---|---|---|
-| `tag` | "Which tag (ClickUp) or label (Linear) marks a task as the agent's?" | `claude` | any name, as the board spells it |
+| `clickup_list_ids` | "Which ClickUp list does an unattended run read?" | the list chosen at 6.1 | one id, or several comma-separated |
+| `tag` | "Which ClickUp tag marks a task as the agent's?" | `claude` | any tag name, as the board spells it |
+| `status` | "What does this board call its statuses?" | `sprint · in progress · in review · blocked`, second option `sprint · in progress · code review · blocked` | four names, in the order ready, in progress, in review, blocked |
 | `figma` | "Which Figma file holds this project's designs?" | "No Figma file" | the file URL |
 
 The Figma question is asked under the same condition as 6.3 — `HAS_FRONTEND` or
 `HAS_MOBILE`, or a web/mobile/fullstack stack chosen at 2b. On a pure backend it
-is not asked and `figma` is `null`. Both answers go in the summary line of 7d.4.
+is not asked and `figma` is `null`.
+
+The status names are the board's own, copied exactly as ClickUp shows them: a
+name that does not exist there makes every transition of the flow fail, and the
+setup does not invent one. If the list question comes back with nothing — no
+list at 6.1, nothing typed — write no file and report in the summary
+`auto-dev not configured: no ClickUp list id (choose one at 6.1, then run the setup again)`.
 
 ### 7d.3 — The two fields nobody is asked about
 
@@ -429,6 +435,9 @@ is not asked and `figma` is `null`. Both answers go in the summary line of 7d.4.
 ```bash
 mkdir -p .claude
 
+LISTS=$(printf '%s\n' "$LIST_ANSWER" | tr ',' '\n' | sed 's/[[:space:]]//g' \
+        | grep -v '^$' | jq -R . | jq -s .)
+
 if [ -n "$FIGMA_URL" ]; then
   FILE_KEY=$(printf '%s' "$FIGMA_URL" \
              | sed -E 's#.*figma\.com/(design|file|board|proto)/([A-Za-z0-9]+).*#\2#')
@@ -439,10 +448,15 @@ else
 fi
 
 jq -n \
+  --argjson lists "$LISTS" \
   --arg tag "$TAG" \
+  --arg ready "$READY" --arg progress "$IN_PROGRESS" \
+  --arg review "$IN_REVIEW" --arg blocked "$BLOCKED" \
   --argjson figma "$FIGMA" \
   '{
+     clickup_list_ids: $lists,
      tag: $tag,
+     status: { ready: $ready, in_progress: $progress, in_review: $review, blocked: $blocked },
      base_branch: null,
      figma: $figma,
      dry_run: false
@@ -455,7 +469,9 @@ lands looks like this:
 
 ```json
 {
+  "clickup_list_ids": ["901214692298"],
   "tag": "claudio",
+  "status": { "ready": "sprint", "in_progress": "in progress", "in_review": "in review", "blocked": "blocked" },
   "base_branch": null,
   "figma": { "file_key": "wMJHvCjPaCfK6765aKTfgn", "url": "https://www.figma.com/design/wMJHvCjPaCfK6765aKTfgn/V-Program" },
   "dry_run": false
@@ -465,8 +481,8 @@ lands looks like this:
 **Report in the summary** exactly one line — one of:
 
 ```
-  - auto-dev configured: tag <tag>, Figma <file_key|none>, dry_run false — lists and statuses from .claude/tracker.json
-  - auto-dev configuration kept as it was (tag <tag>)
+  - auto-dev configured: <n> ClickUp list(s), tag <tag>, statuses <ready>/<in progress>/<in review>/<blocked>, Figma <file_key|none>, dry_run false
+  - auto-dev configuration kept as it was (<n> list(s), tag <tag>)
   - auto-dev declined: .claude/auto-dev.json not written — an unattended run has nothing to read
-  - auto-dev not configured: no task tracker (6.1)
+  - auto-dev not configured: no ClickUp list id available
 ```

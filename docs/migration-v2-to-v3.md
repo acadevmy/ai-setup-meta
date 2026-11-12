@@ -392,7 +392,8 @@ project chooses its tracker — ClickUp, Linear or none — at setup Step 6.1, w
 writes `.claude/tracker.json`, registers that tracker's MCP server and adds its
 permissions. Nothing migrates an older configuration on its own: a project set
 up before this version resolves to `none` until `/dev-setup:setup` runs again,
-and its flows work without a board meanwhile.
+and its interactive flows work without a board meanwhile. Headless `auto-dev`
+on ClickUp is not affected: it reads what it always read.
 
 | Before | Now |
 |---|---|
@@ -401,8 +402,7 @@ and its flows work without a board meanwhile.
 | `mcp__clickup__*` allow and ask rules in the settings template | the chosen tracker's rules, merged at 6.1. Rules already in a project's settings stay |
 | ClickUp's status names in the flows (`SPRINT`, `CODE REVIEW`) | canonical statuses (`READY`, `IN REVIEW`), mapped to the board's names in `tracker.json` |
 | `custom_id` in the agent's result | `key` (`DE-123`, `ENG-42`) |
-| `auto-dev-clickup.sh` | `auto-dev-tracker.sh`, with a backend per tracker; `LINEAR_API_KEY` for Linear |
-| `clickup_list_ids` and `status` in `.claude/auto-dev.json` | in `.claude/tracker.json`; a job runner that read `clickup_list_ids` reads `lists` there |
+| `auto-dev` on ClickUp | unchanged: same `auto-dev-clickup.sh`, same `.claude/auto-dev.json` with `clickup_list_ids` and `status`, `clickup` still the default tracker of a run. Linear runs go through `auto-dev-tracker.sh --provider linear` |
 
 ---
 

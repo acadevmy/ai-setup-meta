@@ -346,11 +346,11 @@ never pays to describe them.
   `ready-for-mr`, and a failed run's uncommitted work is saved as
   `changes.patch`.
 
-The board is reached with `auto-dev-tracker.sh` over the tracker's own API and
-a personal token — `CLICKUP_API_TOKEN` (with `CLICKUP_TEAM_ID` for custom ids)
-on ClickUp, `LINEAR_API_KEY` on Linear — because a disposable machine has no
-OAuth login for the MCP. Which tracker, which lists and what the board calls its
-statuses come from `.claude/tracker.json` (§ "The task tracker", below). Everything around
+The board is reached with `auto-dev-clickup.sh` over the ClickUp REST API and a
+personal token in `CLICKUP_API_TOKEN` (with `CLICKUP_TEAM_ID` for custom ids),
+because a disposable machine has no OAuth login for the MCP. A Linear project
+(§ "The task tracker", below) goes through `auto-dev-tracker.sh --provider
+linear` instead, with `LINEAR_API_KEY`; on ClickUp nothing changes. Everything around
 the run that does not need judgement is a script — `auto-dev-args.sh`,
 `auto-dev-select.sh`, `auto-dev-commit.sh`, `auto-dev-checks.sh`,
 `auto-dev-report.sh` — and each
@@ -483,12 +483,13 @@ runs them, or waits for the CI that does.
 ### The file an unattended run reads
 
 Step 7d of the setup offers to write `.claude/auto-dev.json` — the project facts
-a run nobody is watching cannot ask anyone for, beside the tracker's own in
-`.claude/tracker.json`:
+a run nobody is watching cannot ask anyone for:
 
 ```json
 {
+  "clickup_list_ids": ["901214692298"],
   "tag": "claudio",
+  "status": { "ready": "sprint", "in_progress": "in progress", "in_review": "in review", "blocked": "blocked" },
   "base_branch": null,
   "figma": { "file_key": "wMJHvCjPaCfK6765aKTfgn", "url": "https://www.figma.com/design/wMJHvCjPaCfK6765aKTfgn/V-Program" },
   "dry_run": false
@@ -497,7 +498,9 @@ a run nobody is watching cannot ask anyone for, beside the tracker's own in
 
 | Field | What it decides |
 |---|---|
+| `clickup_list_ids` | the lists a run pulls work from (ClickUp; on Linear they are in `.claude/tracker.json`) |
 | `tag` | the tag that marks a task as the agent's |
+| `status` | this board's own status names, for the moves the flow makes (ClickUp; on Linear, `.claude/tracker.json`) |
 | `base_branch` | `null` means "resolve it per run" — the fork point comes from the repository, never from a name frozen on setup day |
 | `figma` | the design file, when the project has one; `null` otherwise |
 | `dry_run` | `true` runs everything up to the push and stops before the push, the merge request and the board write |

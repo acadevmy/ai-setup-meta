@@ -32,10 +32,11 @@ stderr and stop.
 
 ## 2. The board
 
-Only when `TRACKER` is not `none`:
+Only when `TRACKER` is `clickup` — on `linear`, the same call to
+`auto-dev-tracker.sh --provider linear`:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/auto-dev-tracker.sh" --provider "<TRACKER>" --task "<TASK_ID>" --start --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/auto-dev-clickup.sh" --task "<TASK_ID>" --start --json
 ```
 
 It moves the task to `IN PROGRESS` and starts its work clock. A non-zero exit
@@ -77,10 +78,11 @@ merge request against the short name of `baseBranch` with `mr.title`,
 Then close the task:
 
 ```bash
-bash "<plugin>/scripts/auto-dev-tracker.sh" --provider <TRACKER> --task <taskId> --finish \
-  --result <OUTPUT_DIR>/result.json [--mr-url <url>] [--pushed true|false] \
-  [--config <clone>/.claude/tracker.json]
+bash "<plugin>/scripts/auto-dev-clickup.sh" --task <taskId> --finish \
+  --result <OUTPUT_DIR>/result.json [--mr-url <url>] [--pushed true|false]
 ```
+
+On Linear: `auto-dev-tracker.sh --provider linear`, same arguments.
 
 After `claude -p --output-format json` exits, the exact token counts:
 

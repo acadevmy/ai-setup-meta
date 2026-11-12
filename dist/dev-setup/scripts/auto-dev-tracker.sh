@@ -9,10 +9,12 @@
 # environment, and needs no model at all: reading a task and moving it are
 # three HTTP calls, not a reasoning step.
 #
-# What is the same on every tracker lives here: the command line, the
-# refusals, the backlog gate, the notes, the work clock. What is the tracker's
-# own — the API, the token, the status lookup, the time tracking — is a backend,
-# scripts/tracker-<provider>.sh, sourced below.
+# ClickUp keeps its own script, auto-dev-clickup.sh, exactly as it was: on
+# `--provider clickup` this one hands the call over to it untouched, so a
+# ClickUp run behaves as it always did. Every other tracker shares what lives
+# here — the command line, the refusals, the backlog gate, the notes, the work
+# clock — and brings a backend, scripts/tracker-<provider>.sh, for what is its
+# own: the API, the token, the status lookup, the time tracking.
 #
 # The token never reaches a command line, where `ps` and the logs would show
 # it: curl reads its Authorization header from stdin (`--config -`), written
@@ -37,14 +39,15 @@
 #   --pushed   whether the runner pushed the branch of a failed run, for the
 #              BLOCKED note
 #   --provider the tracker; default what tracker-config.sh resolves (the
-#              environment, then .claude/tracker.json)
+#              environment, then .claude/tracker.json). clickup runs
+#              auto-dev-clickup.sh with the other arguments, unchanged
 #   --config   the project's .claude/tracker.json (setup step 6.1), default the
 #              one at the root of the current repository: its `status` names
 #              the board's own statuses, tried before the adapter's defaults
 #   --json     emit a flat JSON object
 #
-# Environment: the backend's — CLICKUP_API_TOKEN and CLICKUP_TEAM_ID for
-# ClickUp, LINEAR_API_KEY for Linear (see scripts/tracker-<provider>.sh).
+# Environment: the backend's — LINEAR_API_KEY for Linear (see
+# scripts/tracker-linear.sh); ClickUp's are auto-dev-clickup.sh's.
 #
 # Keys:
 #   TASK         the task id, as given
@@ -84,6 +87,8 @@ KEY_SHAPE='^[A-Za-z][A-Za-z0-9]*-[0-9]+$'
 # The tail of a failed run's output that goes on the board: enough to see the
 # error, short enough that the note stays a note.
 NOTE_OUTPUT_LINES=30
+
+ORIGINAL_ARGS=("$@")
 
 AS_JSON=false
 MODE=""
@@ -167,8 +172,20 @@ fi
 export TRACKER_PROVIDER="$PROVIDER"
 json_set PROVIDER "$PROVIDER"
 
+# ClickUp: its own script, with every argument but --provider, as before.
+if [ "$PROVIDER" = clickup ]; then
+  FORWARD=()
+  SKIP=false
+  for ARG in "${ORIGINAL_ARGS[@]}"; do
+    if [ "$SKIP" = true ]; then SKIP=false; continue; fi
+    [ "$ARG" = --provider ] && { SKIP=true; continue; }
+    FORWARD+=("$ARG")
+  done
+  exec bash "$SCRIPT_DIR/auto-dev-clickup.sh" ${FORWARD[@]+"${FORWARD[@]}"}
+fi
+
 case "$PROVIDER" in
-  clickup|linear) ;;
+  linear) ;;
   none) refuse "no task tracker is configured: set TRACKER_PROVIDER, or run the setup to write .claude/tracker.json" ;;
   *) refuse "the tracker is \"$PROVIDER\": it takes clickup or linear" ;;
 esac
@@ -214,7 +231,7 @@ api_error() {
 # shellcheck disable=SC2034  # set and read by the backend
 TOKEN=""
 BOARD_IS_BACKLOG=false
-# shellcheck source=./tracker-clickup.sh
+# shellcheck source=./tracker-linear.sh
 source "$SCRIPT_DIR/tracker-$PROVIDER.sh"
 
 backend_check

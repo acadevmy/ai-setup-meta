@@ -177,29 +177,32 @@ for REPO in "${REPOS[@]}"; do
     '. + [{repo: $repo, slug: $slug, remote: $remote}]')"
 done
 
-# The tracker and its status names come from a clone's .claude/tracker.json:
-# this runs on the host, outside every clone, and they all belong to the same
-# project and board. The args file and the environment come first.
-TRACKER_CONFIG_ARGS=()
+# No tracker named: ClickUp, as always — unless a clone's .claude/tracker.json
+# chose Linear. This runs on the host, outside every clone, and they all belong
+# to the same project and board.
+LINEAR_CONFIG_ARGS=()
 for REPO in "${REPOS[@]}"; do
   if [ -f "$REPO/.claude/tracker.json" ]; then
-    TRACKER_CONFIG_ARGS=(--config "$REPO/.claude/tracker.json")
+    LINEAR_CONFIG_ARGS=(--config "$REPO/.claude/tracker.json")
     break
   fi
 done
 if [ -z "$TRACKER" ]; then
-  RESOLVED="$(bash "$SCRIPT_DIR/tracker-config.sh" ${TRACKER_CONFIG_ARGS[@]+"${TRACKER_CONFIG_ARGS[@]}"} --json 2>/dev/null)"
-  TRACKER="$(printf '%s' "$RESOLVED" | jq -r '.PROVIDER // ""' 2>/dev/null)"
-  [ -n "$TRACKER" ] \
-    || die "the project's tracker configuration was refused: $(printf '%s' "$RESOLVED" | jq -r '.REASON // "tracker-config.sh failed"' 2>/dev/null)"
+  [ "$(bash "$SCRIPT_DIR/tracker-config.sh" ${LINEAR_CONFIG_ARGS[@]+"${LINEAR_CONFIG_ARGS[@]}"} --json 2>/dev/null \
+       | jq -r '.PROVIDER // ""' 2>/dev/null)" = linear ] && TRACKER=linear || TRACKER=clickup
 fi
 
 # ── The task ──────────────────────────────────────────────────────────────────
 
-if [ "$TRACKER" != none ]; then
-  BOARD="$(bash "$SCRIPT_DIR/auto-dev-tracker.sh" --provider "$TRACKER" --task "$TASK_ID" \
-    ${TRACKER_CONFIG_ARGS[@]+"${TRACKER_CONFIG_ARGS[@]}"} --read --json)" \
-    || die "the task could not be read from $TRACKER: $(printf '%s' "$BOARD" | jq -r '.REASON // "see stderr"' 2>/dev/null)"
+if [ "$TRACKER" = linear ]; then
+  BOARD="$(bash "$SCRIPT_DIR/auto-dev-tracker.sh" --provider linear --task "$TASK_ID" \
+    ${LINEAR_CONFIG_ARGS[@]+"${LINEAR_CONFIG_ARGS[@]}"} --read --json)" \
+    || die "the task could not be read from Linear: $(printf '%s' "$BOARD" | jq -r '.REASON // "see stderr"' 2>/dev/null)"
+  TITLE="$(printf '%s' "$BOARD" | jq -r '.NAME // ""')"
+  DESCRIPTION="$(printf '%s' "$BOARD" | jq -r '.DESCRIPTION // ""')"
+elif [ "$TRACKER" = clickup ]; then
+  BOARD="$(bash "$SCRIPT_DIR/auto-dev-clickup.sh" --task "$TASK_ID" --read --json)" \
+    || die "the task could not be read from ClickUp: $(printf '%s' "$BOARD" | jq -r '.REASON // "see stderr"' 2>/dev/null)"
   TITLE="$(printf '%s' "$BOARD" | jq -r '.NAME // ""')"
   DESCRIPTION="$(printf '%s' "$BOARD" | jq -r '.DESCRIPTION // ""')"
 else
@@ -268,9 +271,22 @@ block() {
   jq -n --arg taskId "$TASK_ID" --arg runId "$RUN_ID" --arg reason "$1" \
     '{status: "failed", stage: "select", reason: $reason, taskId: $taskId, runId: $runId}' \
     > "$OUTPUT_DIR/result.json" || die "cannot write $OUTPUT_DIR/result.json"
-  if [ "$TRACKER" != none ]; then
-    bash "$SCRIPT_DIR/auto-dev-tracker.sh" --provider "$TRACKER" --task "$TASK_ID" --finish \
-      --result "$OUTPUT_DIR/result.json" ${TRACKER_CONFIG_ARGS[@]+"${TRACKER_CONFIG_ARGS[@]}"} --json >/dev/null \
+  if [ "$TRACKER" = clickup ]; then
+    # The board's status names come from a clone's .claude/auto-dev.json: no
+    # clone was chosen, and they all belong to the same project and board.
+    local config_args=() repo
+    for repo in "${REPOS[@]}"; do
+      if [ -f "$repo/.claude/auto-dev.json" ]; then
+        config_args=(--config "$repo/.claude/auto-dev.json")
+        break
+      fi
+    done
+    bash "$SCRIPT_DIR/auto-dev-clickup.sh" --task "$TASK_ID" --finish \
+      --result "$OUTPUT_DIR/result.json" ${config_args[@]+"${config_args[@]}"} --json >/dev/null \
+      || warn "the task could not be moved to BLOCKED: the runner has to say so on the board"
+  elif [ "$TRACKER" = linear ]; then
+    bash "$SCRIPT_DIR/auto-dev-tracker.sh" --provider linear --task "$TASK_ID" --finish \
+      --result "$OUTPUT_DIR/result.json" ${LINEAR_CONFIG_ARGS[@]+"${LINEAR_CONFIG_ARGS[@]}"} --json >/dev/null \
       || warn "the task could not be moved to BLOCKED: the runner has to say so on the board"
   fi
   finish_output

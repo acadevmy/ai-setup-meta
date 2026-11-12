@@ -3977,14 +3977,14 @@ assert_contains "the contract resolves the install-time values through the track
 # tracker's MCP tools, its old configuration or a board's own status spelling,
 # outside the adapters, their backends and the setup step that registers them.
 TRACKER_LEAKS="$(cd "$REPO_ROOT/dist/dev-setup" && grep -rnE \
-  'mcp__clickup|mcp__linear|CLICKUP_SETUP_LIST_ID|clickup-contract|auto-dev-clickup|`clickup` agent|`SPRINT`|status: SPRINT|CODE REVIEW' \
+  'mcp__clickup|mcp__linear|CLICKUP_SETUP_LIST_ID|clickup-contract|`clickup` agent|`SPRINT`|status: SPRINT|CODE REVIEW' \
   skills agents reference hooks workflows scripts 2>/dev/null \
-  | grep -vE '^(agents/tracker\.md|reference/tracker-(clickup|linear)\.md|scripts/(tracker-[a-z]+|auto-dev-tracker|tracker-config)\.sh|skills/setup/reference/(mcp-env\.md|tracker-permissions\.json)|hooks/tests/)' || true)"
+  | grep -vE '^(agents/tracker\.md|reference/tracker-(clickup|linear)\.md|scripts/(tracker-[a-z]+|auto-dev-tracker|auto-dev-clickup|tracker-config)\.sh|skills/setup/reference/(mcp-env\.md|tracker-permissions\.json)|hooks/tests/)' || true)"
 assert_eq "no shipped file outside the adapters names a tracker's tools or statuses" "" "$TRACKER_LEAKS"
 # The pages a developer reads say the same — the migration page excepted, whose
 # subject is what was removed.
 TRACKER_DOC_LEAKS="$(cd "$REPO_ROOT" && grep -nE \
-  'CLICKUP_SETUP_LIST_ID|clickup-contract|auto-dev-clickup|`clickup` agent|CODE REVIEW|clickup_list_ids' \
+  'CLICKUP_SETUP_LIST_ID|clickup-contract|`clickup` agent|CODE REVIEW' \
   README.md AGENTS.md docs/*.md templates/dev-setup/AGENTS*.md templates/dev-setup/boilerplate/PULL_REQUEST_TEMPLATE.*.md 2>/dev/null \
   | grep -v '^docs/migration-v2-to-v3\.md:' | grep -v 'IN PROGRESS -> CODE REVIEW. with the PR link' || true)"
 assert_eq "no documentation page names the ClickUp-only configuration" "" "$TRACKER_DOC_LEAKS"
@@ -5020,19 +5020,19 @@ OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args.json")"
 assert_eq "with it set, the same args are accepted again" "true" "$(printf '%s' "$OUT" | jq -r .ACCEPTED)"
 
 : > "$AD_LOG"
-OUT="$(ad auto-dev-tracker.sh --task DE-7 --read)"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --read)"
 assert_eq "the board read returns the task" "Add a greeting|Say hello|SPRINT|high" \
   "$(printf '%s' "$OUT" | jq -r '[.NAME, .DESCRIPTION, .STATUS, .PRIORITY] | join("|")')"
 assert_eq "a custom id is resolved within the workspace" "1" \
   "$(grep -c 'custom_task_ids=true&team_id=42' "$AD_LOG")"
-OUT="$(ad auto-dev-tracker.sh --task DE-8 --start)"
+OUT="$(ad auto-dev-clickup.sh --task DE-8 --start)"
 assert_contains "a BACKLOG task is refused before the board moves" "$(printf '%s' "$OUT" | jq -r .REASON)" "BACKLOG"
 assert_eq "no PUT reached the board for it" "0" "$(grep -c '^PUT' "$AD_LOG")"
-OUT="$(ad auto-dev-tracker.sh --task DE-7 --start)"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --start)"
 assert_eq "a SPRINT task moves to IN PROGRESS" "IN PROGRESS" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
 assert_eq "the token travels on stdin, every call" "$(grep -c . "$AD_LOG")" "$(grep -c 'stdin-token=1' "$AD_LOG")"
 assert_eq "and never in curl's arguments" "0" "$(grep -c 'argv-token=yes' "$AD_LOG")"
-OUT="$(cd "$AD_REPO" && PATH="$AD_BIN:$PATH" TRACKER_PROVIDER=clickup bash "$PLUGIN_SCRIPTS/auto-dev-tracker.sh" --task DE-7 --read --json 2>/dev/null)"
+OUT="$(cd "$AD_REPO" && PATH="$AD_BIN:$PATH" bash "$PLUGIN_SCRIPTS/auto-dev-clickup.sh" --task DE-7 --read --json 2>/dev/null)"
 assert_contains "no token in the environment: refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "CLICKUP_API_TOKEN"
 
 # The report, on a ready-for-mr outcome as the launcher saves it.
@@ -5146,26 +5146,34 @@ assert_eq "--finalize spreads each model's exact output over its steps" "launche
 : > "$AD_LOG"
 cp "$AD_OUT/outcome.json" "$AD_OUT/outcome3.json"
 ad auto-dev-report.sh --outcome "$AD_OUT/outcome3.json" --launch "$AD_OUT/launch.json" >/dev/null
-OUT="$(ad auto-dev-tracker.sh --task DE-7 --finish --result "$AD_OUT/result.json")"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/result.json")"
 assert_contains "ready-for-mr without its merge request link is refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "--mr-url"
-OUT="$(NO_CODE_REVIEW=1 ad auto-dev-tracker.sh --task DE-7 --finish --result "$AD_OUT/result.json" --mr-url https://example.test/pr/1)"
+OUT="$(NO_CODE_REVIEW=1 ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/result.json" --mr-url https://example.test/pr/1)"
 assert_eq "a list without CODE REVIEW gets IN REVIEW" "IN REVIEW true" \
   "$(printf '%s' "$OUT" | jq -r '.MOVED_TO + " " + .COMMENTED')"
 assert_contains "the comment links the merge request" "$(grep '^POST .*comment' "$AD_LOG")" "https://example.test/pr/1"
 jq '.status = "failed" | .stage = "verify" | .reason = "the project quality commands did not pass"' \
   "$AD_OUT/result.json" > "$AD_OUT/failed.json"
-OUT="$(ad auto-dev-tracker.sh --task DE-7 --finish --result "$AD_OUT/failed.json" --pushed true)"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/failed.json" --pushed true)"
 assert_eq "a failed run moves the task to BLOCKED" "BLOCKED" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
 assert_contains "with why, and where the branch is" "$(grep '^POST .*comment' "$AD_LOG" | tail -1)" "Branch on origin"
 
-# The board's own names, from the project's .claude/tracker.json (setup 6.1).
-echo '{"provider":"clickup","status":{"ready":"TODO","in_progress":"DOING","in_review":"IN QA","blocked":"STUCK"}}' \
-  > "$AD_REPO/.claude/tracker.json"
-OUT="$(ad auto-dev-tracker.sh --task DE-7 --finish --result "$AD_OUT/failed.json")"
+# The board's own names, from the project's .claude/auto-dev.json (setup 7d).
+echo '{"status":{"ready":"TODO","in_progress":"DOING","in_review":"IN QA","blocked":"STUCK"}}' \
+  > "$AD_REPO/.claude/auto-dev.json"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --finish --result "$AD_OUT/failed.json")"
 assert_eq "the project's blocked status is the one the task moves to" "STUCK" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
-OUT="$(ad auto-dev-tracker.sh --task DE-7 --start)"
+OUT="$(ad auto-dev-clickup.sh --task DE-7 --start)"
 assert_eq "and its in-progress status the one the work starts in" "DOING" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
-rm -f "$AD_REPO/.claude/tracker.json"
+rm -f "$AD_REPO/.claude/auto-dev.json"
+
+# MERC-222: the ClickUp run is auto-dev-clickup.sh, untouched. The tracker
+# dispatcher hands a ClickUp call over to it, every argument but --provider.
+: > "$AD_LOG"
+OUT="$(ad auto-dev-tracker.sh --provider clickup --task DE-7 --read)"
+assert_eq "the dispatcher's ClickUp read is auto-dev-clickup.sh's, keys included" "86xDE-7|DE-7|SPRINT" \
+  "$(printf '%s' "$OUT" | jq -r '[.TASK_ID, .CUSTOM_ID, .STATUS] | join("|")')"
+assert_eq "with the same one call to the API" "1" "$(grep -c . "$AD_LOG")"
 
 # No tracker at all: the run is refused before any call, never sent to ClickUp
 # by default.
