@@ -37,7 +37,8 @@ push and merge request creation, stay where they are.
 
 | Ends | On | Next |
 |---|---|---|
-| `kickoff` | a spec in `draft` | `sdd-plan`; under `quick`'s bar it ends on `Next: /dev-setup:quick <description or task id>` instead |
+| `kickoff` | a spec in `draft` | `grill-me` on the draft, with `sdd-plan` as the second option in place of "stop here"; under `quick`'s bar it ends on `Next: /dev-setup:quick <description or task id>` instead |
+| `grill-me` | the frontier empty, on a spec | `sdd-plan`, on the spec the session updated |
 | `sdd-discovery` | the Discovery Summary | `sdd-spec` |
 | `sdd-spec` | a spec in `draft` | `sdd-plan` |
 | `sdd-plan` | `Status: approved` | `sdd-dev` |

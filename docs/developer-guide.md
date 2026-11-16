@@ -35,7 +35,7 @@ document. [training.md](./training.md) is the long version of that sentence.
        ├── /dev-setup:quick     ← a fix or chore: branch, change, commit, MR
        │
        ├── /dev-setup:kickoff ← an idea with no task: discovery, branch, spec, then the chain
-       │
+       │        └── /dev-setup:grill-me ← the draft spec grilled in rounds, decisions into the spec
        ▼
 /dev-setup:sdd        ← the full flow, with one approval
        │                (/dev-setup:auto-sdd for the same flow unsupervised,
@@ -53,6 +53,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 | `/dev-setup:story` (beta) | The work exists only as an idea, a sentence or a Figma file, and needs to become a story someone can build | `/dev-setup:story "visitors can sign up for updates on a sold-out product" https://figma.com/design/…` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
 | `/dev-setup:kickoff` | The work is an idea already discussed in the conversation, with no task yet: it classifies it, offers to create the task on the tracker, cuts the branch and writes the spec, then hands over to the chain | `/dev-setup:kickoff add date filtering to the search page` |
+| `/dev-setup:grill-me` | A plan has to be stress-tested before it is approved: `kickoff` offers it on the draft spec, and each decision lands in the spec and its Decision log. On a loose idea it writes nothing | `/dev-setup:grill-me`<br>`/dev-setup:grill-me should search results be paginated or infinite?` |
 | `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
 | `/dev-setup:multi-sdd` | Several independent tasks, unsupervised, from one chat | `/dev-setup:multi-sdd DE-1 DE-2 DE-3`<br>`/dev-setup:multi-sdd --from-sprint 3` |
