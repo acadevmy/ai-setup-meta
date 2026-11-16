@@ -634,7 +634,9 @@ Four things left `sdd`, and each one was paid for on every task:
   confirms it) and the stop point, saved so a resume skips it — discovery, one
   `AskUserQuestion` call of up to four questions on what the task leaves open
   (at most one follow-up, five questions in all), and the spec approval in
-  `sdd-plan` — plus one conditional gate: a task read in `BACKLOG`
+  `sdd-plan`, preceded by the `grill-me` rounds on the spec (each settled
+  decision written into it and its Decision log; none when nothing is left
+  open) — plus one conditional gate: a task read in `BACKLOG`
   is implemented only after the developer explicitly confirms it, and is never
   moved onto the board's flow automatically (the backlog gate in
   `tracker-contract.md`);

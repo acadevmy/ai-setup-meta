@@ -6,6 +6,9 @@ turn rule for the question itself is in
 
 ## The question
 
+Asked once the grilling's frontier is empty (`SKILL.md`, step 3), never in
+place of it.
+
 ```json
 AskUserQuestion({
   "questions": [{

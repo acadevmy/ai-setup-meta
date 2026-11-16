@@ -67,7 +67,8 @@ Then point the task at it (`board.md`).
 
 ### 5. Hand off
 
-As `hand-off.md` says: next `grill-me` on the draft, or `sdd-plan` directly.
+As `hand-off.md` says: next `sdd-plan`, which grills the draft before the
+approval.
 
 ## Expected output
 

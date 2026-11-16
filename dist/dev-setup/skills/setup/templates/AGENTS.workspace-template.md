@@ -122,7 +122,7 @@ Isolated sub-processes with their own context. Commands launch them on their own
 
 > `/dev-setup:sdd` stops at launch (the fork point, how far the run goes, and
 > the task or the backlog gate when they apply), at the discovery questions
-> and for your approval of the spec — nowhere else. Its steps are skills it
+> and, after rounds of questions on the spec, for your approval of the spec — nowhere else. Its steps are skills it
 > invokes, not commands: there is nothing to type for them. The autonomous
 > commands run as a workflow: three reviewers improve the spec once,
 > development happens in its own git worktree so your checkout never moves,
