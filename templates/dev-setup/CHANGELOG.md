@@ -6,6 +6,13 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.6.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.5.0...dev-setup-v4.6.0) (2026-11-16)
+
+
+### Features
+
+* **tracker:** Make the task tracker a project choice — ClickUp and Linear, ClickUp unchanged ([d0fcd10](https://github.com/acadevmy/ai-setup-meta/commit/d0fcd10b23dc7393c188002eead3fb1fb832534d))
+
 ## [4.5.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.4.0...dev-setup-v4.5.0) (2026-11-12)
 
 
