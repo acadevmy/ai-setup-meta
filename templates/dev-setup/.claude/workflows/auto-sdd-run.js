@@ -26,8 +26,8 @@ export const meta = {
 //   - it never pushes and never opens a merge request. It returns
 //     `ready-for-mr` and the launcher does that, behind the project `ask` rule,
 //     in the session where a human can see it.
-//   - it never touches ClickUp. The board is the launcher business, so the
-//     `ask` rules on ClickUp writes stay in front of a person.
+//   - it never touches the task tracker. The board is the launcher business, so the
+//     `ask` rules on the tracker's writes stay in front of a person.
 //   - it never edits the main checkout: development happens in a worktree the
 //     harness creates for the dev agent (`isolation: 'worktree'`), or in the
 //     one parallel prepared, when the launcher passes it.
@@ -38,7 +38,7 @@ export const meta = {
 //     taskId:      'DE-123',                  // required
 //     pluginRoot:  '<abs path>',              // required — ${CLAUDE_PLUGIN_ROOT}
 //     baseBranch:  'origin/next',             // required — never hard-coded
-//     title, description, url,                // the task, as ClickUp returned it
+//     title, description, url,                // the task, as the tracker returned it
 //     branchType:  'feat' | 'fix' | 'chore',
 //     stack: { lint, typecheck, test },       // from detect-stack.sh --json;
 //                                             // at least one non-empty, or the

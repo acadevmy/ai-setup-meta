@@ -133,12 +133,12 @@ arg() { jq -r --arg k "$1" '.[$k] // "" | if type == "string" then . else tojson
 TASK_ID="$(arg taskId)"
 RUN_ID="$(arg runId)"
 OUTPUT_DIR="$(arg outputDir)"
-TRACKER="$(arg tracker)"; TRACKER="${TRACKER:-clickup}"
+TRACKER="$(arg tracker)"
 
 printf '%s' "$TASK_ID" | grep -qE "$TASK_ID_SHAPE" || die "taskId \"$TASK_ID\" is missing or not a plain task id"
 case "$OUTPUT_DIR" in /*) ;; *) die "outputDir must be an absolute path" ;; esac
 mkdir -p "$OUTPUT_DIR" 2>/dev/null || die "outputDir $OUTPUT_DIR cannot be created"
-case "$TRACKER" in clickup|none) ;; *) die "tracker is \"$TRACKER\": it takes clickup or none" ;; esac
+case "$TRACKER" in ""|clickup|linear|none) ;; *) die "tracker is \"$TRACKER\": it takes clickup, linear or none" ;; esac
 
 SELECTION_FILE="$OUTPUT_DIR/selection.json"
 TASK_FILE="$OUTPUT_DIR/task.md"
@@ -177,9 +177,30 @@ for REPO in "${REPOS[@]}"; do
     '. + [{repo: $repo, slug: $slug, remote: $remote}]')"
 done
 
+# No tracker named: ClickUp, as always — unless a clone's .claude/tracker.json
+# chose Linear. This runs on the host, outside every clone, and they all belong
+# to the same project and board.
+LINEAR_CONFIG_ARGS=()
+for REPO in "${REPOS[@]}"; do
+  if [ -f "$REPO/.claude/tracker.json" ]; then
+    LINEAR_CONFIG_ARGS=(--config "$REPO/.claude/tracker.json")
+    break
+  fi
+done
+if [ -z "$TRACKER" ]; then
+  [ "$(bash "$SCRIPT_DIR/tracker-config.sh" ${LINEAR_CONFIG_ARGS[@]+"${LINEAR_CONFIG_ARGS[@]}"} --json 2>/dev/null \
+       | jq -r '.PROVIDER // ""' 2>/dev/null)" = linear ] && TRACKER=linear || TRACKER=clickup
+fi
+
 # ── The task ──────────────────────────────────────────────────────────────────
 
-if [ "$TRACKER" = clickup ]; then
+if [ "$TRACKER" = linear ]; then
+  BOARD="$(bash "$SCRIPT_DIR/auto-dev-tracker.sh" --provider linear --task "$TASK_ID" \
+    ${LINEAR_CONFIG_ARGS[@]+"${LINEAR_CONFIG_ARGS[@]}"} --read --json)" \
+    || die "the task could not be read from Linear: $(printf '%s' "$BOARD" | jq -r '.REASON // "see stderr"' 2>/dev/null)"
+  TITLE="$(printf '%s' "$BOARD" | jq -r '.NAME // ""')"
+  DESCRIPTION="$(printf '%s' "$BOARD" | jq -r '.DESCRIPTION // ""')"
+elif [ "$TRACKER" = clickup ]; then
   BOARD="$(bash "$SCRIPT_DIR/auto-dev-clickup.sh" --task "$TASK_ID" --read --json)" \
     || die "the task could not be read from ClickUp: $(printf '%s' "$BOARD" | jq -r '.REASON // "see stderr"' 2>/dev/null)"
   TITLE="$(printf '%s' "$BOARD" | jq -r '.NAME // ""')"
@@ -262,6 +283,10 @@ block() {
     done
     bash "$SCRIPT_DIR/auto-dev-clickup.sh" --task "$TASK_ID" --finish \
       --result "$OUTPUT_DIR/result.json" ${config_args[@]+"${config_args[@]}"} --json >/dev/null \
+      || warn "the task could not be moved to BLOCKED: the runner has to say so on the board"
+  elif [ "$TRACKER" = linear ]; then
+    bash "$SCRIPT_DIR/auto-dev-tracker.sh" --provider linear --task "$TASK_ID" --finish \
+      --result "$OUTPUT_DIR/result.json" ${LINEAR_CONFIG_ARGS[@]+"${LINEAR_CONFIG_ARGS[@]}"} --json >/dev/null \
       || warn "the task could not be moved to BLOCKED: the runner has to say so on the board"
   fi
   finish_output

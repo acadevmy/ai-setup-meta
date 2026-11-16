@@ -38,7 +38,7 @@ rather than in a queue:
 Workflow({
   "name": "dev-setup:auto-sdd-run",
   "args": {
-    "taskId": "<custom_id>",
+    "taskId": "<key>",
     "title": "<name>",
     "description": "<description + the Answered at pre-flight block>",
     "url": "<url>",
@@ -65,7 +65,7 @@ is the move the developer authorised there.
 Start that task's clock on the same beat:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <custom_id> --start --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --start --json
 ```
 
 One clock per task id, so five runs in flight keep five separate readings —
