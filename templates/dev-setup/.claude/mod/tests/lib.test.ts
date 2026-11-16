@@ -106,7 +106,7 @@ describe('merge request', () => {
     expect(closureTask(['DE-1', 'DE-2'], 'main', 'gh pr create')).toBe(null)
     const prompt = closurePrompt('DE-1', 'https://x/pull/1', '/plugin')
     expect(prompt).toContain('bash "/plugin/scripts/task-clock.sh" --task DE-1 --stop --json')
-    expect(prompt).toContain('/plugin/reference/clickup-contract.md')
+    expect(prompt).toContain('/plugin/reference/tracker-contract.md')
   })
 })
 
@@ -317,7 +317,7 @@ describe('context', () => {
         { path: '/p/CLAUDE.md', tokens: 100 },
       ],
       skills: { skillFrontmatter: [{ name: 'dev-setup:sdd', pluginName: 'dev-setup', tokens: 80 }, { name: 'other', tokens: 50 }] },
-      agents: [{ agentType: 'dev-setup:clickup', tokens: 60 }],
+      agents: [{ agentType: 'dev-setup:tracker', tokens: 60 }],
       mcpTools: [{ name: 'mcp__clickup__get', serverName: 'clickup', tokens: 120 }],
     }
     const share = devSetupShare(breakdown, mcpServerNames('{"mcpServers":{"clickup":{}}}'))

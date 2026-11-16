@@ -23,7 +23,7 @@ anyone anything — drafted, reviewed, approved, then created on ClickUp.
 - **`reference/templates.md`** — the draft file and each type's body.
 - **`reference/publish.md`** — steps 7–8.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — every question.
-- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`** — the intents.
 
 Read these only when the situation calls for them:
 

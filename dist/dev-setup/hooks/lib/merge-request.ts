@@ -64,9 +64,9 @@ export function closureTask(openTasks: readonly string[], branch: string, comman
 export function closurePrompt(task: string, url: string, pluginRoot: string): string {
   return (
     `The merge request ${url} is open and ${task} is still IN PROGRESS. Close it as the ` +
-    `work clock section of ${pluginRoot}/reference/clickup-contract.md says: ` +
+    `work clock section of ${pluginRoot}/reference/tracker-contract.md says: ` +
     `bash "${pluginRoot}/scripts/task-clock.sh" --task ${task} --stop --json, then move ${task} ` +
-    `to CODE REVIEW (IN REVIEW where the list has none) with COMMENT as the comment, verbatim. ` +
+    `to IN REVIEW with COMMENT as the comment, verbatim. ` +
     `Never write a duration yourself.`
   )
 }

@@ -1,0 +1,28 @@
+{
+  "clickup": {
+    "allow": [
+      "mcp__clickup__*"
+    ],
+    "ask": [
+      "mcp__clickup__clickup_delete_*",
+      "mcp__clickup__clickup_move_*",
+      "mcp__clickup__clickup_merge_*",
+      "mcp__clickup__clickup_remove_*"
+    ],
+    "network": [
+      "api.clickup.com"
+    ]
+  },
+  "linear": {
+    "allow": [
+      "mcp__linear__*"
+    ],
+    "ask": [
+      "mcp__linear__delete_*",
+      "mcp__linear__archive_*"
+    ],
+    "network": [
+      "api.linear.app"
+    ]
+  }
+}

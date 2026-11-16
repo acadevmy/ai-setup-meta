@@ -2,7 +2,7 @@
 # post-merge-request.sh — PostToolUse hook on `gh pr create` / `glab mr create`.
 #
 # Every flow here ends with the same two calls: stop the task's work clock, and
-# move the task to CODE REVIEW. Both live in the closure step of the skill that
+# move the task to IN REVIEW. Both live in the closure step of the skill that
 # opened the merge request — which is fine right up to the moment the merge
 # request is opened by something else.
 #
@@ -157,7 +157,7 @@ if [ -z "$TASK" ]; then
 fi
 
 CLOCK_CMD="bash \"\${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh\""
-CONTRACT='${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md'
+CONTRACT='${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md'
 
 # ── The reminder ──────────────────────────────────────────────────────────────
 #
@@ -175,8 +175,8 @@ if [ -z "$TASK" ]; then
 
 The flow is not finished for the one this merge request closes. For that task:
   1. %s --task <id> --stop --json
-  2. move it to CODE REVIEW (IN REVIEW where the list has no CODE REVIEW) with
-     COMMENT as the comment, verbatim — the clickup agent, per
+  2. move it to IN REVIEW with
+     COMMENT as the comment, verbatim — the tracker agent, per
      %s
 Do not guess which one: if the merge request does not say, ask.
 ' "$MR_URL" "$OPEN_TASKS" "$CLOCK_CMD" "$CONTRACT")"
@@ -189,8 +189,8 @@ report "$(printf 'post-merge-request: %s is open, and %s is still IN PROGRESS%s.
 
 The flow is not finished. Two calls, now, in this turn:
   1. %s --task %s --stop --json
-  2. move %s to CODE REVIEW (IN REVIEW where the list has no CODE REVIEW) with
-     COMMENT as the comment, verbatim — the clickup agent, per
+  2. move %s to IN REVIEW with
+     COMMENT as the comment, verbatim — the tracker agent, per
      %s
 An empty COMMENT means the clock has nothing to report: move the task anyway,
 and say so in one line. Never write a duration yourself.

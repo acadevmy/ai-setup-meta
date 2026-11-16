@@ -20,15 +20,15 @@ the conversation; on its own, it takes a task id.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/readable-references.md`** — how every
   reference in the spec is written, so the developer who approves it can
   follow each one.
-- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — only when a task
+- **`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`** — only when a task
   id has to be resolved.
 
 ## Procedure
 
 ### 1. Get the task context
 
-With a task id in `$ARGUMENTS`, read the task through the `clickup` agent
-(`INTENT: read`) and extract `custom_id`, `name`, `description`, `priority`,
+With a task id in `$ARGUMENTS`, read the task through the `tracker` agent
+(`INTENT: read`) and extract `key`, `name`, `description`, `priority`,
 `task_id`, `url`. On `STATUS: error`, report it and stop.
 
 Without one, use the context the orchestrator passed. If there is none, ask the

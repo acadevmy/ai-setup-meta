@@ -24,15 +24,15 @@ conversation. Invoked on its own, it takes a task id.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — the rule for every
   interactive step: up to four related questions in one call, and after you
   ask, the turn ends.
-- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — only when a task
+- **`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`** — only when a task
   id has to be resolved.
 
 ## Procedure
 
 ### 1. Get the task context
 
-With a task id in `$ARGUMENTS`, read the task through the `clickup` agent
-(`INTENT: read`) and extract `custom_id`, `name`, `description`, `priority`,
+With a task id in `$ARGUMENTS`, read the task through the `tracker` agent
+(`INTENT: read`) and extract `key`, `name`, `description`, `priority`,
 `task_id`, `url`. On `STATUS: error`, report it and stop.
 
 Without one, use the context the orchestrator passed. If there is none, ask the
@@ -49,7 +49,7 @@ developer for a task id.
 ### 3. Present the task
 
 ```
-Discovery for: <custom_id> — <name>
+Discovery for: <key> — <name>
 Priority: <priority>
 
 Description from task:

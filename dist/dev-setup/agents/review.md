@@ -24,7 +24,7 @@ never builds a diff of its own.
   into the review.
 - **RULES_DIR**: directory holding the project rules (default: `./.claude/rules/`)
 - **REGISTRY_PATH**: path to current REGISTRY.md (default: `./REGISTRY.md`)
-- **TASK_ID**: ClickUp task ID from the branch name, if present (optional)
+- **TASK_ID**: task key from the branch name, if present (optional)
 
 The caller picks the model: the definition's default serves a small change, and
 a large one is launched on a stronger model. Nothing here depends on which.

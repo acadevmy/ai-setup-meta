@@ -32,7 +32,8 @@ stderr and stop.
 
 ## 2. The board
 
-Only when `TRACKER` is `clickup`:
+Only when `TRACKER` is `clickup` — on `linear`, the same call to
+`auto-dev-tracker.sh --provider linear`:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/auto-dev-clickup.sh" --task "<TASK_ID>" --start --json
@@ -80,6 +81,8 @@ Then close the task:
 bash "<plugin>/scripts/auto-dev-clickup.sh" --task <taskId> --finish \
   --result <OUTPUT_DIR>/result.json [--mr-url <url>] [--pushed true|false]
 ```
+
+On Linear: `auto-dev-tracker.sh --provider linear`, same arguments.
 
 After `claude -p --output-format json` exits, the exact token counts:
 

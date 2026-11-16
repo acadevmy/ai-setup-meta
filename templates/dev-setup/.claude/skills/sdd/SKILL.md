@@ -13,7 +13,7 @@ Take a task from the board to an open merge request, **interactively**.
 Unsupervised, the same ground is `auto-sdd`.
 
 **Usage**: `/dev-setup:sdd [TASK_ID] [--worktree] [--stop <point>]`. Without a
-task id it lists what is in `SPRINT` and asks. `--worktree` runs the flow in an
+task id it lists what is in `READY` and asks. `--worktree` runs the flow in an
 isolated checkout. The stop point — how far it goes — is asked at launch and
 saved; `--stop` sets or changes it.
 
@@ -33,7 +33,7 @@ Say so in one line when a task looks misrouted; the developer decides.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/worktree.md`** — only with `--worktree`.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — the rule for every
   question.
-- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — the intents, the
+- **`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`** — the intents, the
   transitions, the list id.
 
 ## The flow
@@ -63,7 +63,7 @@ With the stop point at the merge request (the default):
 - a branch named after the task, cut from the confirmed fork point;
 - a spec in `.specs/`, status `implemented`;
 - one commit carrying the code, the spec and whatever the gates changed;
-- the task moved `SPRINT` → `IN PROGRESS` → `CODE REVIEW`;
+- the task moved `READY` → `IN PROGRESS` → `IN REVIEW`;
 - a merge request linking the task and the spec.
 
 An earlier stop point leaves what `reference/stop-point.md` lists for it.

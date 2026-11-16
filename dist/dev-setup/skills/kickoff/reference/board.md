@@ -1,7 +1,7 @@
 # The task on the board
 
 Work that starts from an idea still belongs on the board: without a task it has
-no history, no clock and no place in the sprint. So kickoff offers to create
+no history, no clock and no place in the plan. So kickoff offers to create
 one, and on a yes the work continues exactly as if it had started from `sdd`.
 
 **Repository first.** The spec is the source, and it lives in the repository;
@@ -10,14 +10,15 @@ on its own depends on whether it stands alone.
 
 ## When to ask
 
-Resolve `CLICKUP_SETUP_LIST_ID` as the ClickUp contract's "Resolving the task
-list id" describes. Found → the classification call of step 2 carries one more
-question. Not found → no question, no stop: the summary says `Board: no list
-configured, no task created`.
+Resolve the provider and the list as the tracker contract's "Resolving the
+provider and the task list" describes. A tracker and a list → the
+classification call of step 2 carries one more question. Provider `none`, or no
+list → no question, no stop: the summary says `Board: no tracker configured, no
+task created`.
 
 ```json
 {
-  "question": "Create the task on ClickUp for this work?",
+  "question": "Create the task on <the provider> for this work?",
   "header": "Board",
   "options": [
     { "label": "Yes, create it (Recommended)", "description": "The branch carries its id, the task moves to IN PROGRESS and its clock starts" },
@@ -57,18 +58,18 @@ the spec, and a copy on the board goes stale the first time the spec changes.
 ## On a yes
 
 Before the branch exists — the branch carries the task's id — through the
-`clickup` agent:
+`tracker` agent:
 
-1. `INTENT: create`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>, name: <title>,
+1. `INTENT: create`, `PARAMS: list_id: <LIST_ID>, name: <title>,
    description: <the body above, its Spec line reading "written in the
    repository once the branch exists">`. A piece adds `parent: <the release
    task's task_id>`, read from the `> Task:` line of the release spec. On
    `STATUS: error`, say so and carry on with no task — the work is not blocked
    by the board.
-2. Keep `custom_id`, `task_id` and `url`. From here the work is a tracked task:
+2. Keep `key`, `task_id` and `url`. From here the work is a tracked task:
    - **the `sdd` route** (a single branch or a piece) — `sdd-start.sh` with
-     `--task <custom_id>`, then `INTENT: update` to `IN PROGRESS` and
-     `task-clock.sh --task <custom_id> --start`, as `sdd`'s intake step 3
+     `--task <key>`, then `INTENT: update` to `IN PROGRESS` and
+     `task-clock.sh --task <key> --start`, as `sdd`'s intake step 3
      does. The yes to this question is the developer's answer for that move,
      whatever status the list gives a new task. Then `sdd-spec` with the task
      id;
@@ -77,12 +78,12 @@ Before the branch exists — the branch carries the task's id — through the
      `sdd-spec` gets its id, so the release spec's `> Task:` line names it
      and every piece finds its parent there. It is closed by a person, when the promotion merge request is
      merged;
-   - **under `quick`'s bar** — end with `Next: /dev-setup:quick <custom_id>`:
+   - **under `quick`'s bar** — end with `Next: /dev-setup:quick <key>`:
      `quick` moves the task and starts its clock. When the list puts new tasks
      in `BACKLOG`, its backlog gate asks once more. `quick` writes no spec, so
      the Spec line says `none: quick` from the start.
 
-The summary says `Board: <custom_id> created (<url>)`.
+The summary says `Board: <key> created (<url>)`.
 
 ## Pointing the task at the spec
 

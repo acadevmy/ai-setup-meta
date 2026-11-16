@@ -276,7 +276,7 @@ describe('the merge-request button', () => {
     expect(filled.length).toBe(1)
     expect(filled[0]).toContain('https://github.com/a/b/pull/9')
     expect(filled[0]).toContain('task-clock.sh" --task DE-1 --stop --json')
-    expect(filled[0]).toContain('reference/clickup-contract.md')
+    expect(filled[0]).toContain('reference/tracker-contract.md')
   })
 
   test('goes away once the clock it would close is stopped', async ($, on) => {
