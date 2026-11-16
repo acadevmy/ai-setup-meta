@@ -1042,4 +1042,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.44.0 — bump the version number on every substantial change*
+*Version: 2.45.0 — bump the version number on every substantial change*
