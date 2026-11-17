@@ -4166,11 +4166,26 @@ done
 TRACKER_PERMS="$REPO_ROOT/templates/dev-setup/setup/reference/tracker-permissions.json"
 assert_eq "the settings template grants no tracker on its own" "0" \
   "$(grep -c 'mcp__clickup\|mcp__linear' "$REPO_ROOT/templates/dev-setup/.claude/settings.json")"
-assert_eq "the ClickUp fragment is the allow and ask set the template used to carry" \
-  "mcp__clickup__*|mcp__clickup__clickup_delete_*,mcp__clickup__clickup_merge_*,mcp__clickup__clickup_move_*,mcp__clickup__clickup_remove_*" \
-  "$(jq -r '.clickup | (.allow | join(",")) + "|" + (.ask | sort | join(","))' "$TRACKER_PERMS")"
-assert_eq "the Linear fragment asks on the destructive writes" "mcp__linear__*|2" \
-  "$(jq -r '.linear | (.allow | join(",")) + "|" + (.ask | length | tostring)' "$TRACKER_PERMS")"
+assert_eq "the ClickUp fragment keeps the allow and ask set the template used to carry" \
+  "true" \
+  "$(jq -r '.clickup | (.allow | index("mcp__clickup__*") != null) and ((["mcp__clickup__clickup_delete_*","mcp__clickup__clickup_merge_*","mcp__clickup__clickup_move_*","mcp__clickup__clickup_remove_*"] - .ask) == [])' "$TRACKER_PERMS")"
+# Every form a developer reaches the tracker through — the server the setup
+# registers, the claude.ai connector, Linear's Claude Code plugin — gets the
+# same allow and the same asks: a prefix with an allow and no ask would run the
+# destructive writes with no human checkpoint.
+for PAIR in clickup:mcp__clickup__ clickup:mcp__claude_ai_ClickUp__ \
+            linear:mcp__linear__ linear:mcp__claude_ai_Linear__ linear:mcp__plugin_linear_linear__; do
+  PROV="${PAIR%%:*}"; PFX="${PAIR#*:}"
+  EXPECTED_ASKS=5; [ "$PROV" = clickup ] && EXPECTED_ASKS=4
+  assert_eq "the $PROV fragment allows $PFX and asks on its $EXPECTED_ASKS destructive families" \
+    "true|$EXPECTED_ASKS" \
+    "$(jq -r --arg p "$PROV" --arg x "$PFX" '.[$p] | ((.allow | index($x + "*")) != null | tostring) + "|" + ([.ask[] | select(startswith($x))] | length | tostring)' "$TRACKER_PERMS")"
+done
+TRACKER_AGENT_TOOLS="$(sed -n 's/^tools: //p' "$REPO_ROOT/shared/agents/tracker.md" | tr ',' '\n' | sed 's/^ *//')"
+for SRV in mcp__linear mcp__claude_ai_Linear mcp__plugin_linear_linear; do
+  assert_eq "the tracker agent reaches Linear through $SRV" "1" \
+    "$(printf '%s\n' "$TRACKER_AGENT_TOOLS" | grep -cx "$SRV")"
+done
 MERGED="$(jq --slurpfile f "$TRACKER_PERMS" --arg p linear '
   ($f[0][$p]) as $x
   | .permissions.allow = ((.permissions.allow // []) + $x.allow | unique)
