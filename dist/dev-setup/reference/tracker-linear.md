@@ -30,11 +30,11 @@ intent instead.
 
 ## Tools
 
-The agent is granted the whole server under each of the three prefixes
-(`mcp__linear`, `mcp__claude_ai_Linear`, `mcp__plugin_linear_linear`) and uses
-only these. Their names are the Linear server's own, checked on its live tool
-list; when a call fails on a name, list the server's tools and use the one that
-does the same operation.
+The agent is granted these tools by name, under each of the three prefixes, and
+nothing else of the server: the deletes, the archives, `merge_diff` and the
+sharing tools are out of its reach, as on ClickUp. A tool the server renames is
+dropped in silence, and the call fails as `MCP missing`: the names below are the
+server's own, checked on its live tool list.
 
 | Operation | Tool (`mcp__linear__`, `mcp__claude_ai_Linear__` or `mcp__plugin_linear_linear__` prefix) |
 |---|---|

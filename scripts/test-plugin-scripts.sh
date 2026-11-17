@@ -4176,15 +4176,19 @@ assert_eq "the ClickUp fragment keeps the allow and ask set the template used to
 for PAIR in clickup:mcp__clickup__ clickup:mcp__claude_ai_ClickUp__ \
             linear:mcp__linear__ linear:mcp__claude_ai_Linear__ linear:mcp__plugin_linear_linear__; do
   PROV="${PAIR%%:*}"; PFX="${PAIR#*:}"
-  EXPECTED_ASKS=2; [ "$PROV" = clickup ] && EXPECTED_ASKS=4
+  EXPECTED_ASKS=5; [ "$PROV" = clickup ] && EXPECTED_ASKS=4
   assert_eq "the $PROV fragment allows $PFX and asks on its $EXPECTED_ASKS destructive families" \
     "true|$EXPECTED_ASKS" \
     "$(jq -r --arg p "$PROV" --arg x "$PFX" '.[$p] | ((.allow | index($x + "*")) != null | tostring) + "|" + ([.ask[] | select(startswith($x))] | length | tostring)' "$TRACKER_PERMS")"
 done
 TRACKER_AGENT_TOOLS="$(sed -n 's/^tools: //p' "$REPO_ROOT/shared/agents/tracker.md" | tr ',' '\n' | sed 's/^ *//')"
-for SRV in mcp__linear mcp__claude_ai_Linear mcp__plugin_linear_linear; do
-  assert_eq "the tracker agent reaches Linear through $SRV" "1" \
-    "$(printf '%s\n' "$TRACKER_AGENT_TOOLS" | grep -cx "$SRV")"
+assert_eq "the tracker agent is granted no tracker server whole, only tools by name" "" \
+  "$(printf '%s\n' "$TRACKER_AGENT_TOOLS" | grep -E '^mcp__' | grep -vE '^mcp__.+__.+' || true)"
+assert_eq "the tracker agent is granted no delete, archive, merge or move" "" \
+  "$(printf '%s\n' "$TRACKER_AGENT_TOOLS" | grep -E '^mcp__' | grep -E '_(delete|archive|merge|move|remove|retire|unshare)_?' || true)"
+for PFX in mcp__linear__ mcp__claude_ai_Linear__ mcp__plugin_linear_linear__; do
+  assert_eq "the tracker agent has Linear's seven tools under $PFX" "7" \
+    "$(printf '%s\n' "$TRACKER_AGENT_TOOLS" | grep -c "^$PFX")"
 done
 MERGED="$(jq --slurpfile f "$TRACKER_PERMS" --arg p linear '
   ($f[0][$p]) as $x
