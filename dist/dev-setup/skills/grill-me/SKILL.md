@@ -46,8 +46,11 @@ The frontier is empty: every branch visited, nothing silently assumed. Show
 the decisions in a short list and ask the developer to confirm the shared
 understanding. Then:
 
-- **spec mode**: the hand-off — next `sdd-plan`, which goes straight to the
-  approval;
+- **spec mode, invoked by `sdd-plan`**: no confirmation and no hand-off —
+  return to `sdd-plan`, whose approval question is both. An empty frontier
+  from the start is one line, not a round;
+- **spec mode, on its own**: the hand-off — next `sdd-plan`, which goes
+  straight to the approval;
 - **idea mode**: when the idea is software, offer `Next: /dev-setup:kickoff`,
   in this same conversation — the context is the point.
 

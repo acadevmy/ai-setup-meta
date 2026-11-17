@@ -9,7 +9,8 @@ developer does not have to know which command comes next.
 
 Only when the skill was **invoked on its own** — by the developer, or by the
 model on its own judgement. Invoked by a flow (`sdd`, `quick`, `auto-sdd`,
-`multi-sdd`, `auto-dev`), the flow decides what follows: do nothing here.
+`multi-sdd`, `auto-dev`) — or `grill-me` by `sdd-plan` — the caller decides
+what follows: do nothing here.
 
 It applies on a result that can go forward. A `fail`, an `error` or a refused
 approval is not handed off: show what has to change and end there.

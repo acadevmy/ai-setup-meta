@@ -16,8 +16,6 @@ approves, and approval is theirs to give — never inferred from silence.
 
 - **`reference/approval-loop.md`** — the question to ask and what each answer
   means.
-- **`${CLAUDE_PLUGIN_ROOT}/skills/grill-me/reference/grilling.md`** and
-  **`.../grill-me/reference/spec-mode.md`** — the grilling before it.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`** — after you ask, the
   turn ends.
 
@@ -39,11 +37,7 @@ Show the spec in full, with clear formatting, and state its current status
 
 ### 3. Grill it
 
-Before asking for the approval, grill the spec: the rounds of `grilling.md`,
-each answer landing in the spec as `spec-mode.md` says. When the frontier is
-empty — at once, on a spec the discovery or `grill-me` already settled — say
-so in one line and go on. The approval question replaces the grilling's own
-closing confirmation.
+Before asking for the approval, invoke the `grill-me` skill on the spec.
 
 ### 4. Discuss and iterate
 
