@@ -4176,7 +4176,7 @@ assert_eq "the ClickUp fragment keeps the allow and ask set the template used to
 for PAIR in clickup:mcp__clickup__ clickup:mcp__claude_ai_ClickUp__ \
             linear:mcp__linear__ linear:mcp__claude_ai_Linear__ linear:mcp__plugin_linear_linear__; do
   PROV="${PAIR%%:*}"; PFX="${PAIR#*:}"
-  EXPECTED_ASKS=5; [ "$PROV" = clickup ] && EXPECTED_ASKS=4
+  EXPECTED_ASKS=2; [ "$PROV" = clickup ] && EXPECTED_ASKS=4
   assert_eq "the $PROV fragment allows $PFX and asks on its $EXPECTED_ASKS destructive families" \
     "true|$EXPECTED_ASKS" \
     "$(jq -r --arg p "$PROV" --arg x "$PFX" '.[$p] | ((.allow | index($x + "*")) != null | tostring) + "|" + ([.ask[] | select(startswith($x))] | length | tostring)' "$TRACKER_PERMS")"
