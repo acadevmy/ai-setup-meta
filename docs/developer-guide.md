@@ -13,7 +13,7 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ## Index
 
-- [1. The six commands](#1-the-six-commands)
+- [1. The commands](#1-the-commands)
 - [2. A task, end to end](#2-a-task-end-to-end)
 - [3. The rules, and when each one loads](#3-the-rules-and-when-each-one-loads)
 - [4. The sandbox and the ask rules](#4-the-sandbox-and-the-ask-rules)
@@ -25,12 +25,16 @@ document. [training.md](./training.md) is the long version of that sentence.
 
 ---
 
-## 1. The six commands
+## 1. The commands
 
 ```
 /dev-setup:setup      ← one-off, per project
        │
+/dev-setup:story      ← (beta) writes the story (or the epic) on ClickUp
+       │
        ├── /dev-setup:quick     ← a fix or chore: branch, change, commit, MR
+       │
+       ├── /dev-setup:kickoff ← an idea with no task: discovery, branch, spec, then the chain
        │
        ▼
 /dev-setup:sdd        ← the full flow, with one approval
@@ -38,25 +42,55 @@ document. [training.md](./training.md) is the long version of that sentence.
        │                 /dev-setup:multi-sdd for up to five of those at once)
        ▼
 /dev-setup:review     ← code review against the project rules
+       │
+       ▼
+/dev-setup:distill    ← the branch distilled for whoever reviews it
 ```
 
 | Command | Use it when | Example |
 |---|---|---|
 | `/dev-setup:setup` | Configuring a project for the first time, or pulling in a new plugin version | `/dev-setup:setup` |
+| `/dev-setup:story` (beta) | The work exists only as an idea, a sentence or a Figma file, and needs to become a story someone can build | `/dev-setup:story "visitors can sign up for updates on a sold-out product" https://figma.com/design/…` |
 | `/dev-setup:quick` | At most three files, and no new component, dependency or public interface | `/dev-setup:quick DE-123`<br>`/dev-setup:quick fix the 500 on an empty cart` |
+| `/dev-setup:kickoff` | The work is an idea already discussed in the conversation, with no task yet: it classifies it, offers to create the task on the tracker, cuts the branch and writes the spec, then hands over to the chain | `/dev-setup:kickoff add date filtering to the search page` |
+| `/dev-setup:grill-me` | An idea or a plan has to be stress-tested on its own. The spec approval in `sdd` and after `kickoff` already runs the same interview, each decision landing in the spec and its Decision log; on a loose idea it writes nothing | `/dev-setup:grill-me`<br>`/dev-setup:grill-me should search results be paginated or infinite?` |
 | `/dev-setup:sdd` | Anything above that bar — the spec is what a reviewer reads the diff against | `/dev-setup:sdd DE-124`<br>`/dev-setup:sdd DE-124 --worktree` |
 | `/dev-setup:auto-sdd` | A well-defined task you do not want to sit through | `/dev-setup:auto-sdd DE-125` |
 | `/dev-setup:multi-sdd` | Several independent tasks, unsupervised, from one chat | `/dev-setup:multi-sdd DE-1 DE-2 DE-3`<br>`/dev-setup:multi-sdd --from-sprint 3` |
 | `/dev-setup:review` | A branch is ready and you want it read before the merge request | `/dev-setup:review` |
+| `/dev-setup:distill` | Someone who did not follow the work has to understand it: what changed, the risky points, the decisions, what to try by hand | `/dev-setup:distill`<br>`/dev-setup:distill --description` |
+| `/dev-setup:parallel` | Several branches have to run side by side, each with its own ports, `.env`, containers and tunnels — or a problem has to be reproduced on one branch or environment | `/dev-setup:parallel analyze`<br>`/dev-setup:parallel list` |
 
 Everything else the flows use — discovery, spec, plan, development, verify, the
 board conventions, the git conventions — is a skill the orchestrator invokes by
 name. They are not commands and they do not show up in `/help`: one flow, one
 entry point.
 
+**When one of them runs on its own.** Claude can still pick one up from a plain
+request — "write the spec for this", "verify the branch". Run that way, each one
+ends by offering the next step of the chain (discovery → spec → approval →
+development → verify → review → distill → merge request) and, on a yes, carries on in the
+same turn. With a task id, development ends on the `/dev-setup:sdd <id>` command
+to type, which resumes at closure. Inside a flow nothing changes: the flow decides what follows.
+
 **Picking between `quick` and `sdd`.** The bar is three files and no new
 component, dependency or public interface. Claude may say a task looks
 misrouted; the routing is yours, and the command you type is the decision.
+
+**Where `story` sits.** Before the others: it turns a request into a user
+story — or an epic with its stories — with Gherkin scenarios, checked against
+INVEST and against the project's `product.md`, and creates it on ClickUp only
+after you approve the drafts. The drafts live in `.stories/` (gitignored) until
+then; choose **Keep the drafts** at the approval to try it without touching the
+board. A story that still has open points is tagged `da dettagliare`. With
+`--map` it also writes the story map — the backbone of epics, the walking
+skeleton, the release lanes — as a page of the ClickUp Doc named under
+`Story maps` in `product.md`; every epic links to it, and the release plan
+lives there only.
+
+**`story` is in beta.** The drafts, the questions it asks and the shape of
+what it creates on ClickUp may still change between releases. Read the drafts
+before approving them, and report what it got wrong.
 
 **Which one does `review` belong to?** It runs inside `sdd` already, before the
 commit. Invoked on its own it reviews the current branch, updates `REGISTRY.md`
@@ -74,11 +108,11 @@ state of the work without spending a model turn:
   an open task clock (`● DE-123  in progress  42m`, green); after a `gh pr
   create` / `glab mr create` that created a merge request, its link and a
   `close DE-123` button that fills — never sends — the prompt that stops the
-  clock and moves the task to `CODE REVIEW`; while an `sdd` runs, its tokens per
+  clock and moves the task to `IN REVIEW`; while an `sdd` runs, its tokens per
   phase with the phase in progress at full strength, and the cost so far; past
   70% of context, a yellow warning before a long phase compacts it;
 - **`/dev-setup`** — a pane with one tab per view (`1`–`6` switch, `r` reloads,
-  `Esc` closes). With no argument, the six commands with when to use each and
+  `Esc` closes). With no argument, the commands with when to use each and
   what each takes, and a `use` button that puts one in the prompt. `/dev-setup
   clock` (one card per open clock — total, current interval, earlier ones, the
   branch's own task marked — and the clocks stopped in the last five minutes),
@@ -164,6 +198,13 @@ work is fine; nothing requires it.
 call), discovery (one call, at most a second, five questions in all) and the
 spec approval. Discovery drafts what the task already says and asks only about
 the gaps — a well-written task reaches the spec in one click.
+
+**The spec is grilled before you approve it.** `sdd-plan` runs the
+`grill-me` interview on it first: rounds of every question whose
+prerequisites are settled, each with a recommended answer that "yes"
+accepts, and each decision written into the spec and its Decision log as you
+make it. When nothing is left open — at once, on a spec the discovery
+already settled — it goes straight to the approval question.
 
 **You choose where it stops.** Together with the fork point, the flow asks how
 far this run goes — the merge request is the default:
@@ -254,7 +295,7 @@ It comes back with one of two outcomes:
 
 | Outcome | What it means | What you do |
 |---|---|---|
-| `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section (§9) |
+| `ready-for-mr` | Green, committed on its branch | Confirm the push and the merge request, and read its "to confirm" section ([the merge request lists points to confirm](#the-merge-request-lists-points-to-confirm)) |
 | `failed` | The spec, the dev step or a quality command failed | Read the real output; the branch and worktree are left in place |
 
 In a cloud session — a scheduled routine included — the disk goes with the
@@ -333,7 +374,9 @@ never pays to describe them.
 
 The board is reached with `auto-dev-clickup.sh` over the ClickUp REST API and a
 personal token in `CLICKUP_API_TOKEN` (with `CLICKUP_TEAM_ID` for custom ids),
-because a disposable machine has no OAuth login for the MCP. Everything around
+because a disposable machine has no OAuth login for the MCP. A Linear project
+(§ "The task tracker", below) goes through `auto-dev-tracker.sh --provider
+linear` instead, with `LINEAR_API_KEY`; on ClickUp nothing changes. Everything around
 the run that does not need judgement is a script — `auto-dev-args.sh`,
 `auto-dev-select.sh`, `auto-dev-commit.sh`, `auto-dev-checks.sh`,
 `auto-dev-report.sh` — and each
@@ -425,7 +468,7 @@ three in one question, and runs each one before it finishes.
 |---|---|
 | `lint`, `typecheck`, `test` | the command, or `null` when the project has none — with the reason under `absent`. A `null` is a decision: the flows skip that command and run the others |
 | `preflight` | optional: a readiness check the autonomous launchers run before anything else — a script that checks the toolchain, say |
-| `hook_manager` | optional: your hook tool when detection does not know it (`pre-commit`, `captainhook`, `grumphp`); the commit gate defers to it (§5) |
+| `hook_manager` | optional: your hook tool when detection does not know it (`pre-commit`, `captainhook`, `grumphp`); the commit gate defers to it ([the quality gate on the commit](#5-the-quality-gate-on-the-commit)) |
 
 **Every command runs from the repository root.** One that belongs to a
 sub-directory says so: `make -C api lint`, `cd api && composer test`.
@@ -481,9 +524,9 @@ a run nobody is watching cannot ask anyone for:
 
 | Field | What it decides |
 |---|---|
-| `clickup_list_ids` | the lists a run pulls work from |
+| `clickup_list_ids` | the lists a run pulls work from (ClickUp; on Linear they are in `.claude/tracker.json`) |
 | `tag` | the tag that marks a task as the agent's |
-| `status` | this board's own status names, for the moves the flow makes |
+| `status` | this board's own status names, for the moves the flow makes (ClickUp; on Linear, `.claude/tracker.json`) |
 | `base_branch` | `null` means "resolve it per run" — the fork point comes from the repository, never from a name frozen on setup day |
 | `figma` | the design file, when the project has one; `null` otherwise |
 | `dry_run` | `true` runs everything up to the push and stops before the push, the merge request and the board write |
@@ -494,6 +537,39 @@ it: `/dev-setup:sdd`, `/dev-setup:quick`, `/dev-setup:auto-sdd` and
 `/dev-setup:multi-sdd` resolve the same facts from your session and from the
 repo. Decline it and nothing else changes; a later `/dev-setup:setup` offers it
 again.
+
+### The task tracker
+
+The flows talk to one board, and the project chooses which: ClickUp or Linear,
+or none. Step 6.1 of the setup asks, registers that tracker's MCP server, adds
+its permissions and writes `.claude/tracker.json`:
+
+```json
+{
+  "provider": "linear",
+  "lists": ["ENG"],
+  "status": { "backlog": "Backlog", "ready": "Todo", "in_progress": "In Progress",
+              "in_review": ["In Review"], "done": "Done", "blocked": "Blocked" }
+}
+```
+
+| Field | What it decides |
+|---|---|
+| `provider` | `clickup` or `linear` |
+| `lists` | where tasks are read from — ClickUp list ids, Linear team keys |
+| `status` | this board's own name for each status the flows speak (`BACKLOG`, `READY`, `IN PROGRESS`, `IN REVIEW`, `DONE`, `BLOCKED`); a list is tried in order |
+
+Every flow reaches the board through the `tracker` agent, and every script
+through `tracker-config.sh`: nothing else knows which tracker it is.
+`TRACKER_PROVIDER` and `TRACKER_LIST_ID` in your environment win over the file,
+for one machine. A project configured before the file existed keeps working
+from `CLICKUP_SETUP_LIST_ID`, which still means ClickUp with that list; the next
+setup offers to record it in the file. With none of these the provider is
+`none`: `quick` and `kickoff` run from a description, and a flow that needs a
+task says so.
+
+A board status the map does not name stops the move with an error that names
+the key to add — a Linear team has no `Blocked` state until someone adds it.
 
 ---
 
@@ -564,9 +640,15 @@ These are not blocked — they wait for you:
   the flow used to spend as a summary in chat: you see the real command instead.
 - `gh api` / `glab api` with `POST`, `PUT`, `PATCH`, `DELETE` — anything that
   writes to the forge.
-- Every ClickUp write: create, update, delete, move, merge, add, remove.
+- The task tracker's destructive writes: delete, move, merge, remove — the
+  setup adds these for the tracker the project chose.
 
 The pattern is the same throughout: **reads are free, outward-facing writes ask.**
+One exception, on purpose: ClickUp creates, updates and links do not ask.
+`/dev-setup:story` makes a dozen of them after you approved the drafts, and a
+flow moves a task's status at fixed points; asking again for each call turned
+one real checkpoint into ten reflexive ones. UPDATE removes those three `ask`
+entries from a project that still has them (`REASON: ask-retired`).
 
 ### If a deny is in your way
 
@@ -683,7 +765,35 @@ Four pieces make it actually work:
 Dependencies are a step, not a hook: `pnpm install` (or whatever the project
 uses) after entering. There is no post-create hook on purpose — a
 `WorktreeCreate` hook replaces worktree creation wholesale and would disable
-`.worktreeinclude`, which is the one thing that has to keep working.
+`.worktreeinclude`, which is the one thing that has to keep working. A project
+whose agents each need their own running instance can opt into one through
+`/dev-setup:parallel`, whose generated script takes over that copy.
+
+To try the result of an `auto-sdd` or `multi-sdd` run without the hook,
+`parallel`'s script adopts the run's worktree after the fact: `adopt` gives it
+a slot, its ports and its `.env`, then `dev` starts it beside the others. When
+the project has the script, the run's report ends with the two commands filled
+in — `multi-sdd` writes the code, `parallel` runs it.
+
+Better still, `multi-sdd` can have `parallel` prepare the worktrees before the
+runs start. On a project with the script, the fork-point question carries a
+second one — prepare each run's worktree with `parallel`? On a yes it gives you
+one line of `new` commands, one per task, from the confirmed fork point; you
+run it, and every run then develops in its own prepared worktree, with its
+ports, `.env` and dependencies, instead of a bare one. Its agents can start
+the project without a clash, and a finished run is one `dev` away from being
+tried. The worktrees live in `.claude/worktrees/`, beside Claude Code's own,
+because that is where the sandbox lets a session write.
+
+To skip typing that line, a project can let the agent run `new` and `adopt`
+itself. They leave the sandbox only with three guards, which `parallel`
+proposes and `${CLAUDE_PLUGIN_ROOT}/scripts/parallel-guard.sh` checks: the
+excluded pattern is the direct invocation of the script file, never an alias
+such as `pnpm wt` or `npm run wt` (an alias runs whatever `package.json` says,
+and that file stays editable); the script is in `denyWrite` and under an
+`Edit(...)` deny; and every run asks. With them in place each `new` is one
+approval instead of a line to paste. In auto mode the line comes back, since
+the approval would no longer reach you.
 
 **While you are in a worktree**, the harness blocks anything reaching back into
 the main checkout: an edit outside it, a Bash command whose working directory
@@ -784,6 +894,7 @@ detects **UPDATE** mode and reapplies the templates to the project.
 | A `CLAUDE.md` holding only `@AGENTS.md` — removed without asking, at the root and in every sub-project; one with your own content is moved into its `AGENTS.md` only on your yes | `CLAUDE.local.md` and any instruction file above the project — reported, never touched |
 | `.claude/settings.json` — only if it predates the sandbox, and only after showing you the diff | Dependencies and lock files |
 | `REGISTRY.md`, `.env.example` — after asking; they are yours in UPDATE mode | Source code, `.env` |
+| `.claude/tracker.json` — asked when absent; a ClickUp project configured before it existed is offered its current configuration, recorded with one yes, and works unchanged on a no | `.claude/tracker.json` once you have one |
 | `.claude/auto-dev.json` — offered when it is absent, and reconfigured only after asking | `.claude/auto-dev.json` once you have one |
 | `.claude/merge-request.json` — written when absent, after asking the language; missing catalogue labels are created on the forge | `.claude/merge-request.json` once you have one |
 | `.claude/quality-commands.json` — proposed when absent (decline it and the autonomous launchers refuse until you accept it), a rewrite offered when malformed | `.claude/quality-commands.json` once you have a valid one — verified, never rewritten |
@@ -874,11 +985,11 @@ first time; answering "yes, and don't ask again" records it in
 ### `git push` fails inside the sandbox
 
 Your `origin` is an SSH remote and the push was not the plain form the
-exclusion matches — see §4. `git push origin <branch>` or
+exclusion matches — see [SSH remotes](#ssh-remotes). `git push origin <branch>` or
 `git push -u origin <branch>`, alone on the line, runs outside the sandbox; a
 `cd … &&`, a pipe or a push to a URL keeps it in.
 
-### ClickUp does not respond
+### The task tracker does not respond
 
 The first call opens the browser for OAuth. If the session expired, restart
 Claude Code and the flow starts again on its own.
@@ -896,7 +1007,7 @@ hook — the two calls are:
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task DE-123 --stop --json
 ```
 
-then move the task to `CODE REVIEW` with the `COMMENT` it returns, verbatim. To
+then move the task to `IN REVIEW` with the `COMMENT` it returns, verbatim. To
 see what is still open in the repository without closing anything, the same
 script with `--status` and no `--task` lists it.
 

@@ -17,15 +17,18 @@ the conversation; on its own, it takes a task id.
 
 - **`reference/spec-template.md`** — the document's exact sections and the rules
   for filling them in. The spec is written from that template, not from memory.
-- **`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`** — only when a task
+- **`${CLAUDE_PLUGIN_ROOT}/reference/readable-references.md`** — how every
+  reference in the spec is written, so the developer who approves it can
+  follow each one.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`** — only when a task
   id has to be resolved.
 
 ## Procedure
 
 ### 1. Get the task context
 
-With a task id in `$ARGUMENTS`, read the task through the `clickup` agent
-(`INTENT: read`) and extract `custom_id`, `name`, `description`, `priority`,
+With a task id in `$ARGUMENTS`, read the task through the `tracker` agent
+(`INTENT: read`) and extract `key`, `name`, `description`, `priority`,
 `task_id`, `url`. On `STATUS: error`, report it and stop.
 
 Without one, use the context the orchestrator passed. If there is none, ask the
@@ -54,7 +57,11 @@ mkdir -p .specs
 ```
 
 `<slug>` is a short kebab-case form of the task title. Fill in every section of
-`reference/spec-template.md`.
+`reference/spec-template.md`. With no task id (a `kickoff` entry) the file is
+`.specs/<slug>.md` and `> Branch:` names the branch: the scripts find it there.
+
+Before showing it, check every reference in it against the test in
+`readable-references.md`.
 
 ### 5. Show it
 
@@ -64,6 +71,8 @@ Status: draft
 
 <spec content>
 ```
+
+Invoked on its own: `${CLAUDE_PLUGIN_ROOT}/reference/hand-off.md`.
 
 ## Expected output
 

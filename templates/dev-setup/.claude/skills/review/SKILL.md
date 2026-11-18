@@ -79,6 +79,8 @@ Follow `reference/registry-updates.md`: the `REGISTRY.md` entries, then the
 report. Commit neither — inside the SDD flow, closure commits once and carries
 them.
 
+Invoked on its own: `${CLAUDE_PLUGIN_ROOT}/reference/hand-off.md`.
+
 ## Expected output
 
 - a compliance report against the project rules;

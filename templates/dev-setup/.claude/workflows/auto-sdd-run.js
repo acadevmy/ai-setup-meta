@@ -26,10 +26,11 @@ export const meta = {
 //   - it never pushes and never opens a merge request. It returns
 //     `ready-for-mr` and the launcher does that, behind the project `ask` rule,
 //     in the session where a human can see it.
-//   - it never touches ClickUp. The board is the launcher business, so the
-//     `ask` rules on ClickUp writes stay in front of a person.
+//   - it never touches the task tracker. The board is the launcher business, so the
+//     `ask` rules on the tracker's writes stay in front of a person.
 //   - it never edits the main checkout: development happens in a worktree the
-//     harness creates for the dev agent (`isolation: 'worktree'`).
+//     harness creates for the dev agent (`isolation: 'worktree'`), or in the
+//     one parallel prepared, when the launcher passes it.
 //
 // The contract with the launcher (also documented in the auto-sdd skill):
 //
@@ -37,7 +38,7 @@ export const meta = {
 //     taskId:      'DE-123',                  // required
 //     pluginRoot:  '<abs path>',              // required — ${CLAUDE_PLUGIN_ROOT}
 //     baseBranch:  'origin/next',             // required — never hard-coded
-//     title, description, url,                // the task, as ClickUp returned it
+//     title, description, url,                // the task, as the tracker returned it
 //     branchType:  'feat' | 'fix' | 'chore',
 //     stack: { lint, typecheck, test },       // from detect-stack.sh --json;
 //                                             // at least one non-empty, or the
@@ -46,6 +47,12 @@ export const meta = {
 //     unavailableReason: '<text>',            // declared, but this environment
 //                                             // cannot run them — never run,
 //                                             // reported in `unverified`
+//     worktreePath: '<abs path>',             // optional, with `branch`: a
+//     branch: 'feat/DE-123_slug',             // worktree parallel already made,
+//                                             // on that branch, with its own
+//                                             // ports, .env and dependencies —
+//                                             // the dev agent works there
+//                                             // instead of in an isolated one
 //   }
 //
 // Nothing in this file waits for a person. The Challenge improves the spec and
@@ -86,6 +93,25 @@ if (!TASK_ID_SHAPE.test(String(input.taskId))) {
       ' is not a plain identifier (letters, digits, dot, dash, underscore). ' +
       'It would reach a branch name and a shell command: fix the id on the ' +
       'board, do not work around it.',
+  }
+}
+
+// A prepared worktree reaches a `cd` and a branch check inside an agent
+// prompt, so it is held to a shape too: both or neither, an absolute path on
+// one line, a branch name with nothing a shell would read as syntax.
+const BRANCH_SHAPE = /^[A-Za-z0-9][A-Za-z0-9._/()-]{0,199}$/
+const prepared =
+  input.worktreePath || input.branch
+    ? { path: String(input.worktreePath || ''), branch: String(input.branch || '') }
+    : null
+if (prepared && !(prepared.path.startsWith('/') && !/[\n\r"`$\\]/.test(prepared.path) && BRANCH_SHAPE.test(prepared.branch))) {
+  return {
+    status: 'failed',
+    stage: 'intake',
+    reason:
+      'a prepared worktree needs both an absolute worktreePath and a plain branch name; got ' +
+      JSON.stringify({ worktreePath: prepared.path, branch: prepared.branch }) +
+      '. Launch without them and the run makes its own worktree.',
   }
 }
 
@@ -189,6 +215,19 @@ const PRECEDENCE = [
   'and list it in `toConfirm` for the person who reviews the merge request.',
 ].join('\n')
 
+// Everything the run writes ends up in front of a person: the spec on the
+// branch, the entries at the top of the merge request. Every reference in it
+// has to say what it points at, for a reader who never saw the run.
+const READABLE = [
+  'Everything you write here is read by a person who never saw this run: the',
+  'spec by whoever approves the merge request, your other fields at its top.',
+  'Write every reference the way ' + plugin + '/reference/readable-references.md',
+  'says: a rule by its name (its file and heading), an ADR by its number and',
+  'title, a REQ with what it requires, a task with its title, a document as a',
+  'Markdown link whose text names the topic. Never a section number alone, an',
+  'abbreviation you coined, or a bare id, path or URL used as a pointer.',
+].join('\n')
+
 const SPEC_SCHEMA = {
   type: 'object',
   required: ['slug', 'specMarkdown', 'reqs', 'planSteps'],
@@ -258,7 +297,7 @@ const REVISION_SCHEMA = {
           applied: { type: 'boolean' },
           note: {
             type: 'string',
-            description: 'what changed in the spec — or, when declined, the rule, ADR, file or task sentence that backs keeping it',
+            description: 'what changed in the spec — or, when declined, the rule (by its file and heading), the ADR (by its title), the file or the task sentence that backs keeping it',
           },
         },
       },
@@ -277,7 +316,7 @@ const REVIEW_SCHEMA = {
     reason: {
       type: 'string',
       description:
-        'what is wrong or missing, in one or two sentences, naming the REQ, section or file — or, when satisfied, what you checked',
+        'what is wrong or missing, in one or two sentences, naming the REQ (with what it requires), the section or the file — or, when satisfied, what you checked',
     },
     suggestion: {
       type: 'string',
@@ -285,7 +324,7 @@ const REVIEW_SCHEMA = {
     },
     grounds: {
       type: 'string',
-      description: 'what the proposal rests on: the ADR, the rule, the file, the library behaviour or the task sentence',
+      description: 'what the proposal rests on, named so a person can find it: the ADR by its title, the rule by its file and heading, the file, the library behaviour or the task sentence',
     },
   },
 }
@@ -389,7 +428,7 @@ const bullets = (items) => (items || []).map((item) => '  - ' + item).join('\n')
 // ── 1. Spec ──────────────────────────────────────────────────────────────────
 //
 // No discovery interview: the agent that used to answer the questions was the
-// same model that asked them, over the same sources (audit §1-C). What the task
+// same model that asked them, over the same sources. What the task
 // leaves open is settled with a default and listed in `assumptions`; where the
 // task contradicts the project, the precedence decides and `deviations` says
 // so; where two readings survive it, the spec takes one and `toConfirm` hands
@@ -426,6 +465,12 @@ const spec = await agent(
     '    document in `specMarkdown` and nothing else writes it.',
     '  - one REQ per verifiable requirement, each with the concrete way it is',
     '    proven. A REQ nothing can fail is not a requirement.',
+    '  - when the description is a user story — a **User Story** sentence and',
+    '    **Scenario:** blocks in Given/When/Then — each scenario is one REQ, in',
+    '    its order, named after it (`REQ-1 (scenario "…")`), and its test is that',
+    '    scenario. Never merge or drop one: they are what the task promises its',
+    '    users. Its **Open points**, **Assumptions** and **Risks** are not settled',
+    '    by the task: a choice you make on one goes in `toConfirm`.',
     '  - the plan is ordered and atomic: each step is a commit.',
     '  - the scope is the task. Do not plan anything nearby the task does not ask',
     '    for; if it is worth doing, one line under `## Notes` says so.',
@@ -436,6 +481,8 @@ const spec = await agent(
     '    reader is made here, by the precedence below, and recorded.',
     '',
     PRECEDENCE,
+    '',
+    READABLE,
     '',
     'Three reviewers will look at the spec next, one focus each, and propose',
     'what would make it better. Check your draft against them before you return',
@@ -508,6 +555,8 @@ function reviewPrompt(lens, draft) {
     '',
     PRECEDENCE,
     '',
+    READABLE,
+    '',
     TASK_BLOCK,
     '',
     'The spec under review (it is not on disk yet — this is the whole',
@@ -539,10 +588,12 @@ function reviewPrompt(lens, draft) {
     'Answer `satisfied: true` when, through your focus, nothing is left worth',
     'changing, and say in `reason` what you checked. Otherwise',
     '`satisfied: false`, with:',
-    '  - `reason` — what is wrong or missing, naming the REQ, section or file;',
+    '  - `reason` — what is wrong or missing, naming the REQ (with what it',
+    '    requires), the section or the file;',
     '  - `suggestion` — the concrete change, written so the author can apply it',
     '    as it is;',
-    '  - `grounds` — what it rests on: the ADR, the rule, the file, the library',
+    '  - `grounds` — what it rests on, named so a person can find it: the ADR by',
+    '    its title, the rule by its file and heading, the file, the library',
     '    behaviour, the task sentence.',
     'A doubt you cannot ground is not a proposal: be satisfied, and say in',
     '`reason` what you checked.',
@@ -620,6 +671,8 @@ if (proposals.length > 0) {
       '',
       PRECEDENCE,
       '',
+      READABLE,
+      '',
       'Rules for the rewrite:',
       '  - same rules as the first draft: read-only, one REQ per verifiable',
       '    requirement, an ordered atomic plan, the scope is the task, defaults in',
@@ -680,30 +733,80 @@ const reqLines = draft.reqs.map((req) => '  - ' + req.id + ': ' + req.statement)
 // whatever the worktree happened to start on: a fresh worktree branches from
 // the remote default, which is `main` on plenty of projects whose work targets
 // `next`.
+//
+// A prepared worktree replaces the isolation: parallel made it on the branch,
+// from the same base, with its own ports, .env and dependencies, so the agent
+// works there and an instance of the project can run beside the others.
 
 phase('Dev')
-log('Dev — implementing ' + draft.planSteps.length + ' planned steps in an isolated worktree')
+log(
+  'Dev — implementing ' +
+    draft.planSteps.length +
+    ' planned steps in ' +
+    (prepared ? 'the prepared worktree ' + prepared.path : 'an isolated worktree'),
+)
+
+const devWhere = prepared
+  ? [
+      'Implement one task in the git worktree at ' + JSON.stringify(prepared.path) + '.',
+      'Start every shell session with',
+      '',
+      '  cd ' + JSON.stringify(prepared.path),
+      '',
+      'It is yours: nothing else is running in it, and the developer main checkout',
+      'must stay untouched — so never work outside it, and use paths inside it.',
+    ]
+  : [
+      'Implement one task in the git worktree you are standing in. It is yours:',
+      'nothing else is running in it, and the developer main checkout must stay',
+      'untouched — so never `cd` out of it.',
+    ]
+
+const devBranch = prepared
+  ? [
+      'Step 1 — the branch. It exists already: the worktree was made on',
+      JSON.stringify(prepared.branch) + ', from the base this run resolved. Check',
+      'that `git branch --show-current` prints it, and report it back as `branch`.',
+      'If it prints anything else, stop and say so in `notes` — do not create or',
+      'switch branches.',
+    ]
+  : [
+      'Step 1 — the branch. Ask the plugin for the name, then create it from the',
+      'base branch this run resolved:',
+      '',
+      '  bash "' + plugin + '/scripts/sdd-start.sh" --json \\',
+      '    --task ' + task.id + ' --type ' + branchType + ' \\',
+      '    --title "<the task title, in English>" \\',
+      '    --base ' + JSON.stringify(base) + ' --create',
+      '',
+      'Branch names are English: pass the task title (' + JSON.stringify(task.title) + ')',
+      'as it is when it already is, translated to a short English phrase when not.',
+      'Report its BRANCH key back as `branch`. If it exits non-zero, stop and say',
+      'why in `notes` — do not invent a branch name.',
+    ]
+
+const devInstall = prepared
+  ? [
+      'The worktree was prepared for this: its dependencies are installed and its',
+      '.env carries ports of its own, so a server you start does not collide with',
+      'the other runs. Install again only if a command fails because something is',
+      'missing, with the package manager the lock file names. Never edit .env.',
+    ]
+  : [
+      'You are in a fresh worktree, so its dependencies are not installed and the',
+      'gitignored files it needs arrive only through .worktreeinclude. Install',
+      'first, with the package manager the lock file names (pnpm-lock.yaml ->',
+      '`pnpm install`, and so on): every command below otherwise fails for a',
+      'reason that has nothing to do with the task.',
+    ]
 
 const dev = await agent(
   [
-    'Implement one task in the git worktree you are standing in. It is yours:',
-    'nothing else is running in it, and the developer main checkout must stay',
-    'untouched — so never `cd` out of it.',
+    ...devWhere,
     '',
     TASK_BLOCK,
     '',
-    'Step 1 — the branch. Ask the plugin for the name, then create it from the',
-    'base branch this run resolved:',
-    '',
-    '  bash "' + plugin + '/scripts/sdd-start.sh" --json \\',
-    '    --task ' + task.id + ' --type ' + branchType + ' \\',
-    '    --title "<the task title, in English>" \\',
-    '    --base ' + JSON.stringify(base) + ' --create',
-    '',
-    'Branch names are English: pass the task title (' + JSON.stringify(task.title) + ')',
-    'as it is when it already is, translated to a short English phrase when not.',
-    'Report its BRANCH key back as `branch`. If it exits non-zero, stop and say',
-    'why in `notes` — do not invent a branch name.',
+    ...devBranch,
     '',
     'Step 2 — the spec. Write this document to ' + specPath + ', exactly as it',
     'is, and commit it as `docs(spec): add ' + task.id + ' spec`:',
@@ -747,11 +850,7 @@ const dev = await agent(
     'names. One commit per plan step, Conventional Commits, the task id in the',
     'subject: `feat(<scope>): <what changed> [' + task.id + ']`.',
     '',
-    'You are in a fresh worktree, so its dependencies are not installed and the',
-    'gitignored files it needs arrive only through .worktreeinclude. Install',
-    'first, with the package manager the lock file names (pnpm-lock.yaml ->',
-    '`pnpm install`, and so on): every command below otherwise fails for a',
-    'reason that has nothing to do with the task.',
+    ...devInstall,
     '',
     'The project own commands, which you run yourself as you go (an empty one',
     'means the project does not define it — skip it, say so in `notes`, do not',
@@ -780,14 +879,17 @@ const dev = await agent(
     'run reports back and a human decides. Leave the work committed on the',
     'branch and report the worktree path (`git rev-parse --show-toplevel`).',
   ].join('\n'),
-  {
-    label: 'dev:' + task.id,
-    phase: 'Dev',
-    effort: 'high',
-    isolation: 'worktree',
-    schema: DEV_SCHEMA,
-  },
+  Object.assign(
+    { label: 'dev:' + task.id, phase: 'Dev', effort: 'high', schema: DEV_SCHEMA },
+    prepared ? {} : { isolation: 'worktree' },
+  ),
 )
+
+// The prepared worktree is the launcher's fact, not the agent's report
+if (dev && prepared) {
+  dev.worktreePath = prepared.path
+  if (dev.branch !== prepared.branch) dev.branch = ''
+}
 
 if (!dev || !dev.branch || !dev.worktreePath) {
   return {

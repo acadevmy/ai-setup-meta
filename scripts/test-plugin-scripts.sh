@@ -233,6 +233,8 @@ echo "── detect-stack.sh (fixture snapshots) ──"
 for FIXTURE_DIR in "$FIXTURES"/*/; do
   [ -d "$FIXTURE_DIR" ] || continue
   NAME=$(basename "$FIXTURE_DIR")
+  # stories/ holds story drafts for validate-story.sh, not a project to detect.
+  [ "$NAME" = "stories" ] && continue
   SNAPSHOT="$FIXTURES/$NAME.expected.json"
 
   # Run on a copy outside the repository: inside it, git would report the
@@ -380,6 +382,19 @@ printf -- '# Spec: My work [DE-999]\n\n> Status: draft\n> Task: DE-999\n\n## Imp
 assert_eq "spec status read from the template's > Status: line" \
   "draft" "$(cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --json 2>/dev/null | jq -r '.SPEC_STATUS')"
 cp "$WORK_DIR/DE-999-frontmatter.md" "$SANDBOX/.specs/DE-999-my-work.md"
+
+# A branch with no task id finds its spec through the spec's `> Branch:` line.
+git -C "$SANDBOX" checkout --quiet -b 'feat(search)/idea-first-entry'
+printf -- '# Spec: Idea-first entry\n\n> Status: draft\n> Branch: `feat(search)/idea-first-entry` (off `next`)\n\n## Implementation plan\n' \
+  > "$SANDBOX/.specs/idea-first-entry.md"
+printf -- '# Spec: Other\n\n> Branch: `feat(search)/idea-first-entry-2`\n' > "$SANDBOX/.specs/other.md"
+IDEA=$(cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --json 2>/dev/null)
+assert_eq "no task id on a branch without one" "" "$(printf '%s' "$IDEA" | jq -r '.TASK_ID')"
+assert_contains "spec found through its > Branch: line" \
+  "$(printf '%s' "$IDEA" | jq -r '.SPEC')" ".specs/idea-first-entry.md"
+rm -f "$SANDBOX/.specs/idea-first-entry.md" "$SANDBOX/.specs/other.md"
+git -C "$SANDBOX" checkout --quiet feat/DE-999-my-work
+git -C "$SANDBOX" branch --quiet -D 'feat(search)/idea-first-entry'
 
 # --require-spec must fail loudly when there is no spec.
 (cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --task DE-404 --require-spec --json) >/dev/null 2>&1
@@ -1449,6 +1464,29 @@ assert_eq "an exclusion already there still gets its guards" "excluded-commands-
   "$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/unguarded.json" \
        --template "$SETTINGS_TEMPLATE" --json 2>/dev/null | jq -r .REASON)"
 
+# The ClickUp writes left the ask rules: a story run makes a dozen of them after
+# the drafts were approved. A sandboxed project still carrying them loses exactly
+# those three entries on UPDATE; deleting, moving and merging keep asking.
+# A ClickUp project carries its tracker's ask entries (setup 6.1's fragment).
+jq --slurpfile f "$REPO_ROOT/templates/dev-setup/setup/reference/tracker-permissions.json" \
+  '.permissions.ask += $f[0].clickup.ask' "$MIG_DIR/with-gh.json" > "$MIG_DIR/clickup-project.json"
+jq '.permissions.ask += ["mcp__clickup__clickup_create_*", "mcp__clickup__clickup_update_*", "mcp__clickup__clickup_add_*"]' \
+  "$MIG_DIR/clickup-project.json" > "$MIG_DIR/old-ask.json"
+ASK_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/old-ask.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/new-ask.json" --json 2>/dev/null)
+assert_eq "a sandboxed settings asking on ClickUp writes is migrated" "ask-retired" \
+  "$(printf '%s' "$ASK_REPORT" | jq -r .REASON)"
+assert_eq "the report names the retired ask entries" \
+  "mcp__clickup__clickup_create_*,mcp__clickup__clickup_update_*,mcp__clickup__clickup_add_*" \
+  "$(printf '%s' "$ASK_REPORT" | jq -r .RETIRED_ASK)"
+assert_eq "only those entries leave the ask list" "true" \
+  "$(jq -n --slurpfile a "$MIG_DIR/clickup-project.json" --slurpfile b "$MIG_DIR/new-ask.json" '$a[0] == $b[0]')"
+assert_eq "deleting a ClickUp task still asks" "true" \
+  "$(jq '.permissions.ask | index("mcp__clickup__clickup_delete_*") != null' "$MIG_DIR/new-ask.json")"
+assert_eq "the template no longer asks on ClickUp creates" "false" \
+  "$(jq '.permissions.ask | index("mcp__clickup__clickup_create_*") != null' "$SETTINGS_TEMPLATE")"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd-run.js: the workflow script (DE-16479)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1562,7 +1600,7 @@ if [ -f "$AUTO_SDD" ]; then
   # The workflow reports; the launcher acts. Nothing outward-facing happens
   # inside a background run: no push, no merge request, no board write.
   assert_eq "the workflow itself pushes nothing and opens nothing" "" \
-    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup" "$AUTO_SDD" || true)"
+    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup|mcp__linear" "$AUTO_SDD" || true)"
 
   # The quality commands are the project's own, never a guess.
   assert_contains "the quality commands come from detect-stack" \
@@ -1826,10 +1864,13 @@ setup/reference/mcp-env.md|settings on the host
 HIST_KEPT
 
 # Over the prose the model reads, the three phrases survive only where they
-# state a present fact (fork-point.md, rules-generation.md) or the recognition
-# rule UPDATE applies to an old AGENTS.md (agents-generation.md).
+# state a present fact (fork-point.md, rules-generation.md, the story
+# references) or the recognition rule UPDATE applies to an old AGENTS.md
+# (agents-generation.md).
 assert_eq "the only history phrases left are present-tense facts and the UPDATE recognition rule" \
   "templates/dev-setup/.claude/reference/fork-point.md
+templates/dev-setup/.claude/skills/story/reference/examples.md
+templates/dev-setup/.claude/skills/story/reference/intake.md
 templates/dev-setup/setup/reference/agents-generation.md
 templates/dev-setup/setup/reference/rules-generation.md" \
   "$(cd "$REPO_ROOT" && grep -rln "used to\|no longer\|once cost" \
@@ -1891,8 +1932,8 @@ done
 SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
-assert_eq "the surface the check reads is the six public commands" \
-  "auto-sdd multi-sdd quick review sdd setup" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+assert_eq "the surface the check reads is the public commands" \
+  "auto-sdd distill grill-me kickoff multi-sdd parallel quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
 
 # The names from $2 (one per line) with no row in $1 matching $3, where `@`
 # stands for the name.
@@ -1965,7 +2006,10 @@ for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DEC
 done
 
 # DE-17079 wants the generated file shorter; these fixes may not lengthen it.
-for BUDGET in "$GEN_SINGLE:131" "$GEN_WORKSPACE:136" "$GEN_PROJECT:30"; do
+# The extra lines over the base are the `kickoff`, `grill-me`, `distill` and
+# `parallel` commands, the `story` command and its `story-reviewer` agent, which the
+# surface checks above require, and the one-line rule on readable references.
+for BUDGET in "$GEN_SINGLE:138" "$GEN_WORKSPACE:143" "$GEN_PROJECT:30"; do
   GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
   assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
     "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
@@ -2035,6 +2079,219 @@ assert_eq "ids and --from-sprint together are refused" "3" \
 
 assert_eq "the script ships in the built plugin" "true" \
   "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/multi-preflight.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── parallel.mjs adopt (a worktree the script did not create) ──"
+
+# A run of auto-sdd or multi-sdd lands in a worktree the harness created, with
+# no slot: `adopt` is what lets `dev` start it on ports of its own.
+PARALLEL_MJS="$REPO_ROOT/templates/dev-setup/.claude/skills/parallel/templates/parallel.mjs"
+if command -v node >/dev/null 2>&1; then
+  PA_MAIN="$WORK_DIR/pa-main"
+  PA_SIDE="$WORK_DIR/pa-side"
+  PA_THIRD="$WORK_DIR/pa-third"
+  git_init "$PA_MAIN"
+  git -C "$PA_MAIN" config user.email "test@example.com"
+  git -C "$PA_MAIN" config user.name "Test"
+  git -C "$PA_MAIN" commit --quiet --allow-empty -m "chore: base"
+  printf 'PORT=3000\nDB=app\n' > "$PA_MAIN/.env"
+  mkdir -p "$PA_MAIN/scripts"
+  # The CONFIG a project fills in: ports and a database per slot, a setup that leaves a trace
+  sed -e 's/setup: \["npm ci"\]/setup: ["touch .setup-ran"]/' \
+      -e 's/vars: {},/vars: { PORT: "{port:web}", DB: "app_{slot}" },/' \
+      "$PARALLEL_MJS" > "$PA_MAIN/scripts/parallel.mjs"
+  git -C "$PA_MAIN" worktree add --quiet -b feat/DE-1-side "$PA_SIDE" >/dev/null 2>&1
+  git -C "$PA_MAIN" worktree add --quiet -b feat/DE-2-third "$PA_THIRD" >/dev/null 2>&1
+  # What .worktreeinclude would have copied: the main checkout's ports
+  cp "$PA_MAIN/.env" "$PA_SIDE/.env"
+  pa() { (cd "$PA_MAIN" && node scripts/parallel.mjs "$@" 2>&1); }
+
+  assert_contains "dev on a worktree with no slot names adopt" "$(pa dev pa-side)" "parallel adopt pa-side"
+  pa adopt pa-side >/dev/null
+  assert_eq "adopt gives the first free slot its ports" "PORT=3100" "$(grep '^PORT=' "$PA_SIDE/.env")"
+  assert_eq "and the rest of the slot's variables" "DB=app_1" "$(grep '^DB=' "$PA_SIDE/.env")"
+  assert_eq "adopt runs the project's setup" "true" "$([ -f "$PA_SIDE/.setup-ran" ] && echo true || echo false)"
+  assert_contains "a second adopt changes nothing" "$(pa adopt feat/DE-1-side)" "already has slot 1"
+  assert_eq "the main checkout is refused" "1" "$(cd "$PA_MAIN" && node scripts/parallel.mjs adopt pa-main >/dev/null 2>&1; echo $?)"
+  pa adopt pa-third --skip-setup >/dev/null
+  assert_eq "--skip-setup skips the setup" "false" "$([ -f "$PA_THIRD/.setup-ran" ] && echo true || echo false)"
+  assert_contains "the next worktree takes the next slot" "$(pa list)" "pa-third  feat/DE-2-third  2"
+  # multi-sdd passes the fork point as it was confirmed: here a local branch a
+  # stacked task starts from, with no origin at all
+  pa new feat/DE-3-stack --from feat/DE-1-side >/dev/null
+  PA_NEW="$PA_MAIN/.claude/worktrees/feat-DE-3-stack"
+  assert_eq "new puts the worktree inside the project, beside Claude Code's" \
+    "true" "$([ -d "$PA_NEW" ] && echo true || echo false)"
+  assert_eq "--from takes a local branch as it is" \
+    "$(git -C "$PA_MAIN" rev-parse feat/DE-1-side)" "$(git -C "$PA_NEW" rev-parse HEAD 2>/dev/null)"
+  unset -f pa
+else
+  echo "  (skipped: node not available)"
+fi
+
+echo ""
+echo "── parallel-guard.sh (new and adopt outside the sandbox, guarded) ──"
+
+# An excluded command runs project code past every OS boundary. The agent may
+# run new and adopt only when the settings carry all three guards, and an alias
+# can never be guarded: it runs whatever an editable package.json says.
+PG_DIR="$WORK_DIR/pg-main"
+git_init "$PG_DIR"
+mkdir -p "$PG_DIR/.claude"
+pg() { (cd "$PG_DIR" && bash "$PLUGIN_SCRIPTS/parallel-guard.sh" --json 2>/dev/null); }
+pgf() { pg | jq -r ".$1"; }
+
+assert_contains "no parallel.json: not guarded, and said so" "$(pgf REASON)" "no .claude/parallel.json"
+printf '{"new":"node scripts/parallel.mjs new","adopt":"node scripts/parallel.mjs adopt"}\n' > "$PG_DIR/.claude/parallel.json"
+printf '{}\n' > "$PG_DIR/.claude/settings.json"
+assert_eq "no sandbox: nothing to guard" "false false" "$(pgf GUARDED) $(pgf SANDBOX)"
+printf '{"sandbox":{"enabled":true}}\n' > "$PG_DIR/.claude/settings.json"
+assert_eq "the sandbox alone is not enough: six entries missing" "false 6" \
+  "$(pgf GUARDED) $(pgf MISSING | grep -c .)"
+assert_contains "and each is named, ready to paste" "$(pgf MISSING)" "permissions.deny: Edit(**/scripts/parallel.mjs)"
+cat > "$PG_DIR/.claude/settings.json" <<'JSON'
+{"sandbox":{"enabled":true,
+  "excludedCommands":["node scripts/parallel.mjs new *","node scripts/parallel.mjs adopt *"],
+  "filesystem":{"denyWrite":["scripts/parallel.mjs"]}},
+ "permissions":{"ask":["Bash(node scripts/parallel.mjs new *)"],"deny":["Edit(**/scripts/parallel.mjs)"]}}
+JSON
+assert_eq "one ask missing: not guarded" "false" "$(pgf GUARDED)"
+printf '{"permissions":{"ask":["Bash(node scripts/parallel.mjs adopt *)"]}}\n' > "$PG_DIR/.claude/settings.local.json"
+assert_eq "the local settings complete it: guarded" "true scripts/parallel.mjs" "$(pgf GUARDED) $(pgf SCRIPTS)"
+printf '{"new":"pnpm wt new","adopt":null}\n' > "$PG_DIR/.claude/parallel.json"
+assert_eq "an alias is never guarded" "false" "$(pgf GUARDED)"
+assert_contains "and the reason asks for the direct invocation" "$(pgf REASON)" "not an alias"
+assert_eq "it writes nothing" "parallel.json settings.json settings.local.json" \
+  "$(cd "$PG_DIR/.claude" && ls | tr '\n' ' ' | sed 's/ $//')"
+unset -f pg pgf
+
+echo ""
+echo "── validate-story.sh (the structural checks on the story drafts) ──"
+
+# What a machine can check about a draft is checked here, so the reviewer agent
+# is left with judgement only. Every rule below is one the prose used to carry.
+STORY_FIX="$REPO_ROOT/scripts/fixtures/stories"
+story() { bash "$PLUGIN_SCRIPTS/validate-story.sh" --json "$@" 2>/dev/null; }
+story_exit() {
+  bash "$PLUGIN_SCRIPTS/validate-story.sh" --json "$@" >/dev/null 2>&1
+  printf '%s' "$?"
+}
+STORY_BAD=$(story "$STORY_FIX/invalid" | jq -r '.ERRORS')
+
+assert_eq "a valid epic, its stories and a spike pass" "true" \
+  "$(story "$STORY_FIX/valid" | jq -r '.VALID')"
+assert_eq "and the caller sees a zero exit" "0" "$(story_exit "$STORY_FIX/valid")"
+assert_eq "every draft in the folder is read" "5" \
+  "$(story "$STORY_FIX/valid" | jq -r '.CHECKED')"
+assert_eq "a story with the optional Out of Scope section passes" "true" \
+  "$(story "$STORY_FIX/valid/US-01.md" "$STORY_FIX/valid/EPIC-01.md" | jq -r '.VALID')"
+# The open points are what the da dettagliare tag is applied from.
+assert_eq "the draft with an Open points section is reported" "US-02" \
+  "$(story "$STORY_FIX/valid" | jq -r '.OPEN_POINTS')"
+assert_eq "an Italian story (Come … voglio … così da, Dato/Quando/Allora) passes" "true" \
+  "$(story "$STORY_FIX/valid/US-02.md" "$STORY_FIX/valid/EPIC-01.md" "$STORY_FIX/valid/SPIKE-01.md" | jq -r '.VALID')"
+
+assert_eq "an invalid folder is refused with exit 3" "3" "$(story_exit "$STORY_FIX/invalid")"
+assert_contains "a story with no value clause is refused" "$STORY_BAD" \
+  "US-10.md: the Connextra sentence must read"
+assert_contains "a conjunction in the I want clause is refused" "$STORY_BAD" \
+  "US-11.md: the \"I want\" clause has a conjunction"
+assert_contains "a scenario with two When steps is refused" "$STORY_BAD" \
+  "scenario \"two actions\" has 2 When steps"
+assert_contains "a key outside the schema is refused" "$STORY_BAD" \
+  "unknown frontmatter key \"estimate\""
+assert_contains "a leftover placeholder is refused" "$STORY_BAD" "keeps a {{…}} placeholder"
+assert_contains "a # title in the body is refused" "$STORY_BAD" "the body starts with a # title"
+assert_contains "a story with no scenario is refused" "$STORY_BAD" "US-13.md: no **Scenario:**"
+# The workspace nests one level: an epic under an epic has nowhere to go.
+assert_contains "an epic with a parent is refused" "$STORY_BAD" "an EPIC has no parent"
+assert_contains "an epic missing a requirement section is refused" "$STORY_BAD" \
+  "no **Design requirement** section"
+# Publication deletes <id>.md, so the name is part of the contract.
+assert_contains "a draft not named after its id is refused" "$STORY_BAD" \
+  "the file must be named US-14.md"
+assert_contains "a relation to a provisional id nobody drafted is refused" "$STORY_BAD" \
+  "relation to US-99, which is not drafted in this run"
+assert_contains "one scenario is a warning, not an error" \
+  "$(story "$STORY_FIX/invalid" | jq -r '.WARNINGS')" "US-10.md: one scenario"
+# An asynchronous outcome walks the whole loading cycle, so it may take six or
+# seven steps; a long scenario with no loading cycle is still warned.
+assert_contains "a long scenario with no loading cycle is a warning" \
+  "$(story "$STORY_FIX/invalid" | jq -r '.WARNINGS')" \
+  "scenario \"a long scenario with no loading cycle\" has 6 steps"
+assert_eq "a seven-step loading cycle, English or Italian, is not warned" "" \
+  "$(story "$STORY_FIX/valid" | jq -r '.WARNINGS')"
+assert_eq "no argument is a usage error" "1" "$(story_exit)"
+
+# The story map (--map) is checked against the drafts it lays out: a map that
+# forgets an epic or a story is a plan that does not match the backlog.
+STORY_BAD_MAP=$(story "$STORY_FIX/invalid-map" | jq -r '.ERRORS')
+assert_contains "a map with relations is refused" "$STORY_BAD_MAP" "a MAP has no relations"
+assert_contains "a story in the walking skeleton is refused" "$STORY_BAD_MAP" \
+  "the walking skeleton lists US [US-01]: tasks and spikes only"
+assert_contains "a map citing an item nobody drafted is refused" "$STORY_BAD_MAP" \
+  "the map cites US [US-09], which is not drafted in this run"
+assert_contains "an epic missing from the backbone is refused" "$STORY_BAD_MAP" \
+  "EPIC [EPIC-01] is drafted but missing from the map's Backbone"
+assert_contains "a story missing from the release lanes is refused" "$STORY_BAD_MAP" \
+  "US [US-01] is drafted but missing from the map's Release lanes"
+# A run that has Figma frames gives each story its own, never the bare file.
+STORY_BAD_FIGMA=$(story "$STORY_FIX/invalid-figma" | jq -r '.ERRORS')
+assert_contains "a story without its frame is refused when the run has Figma" "$STORY_BAD_FIGMA" \
+  "US-02 has no frame in **Design**"
+assert_contains "a bare file link is not a frame" "$STORY_BAD_FIGMA" \
+  "US-03.md: the **Design** section links Figma without a frame"
+assert_eq "a frame link, or No design, passes" "" \
+  "$(printf '%s\n' "$STORY_BAD_FIGMA" | grep -E 'US-0[14]' || true)"
+assert_contains "a short DoR Check is a warning" \
+  "$(story "$STORY_FIX/invalid-map" | jq -r '.WARNINGS')" "the DoR Check has 1 lines"
+# A lane titled "MVP" filters nothing: its title is the outcome it unlocks.
+assert_contains "a lane titled with a label is a warning" \
+  "$(story "$STORY_FIX/invalid-map" | jq -r '.WARNINGS')" "the lane \"MVP\" is a label"
+
+assert_eq "the script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/validate-story.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── parse-story.sh (the flows read the story format) ──"
+
+# The body of a draft is exactly what ClickUp receives, so the fixtures double
+# as task descriptions once their frontmatter is stripped.
+story_body() { awk 'f >= 2 { print } /^---$/ { f++ }' "$1"; }
+parse() { bash "$PLUGIN_SCRIPTS/parse-story.sh" --json 2>/dev/null; }
+
+assert_eq "a story description is recognised" "story" \
+  "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.FORMAT')"
+assert_eq "its scenarios are counted" "3" \
+  "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.SCENARIO_COUNT')"
+assert_eq "and named, in order" "archiving a path" \
+  "$(story_body "$STORY_FIX/valid/US-01.md" | parse | jq -r '.SCENARIOS' | head -1)"
+assert_eq "an Italian story is recognised too" "story" \
+  "$(story_body "$STORY_FIX/valid/US-02.md" | parse | jq -r '.FORMAT')"
+assert_contains "its open points are returned" \
+  "$(story_body "$STORY_FIX/valid/US-02.md" | parse | jq -r '.OPEN_POINTS')" "Da confermare"
+# An epic is not something to implement: the flows stop on it.
+assert_eq "an epic is recognised" "epic" \
+  "$(story_body "$STORY_FIX/valid/EPIC-01.md" | parse | jq -r '.FORMAT')"
+# The new format is used when it is there, never required.
+assert_eq "a hand-written description is other" "other" \
+  "$(printf 'Add a CSV export to the orders page.\n' | parse | jq -r '.FORMAT')"
+# ClickUp hands markdown back with its own list spacing.
+assert_eq "ClickUp's list spacing does not hide the open points" "To confirm: the format" \
+  "$(printf '**User Story**\nAs a buyer, I want an export, so that I file expenses.\n\n**Acceptance Criteria**\n**Scenario:** x\n\n**Open points**\n*   To confirm: the format\n' | parse | jq -r '.OPEN_POINTS')"
+assert_eq "the script ships in the built plugin" "true" \
+  "$([ -f "$REPO_ROOT/dist/dev-setup/scripts/parse-story.sh" ] && echo true || echo false)"
+
+echo ""
+echo "── multi-preflight.sh --from-epic ──"
+assert_eq "--from-epic passes the epic through" "DE-100" \
+  "$(preflight --from-epic DE-100 | jq -r '.FROM_EPIC')"
+assert_eq "and asks for no task yet" "0" "$(preflight --from-epic DE-100 | jq -r '.COUNT')"
+assert_eq "--from-epic with ids is refused" "3" "$(preflight_exit --from-epic DE-100 DE-1)"
+assert_eq "--from-epic with --from-sprint is refused" "3" \
+  "$(preflight_exit --from-epic DE-100 --from-sprint 2)"
+assert_eq "an epic id that is not a plain identifier is refused" "3" \
+  "$(preflight_exit --from-epic 'DE-1; rm -rf /')"
 
 echo ""
 echo "── worktree-info.sh --impact (the overlap before the fan-out) ──"
@@ -2154,6 +2411,7 @@ const src = fs.readFileSync(process.argv[2], 'utf8');
 const meta = src.match(/^export const meta = \{[\s\S]*?\n\}\n/);
 const scenario = JSON.parse(process.argv[3]);
 const prompts = {};
+const options = {};
 const calls = [];
 const spec = {
   slug: 'sim', specMarkdown: '# spec', planSteps: ['one'],
@@ -2165,6 +2423,7 @@ const spec = {
 async function agent(prompt, opts) {
   const label = opts.label;
   prompts[label] = prompt;
+  options[label] = opts;
   calls.push(label);
   if (label.startsWith('spec:')) return spec;
   if (label.startsWith('revise:')) {
@@ -2183,7 +2442,9 @@ async function agent(prompt, opts) {
     if (answer === 'ok') return { satisfied: true, reason: 'checked' };
     return { satisfied: false, reason: key + ' proposal', suggestion: 'change', grounds: 'an ADR' };
   }
-  if (label.startsWith('dev:')) return { worktreePath: '/wt', branch: 'b', specPath: 'p', commits: [] };
+  if (label.startsWith('dev:')) {
+    return { worktreePath: '/wt', branch: scenario.devBranch || 'b', specPath: 'p', commits: [] };
+  }
   if (label.startsWith('verify:')) {
     return { passed: true, output: 'green', notStarted: scenario.notStarted || [] };
   }
@@ -2221,12 +2482,21 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
       && (prompts['dev:DE-1'] || '').includes('say so in `notes`'),
     precedence: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
       .every((l) => prompts[l].includes('settle it in this')),
+    readable: Object.keys(prompts).filter((l) => /^(spec|challenge|revise):/.test(l))
+      .every((l) => prompts[l].includes('/reference/readable-references.md')),
     verified: calls.includes('verify:DE-1'),
     unverified: (out.unverified || []).map((u) => u.kind + '=' + u.command).join(','),
     unverifiedReason: (out.unverified || []).map((u) => u.reason).join('|'),
     devSkips: /lint:\s+make lint\s+\(NOT RUNNABLE HERE/.test(prompts['dev:DE-1'] || '')
       && (prompts['dev:DE-1'] || '').includes('php is 8.3'),
     verifySkips: /lint:\s+make lint\s+\(skip\)/.test(prompts['verify:DE-1'] || ''),
+    reason: out.reason || '',
+    worktree: out.worktreePath || '',
+    branch: out.branch || '',
+    devIsolation: (options['dev:DE-1'] || {}).isolation || '',
+    devInPrepared: (prompts['dev:DE-1'] || '').includes('cd "/repo/.claude/worktrees/feat-DE-1"')
+      && !(prompts['dev:DE-1'] || '').includes('sdd-start.sh'),
+    verifyInPrepared: (prompts['verify:DE-1'] || '').includes('cd "/repo/.claude/worktrees/feat-DE-1"'),
   }));
 });
 NODEJS
@@ -2249,6 +2519,8 @@ NODEJS
     "the vendoring ADR backs it|" "$(field "$SIM" answers)"
   assert_eq "the author, the reviewers and the reviser read the same precedence" \
     "true" "$(field "$SIM" precedence)"
+  assert_eq "and the same rule for the references a person reads" \
+    "true" "$(field "$SIM" readable)"
   assert_eq "a departure from the task reaches the developer agent" \
     "true" "$(field "$SIM" devSees)"
   assert_eq "and travels in the outcome" "1" "$(field "$SIM" deviations)"
@@ -2300,6 +2572,31 @@ NODEJS
   SIM=$(sim '{"scope":"dead"}')
   assert_eq "a reviewer that dies twice is reported, and the run goes on" \
     "ready-for-mr scope 4" "$(field "$SIM" status) $(field "$SIM" unchecked) $(field "$SIM" reviews)"
+
+  # A worktree parallel prepared replaces the isolation: the dev agent works
+  # there on the branch it was made on, and the outcome names that worktree
+  # whatever the agent reports.
+  SIM=$(sim '{}')
+  assert_eq "with no prepared worktree, the dev agent gets an isolated one" \
+    "worktree" "$(field "$SIM" devIsolation)"
+  PREP='{"worktreePath":"/repo/.claude/worktrees/feat-DE-1","branch":"feat/DE-1_thing"}'
+  SIM=$(sim '{"devBranch":"feat/DE-1_thing"}' "$PREP")
+  assert_eq "a prepared worktree: no isolation, and the run reaches the merge request" \
+    "ready-for-mr " "$(field "$SIM" status) $(field "$SIM" devIsolation)"
+  assert_eq "the dev agent works in it and cuts no branch" "true" "$(field "$SIM" devInPrepared)"
+  assert_eq "Verify runs there too" "true" "$(field "$SIM" verifyInPrepared)"
+  assert_eq "the outcome names the prepared worktree, not the agent's report" \
+    "/repo/.claude/worktrees/feat-DE-1 feat/DE-1_thing" "$(field "$SIM" worktree) $(field "$SIM" branch)"
+  SIM=$(sim '{"devBranch":"feat/DE-1_other"}' "$PREP")
+  assert_eq "a dev agent on another branch fails the run at dev" \
+    "failed dev" "$(field "$SIM" status) $(field "$SIM" stage)"
+  SIM=$(sim '{}' '{"worktreePath":"/repo/.claude/worktrees/x"}')
+  assert_eq "a worktree with no branch ends at intake, with no agent" \
+    "failed intake 0" "$(field "$SIM" status) $(field "$SIM" stage) $(field "$SIM" agents)"
+  SIM=$(sim '{}' '{"worktreePath":"relative/x","branch":"feat/x"}')
+  assert_eq "so does a relative path" "failed intake" "$(field "$SIM" status) $(field "$SIM" stage)"
+  SIM=$(sim '{}' '{"worktreePath":"/repo/x","branch":"feat/x;rm -rf ~"}')
+  assert_eq "and a branch a shell would read as syntax" "failed intake" "$(field "$SIM" status) $(field "$SIM" stage)"
 else
   printf '%s  skip%s  node not found: the Challenge simulation needs it\n' "$DIM" "$NC"
 fi
@@ -2336,7 +2633,7 @@ assert_contains "and sends any non-zero exit to the outcomes contract" "$AUTO_ST
 
 OUTCOMES="$REPO_ROOT/templates/dev-setup/.claude/reference/run-outcomes.md"
 NOT_STARTED=$(sed -n '/^## When the run does not start/,$p' "$OUTCOMES")
-assert_contains "the refusal of a SPRINT task is one BLOCKED bail-out" "$NOT_STARTED" "SPRINT → BLOCKED"
+assert_contains "the refusal of a READY task is one BLOCKED bail-out" "$NOT_STARTED" "READY → BLOCKED"
 assert_contains "a BACKLOG task is left as found" "$NOT_STARTED" "left as found"
 assert_contains "the refusal names the check" "$NOT_STARTED" "quality-preflight.sh"
 assert_contains "auto-sdd lets an environment without the toolchain through" \
@@ -2627,7 +2924,7 @@ assert_eq "and reading it leaves every log byte-identical" "$CLOCK_RECENT_BEFORE
 # A clock started and never read is a file nobody looks at; a clock read and
 # never started is the no-start-stamp path on every task. Each flow has to call
 # both sides, and the rule they all cite has to live in one place.
-CLOCK_CONTRACT="$REPO_ROOT/templates/dev-setup/.claude/reference/clickup-contract.md"
+CLOCK_CONTRACT="$REPO_ROOT/templates/dev-setup/.claude/reference/tracker-contract.md"
 assert_contains "the contract owns the clock rule" \
   "$(cat "$CLOCK_CONTRACT")" "## The work clock"
 assert_contains "and forbids composing a duration" \
@@ -2752,9 +3049,9 @@ assert_contains "an open clock turns the merge request into a reminder" \
   "$MR_FIRED" "DE-810 is still IN PROGRESS"
 assert_contains "which quotes the merge request it is about" "$MR_FIRED" "$MR_URL_GH"
 assert_contains "and asks for the clock" "$MR_FIRED" "--task DE-810 --stop --json"
-assert_contains "and for the board" "$MR_FIRED" "CODE REVIEW"
+assert_contains "and for the board" "$MR_FIRED" "IN REVIEW"
 assert_contains "citing the contract that holds the call" \
-  "$MR_FIRED" "reference/clickup-contract.md"
+  "$MR_FIRED" "reference/tracker-contract.md"
 
 # The reminder is additionalContext with exit 0: on PostToolUse that is the
 # channel the hooks reference gives a hook with something to tell the model,
@@ -2856,7 +3153,7 @@ done
 assert_contains "vcs-ops says the merge request does not end the task" \
   "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "does not end the task"
 assert_contains "citing the contract that holds both calls" \
-  "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "reference/clickup-contract.md"
+  "$(cat "$REPO_ROOT/shared/skills/vcs-ops/SKILL.md")" "reference/tracker-contract.md"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 12b. post-edit.sh: the formatter's report arrives as context (DE-17064)
@@ -3786,12 +4083,16 @@ assert_eq "no setup reference registers an MCP server with --type url" "false" \
 # rule: `allowed-tools` only pre-approves the tools it lists and restricts none;
 # `disallowed-tools` is the one field that removes a tool, until the developer's
 # next message. So the setup declares the tools it does not need there, and
-# AskUserQuestion is callable because that line does not name it. No `model:`
-# either: an override either lasts one turn of a multi-turn setup, paying two
-# cache re-keys, or silently moves the rest of the session to another model.
+# AskUserQuestion is callable because that line does not name it. Its
+# `allowed-tools` is a pre-approval and nothing more: the four read-only MCP
+# calls Step 7e makes, so a built-in tool listed there would be a claim to
+# restrict it. No `model:` either: an override either lasts one turn of a
+# multi-turn setup, paying two cache re-keys, or silently moves the rest of
+# the session to another model.
 SETUP_FM="$(sed -n '2,/^---$/p' "$REPO_ROOT/dist/dev-setup/skills/setup/SKILL.md")"
 SETUP_DISALLOWED="$(printf '%s\n' "$SETUP_FM" | grep '^disallowed-tools:')"
-assert_eq "the setup declares no allowed-tools, which would restrict nothing" "" \
+assert_eq "the setup pre-approves only Step 7e's four read-only MCP calls" \
+  "allowed-tools: mcp__clickup__clickup_list_document_pages, mcp__clickup__clickup_get_document_pages, mcp__claude_ai_Google_Drive__search_files, mcp__claude_ai_Google_Drive__read_file_content" \
   "$(printf '%s\n' "$SETUP_FM" | grep '^allowed-tools:')"
 assert_eq "the setup does not switch the session model" "" \
   "$(printf '%s\n' "$SETUP_FM" | grep '^model:')"
@@ -3829,22 +4130,64 @@ done
 # REQ-4. A `userConfig` value reaches a plugin in two ways only: substituted as
 # `${user_config.KEY}` in the body of a skill or an agent, and exported to hooks
 # as CLAUDE_PLUGIN_OPTION_<KEY>. Bash and Read see neither, so the contract may
-# not send a flow to "read the plugin's userConfig" — the clickup skill states
+# not send a flow to "read the plugin's userConfig" — the tracker skill states
 # the value, and the contract points there.
-for F in "templates/dev-setup/.claude/reference/clickup-contract.md" \
+for F in "templates/dev-setup/.claude/reference/tracker-contract.md" \
          "templates/dev-setup/setup/reference/mcp-env.md" \
-         "dist/dev-setup/reference/clickup-contract.md" \
+         "dist/dev-setup/reference/tracker-contract.md" \
          "dist/dev-setup/skills/setup/reference/mcp-env.md"; do
   assert_eq "$F does not send a flow to read the plugin's userConfig" "false" \
     "$(grep -qF "plugin's \`userConfig\`" "$REPO_ROOT/$F" && echo true || echo false)"
 done
-for F in "shared/skills/clickup/SKILL.md" "dist/dev-setup/skills/clickup/SKILL.md"; do
+for F in "shared/skills/tracker/SKILL.md" "dist/dev-setup/skills/tracker/SKILL.md"; do
+  assert_contains "$F states the install-time provider" \
+    "$(cat "$REPO_ROOT/$F")" '${user_config.TRACKER_PROVIDER}'
   assert_contains "$F states the install-time list id" \
-    "$(cat "$REPO_ROOT/$F")" '${user_config.CLICKUP_SETUP_LIST_ID}'
+    "$(cat "$REPO_ROOT/$F")" '${user_config.TRACKER_LIST_ID}'
 done
-assert_contains "the contract resolves the list id through the clickup skill" \
-  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/clickup-contract.md")" \
-  "list configured at install time"
+assert_contains "the contract resolves the install-time values through the tracker skill" \
+  "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/tracker-contract.md")" \
+  "configured at install time"
+
+# MERC-222. The tracker is the project's choice: nothing that ships names a
+# tracker's MCP tools, its old configuration or a board's own status spelling,
+# outside the adapters, their backends and the setup step that registers them.
+TRACKER_LEAKS="$(cd "$REPO_ROOT/dist/dev-setup" && grep -rnE \
+  'mcp__clickup|mcp__linear|clickup-contract|`SPRINT`|status: SPRINT|CODE REVIEW' \
+  skills agents reference hooks workflows scripts 2>/dev/null \
+  | grep -vE '^(agents/(tracker|clickup)\.md|reference/tracker-(clickup|linear)\.md|scripts/(tracker-[a-z]+|auto-dev-tracker|auto-dev-clickup|tracker-config|migrate-settings)\.sh|skills/setup/SKILL\.md|skills/setup/reference/(mcp-env\.md|tracker-permissions\.json|product-context\.md)|hooks/tests/)' || true)"
+assert_eq "no shipped file outside the adapters names a tracker's tools or statuses" "" "$TRACKER_LEAKS"
+# The pages a developer reads say the same — the migration page excepted, whose
+# subject is what was removed.
+TRACKER_DOC_LEAKS="$(cd "$REPO_ROOT" && grep -nE \
+  'clickup-contract|CODE REVIEW' \
+  README.md AGENTS.md docs/*.md templates/dev-setup/AGENTS*.md templates/dev-setup/boilerplate/PULL_REQUEST_TEMPLATE.*.md 2>/dev/null \
+  | grep -v '^docs/migration-v2-to-v3\.md:' | grep -v 'IN PROGRESS -> CODE REVIEW. with the PR link' || true)"
+assert_eq "no documentation page names the ClickUp-only configuration" "" "$TRACKER_DOC_LEAKS"
+for P in clickup linear; do
+  assert_eq "the $P adapter has every section the agent reads" "7" \
+    "$(grep -cE '^## (Server|Tools|Status map|Key format|Capabilities|Intents|Headless backend)$' "$REPO_ROOT/templates/dev-setup/.claude/reference/tracker-$P.md")"
+done
+for S in BACKLOG READY 'IN PROGRESS' 'IN REVIEW' DONE BLOCKED; do
+  assert_contains "the contract defines the canonical $S" \
+    "$(cat "$REPO_ROOT/templates/dev-setup/.claude/reference/tracker-contract.md")" "| \`$S\` |"
+done
+TRACKER_PERMS="$REPO_ROOT/templates/dev-setup/setup/reference/tracker-permissions.json"
+assert_eq "the settings template grants no tracker on its own" "0" \
+  "$(grep -c 'mcp__clickup\|mcp__linear' "$REPO_ROOT/templates/dev-setup/.claude/settings.json")"
+assert_eq "the ClickUp fragment is the allow and ask set the template used to carry" \
+  "mcp__clickup__*|mcp__clickup__clickup_delete_*,mcp__clickup__clickup_merge_*,mcp__clickup__clickup_move_*,mcp__clickup__clickup_remove_*" \
+  "$(jq -r '.clickup | (.allow | join(",")) + "|" + (.ask | sort | join(","))' "$TRACKER_PERMS")"
+assert_eq "the Linear fragment asks on the destructive writes" "mcp__linear__*|2" \
+  "$(jq -r '.linear | (.allow | join(",")) + "|" + (.ask | length | tostring)' "$TRACKER_PERMS")"
+MERGED="$(jq --slurpfile f "$TRACKER_PERMS" --arg p linear '
+  ($f[0][$p]) as $x
+  | .permissions.allow = ((.permissions.allow // []) + $x.allow | unique)
+  | .permissions.ask = ((.permissions.ask // []) + $x.ask | unique)
+  | .sandbox.network.allowedDomains = ((.sandbox.network.allowedDomains // []) + $x.network | unique)
+' "$REPO_ROOT/templates/dev-setup/.claude/settings.json")"
+assert_eq "the setup's merge adds the Linear allow, asks and API domain" "true true true" \
+  "$(printf '%s' "$MERGED" | jq -r '[(.permissions.allow | index("mcp__linear__*") != null), (.permissions.ask | index("mcp__linear__delete_*") != null), (.sandbox.network.allowedDomains | index("api.linear.app") != null)] | map(tostring) | join(" ")')"
 
 # A placeholder naming a key the manifest does not declare is never substituted:
 # the model would read the literal text. Every one must name a declared key.
@@ -3861,7 +4204,7 @@ assert_eq "every \${user_config.KEY} in a shipped skill or agent is declared" ""
   "$(undeclared_user_config "$REPO_ROOT/dist/dev-setup/skills" "$REPO_ROOT/dist/dev-setup/agents")"
 UC_PROBE="$WORK_DIR/user-config-probe"
 mkdir -p "$UC_PROBE"
-printf 'List: ${user_config.CLICKUP_SETUP_LIST_ID}, team: ${user_config.NOT_DECLARED}\n' \
+printf 'List: ${user_config.TRACKER_LIST_ID}, team: ${user_config.NOT_DECLARED}\n' \
   > "$UC_PROBE/SKILL.md"
 assert_eq "and the check catches an undeclared key" "NOT_DECLARED" \
   "$(undeclared_user_config "$UC_PROBE")"
@@ -4154,7 +4497,7 @@ for F in "$TEMPLATE_ROOT/setup/SKILL.md" "$TEMPLATE_ROOT"/setup/reference/*.md \
          "$REPO_ROOT/dist/dev-setup/skills/setup/templates/profiles/nextjs.md"; do
   [ -f "$F" ] && IF_SETUP_DOCS+=("$F")
 done
-assert_eq "the setup docs and their built copies are all there" "18" "${#IF_SETUP_DOCS[@]}"
+assert_eq "the setup docs and their built copies are all there" "20" "${#IF_SETUP_DOCS[@]}"
 while IFS= read -r NEEDLE; do
   [ -n "$NEEDLE" ] || continue
   assert_eq "no setup doc says: $NEEDLE" "" \
@@ -4293,7 +4636,7 @@ assert_contains "and the chat carries one line between calls at most" "$PV_INTAK
 assert_contains "the brief template carries the Route line" \
   "$(grep -E '^Route:' "$PV_INTAKE" | tr -s ' ')" "Route: looks like quick — /dev-setup:quick"
 assert_contains "the rule gives the exact line" "$PV_INTAKE_FLAT" \
-  "\`Route: looks like quick — /dev-setup:quick <custom_id>\`"
+  "\`Route: looks like quick — /dev-setup:quick <key>\`"
 assert_contains "and the flow goes on in sdd" "$PV_INTAKE_FLAT" "Then the flow goes on in \`sdd\`"
 assert_contains "never moving itself to a lighter flow" "$PV_INTAKE_FLAT" \
   "it never moves itself to a lighter flow"
@@ -4327,7 +4670,7 @@ for PV_FILE in "$PV_CLOSURE" "$PV_QUICK" "$PV_OUTCOMES"; do
     "$(grep -nE 'gh pr checks|glab ci' "$PV_FILE" || true)"
 done
 assert_contains "a declined merge request in sdd ends on the resume" \
-  "$(flat "$PV_CLOSURE")" "Declined means declined: report it, leave the branch pushed, and end on \`Next: /dev-setup:sdd <custom_id>\`"
+  "$(flat "$PV_CLOSURE")" "Declined means declined: report it, leave the branch pushed, and end on \`Next: /dev-setup:sdd <key>\`"
 assert_contains "in quick, on the host reference's open command" \
   "$(flat "$PV_QUICK")" "(declined: its open command)"
 assert_contains "and in ready-for-mr too" \
@@ -4755,7 +5098,7 @@ fi
 
 if [ -f "$AUTO_DEV" ]; then
   assert_eq "the headless workflow pushes nothing, opens nothing, touches no board" "" \
-    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup" "$AUTO_DEV" || true)"
+    "$(grep -n -E "git push|gh pr create|glab mr create|mcp__clickup|mcp__linear" "$AUTO_DEV" || true)"
   assert_eq "nothing in it goes above high effort" "0" "$(grep -cE "effort: '(xhigh|max)'" "$AUTO_DEV")"
   assert_contains "the task id is validated before it reaches a prompt" "$(cat "$AUTO_DEV")" "TASK_ID_SHAPE"
   assert_contains "the Challenge threshold is a constant" "$(cat "$AUTO_DEV")" "SMALL_TASK = { reqs: 3, steps: 3 }"
@@ -4818,6 +5161,7 @@ chmod +x "$AD_BIN/curl"
 ad() {
   local script="$1"; shift
   (cd "$AD_REPO" && PATH="$AD_BIN:$PATH" CURL_LOG="$AD_LOG" CLICKUP_API_TOKEN=pk_secret CLICKUP_TEAM_ID=42 \
+    TRACKER_PROVIDER="${AD_PROVIDER-clickup}" \
     CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="${AD_CEILING-0}" bash "$PLUGIN_SCRIPTS/$script" "$@" --json 2>/dev/null)
 }
 
@@ -4898,6 +5242,7 @@ for PART in "## To confirm" "## Open points" "proposals applied to the spec: 1" 
             "Adds the greeting." "**Spec:** \`.specs/DE-7-greeting.md\`" "make test" "1. Open /hello" "3 passed"; do
   assert_contains "the body carries: $PART" "$BODY" "$PART"
 done
+assert_contains "the task reads as its id and its title, not its id alone" "$BODY" "**Issue:** DE-7 Add a greeting"
 assert_eq "the template's own test placeholder is replaced, not kept" "false" \
   "$(printf '%s' "$BODY" | grep -q 'Test A' && echo true || echo false)"
 assert_eq "the commits are the ones git holds, not the ones the agent reported" \
@@ -4998,6 +5343,122 @@ assert_eq "the project's blocked status is the one the task moves to" "STUCK" "$
 OUT="$(ad auto-dev-clickup.sh --task DE-7 --start)"
 assert_eq "and its in-progress status the one the work starts in" "DOING" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
 rm -f "$AD_REPO/.claude/auto-dev.json"
+
+# MERC-222: the ClickUp run is auto-dev-clickup.sh, untouched. The tracker
+# dispatcher hands a ClickUp call over to it, every argument but --provider.
+: > "$AD_LOG"
+OUT="$(ad auto-dev-tracker.sh --provider clickup --task DE-7 --read)"
+assert_eq "the dispatcher's ClickUp read is auto-dev-clickup.sh's, keys included" "86xDE-7|DE-7|SPRINT" \
+  "$(printf '%s' "$OUT" | jq -r '[.TASK_ID, .CUSTOM_ID, .STATUS] | join("|")')"
+assert_eq "with the same one call to the API" "1" "$(grep -c . "$AD_LOG")"
+
+# No tracker at all: the run is refused before any call, never sent to ClickUp
+# by default.
+: > "$AD_LOG"
+OUT="$(AD_PROVIDER="" ad auto-dev-tracker.sh --task DE-7 --read)"
+assert_contains "no tracker configured: refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "no task tracker is configured"
+assert_eq "and no call left the machine" "0" "$(grep -c . "$AD_LOG")"
+
+# ── The Linear backend (MERC-222) ──
+#
+# The GraphQL API, stubbed the same way: every call logged with where the key
+# came from. ENG-8 is in a backlog-type state; the team has no "Blocked".
+AD_LIN_LOG="$AD_DIR/linear.log"
+AD_LIN_BIN="$AD_DIR/linear-bin"
+mkdir -p "$AD_LIN_BIN"
+cat > "$AD_LIN_BIN/curl" <<'STUB'
+#!/usr/bin/env bash
+cfg=$(cat)
+prev=""; body=""
+for a in "$@"; do
+  [ "$prev" = "--data-binary" ] && body="$(cat "${a#@}")"
+  prev="$a"
+done
+leak=no; case "$*" in *lin_api_secret*) leak=yes ;; esac
+query="$(printf '%s' "$body" | jq -r .query | tr -s ' \n' ' ')"
+vars="$(printf '%s' "$body" | jq -c .variables)"
+printf '%s stdin-key=%s argv-key=%s vars=%s\n' "$(printf '%s' "$query" | grep -oE 'issueUpdate|commentCreate|issue\(' | head -1)" \
+  "$(printf '%s' "$cfg" | grep -c 'Authorization: lin_api_secret')" "$leak" "$vars" >> "$CURL_LOG"
+states='{"nodes":[{"id":"s-back","name":"Backlog","type":"backlog"},{"id":"s-todo","name":"Todo","type":"unstarted"},{"id":"s-prog","name":"In Progress","type":"started"},{"id":"s-rev","name":"In Review","type":"started"},{"id":"s-done","name":"Done","type":"completed"}]}'
+case "$query" in
+  *issueUpdate*)
+    sid="$(printf '%s' "$vars" | jq -r .s)"
+    name="$(printf '%s' "$states" | jq -r --arg s "$sid" '.nodes[] | select(.id == $s) | .name')"
+    printf '{"data":{"issueUpdate":{"success":true,"issue":{"state":{"name":"%s"}}}}}\n200' "$name" ;;
+  *commentCreate*) printf '{"data":{"commentCreate":{"success":true}}}\n200' ;;
+  *issue\(*)
+    id="$(printf '%s' "$vars" | jq -r .id)"
+    case "$id" in
+      ENG-7) st='{"name":"Todo","type":"unstarted"}' ;;
+      ENG-8) st='{"name":"Icebox","type":"backlog"}' ;;
+      *) printf '{"data":{"issue":null},"errors":[{"message":"Entity not found"}]}\n200'; exit 0 ;;
+    esac
+    printf '{"data":{"issue":{"id":"uuid-%s","identifier":"%s","title":"Add a greeting","description":"Say hello","url":"https://linear.app/t/%s","priority":2,"state":%s,"team":{"key":"ENG","states":%s}}}}\n200' \
+      "$id" "$id" "$id" "$st" "$states" ;;
+  *) printf '{"errors":[{"message":"unknown query"}]}\n400' ;;
+esac
+STUB
+chmod +x "$AD_LIN_BIN/curl"
+lin() {
+  (cd "$AD_REPO" && PATH="$AD_LIN_BIN:$PATH" CURL_LOG="$AD_LIN_LOG" LINEAR_API_KEY=lin_api_secret \
+    TRACKER_PROVIDER=linear bash "$PLUGIN_SCRIPTS/auto-dev-tracker.sh" "$@" --json 2>/dev/null)
+}
+: > "$AD_LIN_LOG"
+OUT="$(lin --task ENG-7 --read)"
+assert_eq "Linear: the board read returns the issue" "ENG-7|Add a greeting|Say hello|TODO|high|false" \
+  "$(printf '%s' "$OUT" | jq -r '[.KEY, .NAME, .DESCRIPTION, .STATUS, .PRIORITY, .IS_BACKLOG] | join("|")')"
+OUT="$(lin --task ENG-8 --start)"
+assert_contains "Linear: a backlog-type state is refused, whatever the team calls it" \
+  "$(printf '%s' "$OUT" | jq -r .REASON)" "BACKLOG"
+assert_eq "and nothing moved" "0" "$(grep -c '^issueUpdate' "$AD_LIN_LOG")"
+OUT="$(lin --task ENG-7 --start)"
+assert_eq "Linear: work starts in the team's In Progress state" "In Progress" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+assert_eq "by its state id" "1" "$(grep -c '^issueUpdate.*"s":"s-prog"' "$AD_LIN_LOG")"
+assert_eq "Linear: the key travels on stdin, every call" "$(grep -c . "$AD_LIN_LOG")" "$(grep -c 'stdin-key=1' "$AD_LIN_LOG")"
+assert_eq "and never in curl's arguments" "0" "$(grep -c 'argv-key=yes' "$AD_LIN_LOG")"
+OUT="$(lin --task ENG-7 --finish --result "$AD_OUT/result.json" --mr-url https://example.test/pr/2)"
+assert_eq "Linear: a merge request moves the issue to In Review, with its comment" "In Review true false" \
+  "$(printf '%s' "$OUT" | jq -r '[.MOVED_TO, .COMMENTED, .TIME_LOGGED] | join(" ")')"
+assert_contains "the comment links the merge request" "$(grep '^commentCreate' "$AD_LIN_LOG" | tail -1)" "https://example.test/pr/2"
+lin --task ENG-7 --start >/dev/null
+OUT="$(cd "$AD_REPO" && PATH="$AD_LIN_BIN:$PATH" CURL_LOG="$AD_LIN_LOG" LINEAR_API_KEY=lin_api_secret \
+  TRACKER_PROVIDER=linear bash "$PLUGIN_SCRIPTS/auto-dev-tracker.sh" --task ENG-7 --finish \
+  --result "$AD_OUT/failed.json" --json 2>&1 >/dev/null)"
+assert_contains "Linear: a team with no Blocked state is an error naming the fix, not a guess" "$OUT" "tracker.json"
+echo '{"provider":"linear","lists":["ENG"],"status":{"blocked":"Done"}}' > "$AD_REPO/.claude/tracker.json"
+OUT="$(lin --task ENG-7 --finish --result "$AD_OUT/failed.json")"
+assert_eq "Linear: the project's map names the state BLOCKED goes to" "Done" "$(printf '%s' "$OUT" | jq -r .MOVED_TO)"
+rm -f "$AD_REPO/.claude/tracker.json"
+OUT="$(cd "$AD_REPO" && PATH="$AD_LIN_BIN:$PATH" TRACKER_PROVIDER=linear bash "$PLUGIN_SCRIPTS/auto-dev-tracker.sh" --task ENG-7 --read --json 2>/dev/null)"
+assert_contains "Linear: no key in the environment: refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "LINEAR_API_KEY"
+
+# ── tracker-config.sh: the resolution order (MERC-222) ──
+TC_REPO="$AD_DIR/tracker-config"
+mkdir -p "$TC_REPO/.claude"
+git -C "$TC_REPO" init --quiet
+tc() { (cd "$TC_REPO" && env -u TRACKER_PROVIDER -u TRACKER_LIST_ID "$@" bash "$PLUGIN_SCRIPTS/tracker-config.sh" --json 2>/dev/null); }
+tcf() { tc "$@" | jq -r '[.PROVIDER, .LIST_ID, .SOURCE] | join("|")'; }
+assert_eq "nothing anywhere: provider none" "none||none" "$(tcf)"
+echo '{"provider":"linear","lists":["ENG","OPS"]}' > "$TC_REPO/.claude/tracker.json"
+assert_eq "the project file" "linear|ENG|file" "$(tcf)"
+assert_eq "every list it names" "ENG,OPS" "$(tc | jq -r .LISTS)"
+assert_eq "the environment wins over the file" "clickup|901|env" "$(tcf TRACKER_PROVIDER=clickup TRACKER_LIST_ID=901)"
+assert_eq "a list in the environment alone keeps the file's provider" "linear|WEB|file" "$(tcf TRACKER_LIST_ID=WEB)"
+rm -f "$TC_REPO/.claude/tracker.json"
+assert_eq "an existing project's ClickUp variable still means ClickUp, that list" "clickup|901|legacy" "$(tcf CLICKUP_SETUP_LIST_ID=901)"
+echo '{"provider":"linear","lists":["ENG"]}' > "$TC_REPO/.claude/tracker.json"
+assert_eq "and a tracker.json, once written, wins over it" "linear|ENG|file" "$(tcf CLICKUP_SETUP_LIST_ID=901)"
+rm -f "$TC_REPO/.claude/tracker.json"
+assert_eq "the old name keeps its ClickUp status names" "SPRINT" \
+  "$(cd "$TC_REPO" && env -u TRACKER_PROVIDER CLICKUP_SETUP_LIST_ID=901 bash "$PLUGIN_SCRIPTS/tracker-config.sh" --status ready --json | jq -r .STATUS_NAMES)"
+assert_eq "an unknown tracker is refused" "3" "$(tc TRACKER_PROVIDER=jira >/dev/null; echo $?)"
+echo 'not json' > "$TC_REPO/.claude/tracker.json"
+assert_contains "a broken file is refused, not read as none" "$(tc | jq -r .REASON)" "not a JSON object"
+echo '{"provider":"clickup","status":{"in_review":["IN QA"]}}' > "$TC_REPO/.claude/tracker.json"
+assert_eq "a status: the project's names first, the adapter's behind them" "IN QA,CODE REVIEW,IN REVIEW" \
+  "$(cd "$TC_REPO" && env -u TRACKER_PROVIDER bash "$PLUGIN_SCRIPTS/tracker-config.sh" --status in_review --json | jq -r '.STATUS_NAMES | split("\n") | join(",")')"
+assert_eq "Linear's default for READY is Todo" "Todo" \
+  "$(cd "$TC_REPO" && TRACKER_PROVIDER=linear bash "$PLUGIN_SCRIPTS/tracker-config.sh" --status ready --json | jq -r '.STATUS_NAMES')"
 
 # The commit of a run with a command this machine cannot start: adtest is not
 # installed, adlint is a stub whose verdict LINT_RED sets.
@@ -5673,6 +6134,28 @@ assert_contains "a devcontainer for VS Code is asked, with Stop as the default" 
   "**Stop here** (the default; nothing written) or **A devcontainer for VS Code**"
 assert_eq "it is not a step of setup" "false" \
   "$(grep -rq 'devcontainer-' "$TEMPLATE_ROOT/setup" && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# References a person reads: one rule, written once, followed by what ships
+# ═══════════════════════════════════════════════════════════════════════════════
+
+RR_REF="$TEMPLATE_ROOT/.claude/reference/readable-references.md"
+assert_eq "the rule ships as a plugin reference" "true" \
+  "$(jq -r '.plugin_reference | index("readable-references.md") != null' "$TEMPLATE_ROOT/manifest.json")"
+assert_contains "and closes on the test a reference has to pass" "$(cat "$RR_REF")" "## The test"
+for RR_FILE in .claude/skills/sdd-spec/SKILL.md .claude/skills/sdd-spec/reference/spec-template.md \
+               .claude/skills/sdd-discovery/reference/question-bank.md \
+               .claude/workflows/auto-sdd-run.js .claude/workflows/auto-dev-run.js; do
+  assert_contains "$RR_FILE follows it" "$(cat "$TEMPLATE_ROOT/$RR_FILE")" "readable-references.md"
+done
+# A section number with no title is what the rule forbids; the files that
+# show it as the example not to follow are the only ones allowed to print one.
+RR_SECTIONS="$(grep -rn '§' "$TEMPLATE_ROOT" "$REPO_ROOT/shared" \
+  | grep -v -e '/CHANGELOG.md:' -e '/reference/readable-references.md:' -e '/story/reference/writing-rules.md:' \
+      -e '/AGENTS.template.md:' -e '/AGENTS.workspace-template.md:' || true)"
+assert_eq "nothing that ships cites a section by its number" "" "$RR_SECTIONS"
+assert_contains "the merge request names the task by its title, not its id alone" \
+  "$(cat "$REPO_ROOT/shared/skills/vcs-ops/reference/merge-request.md")" "[DE-XXX <task title>](link to task)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary

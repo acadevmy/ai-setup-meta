@@ -26,7 +26,7 @@ Each one does everything the one above it does, plus its own row.
 | **Review** | `review` | Closure 1–5: stage, `simplify`, `verify`, `review` + REGISTRY, the summary | everything staged, nothing committed, the spec still `approved` |
 | **Commit** | `commit` | Closure 6: the spec to `implemented`, the one commit, with the commit hook as the gate | one local commit, nothing pushed |
 | **Push** | `push` | Closure 7: `git push -u origin <branch>` | the branch on the remote, no merge request |
-| **Merge request** *(default)* | `merge-request` | Closure 8–9: the merge request, the clock stopped, the task to `CODE REVIEW` | the whole flow |
+| **Merge request** *(default)* | `merge-request` | Closure 8–9: the merge request, the clock stopped, the task to `IN REVIEW` | the whole flow |
 
 Review comes before the commit because that is where the gates run: the code,
 the spec and the REGISTRY entries land in one commit, and a review after the
@@ -63,7 +63,7 @@ split by phase: the second question only matters when the first one is
   "header": "Closure",
   "options": [
     { "label": "Merge request (Recommended)",
-      "description": "Gates, one commit, push, the merge request; the clock stops and the task moves to CODE REVIEW" },
+      "description": "Gates, one commit, push, the merge request; the clock stops and the task moves to IN REVIEW" },
     { "label": "Push",
       "description": "Gates, one commit and the push. No merge request: the task stays IN PROGRESS" },
     { "label": "Commit",

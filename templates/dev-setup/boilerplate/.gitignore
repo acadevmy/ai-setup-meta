@@ -32,7 +32,9 @@ Thumbs.db
 # Testing
 coverage/
 
-# Terraform — CONSTITUTION §49: .terraform.lock.hcl is committed, the rest is not
+# Terraform — the Terraform rule on state (.claude/rules/dev-setup-terraform.md,
+# "State is remote, locked and encrypted"): .terraform.lock.hcl is committed,
+# the rest is not
 .terraform/
 *.tfstate*
 *.tfvars
@@ -41,3 +43,6 @@ coverage/
 # Misc
 *.log
 npm-debug.log*
+
+# Story drafts (dev-setup)
+.stories/

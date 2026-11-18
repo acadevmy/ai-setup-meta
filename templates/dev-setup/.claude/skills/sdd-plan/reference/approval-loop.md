@@ -6,6 +6,9 @@ turn rule for the question itself is in
 
 ## The question
 
+Asked once the grilling's frontier is empty (`SKILL.md`, step 3), never in
+place of it.
+
 ```json
 AskUserQuestion({
   "questions": [{
@@ -38,7 +41,9 @@ End the turn on the tool call. No filler, no reminders.
 ## Change
 
 - collect the developer's feedback;
-- apply the requested changes to the spec file;
+- apply the requested changes to the spec file — a reference you add follows
+  `${CLAUDE_PLUGIN_ROOT}/reference/readable-references.md`, like the rest of
+  the spec;
 - re-present the updated spec;
 - ask again. The loop runs until the developer approves or gives up — this is a
   discussion, and there is no iteration cap on a human conversation.

@@ -127,8 +127,8 @@ a one-line change is the fastest way to get there live.
 
 - v2 ended with "shall I open the PR?" in chat — a summary written by the same
   model that was about to run the command. v3 shows you the command.
-- The same rule covers mutating `gh api` / `glab api` calls and every ClickUp
-  write. The pattern is uniform: **reads are free, outward-facing writes ask.**
+- The same rule covers mutating `gh api` / `glab api` calls and every task
+  tracker write. The pattern is uniform: **reads are free, outward-facing writes ask.**
 - This is why `sdd` lost its final OK. It was not deleted — it was moved
   somewhere it cannot be paraphrased.
 - Declining is a normal outcome. The branch and the commit stay exactly where
@@ -229,7 +229,7 @@ fewer.
 | 0:10 | Demo 1 — the gate on the commit |
 | 0:18 | Demo 2 — the ask on the merge request, plus the force-push deny |
 | 0:26 | Demo 3 — the rules that load themselves, plus writing a team rule live |
-| 0:34 | What changes in your day: the six commands, the routing bar |
+| 0:34 | What changes in your day: the commands, the routing bar |
 | 0:40 | Objections, questions |
 | 0:45 | Where to read: onboarding, the guide, the migration page |
 
@@ -241,7 +241,7 @@ fewer.
   with `/dev-setup:setup`.
 - The project's own lint and tests actually passing on that branch, so demo 1's
   failure is the one you introduced.
-- A ClickUp task id you do not mind moving, for demo 2.
+- A task id on the project's tracker you do not mind moving, for demo 2.
 - Two terminals open, if you want to show worktrees.
 - Send [onboarding.md](./onboarding.md) round beforehand and
   [developer-guide.md](./developer-guide.md) afterwards. People migrating an

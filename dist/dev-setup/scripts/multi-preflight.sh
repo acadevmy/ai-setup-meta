@@ -19,11 +19,14 @@
 #   multi-preflight.sh [--json] DE-1 DE-2 DE-3
 #   multi-preflight.sh [--json] --task DE-1 --task DE-2
 #   multi-preflight.sh [--json] --from-sprint 3
+#   multi-preflight.sh [--json] --from-epic DE-100
 #
 #   <id>…                 the task ids, as positional arguments
 #   --task <id>           the same, one flag per id (both forms may be mixed)
 #   --from-sprint <n>     no ids yet: validate `n` against the cap, then come
 #                         back with the ids the board returned
+#   --from-epic <id>      no ids yet: validate the epic's id, then come back with
+#                         the ids of the stories read from it
 #   --json                emit a flat JSON object
 #
 # Keys:
@@ -33,6 +36,7 @@
 #   TASKS        newline-separated task ids, in the order given
 #   CAP          the maximum number of parallel runs
 #   FROM_SPRINT  the count asked of the board, empty when ids were given
+#   FROM_EPIC    the epic the stories come from, empty when not asked
 #
 # Exit: 0 accepted · 3 refused (ACCEPTED=false, REASON says why) · 1 usage error
 # ---8<--- end of the --help message
@@ -53,6 +57,7 @@ TASK_ID_SHAPE='^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
 
 AS_JSON=false
 FROM_SPRINT=""
+FROM_EPIC=""
 IDS=()
 
 usage() {
@@ -69,6 +74,9 @@ while [ $# -gt 0 ]; do
     --from-sprint)
       [ $# -ge 2 ] || die "--from-sprint requires a count"
       FROM_SPRINT="$2"; shift 2 ;;
+    --from-epic)
+      [ $# -ge 2 ] || die "--from-epic requires an epic id"
+      FROM_EPIC="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     -*) die "unknown argument: $1 (see --help)" ;;
     *) IDS+=("$1"); shift ;;
@@ -88,7 +96,13 @@ refuse() {
   REASON="$1"
 }
 
-if [ -n "$FROM_SPRINT" ] && [ "$COUNT" -gt 0 ]; then
+if [ -n "$FROM_EPIC" ] && { [ -n "$FROM_SPRINT" ] || [ "$COUNT" -gt 0 ]; }; then
+  refuse "--from-epic is an intake of its own: pass the epic, or the ids, or --from-sprint, not two of them"
+elif [ -n "$FROM_EPIC" ]; then
+  if ! printf '%s' "$FROM_EPIC" | grep -qE "$TASK_ID_SHAPE"; then
+    refuse "\"$FROM_EPIC\" is not a plain task id (letters, digits, dot, dash, underscore)"
+  fi
+elif [ -n "$FROM_SPRINT" ] && [ "$COUNT" -gt 0 ]; then
   refuse "both task ids and --from-sprint were given, and they are two different intakes: pass the ids, or ask the board for them, not both"
 elif [ -n "$FROM_SPRINT" ]; then
   if ! printf '%s' "$FROM_SPRINT" | grep -qE '^[0-9]+$'; then
@@ -99,7 +113,7 @@ elif [ -n "$FROM_SPRINT" ]; then
     refuse "--from-sprint $FROM_SPRINT is over the cap of $CAP parallel runs: the review queue, not the tooling, is the limit"
   fi
 elif [ "$COUNT" -eq 0 ]; then
-  refuse "no task to work on: name 1 to $CAP task ids, or use --from-sprint <n> to take them from the board"
+  refuse "no task to work on: name 1 to $CAP task ids, or use --from-sprint <n> or --from-epic <id> to take them from the board"
 elif [ "$COUNT" -gt "$CAP" ]; then
   refuse "$COUNT tasks is over the cap of $CAP parallel runs: five runs already produce more spec, code and merge request than one person reviews in a sitting, so drop $((COUNT - CAP)) and run them in a second round"
 fi
@@ -136,6 +150,7 @@ json_set COUNT "$COUNT"
 json_set TASKS "$TASKS"
 json_set CAP "$CAP"
 json_set FROM_SPRINT "$FROM_SPRINT"
+json_set FROM_EPIC "$FROM_EPIC"
 
 if [ "$AS_JSON" = true ]; then
   json_emit

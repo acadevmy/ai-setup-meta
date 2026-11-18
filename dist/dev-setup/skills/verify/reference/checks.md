@@ -29,6 +29,10 @@ For each `REQ-N` in `## Requirements`:
 For each entry in `## Test strategy`: find a test case matching it by
 description or intent, and classify it **found** or **not-found**.
 
+When the REQs name the story's scenarios (`REQ-N (scenario "…")`), a REQ is
+**covered** only if a test exercises that scenario's Given, When and Then — a
+test that only reaches the code path is **partial**.
+
 ## Correctness
 
 *Did it touch what the spec said it would touch?*
@@ -70,8 +74,8 @@ is listed.
 STATUS: pass | fail | pass-with-warnings
 COUNTS: requirements <covered>/<total> · tests <found>/<total> · decisions <followed>/<total> · Impact files <touched>/<total>
 GAPS:
-  - REQ-<N>: <partial|not-found> — <file>:<line> that shows it, or what is missing
-  - Test <N>: not-found — <what is missing>
+  - REQ-<N> (<what it requires, in a few words>): <partial|not-found> — <file>:<line> that shows it, or what is missing
+  - Test <N> (<what it tests, in a few words>): not-found — <what is missing>
   - Missing: <file listed in Impact, absent from the diff>
   - Unexpected: <file>:<line> — <why it is not support for a listed change>
   - Dependency: <name> — not added to <manifest>
@@ -80,8 +84,10 @@ SUMMARY: <one-line overall assessment>
 ---END---
 ```
 
-- Every `GAPS` entry names its id and either the `<file>:<line>` that shows it
-  or what is missing.
+- Every `GAPS` entry names its id, what that id stands for in a few words —
+  the developer reads the block without the spec open, and `REQ-4` alone
+  tells them nothing — and either the `<file>:<line>` that shows it or what
+  is missing.
 - Covered requirements, found tests and followed decisions are not listed:
   `COUNTS` already says how many there are, and a list of what matches is read
   by nobody.

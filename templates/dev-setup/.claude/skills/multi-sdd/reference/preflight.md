@@ -14,6 +14,7 @@ ends.
 - [Where the answers go](#where-the-answers-go)
 - [The overlap warning](#the-overlap-warning)
 - [The fork point](#the-fork-point)
+- [The instances](#the-instances)
 - [The board](#the-board)
 
 ## The intake
@@ -35,9 +36,9 @@ task is read or touched — the board stays as `multi-preflight.sh`'s exit 3
 leaves it. `${CLAUDE_PLUGIN_ROOT}/reference/run-outcomes.md`, "When the run
 does not start", says what fixes it.
 
-**Ids on the command line.** Read each one through the `clickup` agent —
+**Ids on the command line.** Read each one through the `tracker` agent —
 `INTENT: read`, `PARAMS: task_id: <id>`, per
-`${CLAUDE_PLUGIN_ROOT}/reference/clickup-contract.md`. Keep `custom_id`, `name`,
+`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`. Keep `key`, `name`,
 `description` **verbatim**, `url` and `task_id`.
 
 A task that comes back in `BACKLOG` was never planned: put it through the
@@ -46,16 +47,35 @@ and moves to `IN PROGRESS` at launch like the others. Declined, it drops out
 of the set with the board untouched — rerun `multi-preflight.sh` with the ids
 that remain, and zero remaining is a refusal like any other.
 
+**Epics and open points.** Read each description's format with
+`parse-story.sh` ("The story format" in the contract). An `epic` among the ids
+is not a task: it drops out of the set, and the message names
+`--from-epic <id>`. A story with open points — or the `da dettagliare` tag —
+goes through the contract's open-points gate here, before anything starts:
+**answer them now** and the answers travel to its run, appended to the
+description it receives under a final `**Answers to open points**` section;
+**go ahead** and the run records each one in `openPoints`; **leave it** drops
+it from the set, board untouched. Never let a run discover an open point the
+developer could have answered in this phase.
+
+**`--from-epic <id>`.** Read the epic (`INTENT: read`): its `subtasks` are the
+candidates. Keep the stories not yet `DONE` whose `blocked_by` names no other
+story still open in the epic — a blocked story cannot run beside the one it
+waits on — and say which ones wait, and on what. Take at most the cap, in the
+epic's order, then run the gate again with their ids, one quoted `--task`
+each, and read each one in full as above.
+
 **`--from-sprint <n>`.** Resolve the list id as the contract describes, then
-`INTENT: filter`, `PARAMS: list_id: <CLICKUP_SETUP_LIST_ID>, status: SPRINT`.
-Sort by `priority` ascending — `1` is urgent — and take the first `n`. Then run
+`INTENT: filter`, `PARAMS: list_id: <LIST_ID>, status: READY`
+(plus `tag: <product tag>` when `product.md`'s index maps the current folder
+to a product). Sort by `priority` ascending — `1` is urgent — and take the first `n`. Then run
 the gate again with the ids you got, one quoted `--task` each:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/multi-preflight.sh" --json --task "DE-1" --task "DE-2"
 ```
 
-Nothing in `SPRINT` means zero ids, which that call refuses: say so and stop. No
+Nothing in `READY` means zero ids, which that call refuses: say so and stop. No
 run, no board write. This is why the intake goes back through the gate rather
 than trusting the count — the board decides how many there really were.
 
@@ -155,8 +175,75 @@ times is the braiding this command exists to avoid. A task that genuinely needs
 a different base is a stacked task — run it on its own with `sdd` or
 `auto-sdd`.
 
+## The instances
+
+Only when `.claude/parallel.json` in the main checkout has a `new` command: the
+project can run on several worktrees at once, each with its own ports, `.env`,
+containers and dependencies. Then `parallel` prepares each run's worktree, and
+the run develops in it instead of in one the harness makes bare — so its agents
+can start the project without colliding, and the developer can try every
+result the moment it lands.
+
+**Ask it in the fork-point call**, as a second question, so it costs no stop of
+its own:
+
+```json
+{ "question": "Prepare each run's worktree with parallel?",
+  "header": "Worktrees",
+  "options": [
+    { "label": "Yes, with parallel (Recommended)",
+      "description": "Each run gets its own ports, .env and dependencies, and can be started as it lands" },
+    { "label": "No, the run's own worktree",
+      "description": "Bare worktrees made by the harness: faster to start, nothing to run them with" }
+  ],
+  "multiSelect": false }
+```
+
+On a yes:
+
+1. **The branch of each task**, from the main checkout, without `--create`:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-start.sh" --json --task <key> \
+     --type <branchType> --title "<the task title, in English>" --base <fork point>
+   ```
+
+   `BRANCH` is the name; nothing is created.
+2. **Who runs `new`.** Each task's command is the `new` command of
+   `parallel.json`, then the branch in single quotes, then `--from <fork
+   point>`. It writes `.env`, which the sandbox denies, so ask the script
+   whether the project lets you run it:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/parallel-guard.sh" --json
+   ```
+
+   - **`GUARDED` true, and the session not in auto mode** → run it yourself,
+     one Bash call per task, from the main checkout, inside the sandbox: the
+     command is excluded from it, and the `ask` rule puts each run in front of
+     the developer. A declined one is that task's line to run, below.
+   - **Otherwise** → one line for the developer, every task chained with `&&`,
+     in their terminal or after `!`. Say why in one sentence: `REASON`, or auto
+     mode, where the approval would not reach a person. **The turn ends on that
+     line.**
+
+   Either way it installs as many times as there are tasks, before any run
+   starts.
+3. **Once the worktrees exist**, map each branch to its worktree:
+
+   ```bash
+   git worktree list --porcelain
+   ```
+
+   The `worktree` line above `branch refs/heads/<BRANCH>` is that task's
+   `worktreePath`. A task whose branch has no worktree launches without one,
+   on the harness's, and the ledger says so.
+
+On a no, or with no `parallel.json`, nothing here happens and every run makes
+its own worktree, as before.
+
 ## The board
 
 Phase A writes nothing to it. A task the developer drops has to come out of the
-pre-flight exactly as it went in, so the `SPRINT → IN PROGRESS` move happens at
+pre-flight exactly as it went in, so the `READY → IN PROGRESS` move happens at
 launch, per task, in `fan-out.md`.

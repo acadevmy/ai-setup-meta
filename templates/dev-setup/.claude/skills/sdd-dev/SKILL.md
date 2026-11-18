@@ -63,6 +63,8 @@ For each step, in the plan's order:
 3. **Implement** it following `reference/methodologies.md`.
 4. **Check** it — the test and lint commands from that same reference.
 5. **Update** the breakdown, marking what is done and what is in progress.
+6. **Log** a non-obvious choice the step made in the spec's `## Decision log`,
+   with the reason, before moving on.
 
 ### 4. Summary
 
@@ -80,6 +82,8 @@ Do not commit, simplify or touch the spec's status: the flow's closure stages
 the work, runs `simplify` once, verifies, reviews and produces the single
 commit. The summary is not a stop: the `sdd` flow decides what follows, in
 this same turn, without waiting for a prompt.
+
+Invoked on its own: `${CLAUDE_PLUGIN_ROOT}/reference/hand-off.md`.
 
 ## Expected output
 

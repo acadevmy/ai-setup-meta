@@ -17,8 +17,8 @@ you take must improve the quality, the coherence or the automation of the templa
 ```
 ai-setup-meta/
 ├── shared/                 # Common assets TO DISTRIBUTE (not used by the meta-repo)
-│   ├── agents/             # Reusable agents (e.g. clickup.md)
-│   └── skills/             # Reusable skills (e.g. clickup, vcs-ops)
+│   ├── agents/             # Reusable agents (e.g. tracker.md)
+│   └── skills/             # Reusable skills (e.g. tracker, vcs-ops)
 │
 ├── templates/              # One template per domain
 │   └── <domain>/           # e.g. dev-setup
@@ -191,7 +191,8 @@ Agents are isolated sub-processes with their own context.
 
 | Agent | File | Role |
 |---|---|---|
-| **clickup** | `shared/agents/clickup.md` | Generic ClickUp CRUD. Distributed to every template that declares it in its manifest. |
+| **tracker** | `shared/agents/tracker.md` | Task tracker CRUD on the provider the project configured (ClickUp, Linear), through that provider's adapter. Distributed to every template that declares it in its manifest. |
+| **clickup** | `shared/agents/clickup.md` | The tracker agent pinned to ClickUp, under its earlier name, so a project's own callers of `clickup` keep working. |
 
 ## Available skills
 
@@ -217,7 +218,7 @@ Releases have no command: release-please derives them from the conventional comm
 
 | Skill | Description |
 |---|---|
-| `clickup` | The board's documentation: the workflow statuses, the OAuth prerequisites, what each operation is for. The calling contract lives in the plugin-level `reference/clickup-contract.md`. |
+| `tracker` | The board's documentation: the canonical workflow statuses, what each operation is for, and the install-time provider and list. The calling contract lives in the plugin-level `reference/tracker-contract.md`; each provider's tools and status names in `reference/tracker-<provider>.md`. |
 | `vcs-ops` | Branch, commit, PR/MR, tag and release. The SKILL.md holds the conventions that are the same on both hosts; it reads `git remote` and then loads `reference/github.md` (`gh`) or `reference/gitlab.md` (`glab`, including the `--template` discovery GitLab needs). |
 
 ## The plugin's scripts and hooks
@@ -240,22 +241,27 @@ status other than 0.
 | `sdd-start.sh --task DE-123 \| --title <text> [--context <area>] [--base <ref>] [--stop <point>]` | `BRANCH`, `REPO_ROOT`, `SPEC_DIR`, `VCS`, `BASE_BRANCH`, `BRANCH_EXISTS`, `CREATED`, `STOP_POINT` — the branch is `<type>(<context>)/<TASK-ID>_<slug>`, the context optional; `--base` forces the fork point, which is what a fresh worktree needs; `--title` alone is the `quick` path, for a fix with no ticket; `--stop` with `--create` saves the stop point beside the task clock, and every later call returns it, so a resumed `sdd` does not ask again |
 | `mr-meta.sh [--summary <text>] [--breaking] [--priority <p>]` | `META_FILE`, `LANGUAGE`, `TEMPLATE`, `BRANCH`, `TYPE`, `CONTEXT`, `TASK_ID`, `TITLE_TYPE`, `TITLE`, `LABELS`, `UNCHECKED_AT_COMMIT` — the merge request's shape, read from the project's `.claude/merge-request.json` (written by setup Step 3.9, edited by the team) and the branch name. Every flow opens a merge request through `vcs-ops`, which asks this. `UNCHECKED_AT_COMMIT` is what the commit gate let through on the branch when it ran out of time, and the merge request opens with it |
 | `save-failed-run.sh --task <id> --stage <spec\|dev\|verify\|broken> --reason-file <path> [--dir <worktree>] [--spec-file <path> --spec-path <path> --base <ref> --title <text>]` | `SAVED`, `COMMIT`, `BRANCH`, `WORKTREE`, `CREATED`, `FILES`, `PUSHED`, `REMOTE`, `PUSH_ERROR`, `REASON` — the one way past the gates: a failed `auto-sdd` run in a cloud session commits what the task's worktree holds (an empty commit when nothing; on a branch with no worktree, without a checkout; with no branch, a new one holding the spec) with the failure report as the body, and pushes it as it is, past the commit and push hooks, never forced. Exit 3 refuses outside `CLAUDE_CODE_REMOTE=true` or with nothing that carries the task id; exit 4 saved but not pushed |
-| `multi-preflight.sh [--task <id>]… \| --from-sprint <n>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
+| `multi-preflight.sh [--task <id>]… \| --from-sprint <n> \| --from-epic <id>` | `ACCEPTED`, `REASON`, `COUNT`, `TASKS`, `CAP`, `FROM_SPRINT` — the gate in front of a fan-out. Exit 3 refuses: over the cap of 5, no task at all, a duplicate id, an id that is not a plain identifier |
+| `parallel-guard.sh` | `GUARDED`, `REASON`, `SANDBOX`, `NEW_CMD`, `ADOPT_CMD`, `SCRIPTS`, `MISSING` — may the agent run the project's `parallel` `new` and `adopt` itself. They write `.env`, so they leave the sandbox only with three guards, read from both settings files: the excluded pattern is the direct invocation of a script file (never an alias like `pnpm wt`, which runs whatever an editable `package.json` says), that file is in `denyWrite` and under an `Edit(...)` deny, and every run asks. `MISSING` names each entry still lacking. Read-only |
 | `check-prerequisites.sh` | `SPEC`, `SPEC_STATUS`, `PLAN`, `CHANGED_FILES`, `AVAILABLE_DOCS`, `BASE_BRANCH`, `MERGE_BASE`, `BRANCH`, `TASK_ID` |
 | `review-package.sh --base <ref>` | `PACKAGE`, `MERGE_BASE`, `EMPTY`, `COMMITS`, `FILES`, `CHANGED_LINES`, `SIZE` — the diff `verify` and `review` read, built once: commits, stat and `git diff -U10` of the working tree against `--base`, in one file under the common git directory, named after the branch. `EMPTY` is decided by the diff, never by the commits; `SIZE` is `large` above 300 changed lines or 10 files. It never stages — the caller does |
 | `task-clock.sh --task <id> --start \| --stop`, `task-clock.sh [--task <id>] --status` | `STARTED_AT`, `STOPPED_AT`, `MINUTES`, `DURATION`, `TOTAL_MINUTES`, `TOTAL_DURATION`, `SESSIONS`, `COMMENT`, `REASON`, `OPEN_TASKS`, `OPEN_COUNT`, `RECENT_TASKS` — the work clock, stamped at the `IN PROGRESS` move and read back when the merge request opens. `COMMENT` is the line the board gets, already written; empty means the clock has nothing and `REASON` says why. `--status` reads without writing and, with no task, answers for the whole repository: asking whether work is open must not consume the measurement. `RECENT_TASKS` names the clocks stopped less than 300 s ago, so a failed run's `BLOCKED` prompt is still its task |
 | `render-template.sh --in <file>` | the rendered template; an unresolved `{{PLACEHOLDER}}` is an error |
 | `instruction-files.sh [--dir <path>]`, `instruction-files.sh --merge <path>` | `SHIMS`, `CUSTOM`, `UNIMPORTED`, `LOCAL`, `ABOVE`, `CLAUDE_VERSION`, `MIN_CLAUDE_VERSION`, `VERSION_OK` — will Claude Code read `AGENTS.md` here (DE-17167). The setup writes no `CLAUDE.md`: Claude Code reads `AGENTS.md` from 2.1.277, and only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the directory or above it. `SHIMS` are the `@AGENTS.md`-only files an earlier setup wrote, which Step 5b removes; `CUSTOM` the team's, moved only on a yes; `VERSION_OK` the client against the `MIN_CLAUDE_VERSION` floor (2.1.281: before it Bedrock and telemetry-off sessions read `CLAUDE.md` only), checked at Step 1. Read-only: `--merge` prints the owning `AGENTS.md` with the file's content appended after its footer, and the setup writes it |
-| `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `ADDED_EXCLUDED` |
+| `migrate-settings.sh --in <file> --template <file>` | the merged settings, plus `MIGRATED`, `REASON`, `ADDED_SANDBOX`, `ADDED_ASK`, `ADDED_DENY`, `RETIRED_ALLOW`, `KEPT_ALLOW`, `RETIRED_DENY`, `RETIRED_ASK`, `ADDED_EXCLUDED` |
 | `worktree-info.sh [--impact <label>=<files>]…` | `WORKTREE`, `WORKTREE_INDEX`, `PORT_OFFSET`, `WORKTREES`, `OVERLAPS`, `OVERLAP_COUNT` — the dev-server offset and the files two declarers both claim. `--impact` adds a set that is not on disk yet, so a fan-out gets the same answer before its worktrees exist |
 | `auto-dev-select.sh --args <file> [--choose <repo> --reason <text> \| --block --reason <text>]` | `STATUS`, `REPO`, `SLUG`, `BASE_BRANCH`, `BASE_SOURCE`, `SOURCE`, `REASON`, `SELECTION_FILE`, `CANDIDATES_FILE`, `TASK_FILE` — which clone a headless task belongs to and the base it forks from: a `repo:` line or a single clone with no model, otherwise `undecided` and a capped `candidates.md` for the model; blocked moves the task to `BLOCKED` itself. Writes `selection.json`, whose `hasDevcontainer` is true only for a root configuration `devcontainer up` reads with no `--config`: a nested one alone runs the task on the host, named in `devcontainerNote`, never a block |
 | `auto-dev-args.sh --args <file>` | `ACCEPTED`, `REASON`, `TASK_ID`, `TITLE`, `TRACKER`, `OUTPUT_DIR`, `TASK_FILE`, `WORKFLOW_ARGS`, `WORKFLOW_ARGS_FILE`, `LAUNCH_FILE`, `PLUGIN_ROOT` — everything `auto-dev` needs before its first agent: the task (from the board or inline), the base (passed, or from `selection.json`, refused in another clone), the quality commands, the MR language. It refuses unless the runner set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`: `claude -p` otherwise stops the workflow ten minutes after the launcher's last turn. Exit 3 also writes a `failed`/`intake` `result.json` |
 | `auto-dev-clickup.sh --task <id> --read \| --start \| --finish --result <file> [--mr-url <url>] [--pushed true\|false]` | `TASK_ID`, `CUSTOM_ID`, `NAME`, `DESCRIPTION`, `STATUS`, `PRIORITY`, `URL`, `MOVED_TO`, `COMMENTED`, `TIME_LOGGED`, `MINUTES`, `REASON` — the board for a headless run, over the REST API with `CLICKUP_API_TOKEN` read by curl from stdin, never from argv: a disposable machine has no OAuth login for the MCP. `BACKLOG` is refused; `--finish` logs the clock in ClickUp's own time tracking |
+| `auto-dev-tracker.sh --task <id> --read \| --start \| --finish --result <file> [--mr-url <url>] [--pushed true\|false] [--provider <p>]` | `PROVIDER`, `TASK_ID`, `KEY`, `NAME`, `DESCRIPTION`, `STATUS`, `PRIORITY`, `URL`, `IS_BACKLOG`, `MOVED_TO`, `COMMENTED`, `TIME_LOGGED`, `MINUTES`, `REASON` — the same board for a headless run on a tracker other than ClickUp: the command line, the backlog gate, the notes and the clock are shared, the API calls are a backend it sources (`tracker-linear.sh`, `LINEAR_API_KEY` read by curl from stdin). `--provider clickup` hands the call to `auto-dev-clickup.sh` unchanged, so a ClickUp run behaves as it always did |
+| `tracker-config.sh [--config <file>] [--status <canonical>]` | `PROVIDER`, `LIST_ID`, `LISTS`, `SOURCE`, `CONFIG_FILE`, `STATUS_NAMES`, `REASON` — which task tracker the project uses: `TRACKER_PROVIDER` / `TRACKER_LIST_ID`, then `.claude/tracker.json`, then `CLICKUP_SETUP_LIST_ID` (a project configured before the file: ClickUp, `SOURCE=legacy`), then `none`. `--status` gives the board's names for a canonical status, the project's first and the adapter's default behind. The one reader of that file |
 | `auto-dev-commit.sh --task <id> --message <subject>` | `COMMITTED`, `COMMIT`, `BRANCH`, `RAN`, `SKIPPED`, `UNAVAILABLE_REASON`, `OUTPUT`, `REASON` — the one commit of an `auto-dev` run with a command `unavailable`: the commit gate minus what cannot start. It asks `quality-preflight.sh` itself, runs the commands that can start, and commits with the project's git hooks on. Exit 4 a red command or a refused commit; exit 3 refuses when nothing is unavailable, with a hook manager, or off the task's branch — `git commit` and the gate work there |
 | `auto-dev-checks.sh --task <id> [--wait] [--budget <seconds>]` | `DONE`, `PASSED`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS`, `OUTPUT`, `LOG_DIR`, `TREE`, `REASON` — the quality commands of an `auto-dev` Verify, run so the agent can wait for them however long they take: each command into its own log, each status on disk as it lands. A suite past the Bash call's ceiling goes on in the background, and `--wait` blocks up to 540 s per call until `DONE` (exit 5: call it again). A second start on the same tree joins the live run; a run whose heartbeat stopped answers `stopped`, never green. Exit 0 green, 4 red, 3 no verdict |
 | `auto-dev-report.sh --outcome <file> --launch <file> [--session <id>]`, `--finalize --result <file> --claude-result <file>` | `STATUS`, `STAGE`, `RESULT_FILE`, `BODY_FILE`, `SPEC_FILE`, `PATCH_FILE`, `TITLE`, `LABELS`, `OUTPUT_SOURCE` — `result.json` and `pr-body.md` with no model: title and labels from `mr-meta.sh`, the repository's template with its description and test sections filled. Git decides the outcome: a `ready-for-mr` whose branch holds no commit over the base becomes `failed` at `dev`, the commit subjects are git's, and a failed run's uncommitted work goes to `changes.patch`. Usage per step from the transcripts is a lower bound for output; `--finalize` spreads `claude -p`'s exact per-model totals over the steps |
 | `devcontainer-facts.sh` | `CONFIG`, `NESTED_CONFIGS`, `VERSIONS`, `PHP_EXTENSIONS`, `PHP_COVERAGE`, `TEST_ENV`, `CI_IMAGES`, `DOCKERFILES`, `COMPOSE_FILES`, `ENV_EXAMPLES`, `ENV_SERVICES`, `PRIVATE_DEPS`, `TESTCONTAINERS`, `REPOSITORY` — what the `devcontainer` command proposes from: every version pin with the file that pins it, the CI's job and service images, the Docker files already there, the services `.env.example` points at, the dependencies that need credentials (URLs masked), and the Testcontainers libraries of every manifest — whose tests need the Docker socket, so the repository is excluded from GCP and `REPOSITORY` names it for the exclusion. Read-only, three levels down, never `.env` |
 | `devcontainer-check.sh [--keep] [--ssh-agent]` | `STATUS`, `REASON`, `CONFIG`, `COMPOSE`, `ISSUES`, `DOCKER`, `CLI`, `UP`, `UP_SECONDS`, `CONTAINER`, `REMOTE_USER`, `REMOTE_UID`, `EXPECTED_UID`, `PREFLIGHT`, `LINT_STATUS`, `TYPECHECK_STATUS`, `TEST_STATUS`, `OUTPUT`, `LOG_DIR`, `KEPT`, `SSH_AGENT` — can the job runner use the root devcontainer: the static clauses of its contract (one root config, non-root user, no `/var/autodev` mount and no other host bind, no Docker socket, `privileged`, host network or Docker Feature, no workspace path of its own, no `${localEnv:}` credential — compose files included), then `devcontainer up` fresh under an id label and a compose project of its own, the UID, `bash`/`git`/`curl` and the workspace root probed inside, and the declared preflight and commands run with `devcontainer exec`. `--ssh-agent` forwards the developer's agent for a private dependency on an SSH URL, which the runner fetches with its own credentials. Exit 0 ready, 4 not ready (a red command alone is not), 3 unverified: no Docker, no CLI, nothing declared |
+| `validate-story.sh <draft \| folder>…` | `VALID`, `CHECKED`, `ITEMS`, `ERRORS`, `WARNINGS`, `OPEN_POINTS` — the structural checks on the story drafts in `.stories/`: frontmatter and relations, the Connextra sentence, no conjunction in its "I want" clause, one `When` per scenario, the epic's four requirement sections. Exit 3 refuses. `OPEN_POINTS` is what the `da dettagliare` tag is applied from |
+| `parse-story.sh [--file <path>]` | `FORMAT`, `CONNEXTRA`, `SCENARIO_COUNT`, `SCENARIOS`, `OPEN_POINTS`, `SECTIONS` — reads a task description: `story` (each scenario becomes a REQ), `epic` (not something to implement), `other` (the flow runs as before) |
 | `common.sh` | sourced by the others: JSON emission, base-branch resolution, slug, branch-name parsing |
 
 ### The UPDATE path is part of the contract
@@ -373,7 +379,7 @@ holds nothing to commit either.
 `gh pr create` / `glab mr create` that actually created a merge request — the URL
 in the output is the proof — and, when a task's work clock is still open in the
 repository, it names that task and asks for the two calls that end it: `--stop`,
-then the `CODE REVIEW` move with `COMMENT` as the comment.
+then the `IN REVIEW` move with `COMMENT` as the comment.
 
 It exists because the closure was context-bound. Both calls live in the last step
 of the skill that opens the merge request, which holds until the merge request is
@@ -548,34 +554,67 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 
 | Reference | Holds |
 |---|---|
-| `clickup-contract.md` | How to call the `clickup` agent: intents, parameters, result format, list-id resolution, the bail-out call |
+| `tracker-contract.md` | How to call the `tracker` agent: intents, parameters, result format, the canonical statuses, provider and list resolution, the bail-out call |
+| `tracker-clickup.md`, `tracker-linear.md` | The adapters: each provider's MCP server and tools, default status map, key format and capabilities. Only the `tracker` agent reads them |
 | `turn-discipline.md` | The rule for an interactive step: after you ask, the turn ends |
 | `fork-point.md` | The one fork-point question: how each flow resolves the default, the shape of the ask, what the answer binds, and where it is deliberately not asked. Cited by `sdd`, `auto-sdd` and `multi-sdd` |
+| `hand-off.md` | What a sub-skill invoked on its own does when it finishes: one question naming the next step of the SDD chain, then that step in the same turn. Cited by `sdd-discovery`, `sdd-spec`, `sdd-plan`, `sdd-dev`, `verify`, `review` and `grill-me`; `kickoff` and `distill` follow the same rule |
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
+| `readable-references.md` | How every reference a person reads is written — a document as a link whose text names the topic, a rule by its name, an id with its title — and the test each one passes. Cited by `sdd-spec`, `sdd-discovery`, `sdd-plan`, `vcs-ops` and both workflows |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
 
-**The public surface is six commands** — `setup`, `quick`, `sdd`, `auto-sdd`,
-`multi-sdd`, `review` — plus two headless ones, `auto-dev-select` and
+**The public surface is the command table of the generated `AGENTS.md`** —
+`setup`, `story`, `quick`, `kickoff`, `grill-me`, `sdd`, `auto-sdd`,
+`multi-sdd`, `review`, `distill`, `parallel` — plus two headless ones, `auto-dev-select` and
 `auto-dev`, which a job runner starts inside `claude -p` and no developer types.
 They are user-invocable because `claude -p` starts them by name, and they stay
-out of the generated `AGENTS.md`, whose command table the suite pins to the six:
+out of the generated `AGENTS.md`, whose command table the suite pins to that list:
 every session of every project would otherwise pay to describe them. One
 optional command stays out of it for the same reason: `devcontainer`, which
 writes and verifies the root `.devcontainer/` the job runner builds before
 `auto-dev`. Unattended runs move to GCP project by project, so most projects
 never type it; it is in the developer guide and the `/dev-setup` catalogue,
 and it is not a step of `setup`. Everything else in the chain (`sdd-discovery`, `sdd-spec`,
-`sdd-plan`, `sdd-dev`, `verify`, `clickup`, `vcs-ops`) carries
+`sdd-plan`, `sdd-dev`, `verify`, `tracker`, `vcs-ops`) carries
 `user-invocable: false`: the orchestrator invokes it by name, and `/help` stays
 readable. A skill that opens a PR or writes into a project also carries
 `disable-model-invocation: true` — a flow with outward-facing side effects is
 started by a person, not inferred.
+`distill` is the exception, on purpose: it writes only an untracked file under
+the git common dir, so the chain reaches it after `review` without a person
+typing it, and its one outward step — a distill section appended to the merge
+request description, between markers, after the filled template and never in
+its place — is opt-in and behind the `ask` rule on `gh api` / `glab api` writes.
+It gives no score and no merge verdict: an automatic merge, if it ever comes, is
+a CI check over deterministic signals, not a number a model writes into a
+description.
 
 `quick` is the fifth because ceremony has to be proportional (DE-16480): at most
 three files and no new component, dependency or public interface goes branch →
 change → commit → merge request, with no discovery and no spec. The bar is in
 both descriptions, `sdd`'s and `quick`'s, and the routing decision stays with the
 developer — the command they type *is* the decision.
+
+`story` joined the surface (DE-17141) because the flows were only as good as the
+task they were handed: hand-written tasks prescribe the build and contradict
+themselves, which is what kept stopping the `auto-sdd` Challenge on DE-16864.
+`story` writes the input instead — a story or an epic with its stories, INVEST
+and Gherkin, from a short description, Figma links and the project's
+`product.md` (written by the setup's Step 7e) — drafts it in `.stories/`
+(gitignored), checks the structure with `validate-story.sh` and the judgement
+with the `story-reviewer` agent, and creates it on ClickUp only after the
+developer approves the drafts. The workspace nests one level (an Epic and its
+subtasks), so a spike or a task a story needs is its sibling, declared with
+`BLOCKED_BY`. A story map is written only on `--map`, and never as a task:
+it is a ClickUp Doc page — the backbone of epics, the walking skeleton, the
+release lanes — that every epic links to, and the release plan lives there
+alone, with no tag or field repeating it on the tasks. A story
+with open points carries the `da dettagliare` tag, and the flows that meet it
+go through the open-points gate of `tracker-contract.md` — once, before any
+branch, never in the middle of a run. A description in any other shape keeps
+working exactly as before: the format is used when it is there, never
+required. The command ships in **beta**: its drafts and its ClickUp output
+may still change between releases.
 
 The standalone `tdd` and `bdd` skills are gone (DE-16479): they restated
 `sdd-dev/reference/methodologies.md`, nothing in the flow ever invoked them, and
@@ -595,10 +634,12 @@ Four things left `sdd`, and each one was paid for on every task:
   confirms it) and the stop point, saved so a resume skips it — discovery, one
   `AskUserQuestion` call of up to four questions on what the task leaves open
   (at most one follow-up, five questions in all), and the spec approval in
-  `sdd-plan` — plus one conditional gate: a task read in `BACKLOG`
+  `sdd-plan`, preceded by the `grill-me` rounds on the spec (each settled
+  decision written into it and its Decision log; none when nothing is left
+  open) — plus one conditional gate: a task read in `BACKLOG`
   is implemented only after the developer explicitly confirms it, and is never
   moved onto the board's flow automatically (the backlog gate in
-  `clickup-contract.md`);
+  `tracker-contract.md`);
 - **the second `simplify` run** — it ran in `sdd-dev` and again in the closure;
   it now runs once, in the closure, over the staged change;
 - **the quality-command question** (DE-17128) — `sdd-dev`'s reference used to
@@ -670,7 +711,10 @@ session to another model. The removal lasts only until the developer's next
 message, and the setup ends its turn at every question, so it guards the first
 turn and nothing more: it is a guard against a stray call, not a boundary. The
 boundary is still the `deny` rules plus the sandbox. `AskUserQuestion` stays
-off that list: the setup's questions are real calls.
+off that list: the setup's questions are real calls. Its `allowed-tools` names
+the four read-only MCP calls Step 7e makes to build `product.md` from a
+document — the ClickUp Doc pages and the Google Drive file reads — and nothing
+else: a pre-approval, so a read does not ask four times, never a restriction.
 
 Whoever measures the next run: the number to watch is `cache_creation` on the
 request that loads a skill, and the tell is `cache_read` collapsing to the size
@@ -684,7 +728,7 @@ harness loads every `*.js` there and registers it as `<plugin>:<meta.name>`, so
 piece of the plugin the model never reads. Its control flow stays out of the
 context window, and a bound written in code — one revision is one `agent()` call,
 with no loop around it — cannot be re-read charitably the way "max 3 iterations"
-in prose was (audit §1-C).
+in prose was.
 
 The split that keeps it safe to run in the background:
 
@@ -746,12 +790,12 @@ commands and the agent waits on its `--wait` call, because a suite past the
 Bash call's ceiling goes to the background and is killed with the subagent's
 answer — on DE-17941 a green 13-minute suite was reported red that way.
 Everything around it that needs no judgement is a script
-(`auto-dev-select.sh`, `auto-dev-args.sh`, `auto-dev-clickup.sh`,
+(`auto-dev-select.sh`, `auto-dev-args.sh`, `auto-dev-clickup.sh` and `auto-dev-tracker.sh`,
 `auto-dev-commit.sh`, `auto-dev-checks.sh`, `auto-dev-report.sh`), and the launchers only call them. The order is forced by
 the devcontainer: `auto-dev-select` chooses the clone on the host, the runner
 starts that clone's devcontainer, `auto-dev` runs inside it. Two things to keep:
 a change to `auto-sdd-run.js` is not a change to `auto-dev-run.js` — decide for each —
-and the board there is the REST script, never the `clickup` agent, because the
+and the board there is the API script, never the `tracker` agent, because the
 MCP's OAuth login does not exist on a fresh machine.
 
 Three rules for changing a workflow:
@@ -923,7 +967,7 @@ of these five should have grown a section instead.
 | Page | Answers |
 |---|---|
 | `docs/onboarding.md` | "I have never used this." Install → configure → first task, capped at one page by a test |
-| `docs/developer-guide.md` | "How do I work with it?" The six commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
+| `docs/developer-guide.md` | "How do I work with it?" The commands, the sandbox and the `ask` rules, the commit gate, worktrees, extending it, troubleshooting |
 | `docs/migration-v2-to-v3.md` | "What broke?" Every breaking change of the chain, and the UPDATE procedure |
 | `docs/training.md` | "Why is it like this?" Facilitator material: the mental model and three live demos |
 | `docs/workflow.md` | "How do I change the plugin?" Branching, CI, releases |
@@ -1000,4 +1044,4 @@ Before opening a PR, check that:
 This file is updated by hand, through a PR against `next`. Never edit it directly on `main` or `next`.
 
 ---
-*Version: 2.38.0 — bump the version number on every substantial change*
+*Version: 2.45.0 — bump the version number on every substantial change*

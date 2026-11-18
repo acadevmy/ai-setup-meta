@@ -10,18 +10,25 @@
     "quality-commands.md",
     "rules-generation.md",
     "agents-generation.md",
-    "mcp-env.md"
+    "mcp-env.md",
+    "tracker-permissions.json",
+    "product-context.md"
   ],
   "shared_agents": [
+    "tracker.md",
     "clickup.md"
   ],
   "shared_skills": [
-    "clickup",
+    "tracker",
     "vcs-ops"
   ],
   "plugin_reference": [
-    "clickup-contract.md",
+    "tracker-contract.md",
+    "tracker-clickup.md",
+    "tracker-linear.md",
     "fork-point.md",
+    "hand-off.md",
+    "readable-references.md",
     "run-outcomes.md",
     "turn-discipline.md",
     "worktree.md"
@@ -29,18 +36,24 @@
   "template_agents": [
     "review.md",
     "validate-findings.md",
-    "verify.md"
+    "verify.md",
+    "story-review.md"
   ],
   "template_skills": [
     "auto-sdd",
     "quick",
     "multi-sdd",
     "review",
+    "distill",
+    "kickoff",
+    "grill-me",
+    "parallel",
     "sdd",
     "sdd-discovery",
     "sdd-spec",
     "sdd-plan",
     "sdd-dev",
+    "story",
     "verify",
     "auto-dev",
     "auto-dev-select",
@@ -59,6 +72,7 @@
     "check-prerequisites.sh",
     "review-package.sh",
     "multi-preflight.sh",
+    "parallel-guard.sh",
     "task-clock.sh",
     "migrate-settings.sh",
     "render-template.sh",
@@ -67,13 +81,18 @@
     "mr-meta.sh",
     "save-failed-run.sh",
     "auto-dev-args.sh",
+    "tracker-config.sh",
     "auto-dev-clickup.sh",
+    "auto-dev-tracker.sh",
+    "tracker-linear.sh",
     "auto-dev-commit.sh",
     "auto-dev-checks.sh",
     "auto-dev-report.sh",
     "auto-dev-select.sh",
     "devcontainer-facts.sh",
-    "devcontainer-check.sh"
+    "devcontainer-check.sh",
+    "validate-story.sh",
+    "parse-story.sh"
   ],
   "hooks": [
     "gate-commit.sh",
@@ -144,6 +163,8 @@
     ".claude/settings.json",
     ".claude/settings.user.json",
     ".gitignore",
-    ".worktreeinclude"
+    ".worktreeinclude",
+    "product.template.md",
+    "product.product-template.md"
   ]
 }
