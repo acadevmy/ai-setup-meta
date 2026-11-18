@@ -374,6 +374,15 @@ assert_contains "untracked files are included" \
   "untracked.txt"
 rm -f "$SANDBOX/untracked.txt"
 
+# sdd-spec's template writes the status as a `> Status:` line, not as
+# frontmatter: the status has to be read from that form too.
+cp "$SANDBOX/.specs/DE-999-my-work.md" "$WORK_DIR/DE-999-frontmatter.md"
+printf -- '# Spec: My work [DE-999]\n\n> Status: draft\n> Task: DE-999\n\n## Implementation plan\n' \
+  > "$SANDBOX/.specs/DE-999-my-work.md"
+assert_eq "spec status read from the template's > Status: line" \
+  "draft" "$(cd "$SANDBOX" && bash "$PLUGIN_SCRIPTS/check-prerequisites.sh" --json 2>/dev/null | jq -r '.SPEC_STATUS')"
+cp "$WORK_DIR/DE-999-frontmatter.md" "$SANDBOX/.specs/DE-999-my-work.md"
+
 # A branch with no task id finds its spec through the spec's `> Branch:` line.
 git -C "$SANDBOX" checkout --quiet -b 'feat(search)/idea-first-entry'
 printf -- '# Spec: Idea-first entry\n\n> Status: draft\n> Branch: `feat(search)/idea-first-entry` (off `next`)\n\n## Implementation plan\n' \
@@ -1924,7 +1933,7 @@ SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/sha
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"
 assert_eq "the surface the check reads is the public commands" \
-  "auto-sdd distill kickoff multi-sdd parallel quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
+  "auto-sdd distill grill-me kickoff multi-sdd parallel quick review sdd setup story" "$(printf '%s' "$PUBLIC_SKILLS" | tr '\n' ' ')"
 
 # The names from $2 (one per line) with no row in $1 matching $3, where `@`
 # stands for the name.
@@ -1997,10 +2006,10 @@ for LINE in "AGENTS.md: plugin sections updated" "AGENTS.md: plugin sections DEC
 done
 
 # DE-17079 wants the generated file shorter; these fixes may not lengthen it.
-# The extra lines over the base are the `kickoff`, `distill` and `parallel`
-# commands, the `story` command and its `story-reviewer` agent, which the
+# The extra lines over the base are the `kickoff`, `grill-me`, `distill` and
+# `parallel` commands, the `story` command and its `story-reviewer` agent, which the
 # surface checks above require, and the one-line rule on readable references.
-for BUDGET in "$GEN_SINGLE:137" "$GEN_WORKSPACE:142" "$GEN_PROJECT:30"; do
+for BUDGET in "$GEN_SINGLE:138" "$GEN_WORKSPACE:143" "$GEN_PROJECT:30"; do
   GEN="${BUDGET%:*}"; MAX="${BUDGET##*:}"
   assert_eq "$(basename "$GEN") stays within $MAX lines" "true" \
     "$([ "$(wc -l < "$GEN" | tr -d ' ')" -le "$MAX" ] && echo true || echo false)"
