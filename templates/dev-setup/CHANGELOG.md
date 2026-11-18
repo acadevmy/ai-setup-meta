@@ -6,6 +6,18 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.7.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.6.0...dev-setup-v4.7.0) (2026-11-18)
+
+
+### Features
+
+* **grill-me:** Grill the spec in rounds before its approval, decisions into the spec ([e52bd1f](https://github.com/acadevmy/ai-setup-meta/commit/e52bd1f7f43a31187560ab70ecc84f0773efa895))
+
+
+### Bug Fixes
+
+* **scripts:** Read the spec status from the template's &gt; Status: line ([e972582](https://github.com/acadevmy/ai-setup-meta/commit/e972582831fd27850d03ecb678d3499d32455ed5))
+
 ## [4.6.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.5.0...dev-setup-v4.6.0) (2026-11-16)
 
 
