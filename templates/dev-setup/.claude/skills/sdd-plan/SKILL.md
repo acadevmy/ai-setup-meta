@@ -1,6 +1,6 @@
 ---
 name: sdd-plan
-description: Presents a technical spec to the developer and iterates on it until they approve it, then marks it approved. Use when a draft spec exists and needs the developer's review before development starts.
+description: Presents a technical spec to the developer, grills it in rounds — each decision written into the spec and its Decision log — and iterates until they approve it, then marks it approved. Use when a draft spec exists and needs the developer's review before development starts.
 effort: medium
 user-invocable: false
 disable-model-invocation: false
@@ -35,11 +35,15 @@ approves, and approval is theirs to give — never inferred from silence.
 Show the spec in full, with clear formatting, and state its current status
 (`draft` / `approved` / `implemented`).
 
-### 3. Discuss and iterate
+### 3. Grill it
+
+Before asking for the approval, invoke the `grill-me` skill on the spec.
+
+### 4. Discuss and iterate
 
 Follow `reference/approval-loop.md`.
 
-### 4. Confirm
+### 5. Confirm
 
 ```
 Spec: .specs/<filename>
@@ -50,6 +54,7 @@ Invoked on its own: `${CLAUDE_PLUGIN_ROOT}/reference/hand-off.md`.
 
 ## Expected output
 
-- the spec presented and discussed with the developer;
+- the spec presented, grilled and discussed with the developer, its
+  `## Decision log` holding what the grilling settled;
 - the spec file updated with whatever was agreed;
 - `Status: approved` and the approval date, when it was approved.

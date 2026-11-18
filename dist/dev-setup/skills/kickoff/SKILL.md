@@ -9,9 +9,9 @@ disable-model-invocation: true
 
 # Kickoff
 
-The idea-first entry into the chain. `sdd` starts from a task on the board;
-this starts from what the conversation already holds: cheaper, and the
-knowledge stays in context. On a yes it creates the task too.
+The idea-first entry into the chain: `sdd` starts from a task on the board,
+this from what the conversation already holds, so the knowledge stays in
+context. On a yes it creates the task too.
 
 ## Before you start
 
@@ -67,7 +67,8 @@ Then point the task at it (`board.md`).
 
 ### 5. Hand off
 
-As `hand-off.md` says: the next step is `sdd-plan`, then the chain.
+As `hand-off.md` says: next `sdd-plan`, which grills the draft before the
+approval.
 
 ## Expected output
 

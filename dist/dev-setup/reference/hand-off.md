@@ -9,7 +9,8 @@ developer does not have to know which command comes next.
 
 Only when the skill was **invoked on its own** — by the developer, or by the
 model on its own judgement. Invoked by a flow (`sdd`, `quick`, `auto-sdd`,
-`multi-sdd`, `auto-dev`), the flow decides what follows: do nothing here.
+`multi-sdd`, `auto-dev`) — or `grill-me` by `sdd-plan` — the caller decides
+what follows: do nothing here.
 
 It applies on a result that can go forward. A `fail`, an `error` or a refused
 approval is not handed off: show what has to change and end there.
@@ -37,7 +38,8 @@ push and merge request creation, stay where they are.
 
 | Ends | On | Next |
 |---|---|---|
-| `kickoff` | a spec in `draft` | `sdd-plan`; under `quick`'s bar it ends on `Next: /dev-setup:quick <description or task id>` instead |
+| `kickoff` | a spec in `draft` | `sdd-plan`, which grills the draft before the approval; under `quick`'s bar it ends on `Next: /dev-setup:quick <description or task id>` instead |
+| `grill-me` | the frontier empty, on a spec | `sdd-plan`, which goes straight to the approval |
 | `sdd-discovery` | the Discovery Summary | `sdd-spec` |
 | `sdd-spec` | a spec in `draft` | `sdd-plan` |
 | `sdd-plan` | `Status: approved` | `sdd-dev` |
