@@ -3312,15 +3312,21 @@ notify_count() { grep -c . "$NOTIFY_CALLS" 2>/dev/null || true; }
 notify_title() { awk -F'\t' '{ print ($1 == "osascript") ? $(NF-3) : $2 }' "$NOTIFY_CALLS"; }
 nt_clock() { (cd "${NT_CLOCK_CWD:-$NT_REPO}" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
 
-# ── Test 2 (REQ-2): nothing in play, nothing said ──
+# ── Senza task in gioco la notifica parte lo stesso, col nome del repository ──
 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
 assert_eq "no task branch and no clock: exit 0" "0" "$?"
-assert_eq "and no notifier is invoked" "0" "$(notify_count)"
+assert_eq "and one notification named after the repository" "1:dev-setup · notify-repo" \
+  "$(notify_count):$(notify_title)"
 assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/notify-stdout")"
+
+DEV_SETUP_NOTIFY_DISABLED=1 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "DEV_SETUP_NOTIFY_DISABLED=1 turns it off" "0:" \
+  "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
 
 (cd "$NT_REPO" && git checkout -q -b feat/DE-900_thing) >/dev/null 2>&1
 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
-assert_eq "a task branch with no clock is not a signal" "0" "$(notify_count)"
+assert_eq "a task branch with no clock is not a task in play" "dev-setup · notify-repo" \
+  "$(notify_title)"
 
 # ── Test 1 (REQ-1): a permission prompt with a task in play ──
 nt_clock --task DE-900 --start >/dev/null
@@ -3430,7 +3436,8 @@ cp "$PLUGIN_HOOKS/notify.sh" "$NT_LONELY/notify.sh"
 printf '%s' "$NT_PAYLOAD" | STUB_OS=Linux PATH="$NOTIFY_BIN:$PATH" env -u CLAUDE_PLUGIN_ROOT \
   bash "$NT_LONELY/notify.sh" >"$WORK_DIR/notify-stdout" 2>/dev/null
 assert_eq "without the plugin scripts it exits 0" "0" "$?"
-assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+assert_eq "and still notifies, named after the repository" "1:dev-setup · notify-repo:" \
+  "$(notify_count):$(notify_title):$(cat "$WORK_DIR/notify-stdout")"
 
 STUB_OS=Plan9 notify_hook_raw permission_prompt "$NT_MESSAGE"
 assert_eq "an unsupported OS exits 0" "0" "$?"
@@ -3439,7 +3446,8 @@ assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-st
 mkdir -p "$WORK_DIR/notify-not-a-repo"
 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$WORK_DIR/notify-not-a-repo"
 assert_eq "a cwd outside a repository exits 0" "0" "$?"
-assert_eq "and invokes nothing" "0" "$(notify_count)"
+assert_eq "and notifies, named after the folder" "1:dev-setup · notify-not-a-repo" \
+  "$(notify_count):$(notify_title)"
 
 STUB_OS=Linux STUB_NOTIFY_EXIT=1 notify_hook_raw permission_prompt "$NT_MESSAGE"
 assert_eq "a failing notifier still exits 0" "0" "$?"
@@ -3497,7 +3505,8 @@ for NT_TASK in DE-901 DE-902; do
 done
 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
 assert_eq "a stop 600 s old is no longer in play: exit 0" "0" "$?"
-assert_eq "no call, empty stdout" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+assert_eq "and the title falls back to the repository" "1:dev-setup · $(basename "$NT4_REPO"):" \
+  "$(notify_count):$(notify_title):$(cat "$WORK_DIR/notify-stdout")"
 
 # The two halves rest on the order of run-outcomes.md: ready-for-mr opens the
 # merge request before it stops the clock, failed stops it before the BLOCKED

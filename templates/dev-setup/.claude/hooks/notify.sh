@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
 # notify.sh — Notification hook on `permission_prompt` (DE-17077).
 #
-# A flow of this plugin that needs the developer reaches them through an `ask`
-# rule: `gh pr create` / `glab mr create` when an autonomous run is
-# ready-for-mr, the BLOCKED move when it failed. Claude Code's own notification
-# says "Claude needs your permission" and not for which task — with five runs
-# in flight, that tells the developer nothing. This hook sends one desktop
-# notification titled `dev-setup · <TASK_IDS>`, with the prompt's message as
-# the body.
+# Every permission prompt — a tool to allow, a question, a plan to approve —
+# reaches the developer as one desktop notification. Claude Code's own one says
+# "Claude needs your permission" and not for which task, and some clients (the
+# VS Code extension, most terminals) send none to the OS at all: a run waiting
+# on the developer while they look elsewhere goes unseen. Set
+# DEV_SETUP_NOTIFY_DISABLED=1 to turn it off — in a terminal that already
+# notifies natively, the two would double up.
 #
-# The clocks are the noise filter, the branch only narrows. A candidate is a
-# task whose work clock is open in this repository, or was stopped less than
+# The title names what is waiting: `dev-setup · <TASK_IDS>` when a task of this
+# plugin is in play, `dev-setup · <repository>` otherwise. A candidate task is
+# one whose work clock is open in this repository, or was stopped less than
 # five minutes ago (a failed run stops its clock, then asks for the BLOCKED
 # move): `task-clock.sh --status`, the reader that consumes nothing, reports
-# both. No candidate, nothing to say — whatever the branch is called, since
-# every tracked branch carries an id and a branch alone is not a task in play.
-# The built-in notification stays the only one there. When the branch of the
-# payload's cwd names one of the candidates, the title carries that one;
-# otherwise it carries them all — the payload does not say which run is asking,
-# and guessing would be worse than naming the set.
+# both. When the branch of the payload's cwd names one of the candidates, the
+# title carries that one; otherwise it carries them all — the payload does not
+# say which run is asking, and guessing would be worse than naming the set.
 #
 # Only `permission_prompt`. `agent_needs_input` and `agent_completed` come from
 # the agent view, already named after the session (session-title.sh sets that
@@ -37,9 +35,10 @@
 # `preferredNotifChannel: "terminal_bell"` does.
 #
 # It fails open and prints nothing on stdout: a Notification hook has no
-# decision control, so its whole effect is the side effect. No `jq`, no plugin
-# scripts, a cwd outside a repository, an unsupported OS, a notifier missing or
-# failing — exit 0, at most one diagnostic line on stderr.
+# decision control, so its whole effect is the side effect. No `jq`, an
+# unsupported OS, a notifier missing or failing — exit 0, at most one
+# diagnostic line on stderr. No plugin scripts or a cwd outside a repository
+# only lose the task: the title names the folder instead.
 
 set -uo pipefail
 
@@ -70,52 +69,58 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
+[ "${DEV_SETUP_NOTIFY_DISABLED:-}" = "1" ] && exit 0
+
 NOTIFICATION_TYPE=$(printf '%s' "$INPUT" | jq -r '.notification_type // empty' 2>/dev/null)
 [ "$NOTIFICATION_TYPE" = "permission_prompt" ] || exit 0
 
 MESSAGE=$(printf '%s' "$INPUT" | jq -r '.message // empty' 2>/dev/null)
 HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
+SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 
 # ── Is a task of this plugin in play here? ────────────────────────────────────
-
-[ -n "$SCRIPTS_DIR" ] || exit 0
-# shellcheck source=../scripts/common.sh
-source "$SCRIPTS_DIR/common.sh"
-
-if [ -n "$HOOK_CWD" ]; then
-  cd "$HOOK_CWD" 2>/dev/null || exit 0
-fi
-
-git rev-parse --git-dir >/dev/null 2>&1 || exit 0
-
-STATUS=$(bash "$SCRIPTS_DIR/task-clock.sh" --status --json 2>/dev/null || true)
-[ -n "$STATUS" ] || exit 0
-
-CANDIDATES=$(printf '%s' "$STATUS" \
-  | jq -r '[(.OPEN_TASKS // ""), (.RECENT_TASKS // "")] | map(select(. != "")) | join(" ")' \
-  2>/dev/null || true)
-[ -n "$CANDIDATES" ] || exit 0
-
-# ── Which task is asking? ─────────────────────────────────────────────────────
 #
-# The id the branch carries, compared whole with each candidate: with DE-81 and
-# DE-811 both in play, a branch named after the second never names the first.
+# Le id dei task in gioco, o niente: fuori da un repository, senza gli script
+# del plugin o senza un timer aperto la notifica parte lo stesso, col nome del
+# repository al posto del task.
 
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
-BRANCH_TASK=$(branch_task_id "$BRANCH")
-
-TASK_IDS="$CANDIDATES"
-if [ -n "$BRANCH_TASK" ]; then
-  for CANDIDATE in $CANDIDATES; do
-    if [ "$CANDIDATE" = "$BRANCH_TASK" ]; then
-      TASK_IDS="$CANDIDATE"
-      break
+task_ids() {
+  [ -n "$SCRIPTS_DIR" ] || return 0
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+  # shellcheck source=../scripts/common.sh
+  source "$SCRIPTS_DIR/common.sh"
+  local status candidates branch_task candidate
+  status=$(bash "$SCRIPTS_DIR/task-clock.sh" --status --json 2>/dev/null || true)
+  candidates=$(printf '%s' "$status" \
+    | jq -r '[(.OPEN_TASKS // ""), (.RECENT_TASKS // "")] | map(select(. != "")) | join(" ")' \
+    2>/dev/null || true)
+  [ -n "$candidates" ] || return 0
+  # L'id del ramo, confrontato intero con ogni candidato: con DE-81 e DE-811 in
+  # gioco, un ramo che nomina il secondo non nomina mai il primo.
+  branch_task=$(branch_task_id "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)")
+  for candidate in $candidates; do
+    if [ -n "$branch_task" ] && [ "$candidate" = "$branch_task" ]; then
+      printf '%s' "$candidate"
+      return 0
     fi
   done
+  printf '%s' "$candidates"
+}
+
+# Il nome del repository (della cartella, fuori da un repository).
+place_name() {
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+  basename "$top"
+}
+
+if [ -n "$HOOK_CWD" ]; then
+  cd "$HOOK_CWD" 2>/dev/null || true
 fi
 
-TITLE="dev-setup · $TASK_IDS"
+TASK_IDS=$(task_ids)
+TITLE="dev-setup · ${TASK_IDS:-$(place_name)}"
 
 # ── Which session is asking? ──────────────────────────────────────────────────
 #
@@ -189,7 +194,7 @@ case "$(uname -s 2>/dev/null)" in
     if command -v terminal-notifier >/dev/null 2>&1 \
       && terminal-notifier -title "$TITLE" -subtitle "$SESSION_NAME" -message "$MESSAGE" -sound "$SOUND" \
         ${ICON:+-contentImage "$ICON"} \
-        -group "dev-setup-$TASK_IDS" \
+        -group "dev-setup-${SESSION_ID:-$TITLE}" \
         -activate "${__CFBundleIdentifier:-com.apple.Terminal}" >/dev/null 2>&1; then
       exit 0
     fi
