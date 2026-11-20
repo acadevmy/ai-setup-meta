@@ -80,7 +80,8 @@ Then development, the gates, one commit and the merge request.
 
 The phases of an `sdd` show as a task list, the session is named after its
 task in `claude --resume`, every closing report ends on a `Next:` line, and a
-permission prompt during a task sends a desktop notification naming it. Two
+permission prompt sends a desktop notification naming the task, or the
+repository outside one (`DEV_SETUP_NOTIFY_DISABLED=1` turns it off). Two
 settings are yours, in your **user** settings (`~/.claude/settings.json`) or the
 managed ones, never the project's `.claude/settings.json`, which ignores
 `footerLinksRegexes`:

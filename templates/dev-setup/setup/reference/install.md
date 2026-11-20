@@ -678,8 +678,8 @@ leave them to the developer.
 
 ### 3.10 — Desktop notifications on macOS (machine scope, optional)
 
-`notify.sh` (the Notification hook) reaches the developer when a task of this
-plugin waits on a permission prompt. On macOS it prefers `terminal-notifier`:
+`notify.sh` (the Notification hook) reaches the developer whenever Claude
+waits on a permission prompt — a tool, a question, a plan. On macOS it prefers `terminal-notifier`:
 the notification plays a sound and a click activates the app that launched
 Claude Code — VS Code, a JetBrains IDE, the terminal. Without it the hook falls
 back to `osascript`, whose notifications belong to Script Editor: the sound is
