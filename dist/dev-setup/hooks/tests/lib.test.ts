@@ -29,12 +29,14 @@ describe('clock', () => {
       startMs: new Date(2026, 9, 7, 9, 18).getTime(),
       closedMinutes: 0,
       sessions: 0,
+      measured: false,
     })
+    expect(toOpenClock({ TASK: 'DE-1', RUNNING: 'true', STARTED_AT: '2026-10-07 09:18', MEASURED: 'true' })?.measured).toBe(true)
     expect(toOpenClock({ TASK: 'DE-1', RUNNING: 'false', STARTED_AT: '' })).toBe(null)
   })
 
   test('elapsed adds the open interval to the closed ones', async () => {
-    const clock = { task: 'DE-1', startMs: new Date(2026, 9, 7, 9, 18).getTime(), closedMinutes: 30, sessions: 1 }
+    const clock = { task: 'DE-1', startMs: new Date(2026, 9, 7, 9, 18).getTime(), closedMinutes: 30, sessions: 1, measured: true }
     expect(parseLocalStamp('2026-10-07 09:18')).toBe(new Date(2026, 9, 7, 9, 18).getTime())
     expect(parseLocalStamp('yesterday')).toBe(null)
     expect(elapsedMinutes(clock, AT_10_00)).toBe(72)
@@ -42,6 +44,12 @@ describe('clock', () => {
     expect(formatTime(clock.startMs)).toBe('09:18')
     expect(rowText(clockDetail(clock, AT_10_00))).toBe('since 09:18 (42m) · 1 earlier interval, 30m')
     expect(rowText(clockDetail({ ...clock, startMs: null, sessions: 0 }, AT_10_00))).toBe('')
+  })
+
+  test('an interactive clock marks its task in play and shows no time', async () => {
+    const clock = { task: 'DE-1', startMs: new Date(2026, 9, 7, 9, 18).getTime(), closedMinutes: 0, sessions: 0, measured: false }
+    expect(clockLine(clock, AT_10_00)).toBe('DE-1  in progress')
+    expect(rowText(clockDetail(clock, AT_10_00))).toBe('')
   })
 
   test('the branch names its task between delimiters; recent stops come from RECENT_TASKS', async () => {
@@ -52,15 +60,15 @@ describe('clock', () => {
     expect(recentTasks({})).toEqual([])
   })
 
-  test('the clock view is one card per clock, the branch task marked, a total when several', async () => {
-    const one = { task: 'DE-1', startMs: new Date(2026, 9, 7, 9, 18).getTime(), closedMinutes: 30, sessions: 1 }
-    const two = { task: 'DE-22', startMs: new Date(2026, 9, 7, 9, 50).getTime(), closedMinutes: 0, sessions: 0 }
+  test('the clock view is one card per clock, the branch task marked, the measured total when several', async () => {
+    const one = { task: 'DE-1', startMs: new Date(2026, 9, 7, 9, 18).getTime(), closedMinutes: 30, sessions: 1, measured: true }
+    const two = { task: 'DE-22', startMs: new Date(2026, 9, 7, 9, 50).getTime(), closedMinutes: 0, sessions: 0, measured: false }
     const status = scriptOutcome('task-clock.sh', 0, '{"OPEN_TASKS":"DE-1 DE-22","RECENT_TASKS":"DE-9"}', '')
     const lines = clockView(status, [one, two], [], AT_10_00, 'DE-22')
-    expect(lines[0]).toBe('2 open clocks  1h 22m in all')
+    expect(lines[0]).toBe('2 open clocks  1h 12m measured')
     expect(lines[2]).toBe('● DE-1   in progress  1h 12m')
     expect(lines[3]).toBe('    since 09:18 (42m) · 1 earlier interval, 30m')
-    expect(lines[5]).toBe('● DE-22  in progress     10m  ← this branch')
+    expect(lines[5]).toBe('● DE-22  in progress          ← this branch')
     expect(lines[lines.length - 1]).toBe('Stopped in the last five minutes  DE-9')
     const none = clockView(scriptOutcome('task-clock.sh', 0, '{"OPEN_TASKS":""}', ''), [], [], AT_10_00)
     expect(none).toEqual([NO_CLOCK, CLOCK_HINT])

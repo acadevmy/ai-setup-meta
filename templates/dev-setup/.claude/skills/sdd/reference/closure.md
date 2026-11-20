@@ -156,13 +156,14 @@ resume reaches closure 8 again, with the commit and the push already done.
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --stop --json
 ```
 
-Then one call carries both the move and what the work took:
-`INTENT: update`, `PARAMS: task_id: <task_id>, status: IN REVIEW, comment:
-"<COMMENT>"`.
+Then move the task: `INTENT: update`, `PARAMS: task_id: <task_id>, status:
+IN REVIEW`, with `comment: "<COMMENT>"` only when `COMMENT` is not empty.
 
-`COMMENT` is the clock's own line, posted verbatim. Empty means the clock has
-nothing to report (`REASON` says why): the move goes out without a comment, and
-you say so in one line. Never compose a duration yourself — the work clock
+This flow's clock is unmeasured (intake step 3): the stop takes the task out of
+play for the hooks and comes back with an empty `COMMENT` and
+`REASON: unmeasured` — the move goes out with no comment, and there is nothing
+to say about it. Any other empty `COMMENT`, say so in one line. Never compose
+a duration yourself — the work clock
 section of `${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md` is the rule,
 and an estimate posted as a measurement is the one failure it names.
 

@@ -225,14 +225,20 @@ from what is on disk — the spec, the uncommitted code, or the commit — witho
 redoing what is done. `/dev-setup:sdd DE-123 --stop push` changes it.
 
 **The clock runs from IN PROGRESS to the merge request.** The move that starts
-the work stamps `task-clock.sh --start`; the move that ends it reads the stamp
-back and posts one line on the task — `Time in progress: 2h 15m (14:03 →
-16:18)`. It is wall-clock time between two board writes, not an estimate of
-effort, and it is never invented: if nothing stamped the start — a flow resumed
-in a fresh clone, say — the task moves with no time on it and the session says
-so. The stamp lives in the repository's git directory, so it is shared with
-every worktree and never lands in a commit. A task picked up twice keeps both
-sittings and reports the total.
+the work stamps `task-clock.sh --start`; the move that ends it stops it. It
+always marks the task as in play here — that is what the notifications and the
+merge-request reminder read. **Only an autonomous run posts a time**:
+`auto-sdd`, `multi-sdd` and `auto-dev` start it with `--measure`, and the move
+that ends the run posts one line on the task — `Time in progress: 2h 15m (14:03
+→ 16:18)`. A run is one sitting, so its wall-clock time is the time the work
+took. `sdd`, `kickoff` and `quick` never measure: an interactive task spans
+nights, CI waits and other tasks, and a 76-hour figure on it reads like effort
+without being it — the task moves to review with no time on it, and nothing is
+said. The time is never invented either: if nothing stamped the start — a run
+resumed in a fresh clone, say — the task moves with no time and the session
+says so. The stamp lives in the repository's git directory, so it is shared
+with every worktree and never lands in a commit. A task picked up twice keeps
+both measured sittings and reports the total.
 
 **The merge request closes the task, whoever opened it.** Those two closing
 calls used to live only in the flow's last step, which holds right up to the

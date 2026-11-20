@@ -277,7 +277,7 @@ if [ "$MODE" = start ]; then
   [ "$(json_get STATUS)" != BACKLOG ] \
     || refuse "$TASK is in BACKLOG: it was never planned into a sprint, and the backlog gate needs a person — plan it into SPRINT first"
   move_to ${ST_PROGRESS:+"$ST_PROGRESS"} "IN PROGRESS"
-  bash "$SCRIPT_DIR/task-clock.sh" --task "$CLOCK_ID" --start --json >/dev/null 2>&1 \
+  bash "$SCRIPT_DIR/task-clock.sh" --task "$CLOCK_ID" --start --measure --json >/dev/null 2>&1 \
     || warn "the work clock did not start: --finish will have no time to log"
   finish_output
   exit 0

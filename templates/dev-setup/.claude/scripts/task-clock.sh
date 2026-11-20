@@ -14,6 +14,14 @@
 # answer "the clock has nothing to report", and it is the only honest one when
 # nobody stamped the start.
 #
+# Only an autonomous run is measured. Its interval is one sitting of work, so the
+# elapsed time is the time the work took. An interactive task spans nights, CI
+# waits and other tasks: its elapsed time reads like a measurement and is not
+# one (76h on a task worked for a fraction of that). So the launchers start the
+# clock with --measure, and the interactive flows start it without: their clock
+# still says which task is in play here — the notification and merge-request
+# hooks read exactly that — and its --stop reports no duration (`unmeasured`).
+#
 # The state lives in the repository's *common* git directory, so a worktree and
 # the checkout that created it share one clock (the interactive flow stamps the
 # start inside the worktree; `auto-sdd` stamps it in the launcher's checkout).
@@ -21,13 +29,15 @@
 # `git clean` cannot delete it.
 #
 # Usage:
-#   task-clock.sh --task DE-123 --start  [--json]
+#   task-clock.sh --task DE-123 --start [--measure] [--json]
 #   task-clock.sh --task DE-123 --stop   [--json]
 #   task-clock.sh [--task DE-123] --status [--json]
 #
 #   --task <id>   the task's custom id — the clock is per task, not per branch.
 #                 Required by --start and --stop, optional for --status
 #   --start       open an interval; already open, it is left alone
+#   --measure     with --start: the interval is a measurement, and its --stop
+#                 reports the duration. Only the autonomous launchers pass it
 #   --stop        close the open interval and report what it measured
 #   --status      report without writing: is this task's clock running, and
 #                 which clocks are open in this repository. The reader of the
@@ -39,17 +49,20 @@
 # Keys:
 #   TASK            the task id, as given
 #   RUNNING         true while an interval is open
+#   MEASURED        true when the open interval, or the one --stop just
+#                   closed, was started with --measure
 #   STARTED_AT      the open interval's start, `YYYY-MM-DD HH:MM` local time
 #   STOPPED_AT      when --stop closed it, same format
-#   MINUTES         the interval just closed, in minutes
+#   MINUTES         the interval just closed, in minutes — measured ones only
 #   DURATION        the same, as `2h 15m` — empty when nothing was measured
-#   TOTAL_MINUTES   every closed interval of this task, summed
+#   TOTAL_MINUTES   every closed measured interval of this task, summed
 #   TOTAL_DURATION  the same, as `2h 15m`
-#   SESSIONS        how many intervals have closed
+#   SESSIONS        how many measured intervals have closed
 #   COMMENT         the line to post on the task, ready to send as the
 #                   `comment` of the board's status update — empty when there
 #                   is nothing to report, and then nothing is posted
-#   REASON          why COMMENT is empty: no-start-stamp | already-stopped
+#   REASON          why COMMENT is empty: no-start-stamp | already-stopped |
+#                   unmeasured
 #   OPEN_TASKS      every task with an open interval in this repository,
 #                   space-separated — a fan-out has one per worktree, and they
 #                   share the common git directory
@@ -77,6 +90,7 @@ TASK_ID_SHAPE='^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
 AS_JSON=false
 TASK=""
 MODE=""
+MEASURE=false
 
 usage() {
   awk 'NR == 1 { next } /^# ---8<---/ { exit } /^#/ { sub(/^# ?/, ""); print }' \
@@ -92,6 +106,7 @@ while [ $# -gt 0 ]; do
     --start|--stop|--status)
       [ -z "$MODE" ] || die "--start, --stop and --status are separate calls, not one"
       MODE="${1#--}"; shift ;;
+    --measure) MEASURE=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
@@ -100,6 +115,10 @@ done
 require_jq
 
 [ -n "$MODE" ] || die "nothing to do: pass --start, --stop or --status (see --help)"
+# Whether an interval is a measurement is decided once, when it opens.
+if [ "$MEASURE" = true ] && [ "$MODE" != "start" ]; then
+  die "--measure goes with --start: an interval is measured from the moment it opens"
+fi
 # --status answers for the repository when no task is named, which is how a
 # caller that does not know the task id — the merge-request hook — finds out
 # there is one in progress at all.
@@ -123,33 +142,42 @@ STATE_FILE=""
 # ── Reading the log ───────────────────────────────────────────────────────────
 #
 # One line per event, tab-separated:
-#   start <epoch> <YYYY-MM-DD HH:MM>
+#   start <epoch> <YYYY-MM-DD HH:MM> [measured]
 #   stop  <epoch> <YYYY-MM-DD HH:MM> <minutes>
 #
 # The epoch is what the arithmetic uses and the stamp is what a human reads:
 # BSD `date` cannot parse back what GNU `date` prints, so nothing here ever
-# parses a formatted date.
+# parses a formatted date. A start with no fourth field is an unmeasured one:
+# its stop carries no minutes, and it counts in no total.
 
 OPEN_EPOCH=""
 OPEN_STAMP=""
+OPEN_MEASURED=false
 CLOSED_MINUTES=0
 SESSIONS=0
+EVER_STOPPED=false
 
 read_log() {
   [ -f "$STATE_FILE" ] || return 0
-  local kind epoch stamp minutes
-  while IFS=$'\t' read -r kind epoch stamp minutes; do
+  local kind epoch stamp extra
+  while IFS=$'\t' read -r kind epoch stamp extra; do
     case "$kind" in
       start)
         OPEN_EPOCH="$epoch"
         OPEN_STAMP="$stamp"
+        OPEN_MEASURED=false
+        [ "$extra" = "measured" ] && OPEN_MEASURED=true
         ;;
       stop)
         [ -n "$OPEN_EPOCH" ] || continue
-        CLOSED_MINUTES=$((CLOSED_MINUTES + ${minutes:-0}))
-        SESSIONS=$((SESSIONS + 1))
+        EVER_STOPPED=true
+        if [ "$OPEN_MEASURED" = true ]; then
+          CLOSED_MINUTES=$((CLOSED_MINUTES + ${extra:-0}))
+          SESSIONS=$((SESSIONS + 1))
+        fi
         OPEN_EPOCH=""
         OPEN_STAMP=""
+        OPEN_MEASURED=false
         ;;
     esac
   done < "$STATE_FILE"
@@ -224,31 +252,46 @@ DURATION=""
 COMMENT=""
 REASON=""
 RUNNING=false
+MEASURED=false
 
 case "$MODE" in
   start)
     if [ -n "$OPEN_EPOCH" ]; then
       # A resumed flow re-runs intake. The first stamp is the real one, so it
       # stands: overwriting it would silently discard the work already done.
+      # So does its kind: a second --start cannot turn it into a measurement.
       STARTED_AT="$OPEN_STAMP"
+      MEASURED="$OPEN_MEASURED"
       REASON="already-running"
     else
       mkdir -p "$STATE_DIR" \
         || die "cannot write the clock in $STATE_DIR"
-      printf 'start\t%s\t%s\n' "$NOW_EPOCH" "$NOW_STAMP" >> "$STATE_FILE" \
+      START_LINE="$(printf 'start\t%s\t%s' "$NOW_EPOCH" "$NOW_STAMP")"
+      [ "$MEASURE" = true ] && START_LINE="$(printf '%s\tmeasured' "$START_LINE")"
+      printf '%s\n' "$START_LINE" >> "$STATE_FILE" \
         || die "cannot write the clock in $STATE_FILE"
       STARTED_AT="$NOW_STAMP"
+      MEASURED="$MEASURE"
     fi
     RUNNING=true
     ;;
 
   stop)
-    if [ -n "$OPEN_EPOCH" ]; then
+    if [ -n "$OPEN_EPOCH" ] && [ "$OPEN_MEASURED" = false ]; then
+      # The task leaves play, so the hooks stop naming it, and nothing is
+      # reported: the elapsed time of an interactive task is not its work time.
+      printf 'stop\t%s\t%s\t\n' "$NOW_EPOCH" "$NOW_STAMP" >> "$STATE_FILE" \
+        || die "cannot write the clock in $STATE_FILE"
+      STARTED_AT="$OPEN_STAMP"
+      STOPPED_AT="$NOW_STAMP"
+      REASON="unmeasured"
+    elif [ -n "$OPEN_EPOCH" ]; then
       MINUTES="$(minutes_between "$OPEN_EPOCH" "$NOW_EPOCH")"
       printf 'stop\t%s\t%s\t%s\n' "$NOW_EPOCH" "$NOW_STAMP" "$MINUTES" >> "$STATE_FILE" \
         || die "cannot write the clock in $STATE_FILE"
       STARTED_AT="$OPEN_STAMP"
       STOPPED_AT="$NOW_STAMP"
+      MEASURED=true
       DURATION="$(format_duration "$MINUTES")"
       CLOSED_MINUTES=$((CLOSED_MINUTES + MINUTES))
       SESSIONS=$((SESSIONS + 1))
@@ -256,7 +299,7 @@ case "$MODE" in
       if [ "$SESSIONS" -gt 1 ]; then
         COMMENT="$COMMENT — $(format_duration "$CLOSED_MINUTES") total over $SESSIONS sessions"
       fi
-    elif [ "$SESSIONS" -gt 0 ]; then
+    elif [ "$EVER_STOPPED" = true ]; then
       REASON="already-stopped"
     else
       REASON="no-start-stamp"
@@ -270,7 +313,8 @@ case "$MODE" in
     if [ -n "$OPEN_EPOCH" ]; then
       STARTED_AT="$OPEN_STAMP"
       RUNNING=true
-    elif [ -n "$TASK" ] && [ "$SESSIONS" -eq 0 ]; then
+      MEASURED="$OPEN_MEASURED"
+    elif [ -n "$TASK" ] && [ "$EVER_STOPPED" = false ]; then
       REASON="no-start-stamp"
     elif [ -n "$TASK" ]; then
       REASON="already-stopped"
@@ -322,6 +366,7 @@ fi
 
 json_set TASK "$TASK"
 json_set RUNNING "$RUNNING"
+json_set MEASURED "$MEASURED"
 json_set STARTED_AT "$STARTED_AT"
 json_set STOPPED_AT "$STOPPED_AT"
 json_set MINUTES "$MINUTES"
