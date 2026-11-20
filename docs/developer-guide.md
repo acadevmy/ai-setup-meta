@@ -132,7 +132,8 @@ Two bash hooks carry the rest, on every client. `notify.sh` speaks on a
 permission prompt only, and only while a task of this plugin is in play here —
 a work clock open, or stopped in the last five minutes: it sends one desktop
 notification titled `dev-setup · DE-123` (every task in play when the branch
-names none of them), so the merge request or the `BLOCKED` move an autonomous
+names none of them), with the session's name as the subtitle and a body that
+says whether Claude has a question, a plan to approve or a tool to allow, so the merge request or the `BLOCKED` move an autonomous
 run waits on reaches you by name. `session-title.sh` names the session
 `DE-123 add-user-auth` — at startup or resume on a task branch, and on the
 `/dev-setup:sdd`, `quick` or `auto-sdd` prompt that launches one task — so

@@ -42,7 +42,7 @@ Run the steps **in this order**, reading only the reference each one names.
 | 2 | Stack detection (`detect-stack.sh --json`) | EXISTING, UPDATE | `existing.md` |
 | 2b | Stack selection — ask the developer | GREENFIELD | `greenfield.md` |
 | 2c | VCS detection — the host of `origin` | all | `install.md` |
-| 3 | Install the plugin's resources (3.1–3.9) | all | `install.md` |
+| 3 | Install the plugin's resources (3.1–3.10) | all | `install.md` |
 | 3b | Declare and verify the quality commands | all (GREENFIELD: after 8) | `quality-commands.md` |
 | 4 | Render the path-scoped rules | all | `rules-generation.md` |
 | 5, 5b | Generate AGENTS.md; check the instruction files | all | `agents-generation.md` |
