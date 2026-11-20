@@ -3250,6 +3250,15 @@ for NOTIFIER in osascript notify-send; do
 exit "${STUB_NOTIFY_EXIT:-0}"
 STUB
 done
+# terminal-notifier: di default si comporta come quando macOS non l'ha autorizzato
+# (exit 1, nessuna chiamata registrata), così l'hook ripiega su osascript;
+# con STUB_TN=ok registra la chiamata e riesce. Copre anche quello reale nel PATH.
+cat > "$NOTIFY_BIN/terminal-notifier" <<'STUB'
+#!/bin/sh
+[ "${STUB_TN:-}" = "ok" ] || exit 1
+{ printf '%s' "$(basename "$0")"; for a in "$@"; do printf '\t%s' "$a"; done; printf '\n'; } >> "$NOTIFY_CALLS"
+exit 0
+STUB
 chmod +x "$NOTIFY_BIN"/*
 
 NT_REPO="$WORK_DIR/notify-repo"
@@ -3278,8 +3287,8 @@ notify_hook_raw() {
 }
 notify_count() { grep -c . "$NOTIFY_CALLS" 2>/dev/null || true; }
 # The title is the first argument of either notifier: notify-send's first,
-# osascript's first after the script.
-notify_title() { awk -F'\t' '{ print ($1 == "osascript") ? $(NF-1) : $2 }' "$NOTIFY_CALLS"; }
+# osascript's first after the script (seguito da corpo e suono).
+notify_title() { awk -F'\t' '{ print ($1 == "osascript") ? $(NF-2) : $2 }' "$NOTIFY_CALLS"; }
 nt_clock() { (cd "${NT_CLOCK_CWD:-$NT_REPO}" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
 
 # ── Test 2 (REQ-2): nothing in play, nothing said ──
@@ -3306,17 +3315,33 @@ STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_MESSAGE"
 assert_eq "on Darwin it is one osascript call" "osascript" \
   "$(cut -f1 "$NOTIFY_CALLS")$( [ "$(notify_count)" = 1 ] || echo ' (not one call)')"
 assert_eq "whose argv carries the title as its own argument" "dev-setup · DE-900" \
-  "$(awk -F'\t' '{ print $(NF-1) }' "$NOTIFY_CALLS")"
+  "$(awk -F'\t' '{ print $(NF-2) }' "$NOTIFY_CALLS")"
 assert_eq "and the body as the next one" "$NT_MESSAGE" \
+  "$(awk -F'\t' '{ print $(NF-1) }' "$NOTIFY_CALLS")"
+assert_eq "and the sound, Submarine by default, as the last" "Submarine" \
   "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
 assert_eq "never interpolated into the script" "false" \
-  "$(awk -F'\t' '{ for (i = 2; i < NF - 1; i++) print $i }' "$NOTIFY_CALLS" \
+  "$(awk -F'\t' '{ for (i = 2; i < NF - 2; i++) print $i }' "$NOTIFY_CALLS" \
      | grep -q 'DE-900' && echo true || echo false)"
 
 NT_QUOTED="Claude needs \"your\" permission to use Bash's tool"
 STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_QUOTED"
 assert_eq "a message with quotes arrives verbatim in argv" "$NT_QUOTED" \
-  "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
+  "$(awk -F'\t' '{ print $(NF-1) }' "$NOTIFY_CALLS")"
+
+STUB_TN=ok __CFBundleIdentifier=com.microsoft.VSCode STUB_OS=Darwin \
+  notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "with terminal-notifier allowed it is the only call" "terminal-notifier" \
+  "$(cut -f1 "$NOTIFY_CALLS")$( [ "$(notify_count)" = 1 ] || echo ' (not one call)')"
+assert_eq "and a click activates the app that launched Claude Code" "true" \
+  "$(grep -qF -- "$(printf -- '-activate\tcom.microsoft.VSCode')" "$NOTIFY_CALLS" && echo true || echo false)"
+assert_eq "with Submarine as the default sound" "true" \
+  "$(grep -qF -- "$(printf -- '-sound\tSubmarine')" "$NOTIFY_CALLS" && echo true || echo false)"
+
+STUB_TN=ok DEV_SETUP_NOTIFY_SOUND=Morse STUB_OS=Darwin \
+  notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "and DEV_SETUP_NOTIFY_SOUND picks another one" "true" \
+  "$(grep -qF -- "$(printf -- '-sound\tMorse')" "$NOTIFY_CALLS" && echo true || echo false)"
 
 # ── Test 2 (REQ-2): every other notification type is left alone ──
 for NT_TYPE in idle_prompt auth_success agent_needs_input agent_completed; do
