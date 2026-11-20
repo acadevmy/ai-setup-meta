@@ -6,6 +6,14 @@ The `[X.Y.Z]` sections are generated from the conventional commits since the las
 Do not edit the dated sections by hand — they are overwritten on the next run.
 -->
 
+## [4.8.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.7.0...dev-setup-v4.8.0) (2026-11-20)
+
+
+### Features
+
+* **dev-setup:** Clearer desktop notifications — editor on click, session name, prompt kind, app icon ([#177](https://github.com/acadevmy/ai-setup-meta/issues/177)) ([e60cdcf](https://github.com/acadevmy/ai-setup-meta/commit/e60cdcfdde593ec8e6cb04275dcb969ef2c4b171))
+* **dev-setup:** Notify on every permission prompt, not only during a task ([#180](https://github.com/acadevmy/ai-setup-meta/issues/180)) ([e60cdcf](https://github.com/acadevmy/ai-setup-meta/commit/e60cdcfdde593ec8e6cb04275dcb969ef2c4b171))
+
 ## [4.7.0](https://github.com/acadevmy/ai-setup-meta/compare/dev-setup-v4.6.0...dev-setup-v4.7.0) (2026-11-18)
 
 
