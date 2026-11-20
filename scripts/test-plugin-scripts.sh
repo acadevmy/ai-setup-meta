@@ -3250,6 +3250,31 @@ for NOTIFIER in osascript notify-send; do
 exit "${STUB_NOTIFY_EXIT:-0}"
 STUB
 done
+# terminal-notifier: di default si comporta come quando macOS non l'ha autorizzato
+# (exit 1, nessuna chiamata registrata), così l'hook ripiega su osascript;
+# con STUB_TN=ok registra la chiamata e riesce. Copre anche quello reale nel PATH.
+cat > "$NOTIFY_BIN/terminal-notifier" <<'STUB'
+#!/bin/sh
+[ "${STUB_TN:-}" = "ok" ] || exit 1
+{ printf '%s' "$(basename "$0")"; for a in "$@"; do printf '\t%s' "$a"; done; printf '\n'; } >> "$NOTIFY_CALLS"
+exit 0
+STUB
+# L'icona dell'app: mdfind trova un'app finta, defaults ne legge l'icona, sips
+# "converte" scrivendo il file indicato da --out. Mai le icone vere.
+NT_FAKE_APP="$WORK_DIR/notify-Fake.app"
+export NT_FAKE_APP
+cat > "$NOTIFY_BIN/mdfind" <<'STUB'
+#!/bin/sh
+case "$*" in *com.example.editor*) printf '%s\n' "$NT_FAKE_APP" ;; esac
+STUB
+cat > "$NOTIFY_BIN/defaults" <<'STUB'
+#!/bin/sh
+printf 'Fake\n'
+STUB
+cat > "$NOTIFY_BIN/sips" <<'STUB'
+#!/bin/sh
+while [ $# -gt 0 ]; do [ "$1" = "--out" ] && printf 'png' > "$2"; shift; done
+STUB
 chmod +x "$NOTIFY_BIN"/*
 
 NT_REPO="$WORK_DIR/notify-repo"
@@ -3265,32 +3290,43 @@ mkdir -p "$NT_REPO"
 ) >/dev/null 2>&1
 
 NT_MESSAGE="Claude needs your permission to use Bash"
+NT_BODY="🔐 Claude wants to use Bash"
 
 # Feeds a Notification payload to the hook with the stubs first on PATH: stdout
 # and stderr to files, the calls to $NOTIFY_CALLS, the hook's exit code returned.
 notify_hook_raw() {
   local type="$1" message="$2" cwd="${3:-$NT_REPO}"
   : > "$NOTIFY_CALLS"
+  # NT_TRANSCRIPT e NT_SESSION_TITLE, se impostate, finiscono nel payload.
   jq -n --arg t "$type" --arg m "$message" --arg cwd "$cwd" \
-    '{hook_event_name: "Notification", notification_type: $t, message: $m, cwd: $cwd}' \
-    | PATH="$NOTIFY_BIN:$PATH" bash "$PLUGIN_HOOKS/notify.sh" \
+    --arg tp "${NT_TRANSCRIPT:-}" --arg st "${NT_SESSION_TITLE:-}" \
+    '{hook_event_name: "Notification", notification_type: $t, message: $m, cwd: $cwd}
+     + (if $tp != "" then {transcript_path: $tp} else {} end)
+     + (if $st != "" then {session_title: $st} else {} end)' \
+    | PATH="$NOTIFY_BIN:$PATH" TMPDIR="$WORK_DIR/notify-tmp" bash "$PLUGIN_HOOKS/notify.sh" \
       >"$WORK_DIR/notify-stdout" 2>"$WORK_DIR/notify-stderr"
 }
 notify_count() { grep -c . "$NOTIFY_CALLS" 2>/dev/null || true; }
 # The title is the first argument of either notifier: notify-send's first,
-# osascript's first after the script.
-notify_title() { awk -F'\t' '{ print ($1 == "osascript") ? $(NF-1) : $2 }' "$NOTIFY_CALLS"; }
+# osascript's first after the script (seguito da corpo, suono e sottotitolo).
+notify_title() { awk -F'\t' '{ print ($1 == "osascript") ? $(NF-3) : $2 }' "$NOTIFY_CALLS"; }
 nt_clock() { (cd "${NT_CLOCK_CWD:-$NT_REPO}" && bash "$PLUGIN_SCRIPTS/task-clock.sh" --json "$@" 2>/dev/null); }
 
-# ── Test 2 (REQ-2): nothing in play, nothing said ──
+# ── Senza task in gioco la notifica parte lo stesso, col nome del repository ──
 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
 assert_eq "no task branch and no clock: exit 0" "0" "$?"
-assert_eq "and no notifier is invoked" "0" "$(notify_count)"
+assert_eq "and one notification named after the repository" "1:dev-setup · notify-repo" \
+  "$(notify_count):$(notify_title)"
 assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/notify-stdout")"
+
+DEV_SETUP_NOTIFY_DISABLED=1 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "DEV_SETUP_NOTIFY_DISABLED=1 turns it off" "0:" \
+  "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
 
 (cd "$NT_REPO" && git checkout -q -b feat/DE-900_thing) >/dev/null 2>&1
 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
-assert_eq "a task branch with no clock is not a signal" "0" "$(notify_count)"
+assert_eq "a task branch with no clock is not a task in play" "dev-setup · notify-repo" \
+  "$(notify_title)"
 
 # ── Test 1 (REQ-1): a permission prompt with a task in play ──
 nt_clock --task DE-900 --start >/dev/null
@@ -3299,24 +3335,75 @@ STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE"
 assert_eq "an open clock makes a permission prompt one notification" "1" "$(notify_count)"
 assert_eq "through notify-send on Linux" "notify-send" "$(cut -f1 "$NOTIFY_CALLS")"
 assert_eq "titled with the task" "dev-setup · DE-900" "$(cut -f2 "$NOTIFY_CALLS")"
-assert_eq "with the prompt's message as the body" "$NT_MESSAGE" "$(cut -f3 "$NOTIFY_CALLS")"
+assert_eq "with what the prompt asks for as the body" "$NT_BODY" "$(cut -f3 "$NOTIFY_CALLS")"
+
+STUB_OS=Linux notify_hook_raw permission_prompt "Claude needs your permission to use AskUserQuestion"
+assert_eq "a question reads as a question" "❓ Claude has a question for you" "$(cut -f3 "$NOTIFY_CALLS")"
+STUB_OS=Linux notify_hook_raw permission_prompt "Claude needs your permission to use ExitPlanMode"
+assert_eq "a plan reads as a plan to approve" "📋 Claude has a plan for you to approve" "$(cut -f3 "$NOTIFY_CALLS")"
 assert_eq "and stdout stays empty" "" "$(cat "$WORK_DIR/notify-stdout")"
 
 STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_MESSAGE"
 assert_eq "on Darwin it is one osascript call" "osascript" \
   "$(cut -f1 "$NOTIFY_CALLS")$( [ "$(notify_count)" = 1 ] || echo ' (not one call)')"
 assert_eq "whose argv carries the title as its own argument" "dev-setup · DE-900" \
+  "$(awk -F'\t' '{ print $(NF-3) }' "$NOTIFY_CALLS")"
+assert_eq "and the body as the next one" "$NT_BODY" \
+  "$(awk -F'\t' '{ print $(NF-2) }' "$NOTIFY_CALLS")"
+assert_eq "then the sound, Submarine by default" "Submarine" \
   "$(awk -F'\t' '{ print $(NF-1) }' "$NOTIFY_CALLS")"
-assert_eq "and the body as the next one" "$NT_MESSAGE" \
+assert_eq "and an empty subtitle when no session name is known" "" \
   "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
 assert_eq "never interpolated into the script" "false" \
-  "$(awk -F'\t' '{ for (i = 2; i < NF - 1; i++) print $i }' "$NOTIFY_CALLS" \
+  "$(awk -F'\t' '{ for (i = 2; i < NF - 3; i++) print $i }' "$NOTIFY_CALLS" \
      | grep -q 'DE-900' && echo true || echo false)"
 
 NT_QUOTED="Claude needs \"your\" permission to use Bash's tool"
 STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_QUOTED"
 assert_eq "a message with quotes arrives verbatim in argv" "$NT_QUOTED" \
+  "$(awk -F'\t' '{ print $(NF-2) }' "$NOTIFY_CALLS")"
+
+# Il nome della scheda: custom-title batte ai-title, session_title batte entrambi.
+NT_TRANSCRIPT="$WORK_DIR/notify-transcript.jsonl"
+printf '%s\n' \
+  '{"type":"ai-title","aiTitle":"Old generated"}' \
+  '{"type":"custom-title","customTitle":"Mine"}' \
+  '{"type":"ai-title","aiTitle":"Generated"}' > "$NT_TRANSCRIPT"
+NT_TRANSCRIPT="$NT_TRANSCRIPT" STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "the subtitle is the title the developer chose" "Mine" \
   "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
+NT_TRANSCRIPT="$NT_TRANSCRIPT" NT_SESSION_TITLE="From payload" STUB_OS=Darwin \
+  notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "the payload's session_title comes first" "From payload" \
+  "$(awk -F'\t' '{ print $NF }' "$NOTIFY_CALLS")"
+printf '%s\n' '{"type":"ai-title","aiTitle":"Generated"}' > "$NT_TRANSCRIPT"
+NT_TRANSCRIPT="$NT_TRANSCRIPT" STUB_TN=ok STUB_OS=Darwin notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "without one, the generated title goes to terminal-notifier's subtitle" "true" \
+  "$(grep -qF -- "$(printf -- '-subtitle\tGenerated')" "$NOTIFY_CALLS" && echo true || echo false)"
+
+STUB_TN=ok __CFBundleIdentifier=com.microsoft.VSCode STUB_OS=Darwin \
+  notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "with terminal-notifier allowed it is the only call" "terminal-notifier" \
+  "$(cut -f1 "$NOTIFY_CALLS")$( [ "$(notify_count)" = 1 ] || echo ' (not one call)')"
+assert_eq "and a click activates the app that launched Claude Code" "true" \
+  "$(grep -qF -- "$(printf -- '-activate\tcom.microsoft.VSCode')" "$NOTIFY_CALLS" && echo true || echo false)"
+assert_eq "with Submarine as the default sound" "true" \
+  "$(grep -qF -- "$(printf -- '-sound\tSubmarine')" "$NOTIFY_CALLS" && echo true || echo false)"
+
+STUB_TN=ok __CFBundleIdentifier=com.example.editor STUB_OS=Darwin \
+  notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "the launching app's icon rides along as the content image" "true" \
+  "$(grep -qF -- "$(printf -- '-contentImage\t%s' "$WORK_DIR/notify-tmp/dev-setup-icons/com.example.editor.png")" \
+     "$NOTIFY_CALLS" && echo true || echo false)"
+STUB_TN=ok __CFBundleIdentifier=com.example.unknown STUB_OS=Darwin \
+  notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "an app Spotlight cannot find still notifies, without an image" "1:false" \
+  "$(notify_count):$(grep -qF -- '-contentImage' "$NOTIFY_CALLS" && echo true || echo false)"
+
+STUB_TN=ok DEV_SETUP_NOTIFY_SOUND=Morse STUB_OS=Darwin \
+  notify_hook_raw permission_prompt "$NT_MESSAGE"
+assert_eq "and DEV_SETUP_NOTIFY_SOUND picks another one" "true" \
+  "$(grep -qF -- "$(printf -- '-sound\tMorse')" "$NOTIFY_CALLS" && echo true || echo false)"
 
 # ── Test 2 (REQ-2): every other notification type is left alone ──
 for NT_TYPE in idle_prompt auth_success agent_needs_input agent_completed; do
@@ -3349,7 +3436,8 @@ cp "$PLUGIN_HOOKS/notify.sh" "$NT_LONELY/notify.sh"
 printf '%s' "$NT_PAYLOAD" | STUB_OS=Linux PATH="$NOTIFY_BIN:$PATH" env -u CLAUDE_PLUGIN_ROOT \
   bash "$NT_LONELY/notify.sh" >"$WORK_DIR/notify-stdout" 2>/dev/null
 assert_eq "without the plugin scripts it exits 0" "0" "$?"
-assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+assert_eq "and still notifies, named after the repository" "1:dev-setup · notify-repo:" \
+  "$(notify_count):$(notify_title):$(cat "$WORK_DIR/notify-stdout")"
 
 STUB_OS=Plan9 notify_hook_raw permission_prompt "$NT_MESSAGE"
 assert_eq "an unsupported OS exits 0" "0" "$?"
@@ -3358,7 +3446,8 @@ assert_eq "and invokes nothing" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-st
 mkdir -p "$WORK_DIR/notify-not-a-repo"
 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$WORK_DIR/notify-not-a-repo"
 assert_eq "a cwd outside a repository exits 0" "0" "$?"
-assert_eq "and invokes nothing" "0" "$(notify_count)"
+assert_eq "and notifies, named after the folder" "1:dev-setup · notify-not-a-repo" \
+  "$(notify_count):$(notify_title)"
 
 STUB_OS=Linux STUB_NOTIFY_EXIT=1 notify_hook_raw permission_prompt "$NT_MESSAGE"
 assert_eq "a failing notifier still exits 0" "0" "$?"
@@ -3416,7 +3505,8 @@ for NT_TASK in DE-901 DE-902; do
 done
 STUB_OS=Linux notify_hook_raw permission_prompt "$NT_MESSAGE" "$NT4_REPO"
 assert_eq "a stop 600 s old is no longer in play: exit 0" "0" "$?"
-assert_eq "no call, empty stdout" "0:" "$(notify_count):$(cat "$WORK_DIR/notify-stdout")"
+assert_eq "and the title falls back to the repository" "1:dev-setup · $(basename "$NT4_REPO"):" \
+  "$(notify_count):$(notify_title):$(cat "$WORK_DIR/notify-stdout")"
 
 # The two halves rest on the order of run-outcomes.md: ready-for-mr opens the
 # merge request before it stops the clock, failed stops it before the BLOCKED

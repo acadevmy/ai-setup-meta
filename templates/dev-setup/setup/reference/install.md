@@ -18,6 +18,7 @@ reference has produced them.
 - [3.7 — The worktree files](#37--the-worktree-files)
 - [3.8 — The pull/merge request template](#38--the-pullmerge-request-template)
 - [3.9 — The merge request metadata and the labels](#39--the-merge-request-metadata-and-the-labels)
+- [3.10 — Desktop notifications on macOS](#310--desktop-notifications-on-macos-machine-scope-optional)
 
 ---
 
@@ -674,3 +675,56 @@ leave them to the developer.
   - merge request metadata skipped: no forge configured for this repository
 ```
 
+
+### 3.10 — Desktop notifications on macOS (machine scope, optional)
+
+`notify.sh` (the Notification hook) reaches the developer whenever Claude
+waits on a permission prompt — a tool, a question, a plan. On macOS it prefers `terminal-notifier`:
+the notification plays a sound and a click activates the app that launched
+Claude Code — VS Code, a JetBrains IDE, the terminal. Without it the hook falls
+back to `osascript`, whose notifications belong to Script Editor: the sound is
+there, but a click opens Script Editor instead of the editor.
+
+Skip this step when `uname -s` is not `Darwin`, or when
+`command -v terminal-notifier` already resolves.
+
+It installs a tool on the developer's machine, not a file in the repository, so
+**do not install it yourself** — ask, then print the command. Ask with
+`AskUserQuestion`:
+
+```
+question: "Desktop notifications from dev-setup open Script Editor when clicked. Install terminal-notifier so a click brings you back to your editor?"
+options:
+  - label: "Print the command"   (recommended — brew install terminal-notifier)
+  - label: "Keep osascript"      (sound only; a click opens Script Editor)
+```
+
+- **Print the command** → give the developer this, and the one manual step
+  macOS requires after it:
+
+  ```bash
+  brew install terminal-notifier
+  ```
+
+  Then System Settings → Notifications → `terminal-notifier` → Allow
+  Notifications, and set the style to **Persistent** (Alerts on older macOS).
+  macOS decides how long a notification stays, per app, and no flag overrides
+  it: the default banner is gone in about five seconds, so a run that waits on
+  the developer while they look elsewhere goes unseen. Until they allow it,
+  `terminal-notifier` exits non-zero and the hook falls back to `osascript`,
+  so nothing breaks in between.
+
+- **Keep osascript** → nothing to do.
+
+Either way, mention that the sound is theirs to pick: `DEV_SETUP_NOTIFY_SOUND`
+in the `env` block of `~/.claude/settings.json`, set to any name in
+`/System/Library/Sounds` or `~/Library/Sounds` (default `Submarine`).
+
+**Report in the summary** (a single line) — one of:
+
+```
+  - desktop notifications: terminal-notifier already installed — a click opens the editor
+  - desktop notifications: terminal-notifier install printed (brew + allow, style Persistent, in System Settings → Notifications)
+  - desktop notifications: kept on osascript — a click opens Script Editor
+  - desktop notifications: not macOS, nothing to do
+```
