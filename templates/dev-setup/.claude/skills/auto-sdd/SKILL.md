@@ -61,7 +61,7 @@ Then `INTENT: update`, `PARAMS: task_id: <task_id>, status: IN PROGRESS`, then
 the clock:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --start --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --start --measure --json
 ```
 
 ## 3. The run

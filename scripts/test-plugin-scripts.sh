@@ -2753,7 +2753,8 @@ clock_exit() {
   printf '%s' "$?"
 }
 
-CLOCK_START=$(clock --task DE-700 --start)
+# An autonomous run's clock: the one that is measured.
+CLOCK_START=$(clock --task DE-700 --start --measure)
 
 # ClickUp's own format, and the one a human reads in the brief.
 assert_eq "--start stamps a minute-precision local timestamp" "true" \
@@ -2813,9 +2814,9 @@ CLOCK_LOG="$CLOCK_REPO/.git/dev-setup/task-clock/DE-703.log"
 mkdir -p "$(dirname "$CLOCK_LOG")"
 CLOCK_NOW=$(date +%s)
 {
-  printf 'start\t%s\t%s\n' "$((CLOCK_NOW - 20000))" "2026-09-17 09:00"
+  printf 'start\t%s\t%s\tmeasured\n' "$((CLOCK_NOW - 20000))" "2026-09-17 09:00"
   printf 'stop\t%s\t%s\t%s\n' "$((CLOCK_NOW - 11900))" "2026-09-17 11:15" "135"
-  printf 'start\t%s\t%s\n' "$((CLOCK_NOW - 5400))" "2026-09-18 10:00"
+  printf 'start\t%s\t%s\tmeasured\n' "$((CLOCK_NOW - 5400))" "2026-09-18 10:00"
 } > "$CLOCK_LOG"
 CLOCK_MULTI=$(clock --task DE-703 --stop)
 
@@ -2825,6 +2826,44 @@ assert_eq "the total carries both sittings" "3h 45m" \
   "$(printf '%s' "$CLOCK_MULTI" | jq -r '.TOTAL_DURATION')"
 assert_contains "and the line says it is a total over two sessions" \
   "$(printf '%s' "$CLOCK_MULTI" | jq -r '.COMMENT')" "total over 2 sessions"
+
+# ── An interactive clock is not a measurement ──
+#
+# sdd, kickoff and quick start the clock without --measure: their task spans
+# nights and CI waits, so its elapsed time would read like a work time and is
+# not one. The clock still marks the task as in play — the hooks read that —
+# and its stop reports nothing.
+CLOCK_PLAIN=$(clock --task DE-706 --start)
+assert_eq "a clock started without --measure is not measured" "false" \
+  "$(printf '%s' "$CLOCK_PLAIN" | jq -r '.MEASURED')"
+assert_contains "and still marks its task as in play" \
+  "$(clock --status | jq -r '.OPEN_TASKS')" "DE-706"
+assert_eq "a second --start cannot turn it into a measurement" "false" \
+  "$(clock --task DE-706 --start --measure | jq -r '.MEASURED')"
+CLOCK_PLAIN_STOP=$(clock --task DE-706 --stop)
+assert_eq "its --stop reports unmeasured" "unmeasured" \
+  "$(printf '%s' "$CLOCK_PLAIN_STOP" | jq -r '.REASON')"
+assert_eq "and offers no duration and no line to post" "" \
+  "$(printf '%s' "$CLOCK_PLAIN_STOP" | jq -r '.COMMENT')$(printf '%s' "$CLOCK_PLAIN_STOP" | jq -r '.DURATION')$(printf '%s' "$CLOCK_PLAIN_STOP" | jq -r '.TOTAL_DURATION')"
+assert_eq "but it does take the task out of play" "false" \
+  "$(clock --status | jq -r '.OPEN_TASKS' | grep -qw DE-706 && echo true || echo false)"
+assert_eq "and a second --stop is already-stopped, not no-start-stamp" "already-stopped" \
+  "$(clock --task DE-706 --stop | jq -r '.REASON')"
+
+# A task that went interactive first and autonomous later: only the measured
+# sitting counts.
+CLOCK_MIXED_LOG="$CLOCK_REPO/.git/dev-setup/task-clock/DE-707.log"
+{
+  printf 'start\t%s\t%s\n' "$((CLOCK_NOW - 90000))" "2026-09-16 09:00"
+  printf 'stop\t%s\t%s\t\n' "$((CLOCK_NOW - 20000))" "2026-09-17 04:26"
+  printf 'start\t%s\t%s\tmeasured\n' "$((CLOCK_NOW - 3600))" "2026-09-17 09:00"
+} > "$CLOCK_MIXED_LOG"
+CLOCK_MIXED=$(clock --task DE-707 --stop)
+assert_eq "a measured sitting after an unmeasured one counts alone" "1h|1h|1" \
+  "$(printf '%s' "$CLOCK_MIXED" | jq -r '[.DURATION, .TOTAL_DURATION, .SESSIONS] | join("|")')"
+
+assert_eq "--measure outside --start is a usage error" "1" \
+  "$(clock_exit --task DE-708 --stop --measure)"
 
 # The task id reaches a file path here, exactly as it reaches a branch name in
 # sdd-start.sh. Both refuse anything that is not a plain identifier.
@@ -2946,6 +2985,21 @@ for CLOCK_SIDE in \
     "$(cat "$SDD_DIR/$CLOCK_FILE")" "$CLOCK_NEEDLE"
 done
 
+# Who measures: the launchers start with --measure, the interactive flows never
+# do. A --measure slipping into sdd would bring the 76-hour comments back.
+for CLOCK_MEASURED in auto-sdd/SKILL.md multi-sdd/reference/fan-out.md; do
+  assert_contains "$CLOCK_MEASURED starts a measured clock" \
+    "$(cat "$SDD_DIR/$CLOCK_MEASURED")" "--start --measure"
+done
+for CLOCK_SCRIPT in auto-dev-clickup.sh auto-dev-tracker.sh; do
+  assert_contains "$CLOCK_SCRIPT starts a measured clock" \
+    "$(cat "$REPO_ROOT/templates/dev-setup/.claude/scripts/$CLOCK_SCRIPT")" "--start --measure"
+done
+for CLOCK_PLAIN_FLOW in sdd/reference/intake.md kickoff/reference/board.md quick/SKILL.md; do
+  assert_eq "$CLOCK_PLAIN_FLOW never measures" "false" \
+    "$(grep -q -- '--measure' "$SDD_DIR/$CLOCK_PLAIN_FLOW" && echo true || echo false)"
+done
+
 # Both autonomous outcomes that close a task carry the reading: ready-for-mr on
 # the CODE REVIEW move, failed on the BLOCKED one. Scoped per section, so the
 # check cannot be satisfied by one of them mentioning it twice.
@@ -3030,7 +3084,7 @@ assert_eq "and the quiet path exits 0" "0" "$?"
 assert_eq "with an empty stdout" "" "$(cat "$WORK_DIR/mr-stdout")"
 
 # ── With a task in progress ──
-mr_clock --task DE-810 --start >/dev/null
+mr_clock --task DE-810 --start --measure >/dev/null
 
 # The internal filter stays, for a client that ignores `if`, and it is asserted
 # where an unfiltered hook would speak: the URL is in the response and DE-810's

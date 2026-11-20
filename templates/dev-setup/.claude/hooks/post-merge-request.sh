@@ -192,7 +192,8 @@ The flow is not finished. Two calls, now, in this turn:
   2. move %s to IN REVIEW with
      COMMENT as the comment, verbatim — the tracker agent, per
      %s
-An empty COMMENT means the clock has nothing to report: move the task anyway,
-and say so in one line. Never write a duration yourself.
+An empty COMMENT posts nothing: move the task anyway. REASON unmeasured (the
+clock of an interactive flow) needs no word; any other, one line. Never write
+a duration yourself.
 ' "$MR_URL" "$TASK" "${STARTED_AT:+ — its work clock has been running since $STARTED_AT}" \
   "$CLOCK_CMD" "$TASK" "$TASK" "$CONTRACT")"
