@@ -707,9 +707,12 @@ options:
   ```
 
   Then System Settings → Notifications → `terminal-notifier` → Allow
-  Notifications (style "Alerts" keeps them on screen until clicked). Until they
-  allow it, `terminal-notifier` exits non-zero and the hook falls back to
-  `osascript`, so nothing breaks in between.
+  Notifications, and set the style to **Persistent** (Alerts on older macOS).
+  macOS decides how long a notification stays, per app, and no flag overrides
+  it: the default banner is gone in about five seconds, so a run that waits on
+  the developer while they look elsewhere goes unseen. Until they allow it,
+  `terminal-notifier` exits non-zero and the hook falls back to `osascript`,
+  so nothing breaks in between.
 
 - **Keep osascript** → nothing to do.
 
@@ -721,7 +724,7 @@ in the `env` block of `~/.claude/settings.json`, set to any name in
 
 ```
   - desktop notifications: terminal-notifier already installed — a click opens the editor
-  - desktop notifications: terminal-notifier install printed (brew + allow in System Settings → Notifications)
+  - desktop notifications: terminal-notifier install printed (brew + allow, style Persistent, in System Settings → Notifications)
   - desktop notifications: kept on osascript — a click opens Script Editor
   - desktop notifications: not macOS, nothing to do
 ```

@@ -102,7 +102,9 @@ iTerm2, Ghostty and Kitty. The second entry makes every `DE-123` a ClickUp link;
 On macOS, install `terminal-notifier` (`brew install terminal-notifier`, then
 allow it in System Settings → Notifications) and a click on a dev-setup
 notification brings you back to the editor you launched Claude Code from;
-without it the click opens Script Editor. The sound is `Submarine` unless you set
+without it the click opens Script Editor. Set its style to **Persistent**
+(Alerts on older macOS) in the same pane: the default banner is gone in about
+five seconds, and a run that waits on you while you look elsewhere goes unseen. The sound is `Submarine` unless you set
 `DEV_SETUP_NOTIFY_SOUND` in the `env` block of your user settings.
 
 ## Where to go next
