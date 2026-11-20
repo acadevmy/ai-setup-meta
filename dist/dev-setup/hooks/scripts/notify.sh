@@ -25,11 +25,16 @@
 # name), and run in the agent view's cwd, where a branch or a clock could only
 # name the wrong task. `idle_prompt` and the rest carry no decision.
 #
-# Delivery is the OS notifier, chosen by `uname -s`: `osascript` on Darwin, with
-# the title and the body passed as argv — never interpolated into the script,
-# so a message with quotes cannot break or inject into the AppleScript — and
-# `notify-send` on Linux. No bell: a hook's stdio is piped to the harness, and
-# ringing the terminal is what `preferredNotifChannel: "terminal_bell"` does.
+# Delivery is the OS notifier, chosen by `uname -s`. On Darwin, `terminal-notifier`
+# when installed and allowed: it plays `$DEV_SETUP_NOTIFY_SOUND` (Submarine when
+# unset) and a click activates the app
+# that launched Claude Code (`$__CFBundleIdentifier`). Otherwise `osascript`,
+# with the same sound — its notifications belong to Script Editor, so a click opens
+# that — with the title and the body passed as argv, never interpolated into
+# the script, so a message with quotes cannot break or inject into the
+# AppleScript. `notify-send` on Linux. No terminal bell: a hook's stdio is piped
+# to the harness, and ringing the terminal is what
+# `preferredNotifChannel: "terminal_bell"` does.
 #
 # It fails open and prints nothing on stdout: a Notification hook has no
 # decision control, so its whole effect is the side effect. No `jq`, no plugin
@@ -115,12 +120,22 @@ TITLE="dev-setup · $TASK_IDS"
 
 case "$(uname -s 2>/dev/null)" in
   Darwin)
+    # Il clic riporta all'app che ha avviato Claude Code (VS Code, WebStorm,
+    # Terminal…): il bundle id lo eredita il processo del hook. Il suono è un
+    # nome di /System/Library/Sounds o ~/Library/Sounds, scelto da chi sviluppa.
+    SOUND="${DEV_SETUP_NOTIFY_SOUND:-Submarine}"
+    if command -v terminal-notifier >/dev/null 2>&1 \
+      && terminal-notifier -title "$TITLE" -message "$MESSAGE" -sound "$SOUND" \
+        -group "dev-setup-$TASK_IDS" \
+        -activate "${__CFBundleIdentifier:-com.apple.Terminal}" >/dev/null 2>&1; then
+      exit 0
+    fi
     command -v osascript >/dev/null 2>&1 || exit 0
     osascript \
       -e 'on run argv' \
-      -e 'display notification (item 2 of argv) with title (item 1 of argv)' \
+      -e 'display notification (item 2 of argv) with title (item 1 of argv) sound name (item 3 of argv)' \
       -e 'end run' \
-      "$TITLE" "$MESSAGE" >/dev/null 2>&1 \
+      "$TITLE" "$MESSAGE" "$SOUND" >/dev/null 2>&1 \
       || echo "notify: osascript failed, notification skipped" >&2
     ;;
   Linux)
