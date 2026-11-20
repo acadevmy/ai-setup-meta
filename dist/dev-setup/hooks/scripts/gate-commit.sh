@@ -86,7 +86,8 @@ fi
 
 TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
-# The session's working directory, which is where the commit is happening. In a
+# The session's working directory, which is where the commit is happening unless
+# the command moves it (`git -C`, `cd … &&`: see commit_dir below). In a
 # worktree it is the worktree root, while $CLAUDE_PROJECT_DIR stays at the main
 # checkout — so a gate that trusted its own `pwd` would lint and test the wrong
 # tree and report the answer for a checkout nobody is committing.
@@ -106,7 +107,13 @@ is_git_commit() {
   printf '%s' "$1" | grep -Eq '(^|[;&|]|&&|\|\|)[[:space:]]*(env[[:space:]]+[^;&|]*)?([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)?)*[[:space:]]+commit([[:space:]]|$)'
 }
 
-is_git_commit "$COMMAND" || exit 0
+strip_quoted() {
+  printf '%s' "$1" | sed -e "s/'[^']*'/''/g" -e 's/"[^"]*"/""/g'
+}
+
+# The quoted strings removed too: `git -C "/path with spaces" commit` is a
+# commit, and the raw line, whose flag argument holds a space, does not match.
+is_git_commit "$COMMAND" || is_git_commit "$(strip_quoted "$COMMAND")" || exit 0
 
 # ── Deny helper ───────────────────────────────────────────────────────────────
 
@@ -129,10 +136,6 @@ deny() {
 # The scan runs on the command with every quoted string removed: a commit
 # message is free text, and `-m "disable HUSKY=0 fallback"` must not read as an
 # attempt to set it.
-
-strip_quoted() {
-  printf '%s' "$1" | sed -e "s/'[^']*'/''/g" -e 's/"[^"]*"/""/g'
-}
 
 SCAN=$(strip_quoted "$COMMAND")
 
@@ -194,8 +197,101 @@ if [ -z "$SCRIPTS_DIR" ]; then
   exit 0
 fi
 
-if [ -n "$HOOK_CWD" ] && [ -d "$HOOK_CWD" ]; then
-  cd "$HOOK_CWD" || exit 0
+# ── The repository being committed ────────────────────────────────────────────
+#
+# The payload's cwd is where the session stands, not always where the commit
+# lands: `git -C ../brick commit` and `cd ../brick && git commit` commit in
+# another repository, and a gate that checked the session's would refuse a
+# green commit for the session's red suite — or wave a red one through. While
+# working on acadevmy/devmy_cli#10, agents committing in sibling brick
+# repositories were all gated against devmy_cli. So the command names the
+# directory when it says one; the cwd is the fallback.
+
+# Splits a command into shell words, quotes removed, into WORDS. An unquoted
+# `;`, `&`, `|`, `(`, `)` or newline ends a segment and is stored as SEP. No
+# expansion is attempted: a `$VAR` path stays literal, names no directory, and
+# falls back to the cwd.
+SEP=$'\x1f'
+WORDS=()
+shell_words() {
+  local s="$1" word="" in_word=false quote="" c i
+  WORDS=()
+  for (( i = 0; i < ${#s}; i++ )); do
+    c="${s:i:1}"
+    if [ -n "$quote" ]; then
+      if [ "$c" = "$quote" ]; then quote=""; else word+="$c"; fi
+      continue
+    fi
+    case "$c" in
+      "'"|'"') quote="$c"; in_word=true ;;
+      ' '|$'\t'|';'|'&'|'|'|'('|')'|$'\n')
+        if [ "$in_word" = true ]; then WORDS+=("$word"); word=""; in_word=false; fi
+        case "$c" in ' '|$'\t') ;; *) WORDS+=("$SEP") ;; esac
+        ;;
+      *) word+="$c"; in_word=true ;;
+    esac
+  done
+  [ "$in_word" = true ] && WORDS+=("$word")
+  WORDS+=("$SEP")
+}
+
+# A directory a command names, read against the one it was named from.
+resolve_dir() {
+  case "$2" in
+    /*)    printf '%s' "$2" ;;
+    \~)    printf '%s' "$HOME" ;;
+    \~/*)  printf '%s/%s' "$HOME" "${2#\~/}" ;;
+    *)     printf '%s/%s' "$1" "$2" ;;
+  esac
+}
+
+# Prints the directory the first `git commit` of the command runs in: the cwd,
+# moved by every `cd <dir>` segment before it, then by the commit's own
+# `git -C <dir>` flags (several compose, as in git).
+commit_dir() {
+  local dir="$1" w i n
+  local seg=()
+  shell_words "$2"
+  for w in "${WORDS[@]}"; do
+    if [ "$w" != "$SEP" ]; then seg+=("$w"); continue; fi
+    n=${#seg[@]}
+    i=0
+    # The prefixes is_git_commit accepts: `env` and VAR=value assignments.
+    while [ "$i" -lt "$n" ]; do
+      case "${seg[i]}" in
+        env|[A-Za-z_]*=*) i=$((i + 1)) ;;
+        *) break ;;
+      esac
+    done
+    if [ "$i" -lt "$n" ] && [ "${seg[i]}" = cd ] && [ $((n - i)) -eq 2 ]; then
+      dir=$(resolve_dir "$dir" "${seg[i+1]}")
+    elif [ "$i" -lt "$n" ] && [ "${seg[i]}" = git ]; then
+      i=$((i + 1))
+      while [ "$i" -lt "$n" ]; do
+        case "${seg[i]}" in
+          -C)
+            [ $((i + 1)) -lt "$n" ] && dir=$(resolve_dir "$dir" "${seg[i+1]}")
+            i=$((i + 2)) ;;
+          -c|--git-dir|--work-tree|--namespace|--config-env) i=$((i + 2)) ;;
+          -*) i=$((i + 1)) ;;
+          *) break ;;
+        esac
+      done
+      if [ "$i" -lt "$n" ] && [ "${seg[i]}" = commit ]; then
+        printf '%s' "$dir"
+        return 0
+      fi
+    fi
+    seg=()
+  done
+  printf '%s' "$1"
+}
+
+TARGET_DIR=$(commit_dir "${HOOK_CWD:-$PWD}" "$COMMAND")
+[ -d "$TARGET_DIR" ] || TARGET_DIR="$HOOK_CWD"
+
+if [ -n "$TARGET_DIR" ] && [ -d "$TARGET_DIR" ]; then
+  cd "$TARGET_DIR" || exit 0
 fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
