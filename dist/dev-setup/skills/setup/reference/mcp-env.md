@@ -176,6 +176,17 @@ Close with **exactly one** line for the summary — one of:
   - Figma MCP skipped: no frontend and no mobile in this stack
 ```
 
+Unless the line is the `skipped` one, add a second line on the **visual check**
+— the comparison of the UI with its Figma frames, rendered 1:1
+(`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`), which captures the page
+with the project's own Playwright. Look for `playwright`, `@playwright/test`
+or `playwright-core` in any `package.json` of the repository; install nothing:
+
+```
+  - Visual check ready: Playwright found (<package>)
+  - Visual check not ready: no Playwright in this project — Figma frames are reported not verified until it is a devDependency
+```
+
 The line is not decoration. This step is the flow's only optional registration,
 and it is the one that went missing when 6.3 moved out of the skill body and in
 here: with no reported outcome, a skipped ask and a declined ask and a step that
@@ -204,8 +215,11 @@ one. Work on `.env.example`, which is tracked and carries no values.
 
 With a tracker chosen at 6.1, add the key a headless run needs, commented —
 `# CLICKUP_API_TOKEN=` and `# CLICKUP_TEAM_ID=` for ClickUp, `# LINEAR_API_KEY=`
-for Linear — when the file does not already name it. A developer working in a
-session never needs one: the MCP authorises over OAuth.
+for Linear — when the file does not already name it. With a Figma line other
+than `skipped` at 6.3, add `# FIGMA_TOKEN=` too: a headless run exports the
+frames over the REST API with a personal access token (File content,
+read-only). A developer working in a session never needs one: the MCP
+authorises over OAuth.
 
 In every case, close with one line for the summary:
 `task tracker variables declared in .env.example — they override .claude/tracker.json on one machine (setup cannot write .env)`

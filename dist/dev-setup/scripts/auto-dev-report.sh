@@ -373,6 +373,7 @@ jq -n --slurpfile o "$O" --slurpfile l "$LAUNCH" --argjson usage "$USAGE" \
       applied: ($o.applied // []),
       unchecked: ($o.unchecked // []),
       unverified: ($o.unverified // []),
+      visual: ($o.visual // []),
       checks: {ran: ($o.ran // []), absent: ($o.absent // []), output: ($o.output // "")},
       notes: ($o.notes // ""),
       patchFile: $patch,
@@ -410,7 +411,9 @@ if [ "$STATUS" = ready-for-mr ]; then
       "uncheckedAtCommit": "Test non completati al commit",
       "uncheckedAtCommitIntro": "Il gate del commit ha esaurito il tempo e ha lasciato passare il commit prima che questi controlli finissero. L'\''output dei comandi di qualità più sotto viene dalla verifica del run.",
       "notVerified": "Non verificato",
-      "notVerifiedIntro": "Questi comandi non sono stati eseguiti da questo run: chi fa il merge li esegue, o aspetta la CI.",
+      "notVerifiedIntro": "Questi controlli non sono stati eseguiti da questo run: chi fa il merge li esegue, o aspetta la CI.",
+      "visual": "Confronto visivo con Figma",
+      "visualIntro": "Ogni frame confrontato pixel per pixel con la pagina che lo rende (export 1:1, stessa dimensione).",
       "toConfirm": "Da confermare",
       "toConfirmIntro": "Scelte che il run ha fatto al posto del task: nessuno le ha ancora viste.",
       "reading": "Lettura scelta", "deviation": "Scostamento dal task",
@@ -428,7 +431,9 @@ if [ "$STATUS" = ready-for-mr ]; then
       "uncheckedAtCommit": "Tests not completed at commit",
       "uncheckedAtCommitIntro": "The commit gate ran out of time and let the commit through before these checks finished. The quality commands output further down comes from the run'\''s own verification.",
       "notVerified": "Not verified",
-      "notVerifiedIntro": "These commands did not run in this run: whoever merges runs them, or waits for the CI.",
+      "notVerifiedIntro": "These checks did not run in this run: whoever merges runs them, or waits for the CI.",
+      "visual": "Visual check against Figma",
+      "visualIntro": "Each frame compared pixel for pixel with the page that renders it (1:1 export, same size).",
       "toConfirm": "To confirm",
       "toConfirmIntro": "Choices the run made on the task'\''s behalf: nobody has seen them yet.",
       "reading": "Reading taken", "deviation": "Departure from the task",
@@ -451,6 +456,12 @@ if [ "$STATUS" = ready-for-mr ]; then
       (if (.unverified // []) | length > 0 then
          "## \($L.notVerified)\n\n\($L.notVerifiedIntro)\n\n"
          + (.unverified | map("- **\(.kind)** `\(.command)` — \(.reason)") | join("\n"))
+       else empty end),
+      (if (.visual // []) | length > 0 then
+         "## \($L.visual)\n\n\($L.visualIntro)\n\n"
+         + (.visual | map("- [\(.frame)](\(.url)) — **\(.verdict)**"
+             + (if (.route // "") != "" then " at `\(.route)`" else "" end)
+             + (if (.reason // "") != "" then ": \(.reason)" else "" end)) | join("\n"))
        else empty end),
       (if ((.toConfirm // []) + (.deviations // [])) | length > 0 then
          "## \($L.toConfirm)\n\n\($L.toConfirmIntro)\n\n"

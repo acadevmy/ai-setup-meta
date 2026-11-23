@@ -235,6 +235,8 @@ for FIXTURE_DIR in "$FIXTURES"/*/; do
   NAME=$(basename "$FIXTURE_DIR")
   # stories/ holds story drafts for validate-story.sh, not a project to detect.
   [ "$NAME" = "stories" ] && continue
+  # visual/ holds the PNG renders visual-check.sh compares, not a project either.
+  [ "$NAME" = "visual" ] && continue
   SNAPSHOT="$FIXTURES/$NAME.expected.json"
 
   # Run on a copy outside the repository: inside it, git would report the
@@ -1487,6 +1489,35 @@ assert_eq "deleting a ClickUp task still asks" "true" \
 assert_eq "the template no longer asks on ClickUp creates" "false" \
   "$(jq '.permissions.ask | index("mcp__clickup__clickup_create_*") != null' "$SETTINGS_TEMPLATE")"
 
+# The visual check reaches the Figma export hosts, runs a dev server the browser
+# connects to, and keeps FIGMA_TOKEN out of the sandbox like every other token.
+# A project sandboxed before those entries gets them on UPDATE; what the team
+# set itself — its own host, a local binding it turned off — stays.
+jq 'del(.sandbox.network.allowLocalBinding)
+    | .sandbox.network.allowedDomains = ["registry.npmjs.org", "internal.example"]
+    | .sandbox.credentials.envVars |= map(select(.name != "FIGMA_TOKEN"))' \
+  "$MIG_DIR/with-gh.json" > "$MIG_DIR/pre-figma.json"
+NET_REPORT=$(bash "$PLUGIN_SCRIPTS/migrate-settings.sh" \
+  --in "$MIG_DIR/pre-figma.json" --template "$SETTINGS_TEMPLATE" \
+  --out "$MIG_DIR/post-figma.json" --json 2>/dev/null)
+assert_eq "a sandboxed settings without the Figma hosts is migrated" "network-updated" \
+  "$(printf '%s' "$NET_REPORT" | jq -r .REASON)"
+assert_contains "the export hosts arrive" "$(printf '%s' "$NET_REPORT" | jq -r .ADDED_DOMAINS)" "api.figma.com"
+assert_eq "the token is denied to the sandbox, local binding allowed" "FIGMA_TOKEN true" \
+  "$(printf '%s' "$NET_REPORT" | jq -r '[.ADDED_ENV_DENY, .ADDED_LOCAL_BINDING] | join(" ")')"
+assert_eq "the team's own host stays, first" "internal.example" \
+  "$(jq -r '.sandbox.network.allowedDomains[1]' "$MIG_DIR/post-figma.json")"
+assert_eq "nothing outside the network and credentials changes" "true" \
+  "$(jq -n --slurpfile a "$MIG_DIR/pre-figma.json" --slurpfile b "$MIG_DIR/post-figma.json" '
+     ($a[0] | del(.sandbox.network, .sandbox.credentials)) == ($b[0] | del(.sandbox.network, .sandbox.credentials))')"
+bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/post-figma.json" \
+  --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
+assert_eq "a settings with the Figma entries is then left alone" "3" "$?"
+jq '.sandbox.network.allowLocalBinding = false' "$MIG_DIR/post-figma.json" > "$MIG_DIR/no-binding.json"
+bash "$PLUGIN_SCRIPTS/migrate-settings.sh" --in "$MIG_DIR/no-binding.json" \
+  --template "$SETTINGS_TEMPLATE" --json >/dev/null 2>&1
+assert_eq "a local binding the team turned off stays off" "3" "$?"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. auto-sdd-run.js: the workflow script (DE-16479)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2425,7 +2456,8 @@ async function agent(prompt, opts) {
   prompts[label] = prompt;
   options[label] = opts;
   calls.push(label);
-  if (label.startsWith('spec:')) return spec;
+  if (label.startsWith('spec:')) return Object.assign(spec, scenario.rows ? { visualChecks: scenario.rows } : {});
+  if (label.startsWith('visual:')) return scenario.visual === 'dead' ? null : { results: scenario.visual || [] };
   if (label.startsWith('revise:')) {
     if (scenario.revise === 'dead') return null;
     return Object.assign({}, spec, {
@@ -2497,6 +2529,16 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     devInPrepared: (prompts['dev:DE-1'] || '').includes('cd "/repo/.claude/worktrees/feat-DE-1"')
       && !(prompts['dev:DE-1'] || '').includes('sdd-start.sh'),
     verifyInPrepared: (prompts['verify:DE-1'] || '').includes('cd "/repo/.claude/worktrees/feat-DE-1"'),
+    visualAgent: calls.includes('visual:DE-1'),
+    visual: (out.visual || []).map((v) => v.verdict).join(','),
+    output: out.output || '',
+    specFrames: (prompts['spec:DE-1'] || '').includes('Sign up (12:345)')
+      && (prompts['spec:DE-1'] || '').includes('/reference/visual-check.md'),
+    devVisual: (prompts['dev:DE-1'] || '').includes('Step 4 — the visual check')
+      && (prompts['dev:DE-1'] || '').includes('route /signup'),
+    visualExport: (prompts['visual:DE-1'] || '').includes('download_assets')
+      && (prompts['visual:DE-1'] || '').includes('/plugin/scripts/figma-export.sh" --url'),
+    visualThreshold: (prompts['visual:DE-1'] || '').match(/threshold ([0-9.]+)/) ? (prompts['visual:DE-1'] || '').match(/threshold ([0-9.]+)/)[1] : '',
   }));
 });
 NODEJS
@@ -2597,6 +2639,43 @@ NODEJS
   assert_eq "so does a relative path" "failed intake" "$(field "$SIM" status) $(field "$SIM" stage)"
   SIM=$(sim '{}' '{"worktreePath":"/repo/x","branch":"feat/x;rm -rf ~"}')
   assert_eq "and a branch a shell would read as syntax" "failed intake" "$(field "$SIM" status) $(field "$SIM" stage)"
+
+  # The visual check: a task that links Figma frames is compared with them as
+  # rendered, and the comparison blocks like a red test. Which frames is read
+  # from the task in code, so every one needs a row in the spec; the verdict is
+  # decided in code from what the scripts printed.
+  SIM=$(sim '{}')
+  assert_eq "a task with no Figma frame launches no visual check" "false " \
+    "$(field "$SIM" visualAgent) $(field "$SIM" visual)"
+  FRAMES_TASK='{"description":"## Design\n- [Sign up](https://www.figma.com/design/AbCdEfGhIjKlMnOpQrStUv/App?node-id=12-345) — the form\n- [Mobile](https://www.figma.com/design/AbCdEfGhIjKlMnOpQrStUv/App?node-id=12-400)\n- the file: https://www.figma.com/design/AbCdEfGhIjKlMnOpQrStUv/App"}'
+  ROWS='"rows":[{"nodeId":"12:345","route":"/signup","selector":"page","threshold":0.02},{"nodeId":"12-400","notCompared":"mobile frame, the task is web only"}]'
+  SIM=$(sim "{$ROWS,\"visual\":[{\"nodeId\":\"12:345\",\"verdict\":\"match\",\"reason\":\"0 pixels differ\"}]}" "$FRAMES_TASK")
+  assert_eq "frames that match reach the merge request, each with its verdict" \
+    "ready-for-mr true not-compared,match" "$(field "$SIM" status) $(field "$SIM" visualAgent) $(field "$SIM" visual)"
+  assert_eq "the spec author is handed every frame and the reference" "true" "$(field "$SIM" specFrames)"
+  assert_eq "the dev agent compares as it builds, on the spec's route" "true" "$(field "$SIM" devVisual)"
+  assert_eq "the frame is exported 1:1 through the MCP, checked by figma-export.sh" "true" "$(field "$SIM" visualExport)"
+  SIM=$(sim "{$ROWS,\"visual\":[{\"nodeId\":\"12:345\",\"verdict\":\"mismatch\",\"reason\":\"content is displaced\",\"shifts\":\"16,1216 720x80: 8 px lower than the frame\",\"sideBySide\":\"/g/side.png\"}]}" "$FRAMES_TASK")
+  assert_eq "a mismatch fails the run at verify, before the commands" "failed verify false" \
+    "$(field "$SIM" status) $(field "$SIM" stage) $(field "$SIM" verified)"
+  assert_contains "naming the frame" "$(field "$SIM" reason)" "Sign up (12:345)"
+  assert_contains "with the shift and the image a person opens" "$(field "$SIM" output)" "8 px lower than the frame (/g/side.png)"
+  SIM=$(sim "{$ROWS,\"visual\":[{\"nodeId\":\"12:345\",\"verdict\":\"unverified\",\"cause\":\"page\",\"reason\":\"the page did not load\"}]}" "$FRAMES_TASK")
+  assert_eq "a page that did not load is a failure, not an unverified frame" "failed verify" \
+    "$(field "$SIM" status) $(field "$SIM" stage)"
+  SIM=$(sim "{$ROWS,\"visual\":[{\"nodeId\":\"12:345\",\"verdict\":\"unverified\",\"cause\":\"environment\",\"reason\":\"no Playwright\"}]}" "$FRAMES_TASK")
+  assert_eq "an environment that cannot compare reaches the merge request, unverified" \
+    "ready-for-mr visual=Sign up (12:345)" "$(field "$SIM" status) $(field "$SIM" unverified)"
+  SIM=$(sim "{$ROWS,\"visual\":\"dead\"}" "$FRAMES_TASK")
+  assert_eq "a visual agent that returns nothing proves nothing: failed" "failed verify" \
+    "$(field "$SIM" status) $(field "$SIM" stage)"
+  SIM=$(sim '{"rows":[{"nodeId":"12:345","route":"/signup","threshold":0.5}],"visual":[{"nodeId":"12:345","verdict":"match","reason":"ok"}]}' "$FRAMES_TASK")
+  assert_eq "a frame the spec maps nowhere goes to the merge request as never checked" \
+    "ready-for-mr visual=Mobile (12:400)" "$(field "$SIM" status) $(field "$SIM" unverified)"
+  assert_eq "and a threshold above the cap is brought back to the default" "0.02" "$(field "$SIM" visualThreshold)"
+  SIM=$(sim '{"rows":[{"nodeId":"12:345","route":"/x\"; rm -rf ~"},{"nodeId":"12:400","notCompared":"web only"}]}' "$FRAMES_TASK")
+  assert_eq "a route a shell would read as syntax is no row: unverified, and nothing runs it" \
+    "ready-for-mr false visual=Sign up (12:345)" "$(field "$SIM" status) $(field "$SIM" visualAgent) $(field "$SIM" unverified)"
 else
   printf '%s  skip%s  node not found: the Challenge simulation needs it\n' "$DIM" "$NC"
 fi
@@ -5049,7 +5128,8 @@ async function agent(prompt, o) {
   calls.push(o.label);
   opts[o.label] = o;
   prompts[o.label.split(':')[0]] = prompt;
-  if (o.label.startsWith('spec:')) return spec;
+  if (o.label.startsWith('spec:')) return Object.assign(spec, scenario.rows ? { visualChecks: scenario.rows } : {});
+  if (o.label.startsWith('visual:')) return { results: scenario.visual || [] };
   if (o.label.startsWith('challenge:')) {
     if (scenario.review === 'dead') return null;
     if (scenario.review === 'propose') {
@@ -5106,6 +5186,11 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     reason: out.reason || '',
     ran: (out.ran || []).map((r) => r.command + '=' + r.ok).join(','),
     unverified: (out.unverified || []).map((u) => u.kind).join(','),
+    visual: (out.visual || []).map((v) => v.verdict).join(','),
+    visualRest: (prompts.visual || '').includes('/plugin/scripts/figma-export.sh" --file-key')
+      && !(prompts.visual || '').includes('download_assets'),
+    devVisualBeforeCommit: (prompts.dev || '').indexOf('Step 3b — the visual check') > 0
+      && (prompts.dev || '').indexOf('Step 3b — the visual check') < (prompts.dev || '').indexOf('Step 4 — one commit'),
   }));
 });
 NODEJS
@@ -5116,6 +5201,20 @@ NODEJS
   SIM=$(dsim '{}')
   assert_eq "a small task goes from the spec to Dev: no reviewer, no revision" \
     "ready-for-mr spec,dev,verify" "$(dfield "$SIM" status) $(dfield "$SIM" agents)"
+
+  # The headless run reads its frames from the launcher (auto-dev-args.sh runs
+  # figma-frames.sh on the task file) and exports them over the REST API: a
+  # disposable machine has no Figma login.
+  DFRAMES='{"frames":[{"fileKey":"AbCdEfGhIjKlMnOpQrStUv","nodeId":"12:345","name":"Sign up","url":"https://www.figma.com/design/AbCdEfGhIjKlMnOpQrStUv/App?node-id=12-345"},{"fileKey":"bad key!","nodeId":"1:2"}]}'
+  SIM=$(dsim '{"rows":[{"nodeId":"12:345","route":"/signup"}],"visual":[{"nodeId":"12:345","verdict":"match","reason":"ok"}]}' "$DFRAMES")
+  assert_eq "a headless run with a frame compares it on sonnet before the checks" \
+    "ready-for-mr spec,dev,visual,verify opus,opus,sonnet,haiku match" \
+    "$(dfield "$SIM" status) $(dfield "$SIM" agents) $(dfield "$SIM" models) $(dfield "$SIM" visual)"
+  assert_eq "exported over the REST API, never the MCP" "true" "$(dfield "$SIM" visualRest)"
+  assert_eq "and the dev agent compares before its one commit" "true" "$(dfield "$SIM" devVisualBeforeCommit)"
+  SIM=$(dsim '{"rows":[{"nodeId":"12:345","route":"/signup"}],"visual":[{"nodeId":"12:345","verdict":"mismatch","reason":"the UI renders at 1440x2900"}]}' "$DFRAMES")
+  assert_eq "a mismatch fails the headless run too, and the checks never start" \
+    "failed verify spec,dev,visual" "$(dfield "$SIM" status) $(dfield "$SIM" stage) $(dfield "$SIM" agents)"
   assert_contains "and the result says why the Challenge was skipped" "$(dfield "$SIM" skipped)" "small task"
   assert_eq "the spec agent reads the task from its file" "true" "$(dfield "$SIM" taskFile)"
   assert_eq "Dev works in the checkout, never in a worktree" "false true" \
@@ -5265,6 +5364,14 @@ assert_eq "it writes the task text verbatim to the file the agents read" \
 assert_eq "the workflow arguments carry the file, not the text" "$AD_OUT/task.md false" \
   "$(jq -r '.taskFile + " " + (has("description") | tostring)' "$AD_OUT/workflow-args.json")"
 assert_eq "and the merge request language from mr-meta" "en" "$(jq -r .language "$AD_OUT/workflow-args.json")"
+assert_eq "a task with no Figma link passes no frame" "[]" "$(jq -c .frames "$AD_OUT/workflow-args.json")"
+jq '.task.description = "See [Sign up](https://www.figma.com/design/AbCdEfGhIjKlMnOpQrStUv/App?node-id=12-345)"' \
+  "$AD_DIR/args.json" > "$AD_DIR/args-figma.json"
+ad auto-dev-args.sh --args "$AD_DIR/args-figma.json" >/dev/null
+assert_eq "a linked frame reaches the workflow with its key, node and name" \
+  'AbCdEfGhIjKlMnOpQrStUv 12:345 Sign up' \
+  "$(jq -r '.frames[0] | [.fileKey, .nodeId, .name] | join(" ")' "$AD_OUT/workflow-args.json")"
+ad auto-dev-args.sh --args "$AD_DIR/args.json" >/dev/null
 
 jq --arg o "$AD_REPO/out" '.outputDir = $o' "$AD_DIR/args.json" > "$AD_DIR/args-inside.json"
 OUT="$(ad auto-dev-args.sh --args "$AD_DIR/args-inside.json")"
@@ -5317,7 +5424,8 @@ cat > "$AD_OUT/outcome.json" <<'JSON'
  "openPoints":[{"lens":"scope","reason":"too wide","suggestion":"drop REQ-2","grounds":"the task","answer":""}],
  "applied":[{"lens":"simpler"}],"deviations":[],"toConfirm":["the greeting is in English"],"unchecked":[],
  "notes":"","output":"3 passed","ran":[{"command":"make test","ok":true}],"absent":["typecheck"],
- "unverified":[{"kind":"lint","command":"make lint","reason":"no make here"}]}
+ "unverified":[{"kind":"lint","command":"make lint","reason":"no make here"}],
+ "visual":[{"frame":"Sign up (12:345)","url":"https://www.figma.com/design/x/App?node-id=12-345","route":"/signup","verdict":"match","reason":"0 pixels differ"}]}
 JSON
 OUT="$(ad auto-dev-report.sh --outcome "$AD_OUT/outcome.json" --launch "$AD_OUT/launch.json")"
 assert_eq "the report titles the merge request through mr-meta" "Feat: Add a greeting [DE-7]" \
@@ -5328,7 +5436,8 @@ assert_eq "result.json carries the checks and the run's identity" "3 passed r1 D
   "$(jq -r '[.checks.output, .runId, .taskId] | join(" ")' "$AD_OUT/result.json")"
 BODY="$(cat "$AD_OUT/pr-body.md")"
 assert_eq "what nobody verified or confirmed opens the body" "## Not verified" "$(head -1 "$AD_OUT/pr-body.md")"
-for PART in "## To confirm" "## Open points" "proposals applied to the spec: 1" "keep me" "- [ ] done" \
+for PART in "## Visual check against Figma" "- [Sign up (12:345)](https://www.figma.com/design/x/App?node-id=12-345) — **match** at \`/signup\`" \
+            "## To confirm" "## Open points" "proposals applied to the spec: 1" "keep me" "- [ ] done" \
             "Adds the greeting." "**Spec:** \`.specs/DE-7-greeting.md\`" "make test" "1. Open /hello" "3 passed"; do
   assert_contains "the body carries: $PART" "$BODY" "$PART"
 done
@@ -6224,6 +6333,138 @@ assert_contains "a devcontainer for VS Code is asked, with Stop as the default" 
   "**Stop here** (the default; nothing written) or **A devcontainer for VS Code**"
 assert_eq "it is not a step of setup" "false" \
   "$(grep -rq 'devcontainer-' "$TEMPLATE_ROOT/setup" && echo true || echo false)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# The visual check: the UI against its Figma frame, 1:1
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# A frame read through the design tools gives its structure; a frame badly
+# built renders differently from how it reads, and only the rendering shows
+# it. What is pinned: which links are frames, that the export is a PNG at
+# scale 1 with the token never on a command line, and that the comparison
+# blocks on a size gap, on displaced content and past its threshold — on real
+# Chromium renders kept as fixtures. No browser, no network: curl is a stub.
+
+echo ""
+echo "── figma-frames.sh, figma-export.sh, visual-check.sh ──"
+
+VC_DIR="$WORK_DIR/visual"
+mkdir -p "$VC_DIR/bin"
+VC_FIX="$FIXTURES/visual"
+
+cat > "$VC_DIR/task.md" <<'TASK'
+## Design
+- [Sign up — desktop](https://www.figma.com/design/AbCdEfGhIjKlMnOpQrStUv/App?node-id=12-345&t=x) — the form
+- [Sign up — mobile](https://www.figma.com/design/AbCdEfGhIjKlMnOpQrStUv/App?node-id=12%3A400) — mobile
+Again https://www.figma.com/design/AbCdEfGhIjKlMnOpQrStUv/App?node-id=12-345, the file https://www.figma.com/file/ZZZZZZZZZZZZZZZZZZZZZZ/Old,
+a branch https://figma.com/design/AbCdEfGhIjKlMnOpQrStUv/branch/BrAnChKeY123456789012/App?node-id=1-2
+and a board https://www.figma.com/board/QQQQQQQQQQQQQQQQQQQQQQ/x?node-id=1-1
+TASK
+OUT="$(bash "$PLUGIN_SCRIPTS/figma-frames.sh" --file "$VC_DIR/task.md" --json)"
+assert_eq "every frame link counts once, a board none" "3" "$(printf '%s' "$OUT" | jq -r .COUNT)"
+assert_eq "with its key, its node id with a colon and its link text" \
+  "AbCdEfGhIjKlMnOpQrStUv|12:345|Sign up — desktop" \
+  "$(printf '%s' "$OUT" | jq -r '.FRAMES | split("\n")[0] | split("\t")[0:3] | join("|")')"
+assert_eq "an encoded colon is a node id too" "12:400" \
+  "$(printf '%s' "$OUT" | jq -r '.FRAMES | split("\n")[1] | split("\t")[1]')"
+assert_eq "a branch URL gives the branch key" "BrAnChKeY123456789012" \
+  "$(printf '%s' "$OUT" | jq -r '.FRAMES | split("\n")[2] | split("\t")[0]')"
+assert_eq "a bare file link is not a frame, and is returned apart" \
+  "https://www.figma.com/file/ZZZZZZZZZZZZZZZZZZZZZZ/Old" "$(printf '%s' "$OUT" | jq -r .BARE_FILES)"
+assert_eq "no link: no frame, and no failure" "0" \
+  "$(printf 'nothing here' | bash "$PLUGIN_SCRIPTS/figma-frames.sh" --json | jq -r .COUNT)"
+
+# curl stub: the images endpoint answers with a URL, the URL serves a fixture.
+cat > "$VC_DIR/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+cfg=""; out=""; url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --config) [ "$2" = "-" ] && cfg="$(cat)"; shift 2 ;;
+    --output) out="$2"; shift 2 ;;
+    --max-time) shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+leak=no; case "$*$url" in *figd_secret*) leak=yes ;; esac
+printf 'GET %s stdin-token=%s argv-token=%s\n' "$url" "$(printf '%s' "$cfg" | grep -c 'X-Figma-Token: figd_secret')" "$leak" >> "$VC_LOG"
+case "$url" in
+  */images/AbCdEfGhIjKlMnOpQrStUv*) printf '{"err":null,"images":{"12:345":"https://s3.example/frame.png"}}' ;;
+  */images/NoPeNoPeNoPeNoPeNoPe12*) printf '{"status":403,"err":"Invalid token"}' ;;
+  */images/EmPtYeMpTyEmPtYeMpTy12*) printf '{"err":null,"images":{"12:345":null}}' ;;
+  https://s3.example/frame.png) cp "$VC_PNG" "$out" ;;
+  https://s3.example/text) printf 'not an image' > "$out" ;;
+  *) exit 22 ;;
+esac
+STUB
+chmod +x "$VC_DIR/bin/curl"
+VC_LOG="$VC_DIR/curl.log"; : > "$VC_LOG"
+fx() { (PATH="$VC_DIR/bin:$PATH" VC_LOG="$VC_LOG" VC_PNG="$VC_FIX/frame.png" FIGMA_TOKEN="${VC_TOKEN-figd_secret}" \
+  bash "$PLUGIN_SCRIPTS/figma-export.sh" "$@" --json 2>/dev/null); }
+
+OUT="$(fx --file-key AbCdEfGhIjKlMnOpQrStUv --node 12-345 --out "$VC_DIR/f/frame.png")"
+assert_eq "the REST export writes the PNG at the frame's size" "rest 348x127" \
+  "$(printf '%s' "$OUT" | jq -r '.SOURCE + " " + .WIDTH + "x" + .HEIGHT')"
+assert_contains "at scale 1, as a PNG, for the node id with a colon" "$(cat "$VC_LOG")" "ids=12%3A345&format=png&scale=1"
+assert_eq "the token travels on stdin" "1" "$(grep -c 'images.*stdin-token=1' "$VC_LOG")"
+assert_eq "and never in curl's arguments" "0" "$(grep -c 'argv-token=yes' "$VC_LOG")"
+OUT="$(VC_TOKEN="" fx --file-key AbCdEfGhIjKlMnOpQrStUv --node 12:345 --out "$VC_DIR/f/x.png")"
+assert_contains "no token: refused, saying what is needed" "$(printf '%s' "$OUT" | jq -r .REASON)" "FIGMA_TOKEN is not set"
+OUT="$(VC_TOKEN='figd_x"
+url = "https://evil' fx --file-key AbCdEfGhIjKlMnOpQrStUv --node 12:345 --out "$VC_DIR/f/x.png")"
+assert_contains "a token that could carry a second config line is refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "does not look like"
+assert_contains "Figma's own error is reported" \
+  "$(fx --file-key NoPeNoPeNoPeNoPeNoPe12 --node 12:345 --out "$VC_DIR/f/x.png" | jq -r .REASON)" "Invalid token"
+assert_contains "an empty render is a refusal, not a file" \
+  "$(fx --file-key EmPtYeMpTyEmPtYeMpTy12 --node 12:345 --out "$VC_DIR/f/x.png" | jq -r .REASON)" "rendered no image"
+assert_contains "a node id that is not one is refused before any call" \
+  "$(fx --file-key AbCdEfGhIjKlMnOpQrStUv --node '1;rm' --out "$VC_DIR/f/x.png" | jq -r .REASON)" "not a frame's node id"
+OUT="$(fx --url https://s3.example/frame.png --out "$VC_DIR/f/mcp.png")"
+assert_eq "a URL the MCP returned is downloaded and checked the same way" "url 348" \
+  "$(printf '%s' "$OUT" | jq -r '.SOURCE + " " + .WIDTH')"
+OUT="$(fx --url https://s3.example/text --out "$VC_DIR/f/text.png")"
+assert_contains "a download that is not a PNG is refused" "$(printf '%s' "$OUT" | jq -r .REASON)" "not a PNG"
+assert_eq "and not left behind" "false" "$([ -f "$VC_DIR/f/text.png" ] && echo true || echo false)"
+assert_contains "only https" \
+  "$(fx --url http://s3.example/frame.png --out "$VC_DIR/f/x.png" | jq -r .REASON)" "not a plain https URL"
+
+if command -v node >/dev/null 2>&1; then
+  vc() { bash "$PLUGIN_SCRIPTS/visual-check.sh" --design "$VC_FIX/frame.png" --out-dir "$VC_DIR/out-$1" --json "${@:2}" 2>/dev/null; }
+  OUT="$(vc same --actual "$VC_FIX/frame.png")"
+  assert_eq "the same render matches" "match 0" "$(printf '%s' "$OUT" | jq -r '.VERDICT + " " + .DIFF_PIXELS')"
+  assert_eq "and writes the diff and the side-by-side next to the two images" "true" \
+    "$(cd "$VC_DIR/out-same" && [ -f design.png ] && [ -f actual.png ] && [ -f diff.png ] && [ -f side-by-side.png ] && echo true)"
+  OUT="$(vc taller --actual "$VC_FIX/taller.png")"; STATUS=$?
+  assert_eq "a gap of 8 px under a heading is a size mismatch, exit 4" "mismatch false 4" \
+    "$(printf '%s' "$OUT" | jq -r '.VERDICT + " " + .SIZE_MATCH') $STATUS"
+  assert_contains "naming both sizes" "$(printf '%s' "$OUT" | jq -r .REASON)" "348x135, the frame is 348x127"
+  OUT="$(vc shifted --actual "$VC_FIX/shifted.png" --threshold 0.05)"; STATUS=$?
+  assert_eq "a heading moved 8 px at the same size is a shift, whatever the threshold" "mismatch 4" \
+    "$(printf '%s' "$OUT" | jq -r .VERDICT) $STATUS"
+  assert_eq "located, measured and directed" "16,16 96x48: 8 px lower than the frame" \
+    "$(printf '%s' "$OUT" | jq -r .SHIFTS)"
+  assert_contains "a threshold above 5% is refused: past it a layout shift passes" \
+    "$(bash "$PLUGIN_SCRIPTS/visual-check.sh" --design "$VC_FIX/frame.png" --actual "$VC_FIX/frame.png" --threshold 0.2 2>&1)" "above 0.05"
+  mkdir -p "$VC_DIR/no-playwright"
+  OUT="$(vc nopw --url http://localhost:1/ --project-dir "$VC_DIR/no-playwright")"; STATUS=$?
+  assert_eq "no Playwright in the project: unverified for the environment, exit 3" "unverified environment 3" \
+    "$(printf '%s' "$OUT" | jq -r '.VERDICT + " " + .CAUSE') $STATUS"
+  assert_contains "saying what would enable it, installing nothing" "$(printf '%s' "$OUT" | jq -r .REASON)" "devDependency"
+else
+  printf '%s  skip%s  visual-check.sh: node not installed\n' "$DIM" "$NC"
+fi
+
+VC_REF="$TEMPLATE_ROOT/.claude/reference/visual-check.md"
+assert_eq "the procedure ships as a plugin reference" "true" \
+  "$(jq -r '.plugin_reference | index("visual-check.md") != null' "$TEMPLATE_ROOT/manifest.json")"
+for VC_FILE in .claude/skills/sdd-spec/SKILL.md .claude/skills/sdd-dev/SKILL.md .claude/skills/quick/SKILL.md \
+               .claude/skills/sdd/reference/closure.md .claude/workflows/auto-sdd-run.js .claude/workflows/auto-dev-run.js; do
+  assert_contains "$VC_FILE follows it" "$(cat "$TEMPLATE_ROOT/$VC_FILE")" "reference/visual-check.md"
+done
+assert_contains "the export never uses the capped screenshot" "$(cat "$VC_REF")" "never \`get_screenshot\`"
+assert_eq "the template lets a dev server listen inside the sandbox" "true" \
+  "$(jq -r '.sandbox.network.allowLocalBinding' "$SETTINGS_TEMPLATE")"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # References a person reads: one rule, written once, followed by what ships

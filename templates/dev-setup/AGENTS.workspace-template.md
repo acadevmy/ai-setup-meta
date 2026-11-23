@@ -84,7 +84,7 @@ from PATH.
 | MCP | When to use |
 |---|---|
 | **Task tracker** (ClickUp or Linear, per `.claude/tracker.json`) | Read tasks, update status, retrieve briefs |
-| **Figma** | Retrieve design tokens, components, specifications |
+| **Figma** | Retrieve design tokens, components, specifications; export frames 1:1 for the visual check |
 | **Context7** | Up-to-date documentation for libraries and frameworks. **Prefer the `ctx7` CLI if available in PATH** — use this MCP only as fallback |
 
 > **About `.mcp.json`** — committed, team-shared. For personal/IDE-specific servers use `claude mcp add --scope local <name> <command>` (writes to `~/.claude.json` only, never to a project file); for machine-specific values inside committed entries use `${VAR}` env var expansion (Claude Code expands at load time). See the [Claude Code MCP docs](https://code.claude.com/docs/en/mcp) for the full scope model.

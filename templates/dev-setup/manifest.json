@@ -31,7 +31,8 @@
     "readable-references.md",
     "run-outcomes.md",
     "turn-discipline.md",
-    "worktree.md"
+    "worktree.md",
+    "visual-check.md"
   ],
   "template_agents": [
     "review.md",
@@ -92,7 +93,11 @@
     "devcontainer-facts.sh",
     "devcontainer-check.sh",
     "validate-story.sh",
-    "parse-story.sh"
+    "parse-story.sh",
+    "figma-frames.sh",
+    "figma-export.sh",
+    "visual-check.sh",
+    "visual-check.mjs"
   ],
   "hooks": [
     "gate-commit.sh",

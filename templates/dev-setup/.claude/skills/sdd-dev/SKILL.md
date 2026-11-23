@@ -16,9 +16,10 @@ id such as `DE-123`.
 
 ## Before you start
 
-- **`reference/methodologies.md`** — the cycle each layer works in, and the
-  test/lint check that closes every step. Which cycle is not a question you ask:
-  the `tests.md` rule fixes it per layer, and that reference is how to run it.
+- **`reference/methodologies.md`** — the cycle each layer works in (the
+  `tests.md` rule fixes it, nobody asks), and the check closing every step.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`** — only with a
+  `## Visual check` section in the spec.
 
 ## Procedure
 
@@ -27,20 +28,13 @@ id such as `DE-123`.
 A path is read directly; a custom id is looked up as `.specs/<customId>-*.md`.
 If the file does not exist, say so and stop.
 
-**Check the status.** If it is not `approved`, warn the developer:
-
-```
-Warning: the spec is not yet approved (status: <status>).
-Do you want to proceed with development anyway?
-```
-
-Without a confirmation, stop.
+**Check the status.** Not `approved` → warn the developer and proceed only on
+their confirmation.
 
 ### 2. Break the plan into tasks
 
-Parse `## Implementation plan` from the spec. One task per step, in order, each
-with its number, description and the files it touches. Show the breakdown, then
-start on it:
+Parse `## Implementation plan`: one task per step, in order, with its number,
+description and files. Show the breakdown, then start on it:
 
 ```
 Task breakdown from spec:
@@ -48,9 +42,8 @@ Task breakdown from spec:
 [ ] 2. <Step 2> — <involved files>
 ```
 
-Do not ask the developer to confirm the breakdown or its order: the plan was
-approved as a whole at the flow's one checkpoint. A step you cannot carry out
-as written is a different case — say which and why, and stop.
+Do not ask the developer to confirm the breakdown: the plan was approved as a
+whole. A step you cannot carry out as written — say which and why, and stop.
 
 ### 3. Execute the steps
 
@@ -61,7 +54,9 @@ For each step, in the plan's order:
    (`ctx7 library <name>`, then `ctx7 docs <libraryId> <query>`), falling back
    to the Context7 MCP.
 3. **Implement** it following `reference/methodologies.md`.
-4. **Check** it — the test and lint commands from that same reference.
+4. **Check** it — the test and lint commands from that same reference. A
+   step completing a page a Visual check row names is compared with its
+   frame too: a mismatch stops it like a red test.
 5. **Update** the breakdown, marking what is done and what is in progress.
 6. **Log** a non-obvious choice the step made in the spec's `## Decision log`,
    with the reason, before moving on.
@@ -76,6 +71,7 @@ Files created: <list>
 Files modified: <list>
 Tests: <result>
 Linter: <result>
+Visual: <frame: match | mismatch | not verified (why)>, or "no frames"
 ```
 
 Do not commit, simplify or touch the spec's status: the flow's closure stages

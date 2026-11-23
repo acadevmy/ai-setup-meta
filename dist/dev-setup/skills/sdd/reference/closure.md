@@ -26,6 +26,7 @@ one commit is a task whose diff a reviewer can read.
 
 - [1. Stage](#1-stage)
 - [2. Simplify](#2-simplify)
+- [2b. Visual check](#2b-visual-check)
 - [3. Package the diff](#3-package-the-diff)
 - [4. Verify and review, in parallel](#4-verify-and-review-in-parallel)
 - [5. Summary](#5-summary)
@@ -50,6 +51,23 @@ Run the `simplify` skill over the staged change: reuse what exists, improve
 quality and efficiency, fix what it finds. **This is the only place `simplify`
 runs in the flow.** Whatever it changes is part of the change, not a commit of
 its own.
+
+## 2b. Visual check
+
+Only when the spec has a `## Visual check` section with a route in it. Compare
+every row's frame with the page, as
+`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md` describes, on the code as
+`simplify` left it — the last change before the commit.
+
+- **every row `match`, or `not verified` for an environment reason** → step 3;
+- **a `mismatch`** → back to development: fix and compare again. A mismatch
+  the developer judges to be the frame's goes to them with the composite, one
+  `AskUserQuestion` per frame (header `Frame`): **Fix the code** or **The
+  frame is wrong**; the second is written into the spec's `## Decision log`
+  as that reference shows. End the turn on the call
+  (`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`).
+
+Never move on with an unresolved mismatch: the commit is what it blocks.
 
 ## 3. Package the diff
 
@@ -99,6 +117,7 @@ Tests: <passing/failing>
 Verify: <pass/pass-with-warnings/fail>
 Review: <result>
 REGISTRY: <updated/unchanged>
+Visual: <one line per frame: match | divergence accepted | not verified (why)>, or "no frames"
 ```
 
 ## 6. Commit
@@ -139,6 +158,10 @@ GitLab reference accordingly, so there is nothing to pick here. Target the
   section carries the commands and the routes a reviewer follows to see the
   change work. A repository with no template gets the fallback body from that
   skill's `merge-request.md`.
+- **Visual check** — when the spec has the section: one line per frame,
+  `match`, `divergence accepted: <why>` or `not verified: <why>`. A frame
+  nobody could compare is the first thing a reviewer of a UI change has to
+  know, so the not-verified lines lead the section.
 - **Open points** — when the developer chose **Go ahead as it is** at the
   open-points gate, the story's open points open the body, before anything
   else, each with the reading the implementation took: the reviewer is the

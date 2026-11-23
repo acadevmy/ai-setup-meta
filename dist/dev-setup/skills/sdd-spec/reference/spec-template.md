@@ -65,6 +65,15 @@ recorded here: the layer fixes it and the project's `tests.md` rule states it.>
 - Test 1: <description>
 - Test 2: <description>
 
+## Visual check
+<Only when the task links Figma frames (`figma-frames.sh` finds at least one);
+otherwise leave the section out. One row per frame, as
+`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md` describes.>
+
+| Frame | Route | Selector | Clip | State | Threshold |
+|---|---|---|---|---|---|
+| [<frame name>](<frame URL>) | <path> | page | full | <what the page needs to look like the frame> | 0.02 |
+
 ## Decision log
 <Empty when the spec is written. Filled in during development: one entry
 per non-obvious choice, when it is made.>
@@ -88,6 +97,9 @@ one a Markdown link whose text names what it points at.>
   the features that stand on them.
 - **Reuse** what `REGISTRY.md` already records. A new component that duplicates
   a registered one is a finding, not a plan.
+- **Every Figma frame the task links has a Visual check row** — a route, or
+  `not compared: <why>`. The rows are what the visual check compares, and a
+  frame with no row is a design nobody checked.
 - **Test cases** cover the listed requirements. If a requirement has no test
   case, either it is not verifiable — rewrite it — or the strategy is
   incomplete.

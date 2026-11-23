@@ -37,11 +37,15 @@ feedback on the merge request, handled like any other.
 
 ## failed — the spec, the dev step or the commands
 
-`{ status: 'failed', stage, reason, output?, notes?, branch?, baseBranch?, worktreePath?, commits?, spec?, openPoints?, deviations?, toConfirm?, unverified? }`
+`{ status: 'failed', stage, reason, output?, notes?, branch?, baseBranch?, worktreePath?, commits?, spec?, openPoints?, deviations?, toConfirm?, unverified?, visual? }`
 
 `stage` says where: `intake` (the launcher passed bad arguments, or three empty
 quality commands — a bug in the launch call, fix it), `spec`, `dev`, or `verify`
-(the project lint, typecheck or test command came back red).
+(the project lint, typecheck or test command came back red, or the UI does not
+match a Figma frame the task links — `visual` names each frame, and `output`
+its reason, `SHIFTS` and the side-by-side image's path: open that image before
+anything else, it shows the defect, and a frame the developer judges wrong is
+settled as `${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md` says).
 
 **A run that broke** — the workflow came back with neither outcome, or with
 none at all — is handled as a `failed` at stage `broken`: the raw result is its
@@ -121,7 +125,7 @@ once the cause is fixed, and only the commands run again.
 
 ## ready-for-mr — push and open it
 
-`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[], unverified[] }`
+`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[], unverified[], visual[] }`
 
 Every quality command this environment could run ran green in the worktree,
 and the spec is committed on the branch. `unverified` lists the ones it could
@@ -184,6 +188,10 @@ plus what this flow owes a reviewer who was not watching:
   prove it. Whoever merges runs those commands, or waits for the CI that
   does: a green merge request that hides an unrun suite is the defect this
   section exists to prevent.
+- **the visual check**, when `visual` holds anything: one line per Figma
+  frame — the frame as a link, its verdict (`match`, `not-compared` and why)
+  and the route it was compared at. A frame that could not be compared is in
+  **not verified** with kind `visual`.
 - **the real test output**, in a fenced block: the `output` field, as it came
   back. A reviewer has to see the suite passing without re-running it.
 - **to confirm**, at the top, when `toConfirm` or `deviations` holds anything:

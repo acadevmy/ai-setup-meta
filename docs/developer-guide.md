@@ -574,6 +574,38 @@ task says so.
 A board status the map does not name stops the move with an error that names
 the key to add — a Linear team has no `Blocked` state until someone adds it.
 
+### Figma frames: the visual check
+
+When a task links Figma frames — a story's **Design** section, or any link
+with a `node-id` — the UI is compared with each frame **as rendered**, not only
+as the design tools read it. A frame that is not well built (a spacer
+rectangle instead of a gap, a padding on one card and not its sibling) reads
+as one thing and renders as another, and only the rendering shows it.
+
+| Step | What runs |
+|---|---|
+| The spec | a `## Visual check` section maps every frame to a route, `page` or a CSS selector, the state the page needs, and a threshold (default 2%, at most 5%) — or `not compared: <why>` |
+| The export | the frame as a PNG at **scale 1**: through the Figma MCP in a session, over the REST API with `FIGMA_TOKEN` in a headless run (`figma-export.sh`) |
+| The capture | the page at the frame's size, device scale factor 1, animations off, with **your project's Playwright** (`visual-check.sh`) |
+| The verdict | `match`, or `mismatch` when the size differs, when content is the frame's but **displaced** (`8 px lower than the frame`), or when more pixels differ than the threshold allows |
+
+**A mismatch blocks**, like a red test: `sdd` goes back to development before
+the commit, `quick` does not commit, an autonomous run fails at `verify` with
+the side-by-side image's path. When the frame is the one at fault,
+interactively you say so once per frame and it is written into the spec's
+decision log and the merge request; an autonomous run cannot make that call.
+A frame nobody could compare — no Playwright in the project, no Chromium, no
+`FIGMA_TOKEN` on the runner — is listed as **not verified** at the top of the
+merge request, never silently passed. The procedure is
+[`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`](../templates/dev-setup/.claude/reference/visual-check.md).
+
+To enable it: `@playwright/test` (or `playwright`) as a devDependency with
+Chromium installed (`npx playwright install chromium`), and for headless runs
+a Figma personal access token with *File content: read-only* as
+`FIGMA_TOKEN`. The sandbox template allows the dev server to listen on
+`localhost` (`allowLocalBinding`) and the two Figma export hosts; `UPDATE`
+adds them to a project set up before.
+
 ---
 
 ## 3. The rules, and when each one loads
@@ -977,6 +1009,14 @@ only the commands run again.
 `Workflow "dev-setup:auto-sdd-run" not found` almost always means a stale install is
 shadowing a newer build. Check that the plugin actually ships it, and reinstall
 or rebuild if it does not.
+
+### The visual check says "not verified"
+
+`REASON` names what is missing: Playwright not in the project's
+dependencies, Chromium not installed (`npx playwright install chromium`),
+`FIGMA_TOKEN` not set on a headless runner, or the sandbox refusing the
+connection to the dev server — `sandbox.network.allowLocalBinding` must be
+`true` in `.claude/settings.json`. The check installs nothing by itself.
 
 ### A network call was refused
 

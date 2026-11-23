@@ -10,7 +10,7 @@ disable-model-invocation: true
 # Quick
 
 Branch, change, commit, merge request. **No discovery, no spec, no registry
-pass** — that ceremony outweighs a one-line fix.
+pass.**
 
 **Usage**: `/dev-setup:quick [TASK_ID | description] [--worktree]`. A task id
 is read from the board; a description needs none.
@@ -18,12 +18,11 @@ is read from the board; a description needs none.
 ## The bar
 
 **At most three files**, and **no new component, dependency or public
-interface**. Everything else is `sdd`, whose spec is what a reviewer reads the
-diff against.
+interface**. Everything else is `sdd`.
 
-Check it against the task, then while you work. If the
-change crosses the bar mid-flight, say what it grew into and let the developer
-choose with `AskUserQuestion`, header `Route`: **Stay in quick** (finish here,
+Check it against the task, then while you work. A change crossing it
+mid-flight: say what it grew into and let the developer choose with
+`AskUserQuestion`, header `Route`: **Stay in quick** (finish here,
 the merge request carries the reasoning) or **Switch to sdd** (keep the branch,
 write the spec). End the turn on that call
 (`${CLAUDE_PLUGIN_ROOT}/reference/turn-discipline.md`). Never quietly build a
@@ -54,7 +53,9 @@ feature without a spec, and never abandon a nearly-done change.
    It resolves `BASE_BRANCH` itself — never a hard-coded `main`.
 
 3. **The change itself.** Run the project's test and lint commands on what
-   you touched.
+   you touched. Figma frames in the task (`figma-frames.sh`) that the change
+   renders are compared per `${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`:
+   a mismatch blocks the commit.
 
 4. **Commit.** One Conventional Commit, with the custom id, if any:
    `fix(auth): reject an expired refresh token [DE-123]`. The commit hook runs
@@ -63,8 +64,7 @@ feature without a spec, and never abandon a nearly-done change.
 
 5. **Merge request.** `git push -u origin "<branch>"`, then invoke `vcs-ops`
    against the short name of `BASE_BRANCH`. The `ask` rule on
-   `gh pr create` / `glab mr create` is the checkpoint — do not ask for the same
-   confirmation in chat first.
+   `gh pr create` / `glab mr create` is the checkpoint — never ask in chat first.
 
 6. **The board.** With a task id: stop the clock, then `INTENT: update`,
    status `IN REVIEW`, comment `COMMENT` — its line verbatim, nothing when

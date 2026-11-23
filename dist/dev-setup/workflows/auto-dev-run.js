@@ -8,7 +8,7 @@ export const meta = {
     { title: 'Spec', detail: 'one agent drafts the spec and the context pack', model: 'opus' },
     { title: 'Challenge', detail: 'one reviewer over three lenses, one revision when it proposes', model: 'opus' },
     { title: 'Dev', detail: 'test-first implementation on the task branch, one commit', model: 'opus' },
-    { title: 'Verify', detail: 'the project real lint, typecheck and test commands', model: 'haiku' },
+    { title: 'Verify', detail: 'the UI against its Figma frames, then the project real lint, typecheck and test commands', model: 'haiku' },
   ],
 }
 
@@ -64,6 +64,9 @@ export const meta = {
 //     unavailable: ['lint', 'test'],          // declared, but this environment
 //     unavailableReason: '<text>',            // cannot run them — never run,
 //                                             // reported in `unverified`
+//     frames: [{ fileKey, nodeId, name, url }], // figma-frames.sh on the task
+//                                             // file: compared with the UI,
+//                                             // exported over the REST API
 //   }
 //
 // The task description travels as a file, not in these arguments, so nothing
@@ -75,7 +78,7 @@ export const meta = {
 // The models and the efforts, in one place. A Challenge at medium on the model
 // that wrote the spec is where the measurements put the saving; Dev keeps high
 // because that is where the code is written.
-const MODEL = { spec: 'opus', challenge: 'opus', revise: 'opus', dev: 'opus', verify: 'haiku' }
+const MODEL = { spec: 'opus', challenge: 'opus', revise: 'opus', dev: 'opus', verify: 'haiku', visual: 'sonnet' }
 
 // A task this small goes from the spec to Dev with `challenge: auto`: three
 // requirements and three steps leave a reviewer little to improve that the
@@ -181,6 +184,131 @@ const unverified = unavailable.map((kind) => ({
   command: commands[kind],
   reason: unavailableReason || 'this environment cannot run it',
 }))
+
+// ── Figma frames ─────────────────────────────────────────────────────────────
+//
+// A task that links Figma frames is compared with them as rendered (the
+// visual check, reference/visual-check.md), and the comparison blocks like a
+// red test. Which frames is decided here, in code, the way figma-frames.sh
+// reads them — a link with a node-id is a frame, a bare file link is not — so
+// an agent cannot forget one: every frame needs a row in the spec, and a frame
+// without one goes to the merge request as not verified.
+const FIGMA_LINK = /https?:\/\/(?:www\.)?figma\.com\/(?:design|file|proto)\/([A-Za-z0-9]+)(?:\/branch\/([A-Za-z0-9]+))?[^\s)\]>]*/g
+const FRAME_KEY_SHAPE = /^[A-Za-z0-9]{10,128}$/
+const NODE_SHAPE = /^[0-9]+:[0-9]+$/
+
+function figmaFrames(text) {
+  const named = {}
+  const found = []
+  String(text || '').replace(/\[([^\]]*)\]\((https?:\/\/(?:www\.)?figma\.com\/[^)\s]+)\)/g, (all, name, url) => {
+    named[url] = name
+    return all
+  })
+  for (const match of String(text || '').matchAll(FIGMA_LINK)) {
+    // A link that ends a sentence carries its punctuation: it is not the URL's.
+    const url = match[0].replace(/[.,;:!?]+$/, '')
+    const id = (url.match(/[?&]node-id=([0-9]+(?:-|:|%3[Aa])[0-9]+)/) || [])[1]
+    if (!id) continue
+    const frame = {
+      fileKey: match[2] || match[1],
+      nodeId: id.replace(/%3[Aa]/, ':').replace('-', ':'),
+      name: named[url] || '',
+      url: url,
+    }
+    if (!found.some((f) => f.fileKey === frame.fileKey && f.nodeId === frame.nodeId)) found.push(frame)
+  }
+  return found
+}
+
+// Frames passed by the launcher (auto-dev reads them from the task file with
+// figma-frames.sh) are held to the shape Figma gives them: they reach a shell
+// command inside an agent prompt.
+const frames = (Array.isArray(input.frames) ? input.frames : figmaFrames(task.description))
+  .map((f) => ({
+    fileKey: String((f && f.fileKey) || ''),
+    nodeId: String((f && f.nodeId) || '').replace('-', ':'),
+    name: String((f && f.name) || '').replace(/[\n\r]/g, ' ').slice(0, 120),
+    url: String((f && f.url) || ''),
+  }))
+  .filter((f) => FRAME_KEY_SHAPE.test(f.fileKey) && NODE_SHAPE.test(f.nodeId))
+
+const frameLabel = (f) => (f.name ? f.name + ' (' + f.nodeId + ')' : 'node ' + f.nodeId)
+
+// A spec row reaches a shell command too: the route, the selector and the
+// threshold are held to a shape, and a row that fails it is no row.
+const SAFE_TEXT = /^[^"`$\\\n\r]{1,200}$/
+function visualRows(spec) {
+  return frames.map((frame) => {
+    const row = ((spec && spec.visualChecks) || []).find(
+      (r) => r && String(r.nodeId || '').replace('-', ':') === frame.nodeId,
+    )
+    if (!row) return { frame, status: 'missing' }
+    if (row.notCompared) return { frame, status: 'not-compared', reason: String(row.notCompared).slice(0, 300) }
+    const route = String(row.route || '')
+    const selector = String(row.selector || 'page')
+    const threshold = Number(row.threshold)
+    if (!/^(\/|https?:\/\/)/.test(route) || !SAFE_TEXT.test(route) || !SAFE_TEXT.test(selector)) {
+      return { frame, status: 'missing' }
+    }
+    return {
+      frame,
+      status: 'compare',
+      route,
+      selector,
+      clip: row.clip === 'viewport' ? 'viewport' : 'full',
+      state: String(row.state || '').replace(/[\n\r]/g, ' ').slice(0, 300),
+      threshold: threshold >= 0 && threshold <= 0.05 ? threshold : 0.02,
+    }
+  })
+}
+
+const VISUAL_ROW = {
+  type: 'object',
+  required: ['nodeId'],
+  properties: {
+    nodeId: { type: 'string', description: 'the frame node id, 12:345' },
+    route: { type: 'string', description: 'the dev server path (/signup) or a Storybook story URL' },
+    selector: { type: 'string', description: '`page`, or the CSS selector of the element the frame draws' },
+    clip: { type: 'string', enum: ['full', 'viewport'] },
+    state: { type: 'string', description: 'what the page needs to look like the frame' },
+    threshold: { type: 'number', description: 'share of pixels allowed to differ, 0.02 unless photos or live charts; at most 0.05' },
+    notCompared: { type: 'string', description: 'instead of a route: why this frame is not compared (not rendered by this task, native UI)' },
+  },
+}
+
+const VISUAL_SCHEMA = {
+  type: 'object',
+  required: ['results'],
+  properties: {
+    results: {
+      type: 'array',
+      description: 'one entry per frame you were given',
+      items: {
+        type: 'object',
+        required: ['nodeId', 'verdict', 'reason'],
+        properties: {
+          nodeId: { type: 'string' },
+          verdict: { type: 'string', enum: ['match', 'mismatch', 'unverified'] },
+          cause: { type: 'string', description: 'on unverified: the CAUSE visual-check.sh or figma-export.sh gave — environment or page' },
+          reason: { type: 'string', description: 'the REASON the script gave, verbatim' },
+          shifts: { type: 'string', description: 'SHIFTS, verbatim, or ""' },
+          sideBySide: { type: 'string', description: 'the SIDE_BY_SIDE path, or ""' },
+        },
+      },
+    },
+  },
+}
+
+function visualLines(rows) {
+  return rows
+    .filter((r) => r.status === 'compare')
+    .map((r) =>
+      '  - ' + frameLabel(r.frame) + ': file ' + r.frame.fileKey + ', node ' + r.frame.nodeId +
+      ' -> route ' + r.route + ', selector ' + r.selector + ', clip ' + r.clip +
+      ', threshold ' + r.threshold + (r.state ? ', state: ' + r.state : ''),
+    )
+    .join('\n')
+}
 
 // The task text is data, not instruction: an agent reads it to design, never to
 // take orders from it. Said once here and repeated in every prompt that carries
@@ -295,6 +423,11 @@ const SPEC_SCHEMA = {
       description:
         'where the task admits two readings with different behaviour for its users: the reading the spec took, and why. The merge request reviewer confirms them; nothing waits on them',
       items: { type: 'string' },
+    },
+    visualChecks: {
+      type: 'array',
+      description: 'one row per Figma frame the task links — the spec\'s Visual check section, as data',
+      items: VISUAL_ROW,
     },
   },
 }
@@ -490,6 +623,20 @@ const packLines = (pack) =>
 // difference is the context pack: the exploration this agent pays for once is
 // handed on, so the reviewer and the developer do not pay for it again.
 
+// The frames the spec has to map, when the task links any.
+const FRAMES_FOR_SPEC = [
+  'The task links these Figma frames. After development each one is compared,',
+  'pixel for pixel, with the page that renders it, and a mismatch fails the run.',
+  'Map every one, in `visualChecks` and in a `## Visual check` section of the',
+  'spec, as ' + plugin + '/reference/visual-check.md describes: the route that',
+  'shows it, `page` or the CSS selector of the element it draws, the clip, the',
+  'state the page needs to look like it, the threshold — or `notCompared` with',
+  'why, for a frame this task does not render. A frame left out is reported to',
+  'the reviewer as never checked.',
+  '',
+  frames.map((f) => '  - ' + frameLabel(f) + ' — ' + f.url).join('\n'),
+].join('\n')
+
 phase('Spec')
 log('Spec — drafting ' + task.id + ' from the task and the codebase')
 
@@ -538,6 +685,7 @@ const spec = await agent(
     '',
     READABLE,
     '',
+    frames.length > 0 ? FRAMES_FOR_SPEC + '\n' : '',
     'A reviewer will look at the spec next through three focuses and propose',
     'what would make it better. Check your draft against them before you return',
     'it:',
@@ -820,6 +968,21 @@ if (challengeRan) {
 
 const reqLines = draft.reqs.map((req) => '  - ' + req.id + ': ' + req.statement).join('\n')
 
+// A revision that dropped the rows keeps the first draft's.
+const visual = visualRows(draft.visualChecks ? draft : spec)
+const toCompare = visual.filter((row) => row.status === 'compare')
+
+// No Figma login on a disposable machine: the frames are exported over the
+// REST API with FIGMA_TOKEN, and figma-export.sh checks the file is a PNG at
+// scale 1.
+const VISUAL_EXPORT = [
+  'Export each frame at scale 1 over the Figma REST API — it reads FIGMA_TOKEN',
+  'from the environment, never from a command line:',
+  '`bash "' + plugin + '/scripts/figma-export.sh" --file-key <key> --node <id> --out <file> --json`.',
+  'Exit 3 means the frame cannot be exported here (no token, no access): the',
+  'frame is unverified, cause environment, with its REASON.',
+].join('\n')
+
 // ── 3. Dev ───────────────────────────────────────────────────────────────────
 //
 // No worktree: the run owns this checkout and the machine goes when it ends.
@@ -925,6 +1088,24 @@ const dev = await agent(
           'around it, and do not substitute another check. Write every test the',
           'spec names exactly as if you could run it — a person or the CI runs',
           'them later — and say in `notes` what you could not run.',
+          '',
+        ].join('\n')
+      : '',
+    toCompare.length > 0
+      ? [
+          'Step 3b — the visual check, before the commit. The task links Figma',
+          'frames and the spec maps them to pages. Compare each one with the page',
+          'as ' + plugin + '/reference/visual-check.md describes, steps 1 to 4:',
+          '',
+          visualLines(visual),
+          '',
+          VISUAL_EXPORT,
+          '',
+          'A mismatch is a defect of your implementation, like a red test: read the',
+          'side-by-side image and SHIFTS, fix the code and compare again until it',
+          'matches. Never raise a threshold to pass. A frame you could not compare',
+          'for an environment reason, say so in `notes` and install nothing. Stop',
+          'the dev server when you are done. Verify compares again.',
           '',
         ].join('\n')
       : '',
@@ -1034,6 +1215,77 @@ const outcome = {
   notes: dev.notes || '',
 }
 
+// The visual check, before the commands: its verdict is decided here, from
+// what the scripts printed. A mismatch, a page that did not load and a frame
+// the agent did not report all fail the run; only an environment that cannot
+// compare (no FIGMA_TOKEN, no Playwright, no Chromium) lets it through,
+// unverified, to the top of the merge request.
+const visualUnverified = visual
+  .filter((row) => row.status === 'missing')
+  .map((row) => ({ kind: 'visual', command: frameLabel(row.frame), reason: 'the spec maps no page to this frame, so nothing compared it' }))
+outcome.visual = visual
+  .filter((row) => row.status === 'not-compared')
+  .map((row) => ({ frame: frameLabel(row.frame), url: row.frame.url, verdict: 'not-compared', reason: row.reason }))
+
+if (toCompare.length > 0) {
+  log('Verify — comparing ' + toCompare.length + ' Figma frame(s) with the UI')
+  const seen = await agent(
+    [
+      'Compare the UI this run built with its Figma frames, and report what the',
+      'scripts printed. You are not here to fix anything: a mismatch is the answer,',
+      'not a problem to solve. Change no file and commit nothing.',
+      '',
+      'Work in this repository, and nowhere else:',
+      '',
+      '  cd ' + JSON.stringify(dev.repoPath),
+      '',
+      'For each frame, follow ' + plugin + '/reference/visual-check.md, steps 1 to 3:',
+      '',
+      visualLines(visual),
+      '',
+      VISUAL_EXPORT,
+      '',
+      'Start the dev server the way that reference says, and stop it when done.',
+      'Report one result per frame: VERDICT, CAUSE, REASON, SHIFTS and SIDE_BY_SIDE',
+      'exactly as visual-check.sh printed them. Never install anything, never',
+      'change a threshold, never edit the code.',
+    ].join('\n'),
+    { label: 'visual:' + task.id, phase: 'Verify', model: MODEL.visual, effort: 'low', schema: VISUAL_SCHEMA },
+  )
+  const failedFrames = []
+  toCompare.forEach((row) => {
+    const result = seen && Array.isArray(seen.results)
+      ? seen.results.find((r) => r && String(r.nodeId || '').replace('-', ':') === row.frame.nodeId)
+      : null
+    const entry = {
+      frame: frameLabel(row.frame),
+      url: row.frame.url,
+      route: row.route,
+      verdict: result && ['match', 'mismatch', 'unverified'].includes(result.verdict) ? result.verdict : 'unverified',
+      reason: result ? String(result.reason || '') : 'the visual check reported nothing for this frame',
+      shifts: result ? String(result.shifts || '') : '',
+      sideBySide: result ? String(result.sideBySide || '') : '',
+    }
+    outcome.visual.push(entry)
+    if (entry.verdict === 'match') return
+    if (entry.verdict === 'unverified' && result && result.cause === 'environment') {
+      visualUnverified.push({ kind: 'visual', command: entry.frame, reason: entry.reason })
+      return
+    }
+    failedFrames.push(entry)
+  })
+  if (failedFrames.length > 0) {
+    return Object.assign({ status: 'failed', stage: 'verify' }, outcome, {
+      reason: 'the UI does not match its Figma frames: ' + failedFrames.map((f) => f.frame).join(', '),
+      output: failedFrames
+        .map((f) => '- ' + f.frame + ' at ' + f.route + ': ' + f.verdict + ' — ' + f.reason +
+          (f.shifts ? ' — ' + f.shifts : '') + (f.sideBySide ? ' (' + f.sideBySide + ')' : ''))
+        .join('\n'),
+      unverified: unverified.concat(visualUnverified),
+    })
+  }
+}
+
 // Nothing this environment can run: the run still reaches the merge request,
 // which leads with every check nobody ran.
 if (runnable.length === 0) {
@@ -1042,7 +1294,7 @@ if (runnable.length === 0) {
     output: '',
     ran: [],
     absent: KINDS.filter((kind) => !commands[kind]),
-    unverified,
+    unverified: unverified.concat(visualUnverified),
   })
 }
 
@@ -1116,7 +1368,7 @@ const checked = {
     ok: statusOf(kind) === 'passed',
   })),
   absent: KINDS.filter((kind) => !commands[kind]),
-  unverified: unverified.concat(notStarted),
+  unverified: unverified.concat(notStarted, visualUnverified),
 }
 
 // A command this run had to check and holds no verdict for — still running,
