@@ -710,33 +710,40 @@ options:
 
 **2. The permission.** Run it after a fresh install, and when an existing
 `terminal-notifier` fails the test below. macOS keeps two decisions for the
-person — whether a new app may notify, and how long its notifications stay —
-and no command sets either, so the setup triggers the first and asks for the
-second. Send a test notification (outside the sandbox: Launch Services is off
-inside it):
+person — whether an app may notify, and how long its notifications stay — so
+the setup proposes them and does everything around them. The test:
 
 ```bash
 terminal-notifier -title "dev-setup" -message "Notifications are on" -sound "${DEV_SETUP_NOTIFY_SOUND:-Submarine}"
 ```
 
-The first one makes macOS ask whether `terminal-notifier` may send
-notifications. Then ask with `AskUserQuestion`:
+Exit 0 is allowed. A denied one exits non-zero (3, "Notifications are turned
+off for this application"); `tccutil reset` does not bring the macOS prompt
+back once the developer has turned them off, so only System Settings can.
+Ask with `AskUserQuestion`:
 
 ```
-question: "A test notification just went out. Allow terminal-notifier when macOS asks, then set its style to Persistent in System Settings → Notifications → terminal-notifier: the default banner is gone in about five seconds, so a prompt that waits while you look elsewhere goes unseen. Done?"
+question: "Enable desktop notifications from dev-setup? I'll send a test and open System Settings → Notifications: allow terminal-notifier and set its style to Persistent — the default banner is gone in about five seconds, so a prompt that waits while you look elsewhere goes unseen."
 options:
-  - label: "Done"                   (allowed, style Persistent)
-  - label: "Allowed, kept banners"  (notifications disappear after a few seconds)
-  - label: "Nothing appeared"       (not allowed yet)
+  - label: "Enable them"   (recommended)
+  - label: "Not now"       (the hook falls back to osascript)
 ```
 
-On **Nothing appeared**, name the pane — System Settings → Notifications →
-`terminal-notifier` → Allow Notifications — or, for the macOS prompt again,
-`tccutil reset UserNotification fr.julienxx.oss.terminal-notifier`, and say
-that until it is allowed the hook falls back to `osascript`, so nothing breaks
-in between. Do not ask again. A denied `terminal-notifier` exits non-zero
-(3, "Notifications are turned off for this application"), which is how the
-test below tells an allowed one from a denied one.
+- **Enable them** → outside the sandbox (Launch Services is off inside it):
+  send the test — on an app macOS never asked about, that brings up its
+  prompt — then open the pane:
+
+  ```bash
+  open -a "System Settings" "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+  ```
+
+  (the `?id=` form of that URL opens nothing). Then ask once,
+  `AskUserQuestion`, "terminal-notifier allowed and set to Persistent?" —
+  **Done** / **Not now** — and on either answer run the test again: the
+  summary line follows its exit status, never the answer. Do not ask a third
+  time.
+- **Not now** → nothing to do; until it is allowed the hook falls back to
+  `osascript`, so nothing breaks in between.
 
 An existing `terminal-notifier` whose test exits 0 skips part 2: it is already
 allowed, and its style was the developer's to choose.
@@ -749,8 +756,7 @@ in the `env` block of `~/.claude/settings.json`, set to any name in
 
 ```
   - desktop notifications: terminal-notifier already installed and allowed — a click opens the editor
-  - desktop notifications: terminal-notifier installed and allowed, style Persistent
-  - desktop notifications: terminal-notifier allowed, style left on banners (they disappear after a few seconds)
+  - desktop notifications: terminal-notifier allowed — style Persistent asked in System Settings
   - desktop notifications: terminal-notifier not allowed yet — falls back to osascript until System Settings → Notifications allows it
   - desktop notifications: install failed or no Homebrew — command printed, still on osascript
   - desktop notifications: kept on osascript — a click opens Script Editor
