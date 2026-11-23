@@ -65,7 +65,7 @@ is the move the developer authorised there.
 Start that task's clock on the same beat:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --start --json
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --start --measure --json
 ```
 
 One clock per task id, so five runs in flight keep five separate readings —

@@ -4,7 +4,9 @@
 // tasks, `--task <id> --status --json` gives each one's start. It measures on
 // `--stop` only, so the running time is computed here, from STARTED_AT — the
 // local `YYYY-MM-DD HH:MM` the script writes — plus the minutes of the
-// intervals already closed.
+// intervals already closed. Only a measured clock (an autonomous run) shows a
+// time: an interactive task's clock marks it as in play, and its elapsed time
+// is not its work time.
 
 import type { Row } from './rows.ts'
 import { bold, dim, GAP, rowText, span } from './rows.ts'
@@ -19,6 +21,8 @@ export type OpenClock = {
   readonly closedMinutes: number
   /** The intervals already closed, as the script counts them. */
   readonly sessions: number
+  /** MEASURED: started with --measure, by an autonomous run. */
+  readonly measured: boolean
 }
 
 /** The tasks with an open interval, from `--status --json` with no task. */
@@ -36,6 +40,7 @@ export function toOpenClock(status: ScriptJson): OpenClock | null {
     startMs: parseLocalStamp(status.STARTED_AT),
     closedMinutes: Number.isFinite(closed) && closed > 0 ? closed : 0,
     sessions: Number.isFinite(sessions) && sessions > 0 ? sessions : 0,
+    measured: status.MEASURED === 'true',
   }
 }
 
@@ -69,9 +74,11 @@ export function formatTime(ms: number): string {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-/** The band's row for one clock: the task, its state, the time in progress. */
+/** The band's row for one clock: the task, its state, and the time in
+ * progress when the clock is measured. */
 export function clockRow(clock: OpenClock, nowMs: number): Row {
-  return [bold(clock.task), GAP, span('in progress', 'good'), GAP, bold(formatDuration(elapsedMinutes(clock, nowMs)))]
+  const row: Row = [bold(clock.task), GAP, span('in progress', 'good')]
+  return clock.measured ? [...row, GAP, bold(formatDuration(elapsedMinutes(clock, nowMs)))] : row
 }
 
 /** Minutes of the interval in progress alone; null when its start is unknown. */
@@ -79,9 +86,10 @@ export function intervalMinutes(clock: OpenClock, nowMs: number): number | null 
   return clock.startMs === null ? null : Math.max(0, Math.floor((nowMs - clock.startMs) / 60_000))
 }
 
-/** What the clock view adds under a clock: when this interval began, what it
- * has run, and what the closed ones add up to. */
+/** What the clock view adds under a measured clock: when this interval began,
+ * what it has run, and what the closed ones add up to. Nothing for the rest. */
 export function clockDetail(clock: OpenClock, nowMs: number): Row {
+  if (!clock.measured) return []
   const parts: string[] = []
   const interval = intervalMinutes(clock, nowMs)
   if (clock.startMs !== null && interval !== null) parts.push(`since ${formatTime(clock.startMs)} (${formatDuration(interval)})`)

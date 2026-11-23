@@ -139,15 +139,17 @@ install, the port, the overlap warning.
 For a task found in `BACKLOG` at step 1, this is the move the developer
 authorised through the backlog gate — never make it without that answer.
 
-Then start the clock the closure reads back:
+Then start the clock that marks the task as in play here — unmeasured, so it
+never posts a duration (an interactive task's elapsed time is not its work
+time):
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" --task <key> --start --json
 ```
 
 `STARTED_AT` goes in the brief below. A `REASON: already-running` means this
-task was here before and its first stamp stands — say the clock is being
-resumed, and report the `TOTAL_DURATION` it already holds. The work clock
+task was here before and its first stamp stands — say the task is being
+resumed. The work clock
 section of the tracker contract holds the rest.
 
 ## 4. The brief, and what is already on disk

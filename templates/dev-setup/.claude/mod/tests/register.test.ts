@@ -31,7 +31,12 @@ function scripts(table: Record<string, Answer | string>, calls: string[] = []) {
 
 const OPEN_DE_1 = {
   'task-clock.sh --status --json': '{"OPEN_TASKS":"DE-1","OPEN_COUNT":"1"}',
-  'task-clock.sh --task DE-1 --status --json': '{"TASK":"DE-1","RUNNING":"true","STARTED_AT":"2026-10-07 09:18","TOTAL_MINUTES":""}',
+  'task-clock.sh --task DE-1 --status --json': '{"TASK":"DE-1","RUNNING":"true","MEASURED":"true","STARTED_AT":"2026-10-07 09:18","TOTAL_MINUTES":""}',
+}
+// The clock an interactive flow starts: no --measure, so no time to show.
+const OPEN_DE_1_INTERACTIVE = {
+  'task-clock.sh --status --json': '{"OPEN_TASKS":"DE-1","OPEN_COUNT":"1"}',
+  'task-clock.sh --task DE-1 --status --json': '{"TASK":"DE-1","RUNNING":"true","MEASURED":"false","STARTED_AT":"2026-10-07 09:18","TOTAL_MINUTES":""}',
 }
 const NONE_OPEN = { 'task-clock.sh --status --json': '{"OPEN_TASKS":"","OPEN_COUNT":"0"}' }
 
@@ -238,6 +243,17 @@ describe('the band', () => {
     expect(await ui.find({ type: 'Text', text: 'in progress' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: '42m' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
+  })
+
+  test('shows an interactive task as in progress, with no time', async ($, on) => {
+    baseline(on)
+    on('process.run', scripts(OPEN_DE_1_INTERACTIVE))
+    on('tool.call', () => ({ result: { stdout: '', stderr: '' } }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+    await $.tool.call({ tool: 'Bash', command: 'bash scripts/task-clock.sh --task DE-1 --start --json' })
+    const ui = await $.ui.mount(BAND)
+    expect(await ui.find({ type: 'Text', text: 'in progress' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /\d+m$/ })).toBeUndefined()
   })
 
   test('with no clock open draws nothing of its own', async ($, on) => {

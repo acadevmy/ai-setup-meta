@@ -182,7 +182,7 @@ script holds the reading in between — every flow calls it at both ends:
 
 | At the move to | Call | What comes back |
 |---|---|---|
-| `IN PROGRESS` | `task-clock.sh --task <key> --start --json` | `STARTED_AT`. Already open, it reports `already-running` and keeps the first stamp — a resumed task does not restart its clock |
+| `IN PROGRESS` | `task-clock.sh --task <key> --start [--measure] --json` | `STARTED_AT`. Already open, it reports `already-running` and keeps the first stamp — a resumed task does not restart its clock |
 | `IN REVIEW` / `BLOCKED` | `task-clock.sh --task <key> --stop --json` | `COMMENT`: the line to post, already written |
 
 Both are `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task-clock.sh" …`. `COMMENT`
@@ -191,16 +191,26 @@ travels as the `comment` of the status `update` that closes the task — the sam
 one call, never a second write. On a bail-out it goes after the note, on the
 same `BLOCKED` call.
 
+**Only an autonomous run is measured.** The launchers — `auto-sdd`, `multi-sdd`,
+`auto-dev` — start the clock with `--measure`: a run is one sitting of work, so
+its elapsed time is the time the work took. The interactive flows — `sdd`,
+`kickoff`, `quick` — start it without: their task spans nights, CI waits and
+other tasks, and its elapsed time would read like a measurement without being
+one. Their clock still marks the task as in play here, which is what the
+notification and merge-request hooks read, and its `--stop` takes the task out
+of play with an empty `COMMENT` and `REASON: unmeasured`.
+
 Three rules:
 
 1. **Never write the duration yourself.** Not from the session's length, not
    from the timestamps in the transcript, not as an estimate. The number comes
    from `COMMENT` or it does not exist — a made-up duration on a tracked task
    is worse than a missing one, because it reads like a measurement.
-2. **An empty `COMMENT` posts nothing.** `REASON` says why:
+2. **An empty `COMMENT` posts nothing.** `REASON` says why: `unmeasured` (an
+   interactive flow's clock — move the task and say nothing about it),
    `no-start-stamp` (nobody stamped the start — a flow resumed in a fresh
-   clone, say) or `already-stopped`. Move the task, say the clock had nothing,
-   and carry on.
+   clone, say) or `already-stopped`. For the last two, move the task, say the
+   clock had nothing, and carry on.
 3. **No task id, no clock.** `quick` on a plain description has nothing to
    stamp and no task to post it on.
 

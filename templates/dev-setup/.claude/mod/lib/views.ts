@@ -114,14 +114,17 @@ export function clockRows(
   if (clocks.length === 0 && failures.length === 0) {
     rows.push([dim(NO_CLOCK)], [dim(CLOCK_HINT)])
   } else if (clocks.length > 1) {
-    const total = clocks.reduce((sum, clock) => sum + elapsedMinutes(clock, nowMs), 0)
-    rows.push([bold(plural(clocks.length, 'open clock')), GAP, dim(`${formatDuration(total)} in all`)], [])
+    const measured = clocks.filter((clock) => clock.measured)
+    const total = measured.reduce((sum, clock) => sum + elapsedMinutes(clock, nowMs), 0)
+    const header: Row = [bold(plural(clocks.length, 'open clock'))]
+    if (measured.length > 0) header.push(GAP, dim(`${formatDuration(total)} measured`))
+    rows.push(header, [])
   }
   const cards = columns(
     clocks.map((clock) => [
       span(`● ${clock.task}`, 'good', true),
       span('in progress', 'good'),
-      bold(formatDuration(elapsedMinutes(clock, nowMs))),
+      clock.measured ? bold(formatDuration(elapsedMinutes(clock, nowMs))) : span(''),
       clock.task === branchTask ? span('← this branch', 'accent') : span(''),
     ]),
     ['left', 'left', 'right', 'left'],
