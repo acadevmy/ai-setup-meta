@@ -247,6 +247,10 @@ function visualRows(spec) {
     const route = String(row.route || '')
     const selector = String(row.selector || 'page')
     const threshold = Number(row.threshold)
+    // The node exported may be a child of the linked one — the screen inside a
+    // presentation wrapper — and the crop takes off what no page renders.
+    const node = String(row.node || '').replace('-', ':')
+    const cropRect = String(row.crop || '')
     if (!/^(\/|https?:\/\/)/.test(route) || !SAFE_TEXT.test(route) || !SAFE_TEXT.test(selector)) {
       return { frame, status: 'missing' }
     }
@@ -258,6 +262,8 @@ function visualRows(spec) {
       clip: row.clip === 'viewport' ? 'viewport' : 'full',
       state: String(row.state || '').replace(/[\n\r]/g, ' ').slice(0, 300),
       threshold: threshold >= 0 && threshold <= 0.05 ? threshold : 0.02,
+      node: NODE_SHAPE.test(node) ? node : frame.nodeId,
+      crop: /^[0-9]+,[0-9]+,[1-9][0-9]*,[1-9][0-9]*$/.test(cropRect) ? cropRect : '',
     }
   })
 }
@@ -272,6 +278,8 @@ const VISUAL_ROW = {
     clip: { type: 'string', enum: ['full', 'viewport'] },
     state: { type: 'string', description: 'what the page needs to look like the frame' },
     threshold: { type: 'number', description: 'share of pixels allowed to differ, 0.02 unless photos or live charts; at most 0.05' },
+    node: { type: 'string', description: 'the node to export when it is not the linked one: the screen inside a presentation wrapper that carries a label, found with get_metadata' },
+    crop: { type: 'string', description: 'x,y,width,height of the exported node the page renders, in its pixels — without a phone status bar or home indicator; empty for all of it' },
     notCompared: { type: 'string', description: 'instead of a route: why this frame is not compared (not rendered by this task, native UI)' },
   },
 }
@@ -303,7 +311,8 @@ function visualLines(rows) {
   return rows
     .filter((r) => r.status === 'compare')
     .map((r) =>
-      '  - ' + frameLabel(r.frame) + ': file ' + r.frame.fileKey + ', node ' + r.frame.nodeId +
+      '  - ' + frameLabel(r.frame) + ': file ' + r.frame.fileKey + ', export node ' + r.node +
+      (r.crop ? ', design crop ' + r.crop : '') +
       ' -> route ' + r.route + ', selector ' + r.selector + ', clip ' + r.clip +
       ', threshold ' + r.threshold + (r.state ? ', state: ' + r.state : ''),
     )
@@ -631,8 +640,10 @@ const FRAMES_FOR_SPEC = [
   'spec, as ' + plugin + '/reference/visual-check.md describes: the route that',
   'shows it, `page` or the CSS selector of the element it draws, the clip, the',
   'state the page needs to look like it, the threshold — or `notCompared` with',
-  'why, for a frame this task does not render. A frame left out is reported to',
-  'the reviewer as never checked.',
+  'why, for a frame this task does not render. A linked frame that wraps the',
+  'screen with a label, or draws a phone status bar, gets the screen child as',
+  '`node` (get_metadata) and a `crop` without the chrome. A frame left out is',
+  'reported to the reviewer as never checked.',
   '',
   frames.map((f) => '  - ' + frameLabel(f) + ' — ' + f.url).join('\n'),
 ].join('\n')

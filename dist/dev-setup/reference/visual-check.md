@@ -40,10 +40,18 @@ apply and nothing mentions it.
 The spec maps every frame to where the page shows it — the one decision the
 check cannot make on its own. One row per frame:
 
-| Frame | Route | Selector | Clip | State | Threshold |
-|---|---|---|---|---|---|
-| [Sign up — desktop](https://www.figma.com/design/…?node-id=12-345) | `/signup` | `page` | full | signed out, empty form | 0.02 |
+| Frame | Node | Crop | Route | Selector | Clip | State | Threshold |
+|---|---|---|---|---|---|---|---|
+| [Sign up — desktop](https://www.figma.com/design/…?node-id=12-345) | 12:345 | — | `/signup` | `page` | full | signed out, empty form | 0.02 |
+| [Login — mobile](https://www.figma.com/design/…?node-id=6594-74990) | 6594:74992 | 0,59,390,589 | `/login` | `page` | full | password empty | 0.02 |
 
+- **Node** — the node exported, the linked one unless it is a presentation
+  wrapper: a frame holding an annotation label next to the screen is mapped
+  to the screen child, found with `get_metadata`. Compare what the page
+  renders, never the board around it.
+- **Crop** — `x,y,width,height` of the exported node the page renders, in its
+  own pixels: a phone frame's status bar or home indicator is no web page's.
+  `—` for the whole node. The page is captured at the cropped size.
 - **Route** — the path on the dev server, or a Storybook story URL for a
   component frame.
 - **Selector** — `page` for a whole screen; a CSS selector when the frame is
@@ -70,8 +78,8 @@ Always PNG at **scale 1**, never `get_screenshot`: it caps the longer edge at
 the working tree.
 
 - **With the Figma MCP** (interactive): `download_assets` with the frame's
-  `fileKey` and `nodeId`, `defaultFormat: "png"`, `defaultScale: 1`. Then
-  download and check its `export` URL:
+  `fileKey` and the row's **Node**, `defaultFormat: "png"`, `defaultScale: 1`.
+  Its `export` URL is short-lived: download and check it at once:
 
   ```bash
   bash "${CLAUDE_PLUGIN_ROOT}/scripts/figma-export.sh" --url "<export url>" --out <dir>/<frame>.png --json
@@ -83,7 +91,8 @@ the working tree.
   bash "${CLAUDE_PLUGIN_ROOT}/scripts/figma-export.sh" --file-key <key> --node <id> --out <dir>/<frame>.png --json
   ```
 
-`WIDTH` and `HEIGHT` are the frame's size, and the page is captured at it.
+`WIDTH` and `HEIGHT` are the node's size; the page is captured at it, or at
+the row's **Crop** when it has one.
 Exit 3 → the frame could not be exported: `REASON` says why, and that frame
 is **not verified**.
 
@@ -98,8 +107,8 @@ answers. Stop it when the check is done.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/visual-check.sh" --design <dir>/<frame>.png \
-  --url http://localhost:<port><route> [--selector "<css>"] [--clip viewport] \
-  [--threshold <ratio>] --name <frame-slug> --json
+  --url http://localhost:<port><route> [--design-crop <x,y,w,h>] [--selector "<css>"] \
+  [--clip viewport] [--threshold <ratio>] --name <frame-slug> --json
 ```
 
 It captures the page with the project's own Playwright at the frame's size,

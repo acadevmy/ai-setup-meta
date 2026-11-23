@@ -584,7 +584,7 @@ as one thing and renders as another, and only the rendering shows it.
 
 | Step | What runs |
 |---|---|
-| The spec | a `## Visual check` section maps every frame to a route, `page` or a CSS selector, the state the page needs, and a threshold (default 2%, at most 5%) — or `not compared: <why>` |
+| The spec | a `## Visual check` section maps every frame to a route, `page` or a CSS selector, the state the page needs, and a threshold (default 2%, at most 5%) — or `not compared: <why>`. A frame that wraps the screen with an annotation label is mapped to its screen child (**Node**), and a phone status bar is cropped off (**Crop**): the page never renders either |
 | The export | the frame as a PNG at **scale 1**: through the Figma MCP in a session, over the REST API with `FIGMA_TOKEN` in a headless run (`figma-export.sh`) |
 | The capture | the page at the frame's size, device scale factor 1, animations off, with **your project's Playwright** (`visual-check.sh`) |
 | The verdict | `match`, or `mismatch` when the size differs, when content is the frame's but **displaced** (`8 px lower than the frame`), or when more pixels differ than the threshold allows |
@@ -603,7 +603,8 @@ To enable it: `@playwright/test` (or `playwright`) as a devDependency with
 Chromium installed (`npx playwright install chromium`), and for headless runs
 a Figma personal access token with *File content: read-only* as
 `FIGMA_TOKEN`. The sandbox template allows the dev server to listen on
-`localhost` (`allowLocalBinding`) and the two Figma export hosts; `UPDATE`
+`localhost` (`allowLocalBinding`) and the Figma export hosts (`www.figma.com`
+for the MCP, `api.figma.com` and its image bucket for REST); `UPDATE`
 adds them to a project set up before.
 
 ---

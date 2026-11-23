@@ -70,9 +70,9 @@ recorded here: the layer fixes it and the project's `tests.md` rule states it.>
 otherwise leave the section out. One row per frame, as
 `${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md` describes.>
 
-| Frame | Route | Selector | Clip | State | Threshold |
-|---|---|---|---|---|---|
-| [<frame name>](<frame URL>) | <path> | page | full | <what the page needs to look like the frame> | 0.02 |
+| Frame | Node | Crop | Route | Selector | Clip | State | Threshold |
+|---|---|---|---|---|---|---|---|
+| [<frame name>](<frame URL>) | <node id> | — | <path> | page | full | <what the page needs to look like the frame> | 0.02 |
 
 ## Decision log
 <Empty when the spec is written. Filled in during development: one entry

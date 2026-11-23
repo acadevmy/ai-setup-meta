@@ -382,8 +382,29 @@ async function capture() {
   }
 }
 
+// ── Crop ─────────────────────────────────────────────────────────────────────
+//
+// A frame drawn for a phone carries what no page renders — a status bar, a
+// home indicator — and a crop takes it off the design before anything is
+// compared: --rect x,y,w,h, in the frame's own pixels.
+
+function crop() {
+  const img = decodePng(opts.in)
+  const [x, y, w, h] = String(opts.rect).split(',').map(Number)
+  if (![x, y, w, h].every(Number.isInteger) || w < 1 || h < 1 || x < 0 || y < 0 || x + w > img.width || y + h > img.height) {
+    throw new Error('the crop ' + opts.rect + ' does not fit inside the ' + img.width + 'x' + img.height + ' design')
+  }
+  const out = { width: w, height: h, data: Buffer.alloc(w * h * 4) }
+  for (let row = 0; row < h; row++) {
+    img.data.copy(out.data, row * w * 4, ((y + row) * img.width + x) * 4, ((y + row) * img.width + x + w) * 4)
+  }
+  encodePng(out, opts.out)
+  emit({ SIZE: w + 'x' + h })
+}
+
 try {
   if (command === 'compare') compare()
+  else if (command === 'crop') crop()
   else if (command === 'capture') await capture()
   else throw new Error('unknown subcommand: ' + command)
 } catch (err) {

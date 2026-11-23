@@ -29,6 +29,9 @@
 #   --threshold   share of the compared pixels allowed to differ, default
 #                 0.02, at most 0.05: font rendering differs between Figma and
 #                 Chromium, a layout shift does not stay under 5%
+#   --design-crop x,y,w,h  the part of the design the page renders, in the
+#                 frame's pixels: a phone frame's status bar or home indicator
+#                 is no page's. The viewport follows the cropped size
 #   --name        the folder the images go in, default the design's basename
 #   --out-dir     default <git-common-dir>/dev-setup/visual/<branch>/<name>
 #   --project-dir where Playwright is resolved from, default the repository
@@ -74,6 +77,7 @@ WIDTH=""
 HEIGHT=""
 THRESHOLD="0.02"
 NAME=""
+DESIGN_CROP=""
 OUT_DIR=""
 PROJECT_DIR=""
 TIMEOUT="30000"
@@ -91,11 +95,12 @@ while [ $# -gt 0 ]; do
     --height) HEIGHT="${2-}"; shift 2 ;;
     --threshold) THRESHOLD="${2-}"; shift 2 ;;
     --name) NAME="${2-}"; shift 2 ;;
+    --design-crop) DESIGN_CROP="${2-}"; shift 2 ;;
     --out-dir) OUT_DIR="${2-}"; shift 2 ;;
     --project-dir) PROJECT_DIR="${2-}"; shift 2 ;;
     --timeout) TIMEOUT="${2-}"; shift 2 ;;
     --json) AS_JSON=true; shift ;;
-    -h|--help) sed -n '2,60p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,63p' "$0"; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
@@ -129,9 +134,11 @@ png_size() {
 }
 
 DESIGN_DIMS="$(png_size "$DESIGN")" || die "not a PNG: $DESIGN"
-[ -n "$WIDTH" ] || WIDTH="${DESIGN_DIMS% *}"
-[ -n "$HEIGHT" ] || HEIGHT="${DESIGN_DIMS#* }"
-printf '%s %s' "$WIDTH" "$HEIGHT" | grep -qE '^[1-9][0-9]{0,4} [1-9][0-9]{0,4}$' || die "the viewport is not a size in pixels: ${WIDTH}x${HEIGHT}"
+[ -z "$DESIGN_CROP" ] || printf '%s' "$DESIGN_CROP" | grep -qE '^[0-9]+,[0-9]+,[1-9][0-9]*,[1-9][0-9]*$' \
+  || die "--design-crop is x,y,width,height in pixels, not $DESIGN_CROP"
+for DIM in "$WIDTH" "$HEIGHT"; do
+  [ -z "$DIM" ] || printf '%s' "$DIM" | grep -qE '^[1-9][0-9]{0,4}$' || die "the viewport is not a size in pixels: ${WIDTH}x${HEIGHT}"
+done
 
 [ -n "$NAME" ] || NAME="$(basename "$DESIGN" .png)"
 NAME="$(printf '%s' "$NAME" | tr -c 'A-Za-z0-9._-' '-' | sed -E 's/-+/-/g; s/^-|-$//g')"
@@ -181,6 +188,15 @@ command -v node >/dev/null 2>&1 || unverified environment "Node is not installed
 
 ENGINE="$SCRIPT_DIR/visual-check.mjs"
 [ -f "$ENGINE" ] || die "the engine is missing: $ENGINE"
+
+if [ -n "$DESIGN_CROP" ]; then
+  node "$ENGINE" crop --in "$OUT_DIR/design.png" --out "$OUT_DIR/design.png" --rect "$DESIGN_CROP" >/dev/null \
+    || die "the crop $DESIGN_CROP does not fit inside the ${DESIGN_DIMS% *}x${DESIGN_DIMS#* } design"
+  DESIGN_DIMS="$(png_size "$OUT_DIR/design.png")" || die "the crop wrote no PNG"
+  json_set DESIGN_SIZE "${DESIGN_DIMS% *}x${DESIGN_DIMS#* }"
+fi
+[ -n "$WIDTH" ] || WIDTH="${DESIGN_DIMS% *}"
+[ -n "$HEIGHT" ] || HEIGHT="${DESIGN_DIMS#* }"
 
 if [ -n "$ACTUAL_IN" ]; then
   [ "$ACTUAL_IN" -ef "$OUT_DIR/actual.png" ] || cp "$ACTUAL_IN" "$OUT_DIR/actual.png" || die "cannot copy the capture into $OUT_DIR"

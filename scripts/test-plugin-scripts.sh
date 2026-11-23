@@ -2539,6 +2539,7 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     visualExport: (prompts['visual:DE-1'] || '').includes('download_assets')
       && (prompts['visual:DE-1'] || '').includes('/plugin/scripts/figma-export.sh" --url'),
     visualThreshold: (prompts['visual:DE-1'] || '').match(/threshold ([0-9.]+)/) ? (prompts['visual:DE-1'] || '').match(/threshold ([0-9.]+)/)[1] : '',
+    visualNode: ((prompts['visual:DE-1'] || '').match(/export node ([0-9:]+)(, design crop [0-9,]+)?/) || [''])[0],
   }));
 });
 NODEJS
@@ -2673,6 +2674,15 @@ NODEJS
   assert_eq "a frame the spec maps nowhere goes to the merge request as never checked" \
     "ready-for-mr visual=Mobile (12:400)" "$(field "$SIM" status) $(field "$SIM" unverified)"
   assert_eq "and a threshold above the cap is brought back to the default" "0.02" "$(field "$SIM" visualThreshold)"
+  assert_eq "with no node of its own, the linked frame is the one exported" "export node 12:345" "$(field "$SIM" visualNode)"
+  # A frame that wraps the screen with a label, and draws a phone status bar:
+  # the row exports the screen child and crops the chrome off (Weebora login).
+  SIM=$(sim '{"rows":[{"nodeId":"12:345","node":"12-346","crop":"0,59,390,589","route":"/login"},{"nodeId":"12:400","notCompared":"web only"}],"visual":[{"nodeId":"12:345","verdict":"match","reason":"ok"}]}' "$FRAMES_TASK")
+  assert_eq "a row exports the screen inside a wrapper, cropped of its chrome" \
+    "export node 12:346, design crop 0,59,390,589" "$(field "$SIM" visualNode)"
+  SIM=$(sim '{"rows":[{"nodeId":"12:345","node":"x;y","crop":"0,0,0,10","route":"/login"},{"nodeId":"12:400","notCompared":"web only"}],"visual":[{"nodeId":"12:345","verdict":"match","reason":"ok"}]}' "$FRAMES_TASK")
+  assert_eq "a node or a crop of the wrong shape falls back to the linked frame, uncropped" \
+    "export node 12:345" "$(field "$SIM" visualNode)"
   SIM=$(sim '{"rows":[{"nodeId":"12:345","route":"/x\"; rm -rf ~"},{"nodeId":"12:400","notCompared":"web only"}]}' "$FRAMES_TASK")
   assert_eq "a route a shell would read as syntax is no row: unverified, and nothing runs it" \
     "ready-for-mr false visual=Sign up (12:345)" "$(field "$SIM" status) $(field "$SIM" visualAgent) $(field "$SIM" unverified)"
@@ -6444,6 +6454,11 @@ if command -v node >/dev/null 2>&1; then
     "$(printf '%s' "$OUT" | jq -r .VERDICT) $STATUS"
   assert_eq "located, measured and directed" "16,16 96x48: 8 px lower than the frame" \
     "$(printf '%s' "$OUT" | jq -r .SHIFTS)"
+  OUT="$(vc crop --actual "$VC_FIX/frame.png" --design-crop 0,0,348,100)"
+  assert_eq "a crop takes the chrome off the design, and the size follows it" "348x100 mismatch" \
+    "$(printf '%s' "$OUT" | jq -r '.DESIGN_SIZE + " " + .VERDICT')"
+  assert_contains "a crop outside the design is refused" \
+    "$(bash "$PLUGIN_SCRIPTS/visual-check.sh" --design "$VC_FIX/frame.png" --actual "$VC_FIX/frame.png" --design-crop 0,100,348,100 --out-dir "$VC_DIR/out-badcrop" 2>&1)" "does not fit"
   assert_contains "a threshold above 5% is refused: past it a layout shift passes" \
     "$(bash "$PLUGIN_SCRIPTS/visual-check.sh" --design "$VC_FIX/frame.png" --actual "$VC_FIX/frame.png" --threshold 0.2 2>&1)" "above 0.05"
   mkdir -p "$VC_DIR/no-playwright"
@@ -6463,6 +6478,8 @@ for VC_FILE in .claude/skills/sdd-spec/SKILL.md .claude/skills/sdd-dev/SKILL.md 
   assert_contains "$VC_FILE follows it" "$(cat "$TEMPLATE_ROOT/$VC_FILE")" "reference/visual-check.md"
 done
 assert_contains "the export never uses the capped screenshot" "$(cat "$VC_REF")" "never \`get_screenshot\`"
+assert_contains "the MCP serves its exports from www.figma.com, which the sandbox allows" \
+  "$(jq -r '.sandbox.network.allowedDomains | join(" ")' "$SETTINGS_TEMPLATE")" "www.figma.com"
 assert_eq "the template lets a dev server listen inside the sandbox" "true" \
   "$(jq -r '.sandbox.network.allowLocalBinding' "$SETTINGS_TEMPLATE")"
 
