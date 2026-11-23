@@ -731,9 +731,12 @@ options:
 ```
 
 On **Nothing appeared**, name the pane — System Settings → Notifications →
-`terminal-notifier` → Allow Notifications — and say that until it is allowed
-the hook falls back to `osascript`, so nothing breaks in between. Do not ask
-again.
+`terminal-notifier` → Allow Notifications — or, for the macOS prompt again,
+`tccutil reset UserNotification fr.julienxx.oss.terminal-notifier`, and say
+that until it is allowed the hook falls back to `osascript`, so nothing breaks
+in between. Do not ask again. A denied `terminal-notifier` exits non-zero
+(3, "Notifications are turned off for this application"), which is how the
+test below tells an allowed one from a denied one.
 
 An existing `terminal-notifier` whose test exits 0 skips part 2: it is already
 allowed, and its style was the developer's to choose.
