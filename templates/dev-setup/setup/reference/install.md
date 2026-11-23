@@ -679,42 +679,64 @@ leave them to the developer.
 ### 3.10 — Desktop notifications on macOS (machine scope, optional)
 
 `notify.sh` (the Notification hook) reaches the developer whenever Claude
-waits on a permission prompt — a tool, a question, a plan. On macOS it prefers `terminal-notifier`:
-the notification plays a sound and a click activates the app that launched
-Claude Code — VS Code, a JetBrains IDE, the terminal. Without it the hook falls
-back to `osascript`, whose notifications belong to Script Editor: the sound is
-there, but a click opens Script Editor instead of the editor.
+waits on a permission prompt — a tool, a question, a plan. On macOS it prefers
+`terminal-notifier`: the notification plays a sound and a click activates the
+app that launched Claude Code — VS Code, a JetBrains IDE, the terminal. Without
+it the hook falls back to `osascript`, whose notifications belong to Script
+Editor: the sound is there, but a click opens Script Editor instead of the
+editor.
 
-Skip this step when `uname -s` is not `Darwin`, or when
-`command -v terminal-notifier` already resolves.
+Skip this step when `uname -s` is not `Darwin`. Two parts, each one question
+that ends the turn (`turn-discipline.md`): the install, then the permission.
 
-It installs a tool on the developer's machine, not a file in the repository, so
-**do not install it yourself** — ask, then print the command. Ask with
-`AskUserQuestion`:
+**1. The install.** Skip it when `command -v terminal-notifier` already
+resolves. It puts a tool on the developer's machine, not a file in the
+repository, so it happens only on an explicit yes. Ask with `AskUserQuestion`:
 
 ```
 question: "Desktop notifications from dev-setup open Script Editor when clicked. Install terminal-notifier so a click brings you back to your editor?"
 options:
-  - label: "Print the command"   (recommended — brew install terminal-notifier)
-  - label: "Keep osascript"      (sound only; a click opens Script Editor)
+  - label: "Install it"       (recommended — runs brew install terminal-notifier)
+  - label: "Keep osascript"   (sound only; a click opens Script Editor)
 ```
 
-- **Print the command** → give the developer this, and the one manual step
-  macOS requires after it:
+- **Install it** → when `command -v brew` resolves, run
+  `brew install terminal-notifier` yourself. It downloads and writes under
+  Homebrew's prefix, so it runs outside the sandbox: the permission prompt on
+  that call is the developer's second look at it. Without Homebrew, or when
+  the install fails, print the command with its error and skip part 2 —
+  the hook keeps working on `osascript`.
+- **Keep osascript** → nothing to do; skip part 2.
 
-  ```bash
-  brew install terminal-notifier
-  ```
+**2. The permission.** Run it after a fresh install, and when an existing
+`terminal-notifier` fails the test below. macOS keeps two decisions for the
+person — whether a new app may notify, and how long its notifications stay —
+and no command sets either, so the setup triggers the first and asks for the
+second. Send a test notification (outside the sandbox: Launch Services is off
+inside it):
 
-  Then System Settings → Notifications → `terminal-notifier` → Allow
-  Notifications, and set the style to **Persistent** (Alerts on older macOS).
-  macOS decides how long a notification stays, per app, and no flag overrides
-  it: the default banner is gone in about five seconds, so a run that waits on
-  the developer while they look elsewhere goes unseen. Until they allow it,
-  `terminal-notifier` exits non-zero and the hook falls back to `osascript`,
-  so nothing breaks in between.
+```bash
+terminal-notifier -title "dev-setup" -message "Notifications are on" -sound "${DEV_SETUP_NOTIFY_SOUND:-Submarine}"
+```
 
-- **Keep osascript** → nothing to do.
+The first one makes macOS ask whether `terminal-notifier` may send
+notifications. Then ask with `AskUserQuestion`:
+
+```
+question: "A test notification just went out. Allow terminal-notifier when macOS asks, then set its style to Persistent in System Settings → Notifications → terminal-notifier: the default banner is gone in about five seconds, so a prompt that waits while you look elsewhere goes unseen. Done?"
+options:
+  - label: "Done"                   (allowed, style Persistent)
+  - label: "Allowed, kept banners"  (notifications disappear after a few seconds)
+  - label: "Nothing appeared"       (not allowed yet)
+```
+
+On **Nothing appeared**, name the pane — System Settings → Notifications →
+`terminal-notifier` → Allow Notifications — and say that until it is allowed
+the hook falls back to `osascript`, so nothing breaks in between. Do not ask
+again.
+
+An existing `terminal-notifier` whose test exits 0 skips part 2: it is already
+allowed, and its style was the developer's to choose.
 
 Either way, mention that the sound is theirs to pick: `DEV_SETUP_NOTIFY_SOUND`
 in the `env` block of `~/.claude/settings.json`, set to any name in
@@ -723,8 +745,11 @@ in the `env` block of `~/.claude/settings.json`, set to any name in
 **Report in the summary** (a single line) — one of:
 
 ```
-  - desktop notifications: terminal-notifier already installed — a click opens the editor
-  - desktop notifications: terminal-notifier install printed (brew + allow, style Persistent, in System Settings → Notifications)
+  - desktop notifications: terminal-notifier already installed and allowed — a click opens the editor
+  - desktop notifications: terminal-notifier installed and allowed, style Persistent
+  - desktop notifications: terminal-notifier allowed, style left on banners (they disappear after a few seconds)
+  - desktop notifications: terminal-notifier not allowed yet — falls back to osascript until System Settings → Notifications allows it
+  - desktop notifications: install failed or no Homebrew — command printed, still on osascript
   - desktop notifications: kept on osascript — a click opens Script Editor
   - desktop notifications: not macOS, nothing to do
 ```

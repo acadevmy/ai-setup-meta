@@ -100,12 +100,13 @@ managed ones, never the project's `.claude/settings.json`, which ignores
 iTerm2, Ghostty and Kitty. The second entry makes every `DE-123` a ClickUp link; on Linear the URL is
 `https://linear.app/<workspace>/issue/{id}`.
 
-On macOS, install `terminal-notifier` (`brew install terminal-notifier`, then
-allow it in System Settings → Notifications) and a click on a dev-setup
-notification brings you back to the editor you launched Claude Code from;
-without it the click opens Script Editor. Set its style to **Persistent**
-(Alerts on older macOS) in the same pane: the default banner is gone in about
-five seconds, and a run that waits on you while you look elsewhere goes unseen. The sound is `Submarine` unless you set
+On macOS the setup offers to install `terminal-notifier` and sends a test
+notification: allow it when macOS asks, and a click on a dev-setup notification
+brings you back to the editor you launched Claude Code from (without it the
+click opens Script Editor). Then set its style to **Persistent** in System
+Settings → Notifications → `terminal-notifier`: the default banner is gone in
+about five seconds, and a prompt that waits on you while you look elsewhere
+goes unseen. The sound is `Submarine` unless you set
 `DEV_SETUP_NOTIFY_SOUND` in the `env` block of your user settings.
 
 ## Where to go next
