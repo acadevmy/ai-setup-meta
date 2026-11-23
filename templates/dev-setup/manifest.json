@@ -95,6 +95,7 @@
     "validate-story.sh",
     "parse-story.sh",
     "figma-frames.sh",
+    "figma-screens.sh",
     "figma-export.sh",
     "visual-check.sh",
     "visual-check.mjs"

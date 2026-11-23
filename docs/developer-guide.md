@@ -584,10 +584,10 @@ as one thing and renders as another, and only the rendering shows it.
 
 | Step | What runs |
 |---|---|
-| The spec | a `## Visual check` section maps every frame to a route, `page` or a CSS selector, the state the page needs, and a threshold (default 2%, at most 5%) — or `not compared: <why>`. A frame that wraps the screen with an annotation label is mapped to its screen child (**Node**), and a phone status bar is cropped off (**Crop**): the page never renders either |
+| The spec | a `## Visual check` section maps every frame to a route, `page` or a CSS selector, the state the page needs, and a threshold (default 2%, at most 5%) — or `not compared: <why>`. A frame that wraps the screen with an annotation label is mapped to its screen child (**Node**), and a phone status bar is cropped off (**Crop**): the page never renders either. A link to a whole section — a flow with every state of every device — gets one row per screen the task renders (`figma-screens.sh` tells a screen, a wrapper and a board apart); a desktop panel is captured with its selector at the **Viewport** of its page, never at its own width. At most 12 rows a run |
 | The export | the frame as a PNG at **scale 1**: through the Figma MCP in a session, over the REST API with `FIGMA_TOKEN` in a headless run (`figma-export.sh`) |
 | The capture | the page at the frame's size, device scale factor 1, animations off, with **your project's Playwright** (`visual-check.sh`) |
-| The verdict | `match`, or `mismatch` when the size differs, when content is the frame's but **displaced** (`8 px lower than the frame`), or when more pixels differ than the threshold allows |
+| The verdict | `match`, or `mismatch` when the size differs, when content is the frame's but **displaced** by 3 px or more (`8 px lower than the frame`, read on where edges sit, so a font Figma draws differently is not a shift), or when more pixels differ than the threshold allows |
 
 **A mismatch blocks**, like a red test: `sdd` goes back to development before
 the commit, `quick` does not commit, an autonomous run fails at `verify` with

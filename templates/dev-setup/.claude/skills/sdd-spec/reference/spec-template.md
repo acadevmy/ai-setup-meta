@@ -70,9 +70,9 @@ recorded here: the layer fixes it and the project's `tests.md` rule states it.>
 otherwise leave the section out. One row per frame, as
 `${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md` describes.>
 
-| Frame | Node | Crop | Route | Selector | Clip | State | Threshold |
-|---|---|---|---|---|---|---|---|
-| [<frame name>](<frame URL>) | <node id> | — | <path> | page | full | <what the page needs to look like the frame> | 0.02 |
+| Frame | Node | Crop | Route | Selector | Viewport | Clip | State | Threshold |
+|---|---|---|---|---|---|---|---|---|
+| [<frame name>](<frame URL>) | <node id> | — | <path> | page | — | full | <what the page needs to look like the frame> | 0.02 |
 
 ## Decision log
 <Empty when the spec is written. Filled in during development: one entry
@@ -98,7 +98,8 @@ one a Markdown link whose text names what it points at.>
 - **Reuse** what `REGISTRY.md` already records. A new component that duplicates
   a registered one is a finding, not a plan.
 - **Every Figma frame the task links has a Visual check row** — a route, or
-  `not compared: <why>`. The rows are what the visual check compares, and a
+  `not compared: <why>`; a board one row per screen the task renders
+  (`figma-screens.sh`). The rows are what the visual check compares, and a
   frame with no row is a design nobody checked.
 - **Test cases** cover the listed requirements. If a requirement has no test
   case, either it is not verifiable — rewrite it — or the strategy is

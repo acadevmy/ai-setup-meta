@@ -16,6 +16,7 @@ rules that the frame is the one at fault.
 ## Index
 
 - [When it applies](#when-it-applies)
+- [What a link points at](#what-a-link-points-at)
 - [The spec's Visual check section](#the-specs-visual-check-section)
 - [1. Export the frame](#1-export-the-frame)
 - [2. Serve the page](#2-serve-the-page)
@@ -35,19 +36,49 @@ in `FRAMES`. `BARE_FILES` are links to a whole file, not a frame: nothing can
 be compared with them, and the merge request says so. `COUNT` 0 → it does not
 apply and nothing mentions it.
 
+## What a link points at
+
+A link is not always a screen. Ask before mapping it:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/figma-screens.sh" --file-key <key> --node <id> --json   # FIGMA_TOKEN
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/figma-screens.sh" --metadata <file> --json             # get_metadata's output
+```
+
+| `KIND` | What it is | Rows |
+|---|---|---|
+| `screen` | the screen itself | one, the linked node |
+| `wrapper` | an annotation label above the screen | one, `node` = the screen child |
+| `board` | a whole flow: titles, notes, every state of every device side by side | one per screen **this task renders**, each with its `node` and `name`; the others are listed under the section as not compared |
+
+`SCREENS` gives each screen's node, name, size, label and wrapper. Two
+things on a board need a decision of their own:
+
+- **Desktop states that are panels, not pages.** A 464 px login form beside a
+  1440 px full-screen frame is the form's column: compare it with its
+  `selector` at the **viewport** of the full-screen frame. At its own width
+  the page switches to its mobile breakpoint and the comparison means
+  nothing.
+- **A label that contradicts its frame** (`MISMATCHED`: `D · Home · Start
+  screen` labelled `Empty password`). Which state the frame draws
+  is in doubt: the spec says which one it took, and the merge request asks.
+
+A run compares at most 12 rows; past that a row is **not verified**, never
+dropped — compare it by hand, or split the task.
+
 ## The spec's Visual check section
 
 The spec maps every frame to where the page shows it — the one decision the
-check cannot make on its own. One row per frame:
+check cannot make on its own. One row per screen compared:
 
-| Frame | Node | Crop | Route | Selector | Clip | State | Threshold |
-|---|---|---|---|---|---|---|---|
-| [Sign up — desktop](https://www.figma.com/design/…?node-id=12-345) | 12:345 | — | `/signup` | `page` | full | signed out, empty form | 0.02 |
-| [Login — mobile](https://www.figma.com/design/…?node-id=6594-74990) | 6594:74992 | 0,59,390,589 | `/login` | `page` | full | password empty | 0.02 |
+| Frame | Node | Crop | Route | Selector | Viewport | Clip | State | Threshold |
+|---|---|---|---|---|---|---|---|---|
+| [Sign up — desktop](https://www.figma.com/design/…?node-id=12-345) | 12:345 | — | `/signup` | `page` | — | full | signed out, empty form | 0.02 |
+| [Login — mobile](https://www.figma.com/design/…?node-id=40-1) | 40:2 | 0,59,390,589 | `/login` | `page` | — | full | password empty | 0.02 |
+| [Login flow › D · Password typed](https://www.figma.com/design/…?node-id=50-1) | 50:12 | — | `/login` | `#login-form` | 1440x926 | full | password typed | 0.02 |
 
-- **Node** — the node exported, the linked one unless it is a presentation
-  wrapper: a frame holding an annotation label next to the screen is mapped
-  to the screen child, found with `get_metadata`. Compare what the page
+- **Node** — the node exported: the linked one, the screen inside a wrapper,
+  or one screen of a board (`figma-screens.sh`). Compare what the page
   renders, never the board around it.
 - **Crop** — `x,y,width,height` of the exported node the page renders, in its
   own pixels: a phone frame's status bar or home indicator is no web page's.
@@ -56,6 +87,9 @@ check cannot make on its own. One row per frame:
   component frame.
 - **Selector** — `page` for a whole screen; a CSS selector when the frame is
   a component or a section, so only that element is captured.
+- **Viewport** — `WxH` the page is captured at when the frame is a component
+  or a panel: the full-screen frame of the same device. `—` for the frame's
+  own size.
 - **Clip** — `full` (default) captures the whole page height, so a page that
   grew shows as a size mismatch; `viewport` for a frame drawn at one screen's
   height.
@@ -108,7 +142,7 @@ answers. Stop it when the check is done.
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/visual-check.sh" --design <dir>/<frame>.png \
   --url http://localhost:<port><route> [--design-crop <x,y,w,h>] [--selector "<css>"] \
-  [--clip viewport] [--threshold <ratio>] --name <frame-slug> --json
+  [--width <W> --height <H>] [--clip viewport] [--threshold <ratio>] --name <frame-slug> --json
 ```
 
 It captures the page with the project's own Playwright at the frame's size,

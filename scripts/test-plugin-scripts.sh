@@ -2540,6 +2540,9 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
       && (prompts['visual:DE-1'] || '').includes('/plugin/scripts/figma-export.sh" --url'),
     visualThreshold: (prompts['visual:DE-1'] || '').match(/threshold ([0-9.]+)/) ? (prompts['visual:DE-1'] || '').match(/threshold ([0-9.]+)/)[1] : '',
     visualNode: ((prompts['visual:DE-1'] || '').match(/export node ([0-9:]+)(, design crop [0-9,]+)?/) || [''])[0],
+    visualRows: ((prompts['visual:DE-1'] || '').match(/export node /g) || []).length,
+    visualViewport: (prompts['visual:DE-1'] || '').includes('export node 50:22, viewport 1440x926 -> route /login, selector #login-form'),
+    specBoards: (prompts['spec:DE-1'] || '').includes('/plugin/scripts/figma-screens.sh'),
   }));
 });
 NODEJS
@@ -2676,13 +2679,30 @@ NODEJS
   assert_eq "and a threshold above the cap is brought back to the default" "0.02" "$(field "$SIM" visualThreshold)"
   assert_eq "with no node of its own, the linked frame is the one exported" "export node 12:345" "$(field "$SIM" visualNode)"
   # A frame that wraps the screen with a label, and draws a phone status bar:
-  # the row exports the screen child and crops the chrome off (Weebora login).
+  # the row exports the screen child and crops the chrome off.
   SIM=$(sim '{"rows":[{"nodeId":"12:345","node":"12-346","crop":"0,59,390,589","route":"/login"},{"nodeId":"12:400","notCompared":"web only"}],"visual":[{"nodeId":"12:345","verdict":"match","reason":"ok"}]}' "$FRAMES_TASK")
   assert_eq "a row exports the screen inside a wrapper, cropped of its chrome" \
     "export node 12:346, design crop 0,59,390,589" "$(field "$SIM" visualNode)"
   SIM=$(sim '{"rows":[{"nodeId":"12:345","node":"x;y","crop":"0,0,0,10","route":"/login"},{"nodeId":"12:400","notCompared":"web only"}],"visual":[{"nodeId":"12:345","verdict":"match","reason":"ok"}]}' "$FRAMES_TASK")
   assert_eq "a node or a crop of the wrong shape falls back to the linked frame, uncropped" \
     "export node 12:345" "$(field "$SIM" visualNode)"
+  # A link to a board: one row per screen the task renders. A desktop panel is
+  # captured at its page's viewport, a phone screen cropped of its status bar;
+  # each verdict is matched by the node exported and named by its screen.
+  BOARD='"rows":[{"nodeId":"12:345","node":"50:22","name":"D · Password typed","route":"/login","selector":"#login-form","viewport":"1440x926"},{"nodeId":"12:345","node":"50:43","name":"M · Empty password","route":"/login","crop":"0,59,390,589"},{"nodeId":"12:400","notCompared":"web only"}]'
+  SIM=$(sim "{$BOARD,\"visual\":[{\"nodeId\":\"50:22\",\"verdict\":\"match\",\"reason\":\"ok\"},{\"nodeId\":\"50:43\",\"verdict\":\"match\",\"reason\":\"ok\"}]}" "$FRAMES_TASK")
+  assert_eq "a board's screens are each compared, and reach the merge request" "ready-for-mr 2 not-compared,match,match" \
+    "$(field "$SIM" status) $(field "$SIM" visualRows) $(field "$SIM" visual)"
+  assert_eq "a panel is captured with its selector at its page's viewport" "true" "$(field "$SIM" visualViewport)"
+  assert_eq "the spec author is told how to tell a board from a screen" "true" "$(field "$SIM" specBoards)"
+  SIM=$(sim "{$BOARD,\"visual\":[{\"nodeId\":\"50:22\",\"verdict\":\"match\",\"reason\":\"ok\"},{\"nodeId\":\"50:43\",\"verdict\":\"mismatch\",\"reason\":\"displaced\"}]}" "$FRAMES_TASK")
+  assert_eq "one screen of the board off fails the run, naming that screen" "failed Sign up (12:345) › M · Empty password" \
+    "$(field "$SIM" status) $(field "$SIM" reason | sed 's/.*frames: //')"
+  CAP_ROWS="$(jq -nc '[range(1; 14) | {nodeId: "12:345", node: "60:\(.)", name: "S\(.)", route: "/s"}] + [{nodeId: "12:400", notCompared: "web only"}]')"
+  CAP_SEEN="$(jq -nc '[range(1; 14) | {nodeId: "60:\(.)", verdict: "match", reason: "ok"}]')"
+  SIM=$(sim "{\"rows\":$CAP_ROWS,\"visual\":$CAP_SEEN}" "$FRAMES_TASK")
+  assert_eq "a run compares at most twelve rows; the thirteenth is not verified, not dropped" \
+    "ready-for-mr 12 visual=Sign up (12:345) › S13" "$(field "$SIM" status) $(field "$SIM" visualRows) $(field "$SIM" unverified)"
   SIM=$(sim '{"rows":[{"nodeId":"12:345","route":"/x\"; rm -rf ~"},{"nodeId":"12:400","notCompared":"web only"}]}' "$FRAMES_TASK")
   assert_eq "a route a shell would read as syntax is no row: unverified, and nothing runs it" \
     "ready-for-mr false visual=Sign up (12:345)" "$(field "$SIM" status) $(field "$SIM" visualAgent) $(field "$SIM" unverified)"
@@ -6401,6 +6421,7 @@ leak=no; case "$*$url" in *figd_secret*) leak=yes ;; esac
 printf 'GET %s stdin-token=%s argv-token=%s\n' "$url" "$(printf '%s' "$cfg" | grep -c 'X-Figma-Token: figd_secret')" "$leak" >> "$VC_LOG"
 case "$url" in
   */images/AbCdEfGhIjKlMnOpQrStUv*) printf '{"err":null,"images":{"12:345":"https://s3.example/frame.png"}}' ;;
+  */files/AbCdEfGhIjKlMnOpQrStUv/nodes*) printf '%s' '{"nodes":{"12:345":{"document":{"id":"12:345","name":"Flow","type":"SECTION","absoluteBoundingBox":{"x":0,"y":0,"width":900,"height":800},"children":[{"id":"12:346","name":"M · Login · Empty","type":"FRAME","absoluteBoundingBox":{"x":0,"y":0,"width":390,"height":716},"children":[{"id":"12:347","name":"Empty","type":"TEXT","absoluteBoundingBox":{"x":0,"y":0,"width":390,"height":28}},{"id":"12:348","name":"M · Empty","type":"FRAME","absoluteBoundingBox":{"x":0,"y":68,"width":390,"height":648},"children":[]}]},{"id":"12:350","name":"Notes","type":"TEXT","absoluteBoundingBox":{"x":500,"y":0,"width":300,"height":40}}]}}}}' ;;
   */images/NoPeNoPeNoPeNoPeNoPe12*) printf '{"status":403,"err":"Invalid token"}' ;;
   */images/EmPtYeMpTyEmPtYeMpTy12*) printf '{"err":null,"images":{"12:345":null}}' ;;
   https://s3.example/frame.png) cp "$VC_PNG" "$out" ;;
@@ -6454,6 +6475,16 @@ if command -v node >/dev/null 2>&1; then
     "$(printf '%s' "$OUT" | jq -r .VERDICT) $STATUS"
   assert_eq "located, measured and directed" "16,16 96x48: 8 px lower than the frame" \
     "$(printf '%s' "$OUT" | jq -r .SHIFTS)"
+  # Figma and Chromium never draw a glyph alike: the shift is read on where
+  # the edges sit, not on the pixels, so a font change is no shift and a real
+  # one is found next to it.
+  OUT="$(vc font --actual "$VC_FIX/card-font.png" --design "$VC_FIX/card.png")"
+  assert_eq "another font, the same layout: a match, no shift" "match " \
+    "$(printf '%s' "$OUT" | jq -r '.VERDICT + " " + .SHIFTS')"
+  OUT="$(vc fontshift --actual "$VC_FIX/card-font-shifted.png" --design "$VC_FIX/card.png")"
+  assert_eq "another font and a button 6 px off at the same size: the shift is found" \
+    "mismatch true" "$(printf '%s' "$OUT" | jq -r '.VERDICT + " " + .SIZE_MATCH')"
+  assert_contains "measured" "$(printf '%s' "$OUT" | jq -r .SHIFTS)" "6 px higher than the frame"
   OUT="$(vc crop --actual "$VC_FIX/frame.png" --design-crop 0,0,348,100)"
   assert_eq "a crop takes the chrome off the design, and the size follows it" "348x100 mismatch" \
     "$(printf '%s' "$OUT" | jq -r '.DESIGN_SIZE + " " + .VERDICT')"
@@ -6469,6 +6500,38 @@ if command -v node >/dev/null 2>&1; then
 else
   printf '%s  skip%s  visual-check.sh: node not installed\n' "$DIM" "$NC"
 fi
+
+# What a link points at: a screen, a wrapper (a label above the screen) or a
+# board (a whole flow, every state of every device side by side). Pinned on a
+# board shaped like a real one: an eyebrow badge, titles and notes, desktop
+# panels, a full-screen frame whose label contradicts its name, an email
+# template, phone screens with a status bar.
+fs() { bash "$PLUGIN_SCRIPTS/figma-screens.sh" "$@" --json 2>/dev/null; }
+OUT="$(fs --metadata "$VC_FIX/board.xml")"
+assert_eq "a board is every screen on it, each from inside its wrapper" \
+  "board 5 50:12 50:22 50:32 50:43 50:52" \
+  "$(printf '%s' "$OUT" | jq -r '[.KIND, .COUNT, (.SCREENS | split("\n") | map(split("\t")[0]) | join(" "))] | join(" ")')"
+assert_eq "with its name, size, label and wrapper" "50:22|D · Password typed|464x474|Password typed|50:20" \
+  "$(printf '%s' "$OUT" | jq -r '.SCREENS | split("\n")[1] | split("\t") | join("|")')"
+assert_eq "titles, notes and the eyebrow badge are not screens" "false" \
+  "$(printf '%s' "$OUT" | jq -r '.SCREENS | test("50:2\t|50:4\t|50:5\t")')"
+assert_eq "a label that contradicts its frame is named" "50:10	D · Home · Start screen	labelled Empty password" \
+  "$(printf '%s' "$OUT" | jq -r .MISMATCHED)"
+assert_eq "the same metadata saved as the JSON array a client writes reads the same" "board 5" \
+  "$(jq -Rs '[{type: "text", text: .}]' "$VC_FIX/board.xml" > "$VC_DIR/board.json" && fs --metadata "$VC_DIR/board.json" | jq -r '.KIND + " " + .COUNT')"
+sed -n '/id="50:41"/,/id="50:50"/p' "$VC_FIX/board.xml" | sed '$d' | sed 's/^  //' > "$VC_DIR/wrapper.xml"
+assert_eq "a wrapper is its one screen" "wrapper 50:43 Empty password" \
+  "$(fs --metadata "$VC_DIR/wrapper.xml" | jq -r '.KIND + " " + (.SCREENS | split("\t") | .[0] + " " + .[3])')"
+assert_eq "a screen with a header and a content column is one screen, not a board" "screen 70:1" \
+  "$(fs --metadata "$VC_FIX/screen.xml" | jq -r '.KIND + " " + (.SCREENS | split("\t")[0])')"
+assert_eq "a section of bare screens side by side is a board" "board Cart,Payment" \
+  "$(fs --metadata "$VC_FIX/plain-board.xml" | jq -r '.KIND + " " + (.SCREENS | split("\n") | map(split("\t")[1]) | join(","))')"
+: > "$VC_LOG"
+OUT="$(PATH="$VC_DIR/bin:$PATH" VC_LOG="$VC_LOG" FIGMA_TOKEN=figd_secret fs --file-key AbCdEfGhIjKlMnOpQrStUv --node 12-345)"
+assert_eq "over the REST API, the same rule: the screen inside the wrapper" "rest board 12:348" \
+  "$(printf '%s' "$OUT" | jq -r '.SOURCE + " " + .KIND + " " + (.SCREENS | split("\t")[0])')"
+assert_eq "the token on stdin there too" "1 0" \
+  "$(grep -c 'stdin-token=1' "$VC_LOG") $(grep -c 'argv-token=yes' "$VC_LOG")"
 
 VC_REF="$TEMPLATE_ROOT/.claude/reference/visual-check.md"
 assert_eq "the procedure ships as a plugin reference" "true" \

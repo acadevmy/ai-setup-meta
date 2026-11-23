@@ -147,9 +147,14 @@ const MAX_DELTA = 35215
 const PIXEL_THRESHOLD = 0.1
 const CELL = 16
 const SHIFT_RANGE = 32 // px searched each way
-const MIN_SHIFT = 2 // a 1 px offset is rounding, not spacing
+const MIN_SHIFT = 3 // 1-2 px is font metrics and rounding; spacing errors sit on the grid
 const MIN_SHIFT_PIXELS = 40 // below this a region is noise
-const SHIFT_EXPLAINS = 0.35 // the offset must remove 65% of the difference
+const SHIFT_EXPLAINS = 0.5 // the offset must halve how far apart the edge profiles are
+const SHIFT_MIN_CHANGE = 0.25 // and unmoved they must differ by a quarter of their edges
+const MIN_EDGE_MASS = 60 // edges a box needs to be judged at all
+const MIN_BAND = 10 // a band thinner than this is a row of dots, not a row of content
+const EDGE = 40 // luminance step that makes an edge
+const BAND_GAP = 3 // pixel rows with no difference that separate two bands
 
 function blend(c, a) {
   return 255 + (c - 255) * a
@@ -176,6 +181,7 @@ function compare() {
   const diff = { width: W, height: H, data: Buffer.alloc(W * H * 4) }
   const cols = Math.ceil(W / CELL), rows = Math.ceil(H / CELL)
   const cells = new Int32Array(cols * rows)
+  const mask = new Uint8Array(W * H)
   let differing = 0
 
   for (let y = 0; y < H; y++) {
@@ -190,6 +196,7 @@ function compare() {
       const j = (y * actual.width + x) * 4
       if (colorDelta(design.data, i, actual.data, j) > limit) {
         differing++
+        mask[y * W + x] = 1
         cells[Math.floor(y / CELL) * cols + Math.floor(x / CELL)]++
         diff.data[d] = 230; diff.data[d + 1] = 0; diff.data[d + 2] = 60; diff.data[d + 3] = 255
       } else {
@@ -235,42 +242,104 @@ function compare() {
   }
   regions.sort((a, b) => b.pixels - a.pixels)
 
-  // Shifts: a region whose content is the same, moved. For each of the largest
-  // regions, slide the capture against the design along one axis at a time;
-  // an offset that removes most of the difference is a spacing error of that
-  // many pixels — the defect this check exists for, and one a global ratio
-  // dilutes on a long page. Font rendering differences do not line up at any
-  // offset, so they are never reported as a shift.
-  const differsAt = (x, y, dx, dy) => {
-    const ax = x + dx, ay = y + dy
-    if (ax < 0 || ay < 0 || ax >= actual.width || ay >= actual.height) return true
-    return colorDelta(design.data, (y * design.width + x) * 4, actual.data, (ay * actual.width + ax) * 4) > limit
+  // Shifts: content that is the frame's, moved — a gap, a padding or a margin
+  // that is not the frame's, the defect this check exists for and one a global
+  // ratio dilutes on a long page. Found on edge profiles, not on pixels: how
+  // many edges each row (or column) of a box holds, in the design and in the
+  // capture, and the offset that lines the two profiles up. Where text sits
+  // survives a font rendered differently by Figma and by Chromium; the pixels
+  // of each glyph do not, so pixel equality would miss every real shift.
+  const lum = (img, x, y) => {
+    const i = (y * img.width + x) * 4, a = img.data[i + 3] / 255
+    return blend(img.data[i], a) * 0.299 + blend(img.data[i + 1], a) * 0.587 + blend(img.data[i + 2], a) * 0.114
   }
+  const edge = (img, x, y, vertical) => {
+    if (x < 1 || y < 1 || x >= img.width || y >= img.height) return 0
+    const other = vertical ? lum(img, x, y - 1) : lum(img, x - 1, y)
+    return Math.abs(lum(img, x, y) - other) > EDGE ? 1 : 0
+  }
+  // Edges per row (vertical) or per column, across the box, for positions
+  // from..to — wider than the box by the search range, so a moved row is in.
+  const profile = (img, box, vertical, from, to) => {
+    const out = new Map()
+    for (let p = from; p < to; p++) {
+      let n = 0
+      if (vertical) for (let x = box.x; x < box.x + box.w; x++) n += edge(img, x, p, true)
+      else for (let y = box.y; y < box.y + box.h; y++) n += edge(img, p, y, false)
+      out.set(p, n)
+    }
+    return out
+  }
+  const bestOffset = (box) => {
+    let best = null
+    for (const vertical of [true, false]) {
+      const lo = vertical ? box.y : box.x
+      const hi = lo + (vertical ? box.h : box.w)
+      const pd = profile(design, box, vertical, lo - SHIFT_RANGE, hi + SHIFT_RANGE)
+      const pa = profile(actual, box, vertical, lo - SHIFT_RANGE, hi + SHIFT_RANGE)
+      let mass = 0
+      for (let p = lo; p < hi; p++) mass += pd.get(p) + pa.get(p)
+      // Both ways round: the design's rows against the capture's moved, and
+      // the capture's against the design's moved back.
+      const cost = (d) => {
+        let c = 0
+        for (let p = lo; p < hi; p++) c += Math.abs(pd.get(p) - pa.get(p + d)) + Math.abs(pa.get(p) - pd.get(p - d))
+        return c
+      }
+      const still = cost(0)
+      if (mass < MIN_EDGE_MASS || still < mass * SHIFT_MIN_CHANGE) continue
+      for (let d = -SHIFT_RANGE; d <= SHIFT_RANGE; d++) {
+        if (Math.abs(d) < MIN_SHIFT) continue
+        const c = cost(d)
+        if (c <= still * SHIFT_EXPLAINS && (!best || c / still < best.ratio)) best = { vertical, d, ratio: c / still }
+      }
+    }
+    if (!best) return null
+    const where = best.vertical ? (best.d > 0 ? 'lower' : 'higher') : best.d > 0 ? 'to the right' : 'to the left'
+    return box.x + ',' + box.y + ' ' + box.w + 'x' + box.h + ': ' + Math.abs(best.d) + ' px ' + where + ' than the frame'
+  }
+
+  // A region joins every differing cell that touches another, so a moved row
+  // can merge with the noise of its neighbour — a password field's dots, an
+  // icon drawn differently — and no single offset explains the whole. Such a
+  // region is cut into bands at the pixel rows with no difference, and each
+  // band is tried on its own.
+  const bands = (r) => {
+    const out = []
+    let from = -1, empty = 0
+    for (let y = r.y; y <= r.y + r.h; y++) {
+      let any = false
+      if (y < r.y + r.h) for (let x = r.x; x < r.x + r.w && !any; x++) any = mask[y * W + x] === 1
+      if (any) {
+        if (from < 0) from = y
+        empty = 0
+      } else if (from >= 0 && (++empty >= BAND_GAP || y === r.y + r.h)) {
+        const to = y - empty + 1
+        let minX = r.x + r.w, maxX = r.x
+        for (let yy = from; yy < to; yy++) for (let x = r.x; x < r.x + r.w; x++) {
+          if (mask[yy * W + x] === 1) { minX = Math.min(minX, x); maxX = Math.max(maxX, x) }
+        }
+        out.push({ x: minX, y: from, w: maxX - minX + 1, h: to - from })
+        from = -1
+        empty = 0
+      }
+    }
+    return out
+  }
+
   const shifts = []
   for (const r of regions.slice(0, 8)) {
     if (r.pixels < MIN_SHIFT_PIXELS) continue
-    // Pad the region by the search range so the moved content is inside it.
-    const x0 = Math.max(0, r.x - SHIFT_RANGE), y0 = Math.max(0, r.y - SHIFT_RANGE)
-    const x1 = Math.min(design.width, r.x + r.w + SHIFT_RANGE), y1 = Math.min(design.height, r.y + r.h + SHIFT_RANGE)
-    const step = (x1 - x0) * (y1 - y0) > 200000 ? 2 : 1
-    const count = (dx, dy) => {
-      let n = 0
-      for (let y = y0; y < y1; y += step) for (let x = x0; x < x1; x += step) if (differsAt(x, y, dx, dy)) n++
-      return n
+    const whole = bestOffset(r)
+    if (whole) {
+      shifts.push(whole)
+      continue
     }
-    const base = count(0, 0)
-    let best = { dx: 0, dy: 0, n: base }
-    for (let d = -SHIFT_RANGE; d <= SHIFT_RANGE; d++) {
-      if (d === 0) continue
-      const v = count(0, d)
-      if (v < best.n) best = { dx: 0, dy: d, n: v }
-      const h = count(d, 0)
-      if (h < best.n) best = { dx: d, dy: 0, n: h }
-    }
-    const moved = Math.max(Math.abs(best.dx), Math.abs(best.dy))
-    if (moved >= MIN_SHIFT && best.n <= base * SHIFT_EXPLAINS) {
-      const where = best.dy > 0 ? 'lower' : best.dy < 0 ? 'higher' : best.dx > 0 ? 'to the right' : 'to the left'
-      shifts.push(r.x + ',' + r.y + ' ' + r.w + 'x' + r.h + ': ' + moved + ' px ' + where + ' than the frame')
+    const parts = bands(r)
+    if (parts.length < 2) continue
+    for (const band of parts) {
+      const found = band.h >= MIN_BAND && band.w >= MIN_BAND ? bestOffset(band) : null
+      if (found) shifts.push(found)
     }
   }
 

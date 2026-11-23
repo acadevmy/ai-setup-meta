@@ -228,36 +228,64 @@ const frameLabel = (f) => (f.name ? f.name + ' (' + f.nodeId + ')' : 'node ' + f
 // A spec row reaches a shell command too: the route, the selector and the
 // threshold are held to a shape, and a row that fails it is no row.
 const SAFE_TEXT = /^[^"`$\\\n\r]{1,200}$/
+// A link can point at a board — a whole flow, every state of every device
+// side by side — and the spec then maps each screen it renders, so one linked
+// frame can have many rows. A frame with none is missing. The comparisons a
+// run makes are capped: past the cap a row is not verified, never dropped.
+const MAX_COMPARED = 12
+
+function visualRow(frame, row) {
+  if (row.notCompared) {
+    return { frame, status: 'not-compared', reason: String(row.notCompared).slice(0, 300), name: String(row.name || '').slice(0, 120) }
+  }
+  const route = String(row.route || '')
+  const selector = String(row.selector || 'page')
+  const threshold = Number(row.threshold)
+  // The node exported may be a child of the linked one — the screen inside a
+  // presentation wrapper or on a board — and the crop takes off what no page
+  // renders. A component frame is captured at its page's viewport, never at
+  // its own width: the page would switch to another breakpoint.
+  const node = String(row.node || '').replace('-', ':')
+  const cropRect = String(row.crop || '')
+  const viewport = String(row.viewport || '')
+  if (!/^(\/|https?:\/\/)/.test(route) || !SAFE_TEXT.test(route) || !SAFE_TEXT.test(selector)) {
+    return { frame, status: 'missing' }
+  }
+  return {
+    frame,
+    status: 'compare',
+    name: String(row.name || '').replace(/[\n\r]/g, ' ').slice(0, 120),
+    route,
+    selector,
+    clip: row.clip === 'viewport' ? 'viewport' : 'full',
+    state: String(row.state || '').replace(/[\n\r]/g, ' ').slice(0, 300),
+    threshold: threshold >= 0 && threshold <= 0.05 ? threshold : 0.02,
+    node: NODE_SHAPE.test(node) ? node : frame.nodeId,
+    crop: /^[0-9]+,[0-9]+,[1-9][0-9]*,[1-9][0-9]*$/.test(cropRect) ? cropRect : '',
+    viewport: /^[1-9][0-9]{1,4}x[1-9][0-9]{1,4}$/.test(viewport) ? viewport : '',
+  }
+}
+
 function visualRows(spec) {
-  return frames.map((frame) => {
-    const row = ((spec && spec.visualChecks) || []).find(
-      (r) => r && String(r.nodeId || '').replace('-', ':') === frame.nodeId,
-    )
-    if (!row) return { frame, status: 'missing' }
-    if (row.notCompared) return { frame, status: 'not-compared', reason: String(row.notCompared).slice(0, 300) }
-    const route = String(row.route || '')
-    const selector = String(row.selector || 'page')
-    const threshold = Number(row.threshold)
-    // The node exported may be a child of the linked one — the screen inside a
-    // presentation wrapper — and the crop takes off what no page renders.
-    const node = String(row.node || '').replace('-', ':')
-    const cropRect = String(row.crop || '')
-    if (!/^(\/|https?:\/\/)/.test(route) || !SAFE_TEXT.test(route) || !SAFE_TEXT.test(selector)) {
-      return { frame, status: 'missing' }
-    }
-    return {
-      frame,
-      status: 'compare',
-      route,
-      selector,
-      clip: row.clip === 'viewport' ? 'viewport' : 'full',
-      state: String(row.state || '').replace(/[\n\r]/g, ' ').slice(0, 300),
-      threshold: threshold >= 0 && threshold <= 0.05 ? threshold : 0.02,
-      node: NODE_SHAPE.test(node) ? node : frame.nodeId,
-      crop: /^[0-9]+,[0-9]+,[1-9][0-9]*,[1-9][0-9]*$/.test(cropRect) ? cropRect : '',
-    }
+  const all = (spec && spec.visualChecks) || []
+  const out = []
+  frames.forEach((frame) => {
+    const mine = all.filter((r) => r && String(r.nodeId || '').replace('-', ':') === frame.nodeId)
+    if (mine.length === 0) out.push({ frame, status: 'missing' })
+    else mine.forEach((row) => out.push(visualRow(frame, row)))
+  })
+  let compared = 0
+  return out.map((row) => {
+    if (row.status !== 'compare') return row
+    compared++
+    return compared <= MAX_COMPARED ? row : Object.assign({}, row, { status: 'over-cap' })
   })
 }
+
+// How a row reads to a person: the linked frame, and the screen when the row
+// compares one inside it.
+const rowLabel = (row) =>
+  frameLabel(row.frame) + (row.name ? ' › ' + row.name : row.node && row.node !== row.frame.nodeId ? ' › node ' + row.node : '')
 
 const VISUAL_ROW = {
   type: 'object',
@@ -271,6 +299,8 @@ const VISUAL_ROW = {
     threshold: { type: 'number', description: 'share of pixels allowed to differ, 0.02 unless photos or live charts; at most 0.05' },
     node: { type: 'string', description: 'the node to export when it is not the linked one: the screen inside a presentation wrapper that carries a label, found with get_metadata' },
     crop: { type: 'string', description: 'x,y,width,height of the exported node the page renders, in its pixels — without a phone status bar or home indicator; empty for all of it' },
+    viewport: { type: 'string', description: 'WxH the page is captured at when the frame is a component or a panel (with a selector): the full-screen frame of the same device on the board, e.g. 1440x926; empty for the frame\'s own size' },
+    name: { type: 'string', description: 'the screen\'s name, when the row compares one screen of a board or a wrapper' },
     notCompared: { type: 'string', description: 'instead of a route: why this frame is not compared (not rendered by this task, native UI)' },
   },
 }
@@ -286,7 +316,7 @@ const VISUAL_SCHEMA = {
         type: 'object',
         required: ['nodeId', 'verdict', 'reason'],
         properties: {
-          nodeId: { type: 'string' },
+          nodeId: { type: 'string', description: 'the export node of the row, as given' },
           verdict: { type: 'string', enum: ['match', 'mismatch', 'unverified'] },
           cause: { type: 'string', description: 'on unverified: the CAUSE visual-check.sh or figma-export.sh gave — environment or page' },
           reason: { type: 'string', description: 'the REASON the script gave, verbatim' },
@@ -302,8 +332,8 @@ function visualLines(rows) {
   return rows
     .filter((r) => r.status === 'compare')
     .map((r) =>
-      '  - ' + frameLabel(r.frame) + ': file ' + r.frame.fileKey + ', export node ' + r.node +
-      (r.crop ? ', design crop ' + r.crop : '') +
+      '  - ' + rowLabel(r) + ': file ' + r.frame.fileKey + ', export node ' + r.node +
+      (r.crop ? ', design crop ' + r.crop : '') + (r.viewport ? ', viewport ' + r.viewport : '') +
       ' -> route ' + r.route + ', selector ' + r.selector + ', clip ' + r.clip +
       ', threshold ' + r.threshold + (r.state ? ', state: ' + r.state : ''),
     )
@@ -584,9 +614,16 @@ const FRAMES_FOR_SPEC = [
   'spec, as ' + plugin + '/reference/visual-check.md describes: the route that',
   'shows it, `page` or the CSS selector of the element it draws, the clip, the',
   'state the page needs to look like it, the threshold — or `notCompared` with',
-  'why, for a frame this task does not render. A linked frame that wraps the',
-  'screen with a label, or draws a phone status bar, gets the screen child as',
-  '`node` (get_metadata) and a `crop` without the chrome. A frame left out is',
+  'why, for a frame this task does not render. First ask what each link is:',
+  '`bash "' + plugin + '/scripts/figma-screens.sh" --file-key <key> --node <id> --json`',
+  'with FIGMA_TOKEN, or `--metadata <file>` with what get_metadata returned. A',
+  '`wrapper` gets its screen as `node`; a `board` gets one row per screen this',
+  'task renders, each with its `node` and `name` (the others are listed in the',
+  'section, not compared). A phone status bar is cropped off (`crop`); a panel',
+  'or component frame is captured with a `selector` at the `viewport` of its',
+  'page — the full-screen frame of the same device on the board. A wrapper',
+  'whose label does not match its name (MISMATCHED) leaves the drawn state in',
+  'doubt: say which one the spec took, in `toConfirm`. A frame left out is',
   'reported to the reviewer as never checked.',
   '',
   frames.map((f) => '  - ' + frameLabel(f) + ' — ' + f.url).join('\n'),
@@ -1133,11 +1170,17 @@ const outcome = {
 // environment that cannot compare (no Playwright, no Chromium, no Figma
 // access) lets it through, unverified, to the top of the merge request.
 const visualUnverified = visual
-  .filter((row) => row.status === 'missing')
-  .map((row) => ({ kind: 'visual', command: frameLabel(row.frame), reason: 'the spec maps no page to this frame, so nothing compared it' }))
+  .filter((row) => row.status === 'missing' || row.status === 'over-cap')
+  .map((row) => ({
+    kind: 'visual',
+    command: rowLabel(row),
+    reason: row.status === 'missing'
+      ? 'the spec maps no page to this frame, so nothing compared it'
+      : 'past the ' + MAX_COMPARED + ' comparisons a run makes: compare it by hand, or split the task',
+  }))
 outcome.visual = visual
   .filter((row) => row.status === 'not-compared')
-  .map((row) => ({ frame: frameLabel(row.frame), url: row.frame.url, verdict: 'not-compared', reason: row.reason }))
+  .map((row) => ({ frame: rowLabel(row), url: row.frame.url, verdict: 'not-compared', reason: row.reason }))
 
 if (toCompare.length > 0) {
   log('Verify — comparing ' + toCompare.length + ' Figma frame(s) with the UI')
@@ -1168,10 +1211,10 @@ if (toCompare.length > 0) {
   const failedFrames = []
   toCompare.forEach((row) => {
     const result = seen && Array.isArray(seen.results)
-      ? seen.results.find((r) => r && String(r.nodeId || '').replace('-', ':') === row.frame.nodeId)
+      ? seen.results.find((r) => r && String(r.nodeId || '').replace('-', ':') === row.node)
       : null
     const entry = {
-      frame: frameLabel(row.frame),
+      frame: rowLabel(row),
       url: row.frame.url,
       route: row.route,
       verdict: result && ['match', 'mismatch', 'unverified'].includes(result.verdict) ? result.verdict : 'unverified',

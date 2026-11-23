@@ -1,0 +1,8 @@
+<section id="60:1" name="Checkout" x="0" y="0" width="1000" height="900">
+  <frame id="60:2" name="Cart" x="0" y="0" width="390" height="844">
+    <frame id="60:3" name="Header" x="0" y="0" width="390" height="56">
+    </frame>
+  </frame>
+  <frame id="60:4" name="Payment" x="500" y="0" width="390" height="844">
+  </frame>
+</section>

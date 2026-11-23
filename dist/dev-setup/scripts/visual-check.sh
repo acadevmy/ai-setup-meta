@@ -45,10 +45,12 @@
 # Three things make a mismatch, each on its own:
 #   - a size that differs by more than 1 px in either direction: on a page
 #     captured full height, that is a spacing difference adding up;
-#   - a shift: a differing region whose content lines up again once moved 2 px
+#   - a shift: a differing region whose edges line up again once moved 3 px
 #     or more along one axis — a gap, a padding or a margin that is not the
-#     frame's. SHIFTS names each one (`x,y WxH: 8 px lower than the frame`),
-#     and a global ratio would dilute it on a long page;
+#     frame's. Read on where edges sit, row by row, not on pixels: a font
+#     Figma and Chromium draw differently is no shift, and a real one next to
+#     it is still found. SHIFTS names each one (`x,y WxH: 8 px lower than the
+#     frame`), and a global ratio would dilute it on a long page;
 #   - more differing pixels than the threshold allows.
 # REGIONS lists the differing areas, largest first, as
 # `x,y WxH (n px)` in the design's coordinates; SIDE_BY_SIDE is design |
@@ -100,7 +102,7 @@ while [ $# -gt 0 ]; do
     --project-dir) PROJECT_DIR="${2-}"; shift 2 ;;
     --timeout) TIMEOUT="${2-}"; shift 2 ;;
     --json) AS_JSON=true; shift ;;
-    -h|--help) sed -n '2,63p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,65p' "$0"; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
