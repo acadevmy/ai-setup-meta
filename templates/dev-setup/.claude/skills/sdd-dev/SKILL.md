@@ -56,7 +56,7 @@ For each step, in the plan's order:
 3. **Implement** it following `reference/methodologies.md`.
 4. **Check** it — the test and lint commands from that same reference. A
    step completing a page a Visual check row names is compared with its
-   frame too: a mismatch stops it like a red test.
+   frame too: fix what is the code's; the closure asks about the rest.
 5. **Update** the breakdown, marking what is done and what is in progress.
 6. **Log** a non-obvious choice the step made in the spec's `## Decision log`,
    with the reason, before moving on.

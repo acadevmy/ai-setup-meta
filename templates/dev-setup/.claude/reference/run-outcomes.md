@@ -41,11 +41,7 @@ feedback on the merge request, handled like any other.
 
 `stage` says where: `intake` (the launcher passed bad arguments, or three empty
 quality commands — a bug in the launch call, fix it), `spec`, `dev`, or `verify`
-(the project lint, typecheck or test command came back red, or the UI does not
-match a Figma frame the task links — `visual` names each frame, and `output`
-its reason, `SHIFTS` and the side-by-side image's path: open that image before
-anything else, it shows the defect, and a frame the developer judges wrong is
-settled as `${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md` says).
+(the project lint, typecheck or test command came back red).
 
 **A run that broke** — the workflow came back with neither outcome, or with
 none at all — is handled as a `failed` at stage `broken`: the raw result is its
@@ -133,8 +129,21 @@ not — `{ kind, command, reason }`: declared by the project, but their program,
 service or runtime is not here (the launcher's `UNAVAILABLE`, or a command that
 exited 126/127 at Verify). A missing toolchain does not stop a run: it goes to
 the end, and the merge request says which checks nobody ran. When every
-command is unverified, `output` is empty and nothing at all was checked. Two things are left, and they are the two the
-workflow deliberately does not do:
+command is unverified, `output` is empty and nothing at all was checked.
+
+**A Figma frame that does not match** does not stop a run: it is in `visual`
+with verdict `mismatch`, its `shifts` and its `sideBySide` image. You are the
+person the run could not ask, so ask now, before the push: show each image
+and its shifts, then one `AskUserQuestion` (header `Visual`) — **Open the
+merge request** (the differences go into it, kept by the developer) or
+**Back to development** (no push, no merge request; the branch and the
+worktree stay, the task stays `IN PROGRESS`, and `Next:` is
+`/dev-setup:sdd <taskId>` to fix them). End the turn on the call; under
+`multi-sdd`, ask for each run as its outcome lands.
+`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`, step 5, is the rule.
+
+Two things are left, and they are the two the workflow deliberately does not
+do:
 
 ```bash
 git push -u origin "<branch>"
@@ -189,9 +198,9 @@ plus what this flow owes a reviewer who was not watching:
   does: a green merge request that hides an unrun suite is the defect this
   section exists to prevent.
 - **the visual check**, when `visual` holds anything: one line per Figma
-  frame — the frame as a link, its verdict (`match`, `not-compared` and why)
-  and the route it was compared at. A frame that could not be compared is in
-  **not verified** with kind `visual`.
+  frame — the frame as a link, its verdict, the route it was compared at —
+  the mismatches first, each with its shifts and the developer's choice. A
+  frame that could not be compared is in **not verified** with kind `visual`.
 - **the real test output**, in a fenced block: the `output` field, as it came
   back. A reviewer has to see the suite passing without re-running it.
 - **to confirm**, at the top, when `toConfirm` or `deviations` holds anything:

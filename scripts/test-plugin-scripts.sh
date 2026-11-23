@@ -2530,6 +2530,7 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
       && !(prompts['dev:DE-1'] || '').includes('sdd-start.sh'),
     verifyInPrepared: (prompts['verify:DE-1'] || '').includes('cd "/repo/.claude/worktrees/feat-DE-1"'),
     visualAgent: calls.includes('visual:DE-1'),
+    visualKept: (out.visual || []).filter((v) => v.verdict === 'mismatch').map((v) => v.frame + ' ' + v.shifts + ' (' + v.sideBySide + ')').join('|'),
     visual: (out.visual || []).map((v) => v.verdict).join(','),
     output: out.output || '',
     specFrames: (prompts['spec:DE-1'] || '').includes('Sign up (12:345)')
@@ -2660,19 +2661,22 @@ NODEJS
   assert_eq "the dev agent compares as it builds, on the spec's route" "true" "$(field "$SIM" devVisual)"
   assert_eq "the frame is exported 1:1 through the MCP, checked by figma-export.sh" "true" "$(field "$SIM" visualExport)"
   SIM=$(sim "{$ROWS,\"visual\":[{\"nodeId\":\"12:345\",\"verdict\":\"mismatch\",\"reason\":\"content is displaced\",\"shifts\":\"16,1216 720x80: 8 px lower than the frame\",\"sideBySide\":\"/g/side.png\"}]}" "$FRAMES_TASK")
-  assert_eq "a mismatch fails the run at verify, before the commands" "failed verify false" \
-    "$(field "$SIM" status) $(field "$SIM" stage) $(field "$SIM" verified)"
-  assert_contains "naming the frame" "$(field "$SIM" reason)" "Sign up (12:345)"
-  assert_contains "with the shift and the image a person opens" "$(field "$SIM" output)" "8 px lower than the frame (/g/side.png)"
+  # A mismatch does not stop the run: a frame can be the one that is wrong, so
+  # a person decides — the launcher asks one — and the merge request has it.
+  assert_eq "a mismatch does not stop the run: the commands still run, the merge request comes" \
+    "ready-for-mr  true" "$(field "$SIM" status) $(field "$SIM" stage) $(field "$SIM" verified)"
+  assert_eq "the difference leads the visual entries, with its shift and its image" \
+    "mismatch,not-compared|Sign up (12:345) 16,1216 720x80: 8 px lower than the frame (/g/side.png)" \
+    "$(field "$SIM" visual)|$(field "$SIM" visualKept)"
   SIM=$(sim "{$ROWS,\"visual\":[{\"nodeId\":\"12:345\",\"verdict\":\"unverified\",\"cause\":\"page\",\"reason\":\"the page did not load\"}]}" "$FRAMES_TASK")
-  assert_eq "a page that did not load is a failure, not an unverified frame" "failed verify" \
-    "$(field "$SIM" status) $(field "$SIM" stage)"
+  assert_eq "a page that did not load goes on, and the frame is listed as not verified" \
+    "ready-for-mr visual=Sign up (12:345)" "$(field "$SIM" status) $(field "$SIM" unverified)"
   SIM=$(sim "{$ROWS,\"visual\":[{\"nodeId\":\"12:345\",\"verdict\":\"unverified\",\"cause\":\"environment\",\"reason\":\"no Playwright\"}]}" "$FRAMES_TASK")
   assert_eq "an environment that cannot compare reaches the merge request, unverified" \
     "ready-for-mr visual=Sign up (12:345)" "$(field "$SIM" status) $(field "$SIM" unverified)"
   SIM=$(sim "{$ROWS,\"visual\":\"dead\"}" "$FRAMES_TASK")
-  assert_eq "a visual agent that returns nothing proves nothing: failed" "failed verify" \
-    "$(field "$SIM" status) $(field "$SIM" stage)"
+  assert_eq "a visual agent that returns nothing proves nothing: every frame not verified" \
+    "ready-for-mr visual=Sign up (12:345)" "$(field "$SIM" status) $(field "$SIM" unverified)"
   SIM=$(sim '{"rows":[{"nodeId":"12:345","route":"/signup","threshold":0.5}],"visual":[{"nodeId":"12:345","verdict":"match","reason":"ok"}]}' "$FRAMES_TASK")
   assert_eq "a frame the spec maps nowhere goes to the merge request as never checked" \
     "ready-for-mr visual=Mobile (12:400)" "$(field "$SIM" status) $(field "$SIM" unverified)"
@@ -2696,8 +2700,9 @@ NODEJS
   assert_eq "a panel is captured with its selector at its page's viewport" "true" "$(field "$SIM" visualViewport)"
   assert_eq "the spec author is told how to tell a board from a screen" "true" "$(field "$SIM" specBoards)"
   SIM=$(sim "{$BOARD,\"visual\":[{\"nodeId\":\"50:22\",\"verdict\":\"match\",\"reason\":\"ok\"},{\"nodeId\":\"50:43\",\"verdict\":\"mismatch\",\"reason\":\"displaced\"}]}" "$FRAMES_TASK")
-  assert_eq "one screen of the board off fails the run, naming that screen" "failed Sign up (12:345) › M · Empty password" \
-    "$(field "$SIM" status) $(field "$SIM" reason | sed 's/.*frames: //')"
+  assert_eq "one screen of the board off: reported by that screen's name, first" \
+    "ready-for-mr mismatch,not-compared,match Sign up (12:345) › M · Empty password" \
+    "$(field "$SIM" status) $(field "$SIM" visual) $(field "$SIM" visualKept | sed 's/ .(.*//; s/ $//')"
   CAP_ROWS="$(jq -nc '[range(1; 14) | {nodeId: "12:345", node: "60:\(.)", name: "S\(.)", route: "/s"}] + [{nodeId: "12:400", notCompared: "web only"}]')"
   CAP_SEEN="$(jq -nc '[range(1; 14) | {nodeId: "60:\(.)", verdict: "match", reason: "ok"}]')"
   SIM=$(sim "{\"rows\":$CAP_ROWS,\"visual\":$CAP_SEEN}" "$FRAMES_TASK")
@@ -5243,8 +5248,8 @@ NODEJS
   assert_eq "exported over the REST API, never the MCP" "true" "$(dfield "$SIM" visualRest)"
   assert_eq "and the dev agent compares before its one commit" "true" "$(dfield "$SIM" devVisualBeforeCommit)"
   SIM=$(dsim '{"rows":[{"nodeId":"12:345","route":"/signup"}],"visual":[{"nodeId":"12:345","verdict":"mismatch","reason":"the UI renders at 1440x2900"}]}' "$DFRAMES")
-  assert_eq "a mismatch fails the headless run too, and the checks never start" \
-    "failed verify spec,dev,visual" "$(dfield "$SIM" status) $(dfield "$SIM" stage) $(dfield "$SIM" agents)"
+  assert_eq "a headless run with nobody to ask goes on, and reports the difference" \
+    "ready-for-mr spec,dev,visual,verify mismatch" "$(dfield "$SIM" status) $(dfield "$SIM" agents) $(dfield "$SIM" visual)"
   assert_contains "and the result says why the Challenge was skipped" "$(dfield "$SIM" skipped)" "small task"
   assert_eq "the spec agent reads the task from its file" "true" "$(dfield "$SIM" taskFile)"
   assert_eq "Dev works in the checkout, never in a worktree" "false true" \
@@ -5476,6 +5481,17 @@ assert_eq "the template's own test placeholder is replaced, not kept" "false" \
   "$(printf '%s' "$BODY" | grep -q 'Test A' && echo true || echo false)"
 assert_eq "the commits are the ones git holds, not the ones the agent reported" \
   '["feat(greet): the commit git holds [DE-7]"]' "$(jq -c .commits "$AD_OUT/result.json")"
+
+# A Figma frame that differs: nobody was there to ask, so it opens the body,
+# with its shift, ahead of everything else.
+jq '.visual = [{"frame":"Sign up (12:345)","url":"https://www.figma.com/design/x/App?node-id=12-345","route":"/signup",
+   "verdict":"mismatch","reason":"content is displaced","shifts":"16,96 340x48: 8 px lower than the frame"}]' \
+  "$AD_OUT/outcome.json" > "$AD_OUT/outcome-visual.json"
+ad auto-dev-report.sh --outcome "$AD_OUT/outcome-visual.json" --launch "$AD_OUT/launch.json" >/dev/null
+assert_eq "a frame that differs opens the body" "## Visual check against Figma" "$(head -1 "$AD_OUT/pr-body.md")"
+assert_contains "with its shift, and that nobody was asked" "$(cat "$AD_OUT/pr-body.md")" \
+  "8 px lower than the frame (nobody was asked: the reviewer decides)"
+ad auto-dev-report.sh --outcome "$AD_OUT/outcome.json" --launch "$AD_OUT/launch.json" >/dev/null
 
 # The commit gate ran out of time on this branch: its note opens the body.
 AD_NOTE="$(cd "$AD_REPO" && . "$PLUGIN_SCRIPTS/common.sh" && gate_note_file "feat/DE-7_add-a-greeting")"

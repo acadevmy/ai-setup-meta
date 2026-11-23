@@ -8,10 +8,12 @@ reproduces the reading. Only the rendering shows it. So when a task links Figma
 frames, the UI is compared with each frame **as rendered**: the frame exported
 at scale 1, the page captured at the same size, pixel against pixel.
 
-**The check blocks.** A mismatch is a defect of the change, like a red test:
-the work does not reach a commit, or an autonomous run a merge request, until
-the frame and the page agree — or, interactively only, until the developer
-rules that the frame is the one at fault.
+**The check reports; a person decides.** A frame is a drawing, and a badly
+built one differs from a page that is right, so a mismatch does not stop the
+work by itself. With a developer in the session, every mismatch is put in
+front of them — the composite, the shifts — and they choose: back to
+development, or go on. With nobody to ask, the run goes on. Either way every
+difference reaches the merge request: nothing the check found is dropped.
 
 ## Index
 
@@ -22,7 +24,7 @@ rules that the frame is the one at fault.
 - [2. Serve the page](#2-serve-the-page)
 - [3. Compare](#3-compare)
 - [4. Read the result](#4-read-the-result)
-- [When the frame is wrong](#when-the-frame-is-wrong)
+- [5. The developer decides — or the merge request says it](#5-the-developer-decides--or-the-merge-request-says-it)
 - [What it does not cover](#what-it-does-not-cover)
 
 ## When it applies
@@ -153,29 +155,37 @@ device scale factor 1, animations off, fonts loaded, and compares.
 | Exit | `VERDICT` | What to do |
 |---|---|---|
 | 0 | `match` | Done for this frame. |
-| 4 | `mismatch` | **Read `SIDE_BY_SIDE`** — design, page, diff in red. `SHIFTS` names content that is the frame's, moved (`16,1216 720x80: 8 px lower than the frame`); `REGIONS` the areas that differ; a size gap is spacing adding up. Find the cause on the frame — `get_design_context` on that node gives the exact padding, gap and line height — fix the code, compare again. |
-| 3, `CAUSE=page` | `unverified` | The page did not load or the selector matched nothing: the server, the route or the state is wrong. Fix it and compare again. |
+| 4 | `mismatch` | **Read `SIDE_BY_SIDE`** — design, page, diff in red. `SHIFTS` names content that is the frame's, moved (`16,1216 720x80: 8 px lower than the frame`); `REGIONS` the areas that differ; a size gap is spacing adding up. Find the cause on the frame — `get_design_context` on that node gives the exact padding, gap and line height. Fix what is the code's and compare again; what is left goes to step 5. |
+| 3, `CAUSE=page` | `unverified` | The page did not load or the selector matched nothing: the server, the route or the state is wrong. Fix it and compare again; still failing, the frame is **not verified**, with the reason. |
 | 3, `CAUSE=environment` | `unverified` | No Node, no Playwright in the project, no Chromium, or the sandbox refusing `localhost`. Install nothing: the frame is **not verified**, and the merge request says which and why. |
 
-A shift is never "close enough": the frame said 24 px and the page shows 32.
-Fix the value the frame states, not the threshold — lowering the bar to pass
-is the one move the check exists to refuse.
+Never raise a threshold to make a frame pass: a difference hidden is a
+difference nobody decides on.
 
-## When the frame is wrong
+## 5. The developer decides — or the merge request says it
 
-The frame is a drawing, and drawings have defects of their own: a stray
-nudge, a text style off its scale, two cards of one list spaced differently.
-**Interactively**, a mismatch that the frame causes is the developer's call,
-asked once per frame with the composite in front of them. Accepted, it goes
-into the spec's `## Decision log`:
+What is left after the fixes — a mismatch the code cannot or should not
+remove: a stray nudge in the frame, a text style off its scale, two cards of
+one list spaced differently — is a decision, not a failure.
 
-```
-- <date> · **Visual divergence accepted: <frame name>**: <what differs, and why the frame is wrong>. Discarded: matching the frame, because <reason>.
-```
+- **A developer is there** (`sdd`, `quick`, the `auto-sdd` and `multi-sdd`
+  launchers before the merge request): show each mismatched frame — its
+  `SIDE_BY_SIDE` image, `SHIFTS`, `REASON` — and ask **one**
+  `AskUserQuestion` (header `Visual`): **Back to development** (fix the
+  differences named, then compare again) or **Continue** (they go to the
+  merge request as they are). End the turn on the call. On Continue, one
+  line per frame in the spec's `## Decision log`:
 
-and the merge request lists it under the visual check. **Autonomously**, there
-is nobody to make that call: the run fails, and the failure names the frame,
-`SHIFTS` and the composite's path, so the person who picks it up can.
+  ```
+  - <date> · **Visual difference kept: <frame name>**: <what differs — the shift, the size>. <why, in the developer's words, or "not given">.
+  ```
+
+- **Nobody is there** (a headless run): go on.
+
+Either way the merge request has a **visual check** section, the mismatches
+first: each frame as a link, its verdict, `SHIFTS` and `REASON`, and whether
+a person kept it or nobody was asked. A frame not verified is listed with its
+reason. A reviewer of a UI change reads that section before the diff.
 
 ## What it does not cover
 

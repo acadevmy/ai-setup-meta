@@ -55,7 +55,7 @@ feature without a spec, and never abandon a nearly-done change.
 3. **The change itself.** Run the project's test and lint commands on what
    you touched. Figma frames in the task (`figma-frames.sh`) that the change
    renders are compared per `${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`:
-   a mismatch blocks the commit.
+   a mismatch goes to the developer, who fixes or continues.
 
 4. **Commit.** One Conventional Commit, with the custom id, if any:
    `fix(auth): reject an expired refresh token [DE-123]`. The commit hook runs

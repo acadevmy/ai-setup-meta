@@ -566,7 +566,7 @@ The skills reach them as `${CLAUDE_PLUGIN_ROOT}/reference/<name>.md`:
 | `worktree.md` | Working in a worktree: the fork point, `.worktreeinclude`, the dependency install, the port offset, the overlap warning, what isolation refuses |
 | `readable-references.md` | How every reference a person reads is written — a document as a link whose text names the topic, a rule by its name, an id with its title — and the test each one passes. Cited by `sdd-spec`, `sdd-discovery`, `sdd-plan`, `vcs-ops` and both workflows |
 | `run-outcomes.md` | What a finished `auto-sdd` run returns and what a launcher does with each outcome: the merge request and what it owes the reviewer, the bail-out, the resume. Cited by both launchers, `auto-sdd` and `multi-sdd` |
-| `visual-check.md` | The UI against its Figma frames, rendered 1:1: the spec's `## Visual check` rows, the scale-1 export, the capture, how each verdict is read, and the one way past a mismatch — the developer ruling the frame wrong, interactively, in the decision log. Cited by `sdd-spec`, `sdd-dev`, `quick`, the `sdd` closure and both workflows |
+| `visual-check.md` | The UI against its Figma frames, rendered 1:1: what a link points at (screen, wrapper, board), the spec's `## Visual check` rows, the scale-1 export, the capture, how each verdict is read, and who decides on a mismatch — the developer when there is one (back to development, or continue into the decision log), nobody in a headless run; either way the merge request carries every difference. Cited by `sdd-spec`, `sdd-dev`, `quick`, the `sdd` closure, `run-outcomes.md` and both workflows |
 
 **The public surface is the command table of the generated `AGENTS.md`** —
 `setup`, `story`, `quick`, `kickoff`, `grill-me`, `sdd`, `auto-sdd`,

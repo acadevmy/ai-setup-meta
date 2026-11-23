@@ -589,11 +589,13 @@ as one thing and renders as another, and only the rendering shows it.
 | The capture | the page at the frame's size, device scale factor 1, animations off, with **your project's Playwright** (`visual-check.sh`) |
 | The verdict | `match`, or `mismatch` when the size differs, when content is the frame's but **displaced** by 3 px or more (`8 px lower than the frame`, read on where edges sit, so a font Figma draws differently is not a shift), or when more pixels differ than the threshold allows |
 
-**A mismatch blocks**, like a red test: `sdd` goes back to development before
-the commit, `quick` does not commit, an autonomous run fails at `verify` with
-the side-by-side image's path. When the frame is the one at fault,
-interactively you say so once per frame and it is written into the spec's
-decision log and the merge request; an autonomous run cannot make that call.
+**A mismatch is yours to decide, never silently passed.** A frame can be the
+one that is wrong, so the check does not stop the work: before the commit
+(`sdd`, `quick`), or before the merge request (`auto-sdd`, `multi-sdd`), you
+see each differing frame — the side-by-side image, the shifts — and choose
+**Back to development** or **Continue**. Continue writes the difference into
+the spec's decision log and the merge request. A headless run has nobody to
+ask: it goes on, and its merge request opens with the differences.
 A frame nobody could compare — no Playwright in the project, no Chromium, no
 `FIGMA_TOKEN` on the runner — is listed as **not verified** at the top of the
 merge request, never silently passed. The procedure is

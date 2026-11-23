@@ -665,7 +665,8 @@ const packLines = (pack) =>
 // The frames the spec has to map, when the task links any.
 const FRAMES_FOR_SPEC = [
   'The task links these Figma frames. After development each one is compared,',
-  'pixel for pixel, with the page that renders it, and a mismatch fails the run.',
+  'pixel for pixel, with the page that renders it, and every difference goes to',
+  'the merge request.',
   'Map every one, in `visualChecks` and in a `## Visual check` section of the',
   'spec, as ' + plugin + '/reference/visual-check.md describes: the route that',
   'shows it, `page` or the CSS selector of the element it draws, the clip, the',
@@ -1149,11 +1150,14 @@ const dev = await agent(
           '',
           VISUAL_EXPORT,
           '',
-          'A mismatch is a defect of your implementation, like a red test: read the',
-          'side-by-side image and SHIFTS, fix the code and compare again until it',
-          'matches. Never raise a threshold to pass. A frame you could not compare',
-          'for an environment reason, say so in `notes` and install nothing. Stop',
-          'the dev server when you are done. Verify compares again.',
+          'A mismatch: read the side-by-side image and SHIFTS, take the exact values',
+          'from the frame, fix what is your code\'s and compare again. A difference',
+          'you cannot remove without departing from the spec — the frame itself is',
+          'off — leave it and say in `notes` which and why: it goes to the merge',
+          'request, and nobody stops the run on it. Never raise a threshold to pass.',
+          'A frame you could not compare (no Playwright, no Chromium, no Figma',
+          'access), say so in `notes` and install nothing. Stop the dev server when',
+          'you are done. Verify compares again.',
           '',
         ].join('\n')
       : '',
@@ -1263,11 +1267,13 @@ const outcome = {
   notes: dev.notes || '',
 }
 
-// The visual check, before the commands: its verdict is decided here, from
-// what the scripts printed. A mismatch, a page that did not load and a frame
-// the agent did not report all fail the run; only an environment that cannot
-// compare (no FIGMA_TOKEN, no Playwright, no Chromium) lets it through,
-// unverified, to the top of the merge request.
+// The visual check, before the commands. It never stops the run: a frame is a
+// drawing, and a badly built one differs from a page that is right, so a
+// person decides — the launcher asks one when there is one, and the merge
+// request carries every difference either way. Here the outcome is only
+// sorted, from what the scripts printed: a mismatch goes to `visual` with its
+// shifts and its image; a frame nobody could compare — the environment, a
+// page that did not load, a frame the agent did not report — to `unverified`.
 const visualUnverified = visual
   .filter((row) => row.status === 'missing' || row.status === 'over-cap')
   .map((row) => ({
@@ -1306,7 +1312,6 @@ if (toCompare.length > 0) {
     ].join('\n'),
     { label: 'visual:' + task.id, phase: 'Verify', model: MODEL.visual, effort: 'low', schema: VISUAL_SCHEMA },
   )
-  const failedFrames = []
   toCompare.forEach((row) => {
     const result = seen && Array.isArray(seen.results)
       ? seen.results.find((r) => r && String(r.nodeId || '').replace('-', ':') === row.node)
@@ -1320,24 +1325,16 @@ if (toCompare.length > 0) {
       shifts: result ? String(result.shifts || '') : '',
       sideBySide: result ? String(result.sideBySide || '') : '',
     }
-    outcome.visual.push(entry)
-    if (entry.verdict === 'match') return
-    if (entry.verdict === 'unverified' && result && result.cause === 'environment') {
+    if (entry.verdict === 'unverified') {
       visualUnverified.push({ kind: 'visual', command: entry.frame, reason: entry.reason })
       return
     }
-    failedFrames.push(entry)
+    outcome.visual.push(entry)
   })
-  if (failedFrames.length > 0) {
-    return Object.assign({ status: 'failed', stage: 'verify' }, outcome, {
-      reason: 'the UI does not match its Figma frames: ' + failedFrames.map((f) => f.frame).join(', '),
-      output: failedFrames
-        .map((f) => '- ' + f.frame + ' at ' + f.route + ': ' + f.verdict + ' — ' + f.reason +
-          (f.shifts ? ' — ' + f.shifts : '') + (f.sideBySide ? ' (' + f.sideBySide + ')' : ''))
-        .join('\n'),
-      unverified: unverified.concat(visualUnverified),
-    })
-  }
+  // Mismatches first: they are what a person has to look at.
+  outcome.visual.sort((a, b) => (a.verdict === 'mismatch' ? 0 : 1) - (b.verdict === 'mismatch' ? 0 : 1))
+  const mismatched = outcome.visual.filter((v) => v.verdict === 'mismatch').length
+  if (mismatched > 0) log('Verify — ' + mismatched + ' Figma frame(s) differ from the UI: they go to the merge request')
 }
 
 // Nothing this environment can run: the run still reaches the merge request,
