@@ -6475,7 +6475,7 @@ assert_contains "Figma's own error is reported" \
 assert_contains "an empty render is a refusal, not a file" \
   "$(fx --file-key EmPtYeMpTyEmPtYeMpTy12 --node 12:345 --out "$VC_DIR/f/x.png" | jq -r .REASON)" "rendered no image"
 assert_contains "a node id that is not one is refused before any call" \
-  "$(fx --file-key AbCdEfGhIjKlMnOpQrStUv --node '1;rm' --out "$VC_DIR/f/x.png" | jq -r .REASON)" "not a frame's node id"
+  "$(fx --file-key AbCdEfGhIjKlMnOpQrStUv --node '1;rm' --out "$VC_DIR/f/x.png" | jq -r .REASON)" "not a node id"
 OUT="$(fx --url https://s3.example/frame.png --out "$VC_DIR/f/mcp.png")"
 assert_eq "a URL the MCP returned is downloaded and checked the same way" "url 348" \
   "$(printf '%s' "$OUT" | jq -r '.SOURCE + " " + .WIDTH')"

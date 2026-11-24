@@ -42,7 +42,6 @@ NODE=""
 URL=""
 OUT=""
 AS_JSON=false
-API_BASE="${FIGMA_API_BASE:-https://api.figma.com/v1}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -81,24 +80,10 @@ refuse() {
 }
 
 if [ -z "$URL" ]; then
-  # Both reach a URL, so both are held to the shape Figma gives them.
-  printf '%s' "$FILE_KEY" | grep -qE '^[A-Za-z0-9]{10,128}$' || refuse "\"$FILE_KEY\" is not a Figma file key"
-  NODE="$(printf '%s' "$NODE" | tr '-' ':')"
-  printf '%s' "$NODE" | grep -qE '^[0-9]+:[0-9]+$' || refuse "\"$NODE\" is not a frame's node id (12:345)"
-
-  TOKEN="${FIGMA_TOKEN:-}"
-  [ -n "$TOKEN" ] || refuse "FIGMA_TOKEN is not set: the REST export needs a Figma personal access token (File content: read-only)"
-  printf '%s' "$TOKEN" | grep -qE '^[A-Za-z0-9_-]+$' \
-    || refuse "FIGMA_TOKEN does not look like a Figma token (letters, digits, dash, underscore)"
-
-  ANSWER="$(printf 'header = "X-Figma-Token: %s"\n' "$TOKEN" \
-    | curl --silent --show-error --max-time 60 --config - \
-        "$API_BASE/images/$FILE_KEY?ids=${NODE/:/%3A}&format=png&scale=1")" \
-    || refuse "Figma did not answer: the API is unreachable from here"
-  printf '%s' "$ANSWER" | jq -e . >/dev/null 2>&1 || refuse "Figma answered with something that is not JSON"
-  ERR="$(printf '%s' "$ANSWER" | jq -r '.err // empty | tostring')"
-  [ -z "$ERR" ] || refuse "Figma refused the export: $ERR"
-  URL="$(printf '%s' "$ANSWER" | jq -r --arg n "$NODE" '.images[$n] // empty')"
+  figma_rest_get "$FILE_KEY" "$NODE" '/images/{key}?ids={node}&format=png&scale=1' "the export" \
+    || refuse "$FIGMA_REFUSAL"
+  NODE="$FIGMA_NODE"
+  URL="$(printf '%s' "$FIGMA_ANSWER" | jq -r --arg n "$NODE" '.images[$n] // empty')"
   [ -n "$URL" ] || refuse "Figma rendered no image for node $NODE: it is empty, hidden, or not in file $FILE_KEY"
 fi
 

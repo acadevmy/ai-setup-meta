@@ -189,41 +189,16 @@ const unverified = unavailable.map((kind) => ({
 //
 // A task that links Figma frames is compared with them as rendered (the
 // visual check, reference/visual-check.md), and the comparison blocks like a
-// red test. Which frames is decided here, in code, the way figma-frames.sh
-// reads them — a link with a node-id is a frame, a bare file link is not — so
-// an agent cannot forget one: every frame needs a row in the spec, and a frame
+// red test. The frames are the ones figma-frames.sh read from the task file —
+// auto-dev-args.sh passes them, since this script cannot read the file — so an
+// agent cannot forget one: every frame needs a row in the spec, and a frame
 // without one goes to the merge request as not verified.
-const FIGMA_LINK = /https?:\/\/(?:www\.)?figma\.com\/(?:design|file|proto)\/([A-Za-z0-9]+)(?:\/branch\/([A-Za-z0-9]+))?[^\s)\]>]*/g
 const FRAME_KEY_SHAPE = /^[A-Za-z0-9]{10,128}$/
 const NODE_SHAPE = /^[0-9]+:[0-9]+$/
 
-function figmaFrames(text) {
-  const named = {}
-  const found = []
-  String(text || '').replace(/\[([^\]]*)\]\((https?:\/\/(?:www\.)?figma\.com\/[^)\s]+)\)/g, (all, name, url) => {
-    named[url] = name
-    return all
-  })
-  for (const match of String(text || '').matchAll(FIGMA_LINK)) {
-    // A link that ends a sentence carries its punctuation: it is not the URL's.
-    const url = match[0].replace(/[.,;:!?]+$/, '')
-    const id = (url.match(/[?&]node-id=([0-9]+(?:-|:|%3[Aa])[0-9]+)/) || [])[1]
-    if (!id) continue
-    const frame = {
-      fileKey: match[2] || match[1],
-      nodeId: id.replace(/%3[Aa]/, ':').replace('-', ':'),
-      name: named[url] || '',
-      url: url,
-    }
-    if (!found.some((f) => f.fileKey === frame.fileKey && f.nodeId === frame.nodeId)) found.push(frame)
-  }
-  return found
-}
-
-// Frames passed by the launcher (auto-dev reads them from the task file with
-// figma-frames.sh) are held to the shape Figma gives them: they reach a shell
-// command inside an agent prompt.
-const frames = (Array.isArray(input.frames) ? input.frames : figmaFrames(task.description))
+// They are held to the shape Figma gives them: they reach a shell command
+// inside an agent prompt.
+const frames = (Array.isArray(input.frames) ? input.frames : [])
   .map((f) => ({
     fileKey: String((f && f.fileKey) || ''),
     nodeId: String((f && f.nodeId) || '').replace('-', ':'),

@@ -55,7 +55,6 @@ METADATA=""
 FILE_KEY=""
 NODE=""
 AS_JSON=false
-API_BASE="${FIGMA_API_BASE:-https://api.figma.com/v1}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -123,21 +122,10 @@ if [ -n "$METADATA" ]; then
 else
   [ -n "$FILE_KEY" ] && [ -n "$NODE" ] || die "--metadata, or --file-key and --node, are required (see --help)"
   command -v curl >/dev/null 2>&1 || die "curl not found"
-  printf '%s' "$FILE_KEY" | grep -qE '^[A-Za-z0-9]{10,128}$' || refuse "\"$FILE_KEY\" is not a Figma file key"
-  NODE="$(printf '%s' "$NODE" | tr '-' ':')"
-  printf '%s' "$NODE" | grep -qE '^[0-9]+:[0-9]+$' || refuse "\"$NODE\" is not a node id (12:345)"
-  TOKEN="${FIGMA_TOKEN:-}"
-  [ -n "$TOKEN" ] || refuse "FIGMA_TOKEN is not set: reading the node over the REST API needs a Figma personal access token"
-  printf '%s' "$TOKEN" | grep -qE '^[A-Za-z0-9_-]+$' \
-    || refuse "FIGMA_TOKEN does not look like a Figma token (letters, digits, dash, underscore)"
-  ANSWER="$(printf 'header = "X-Figma-Token: %s"\n' "$TOKEN" \
-    | curl --silent --show-error --max-time 60 --config - \
-        "$API_BASE/files/$FILE_KEY/nodes?ids=${NODE/:/%3A}&depth=3")" \
-    || refuse "Figma did not answer: the API is unreachable from here"
-  printf '%s' "$ANSWER" | jq -e . >/dev/null 2>&1 || refuse "Figma answered with something that is not JSON"
-  ERR="$(printf '%s' "$ANSWER" | jq -r '.err // empty | tostring')"
-  [ -z "$ERR" ] || refuse "Figma refused the read: $ERR"
-  TREE="$(printf '%s' "$ANSWER" | jq --arg n "$NODE" '
+  figma_rest_get "$FILE_KEY" "$NODE" '/files/{key}/nodes?ids={node}&depth=3' "the read" \
+    || refuse "$FIGMA_REFUSAL"
+  NODE="$FIGMA_NODE"
+  TREE="$(printf '%s' "$FIGMA_ANSWER" | jq --arg n "$NODE" '
     def kind: if . == "TEXT" then "text" elif . == "SECTION" then "section"
               elif (. == "FRAME" or . == "INSTANCE" or . == "COMPONENT" or . == "COMPONENT_SET" or . == "GROUP") then "frame"
               else "other" end;
