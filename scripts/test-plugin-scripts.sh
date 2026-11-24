@@ -1942,24 +1942,33 @@ AGENTS_GEN="$TEMPLATE_ROOT/setup/reference/agents-generation.md"
 # there runs, so the AGENTS.md checks below read the interactive surface only.
 # The developer guide documents them all the same (check 15). The optional
 # `devcontainer` command is left out for the same reason: it is typed once per
-# repository, and only on a project whose unattended runs go to GCP.
+# repository, and only on a project whose unattended runs go to GCP. So is
+# `visual-check`: the flows already run the check on every task with Figma
+# frames, and the command alone is for a page checked outside any task.
 HEADLESS_SKILLS="auto-dev auto-dev-select"
-OPTIONAL_SKILLS="devcontainer"
+OPTIONAL_SKILLS="devcontainer visual-check"
 ALL_PUBLIC_SKILLS="$(for S in "$SDD_DIR"/*/SKILL.md "$REPO_ROOT"/shared/skills/*/SKILL.md \
                           "$TEMPLATE_ROOT/setup/SKILL.md"; do
     FM="$(frontmatter_of "$S")"
     printf '%s\n' "$FM" | grep -q '^user-invocable: true' || continue
     printf '%s\n' "$FM" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort)"
-PUBLIC_SKILLS="$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -vxF -e auto-dev -e auto-dev-select -e devcontainer)"
+PUBLIC_SKILLS="$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -vxF -e auto-dev -e auto-dev-select -e devcontainer -e visual-check)"
 assert_eq "the headless commands are exactly the two auto-dev ones" \
   "$HEADLESS_SKILLS" "$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -xF -e auto-dev -e auto-dev-select | tr '\n' ' ' | sed 's/ $//')"
-assert_eq "and the optional one is devcontainer" \
-  "$OPTIONAL_SKILLS" "$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -xF -e devcontainer)"
+assert_eq "and the optional ones are devcontainer and visual-check" \
+  "$OPTIONAL_SKILLS" "$(printf '%s\n' "$ALL_PUBLIC_SKILLS" | grep -xF -e devcontainer -e visual-check | tr '\n' ' ' | sed 's/ $//')"
 for GEN in "$GEN_SINGLE" "$GEN_WORKSPACE"; do
-  assert_eq "$(basename "$GEN") does not describe the optional devcontainer command" "false" \
-    "$(grep -q '/dev-setup:devcontainer' "$GEN" && echo true || echo false)"
+  for OPT in $OPTIONAL_SKILLS; do
+    assert_eq "$(basename "$GEN") does not describe the optional $OPT command" "false" \
+      "$(grep -q "/dev-setup:$OPT" "$GEN" && echo true || echo false)"
+  done
 done
+VC_FM="$(frontmatter_of "$SDD_DIR/visual-check/SKILL.md")"
+assert_eq "visual-check writes nothing outward, so the model may reach it" "false" \
+  "$(printf '%s\n' "$VC_FM" | grep -q '^disable-model-invocation: true' && echo true || echo false)"
+assert_eq "visual-check follows the one procedure, not a copy of it" "true" \
+  "$(grep -qF '${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md' "$SDD_DIR/visual-check/SKILL.md" && echo true || echo false)"
 SHIPPED_AGENTS="$(for A in "$TEMPLATE_ROOT"/.claude/agents/*.md "$REPO_ROOT"/shared/agents/*.md; do
     frontmatter_of "$A" | sed -n 's/^name:[[:space:]]*//p'
   done | LC_ALL=C sort -u)"

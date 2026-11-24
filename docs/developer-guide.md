@@ -601,6 +601,15 @@ A frame nobody could compare — no Playwright in the project, no Chromium, no
 merge request, never silently passed. The procedure is
 [`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`](../templates/dev-setup/.claude/reference/visual-check.md).
 
+**On its own, outside a task: `/dev-setup:visual-check <figma link>… <page
+url>`.** The same check on a page you serve — a page already shipped, code
+written by hand, a frame to re-check after a fix — with no branch, spec or
+merge request. A link to a whole board lists its screens and proposes the
+ones the page renders; `--selector`, `--viewport` and `--threshold` apply to
+every frame. It reports, mismatches first, with each side-by-side image, and
+changes no code unless you ask. It is optional, like `devcontainer`: in the
+catalogue (`/dev-setup`), not in the generated `AGENTS.md`.
+
 To enable it: `@playwright/test` (or `playwright`) as a devDependency with
 Chromium installed (`npx playwright install chromium`), and for headless runs
 a Figma personal access token with *File content: read-only* as

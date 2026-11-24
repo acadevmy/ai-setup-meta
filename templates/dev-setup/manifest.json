@@ -58,7 +58,8 @@
     "verify",
     "auto-dev",
     "auto-dev-select",
-    "devcontainer"
+    "devcontainer",
+    "visual-check"
   ],
   "workflows": [
     "auto-sdd-run.js",
