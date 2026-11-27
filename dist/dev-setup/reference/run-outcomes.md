@@ -37,7 +37,7 @@ feedback on the merge request, handled like any other.
 
 ## failed — the spec, the dev step or the commands
 
-`{ status: 'failed', stage, reason, output?, notes?, branch?, baseBranch?, worktreePath?, commits?, spec?, openPoints?, deviations?, toConfirm?, unverified? }`
+`{ status: 'failed', stage, reason, output?, notes?, branch?, baseBranch?, worktreePath?, commits?, spec?, openPoints?, deviations?, toConfirm?, unverified?, visual? }`
 
 `stage` says where: `intake` (the launcher passed bad arguments, or three empty
 quality commands — a bug in the launch call, fix it), `spec`, `dev`, or `verify`
@@ -121,7 +121,7 @@ once the cause is fixed, and only the commands run again.
 
 ## ready-for-mr — push and open it
 
-`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[], unverified[] }`
+`{ status: 'ready-for-mr', taskId, branch, baseBranch, worktreePath, spec, commits[], filesChanged[], output, openPoints[], applied[], deviations[], toConfirm[], unchecked[], unverified[], visual[] }`
 
 Every quality command this environment could run ran green in the worktree,
 and the spec is committed on the branch. `unverified` lists the ones it could
@@ -129,8 +129,21 @@ not — `{ kind, command, reason }`: declared by the project, but their program,
 service or runtime is not here (the launcher's `UNAVAILABLE`, or a command that
 exited 126/127 at Verify). A missing toolchain does not stop a run: it goes to
 the end, and the merge request says which checks nobody ran. When every
-command is unverified, `output` is empty and nothing at all was checked. Two things are left, and they are the two the
-workflow deliberately does not do:
+command is unverified, `output` is empty and nothing at all was checked.
+
+**A Figma frame that does not match** does not stop a run: it is in `visual`
+with verdict `mismatch`, its `shifts` and its `sideBySide` image. You are the
+person the run could not ask, so ask now, before the push: show each image
+and its shifts, then one `AskUserQuestion` (header `Visual`) — **Open the
+merge request** (the differences go into it, kept by the developer) or
+**Back to development** (no push, no merge request; the branch and the
+worktree stay, the task stays `IN PROGRESS`, and `Next:` is
+`/dev-setup:sdd <taskId>` to fix them). End the turn on the call; under
+`multi-sdd`, ask for each run as its outcome lands.
+`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`, step 5, is the rule.
+
+Two things are left, and they are the two the workflow deliberately does not
+do:
 
 ```bash
 git push -u origin "<branch>"
@@ -184,6 +197,10 @@ plus what this flow owes a reviewer who was not watching:
   prove it. Whoever merges runs those commands, or waits for the CI that
   does: a green merge request that hides an unrun suite is the defect this
   section exists to prevent.
+- **the visual check**, when `visual` holds anything: one line per Figma
+  frame — the frame as a link, its verdict, the route or the Flutter capture test it was compared at —
+  the mismatches first, each with its shifts and the developer's choice. A
+  frame that could not be compared is in **not verified** with kind `visual`.
 - **the real test output**, in a fenced block: the `output` field, as it came
   back. A reviewer has to see the suite passing without re-running it.
 - **to confirm**, at the top, when `toConfirm` or `deviations` holds anything:

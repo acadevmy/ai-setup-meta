@@ -20,6 +20,8 @@ the conversation; on its own, it takes a task id.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/readable-references.md`** — how every
   reference in the spec is written, so the developer who approves it can
   follow each one.
+- **`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`** — only when
+  `figma-frames.sh` finds frames in the task: the spec's Visual check section.
 - **`${CLAUDE_PLUGIN_ROOT}/reference/tracker-contract.md`** — only when a task
   id has to be resolved.
 
@@ -39,7 +41,9 @@ developer for a task id.
 - read the rules in `.claude/rules/` — the technical constraints that apply;
 - read `REGISTRY.md` — existing components, adopted patterns, past decisions;
 - find the files the requirements touch;
-- check `.specs/` for a spec that already covers this task.
+- check `.specs/` for a spec that already covers this task;
+- list the Figma frames the task links:
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/figma-frames.sh" --file <task text> --json`.
 
 ### 3. Make sure discovery happened
 

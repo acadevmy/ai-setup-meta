@@ -58,6 +58,10 @@
 #   PREFLIGHT_CMD   the declared preflight, or "" when there is none
 #   HOOK_MANAGER    husky | lefthook | simple-git-hooks | custom-hookspath |
 #                   the declared hook_manager | ""
+#   VISUAL_CAPTURE  how the visual check renders this stack's UI next to its
+#                   Figma frames: playwright (a web page), flutter-test (a
+#                   widget test writing a PNG), both comma-separated in a
+#                   monorepo that has both, or none (React Native, no UI)
 #
 # A missing value is always the empty string, never a message: the consumer
 # tests for emptiness. Exits non-zero only on a real error (bad flag, missing
@@ -370,6 +374,22 @@ fi
 HAS_INFRA=false
 lang_has terraform && HAS_INFRA=true
 
+# How the visual check captures the UI it lays over a Figma frame. Decided
+# here, not by the agent that writes the spec: a web page is rendered by the
+# project's Playwright, a Flutter screen by a widget test that writes the PNG
+# (flutter-capture.sh), and React Native renders nothing either can capture.
+# A React project next to React Native is not counted as web: its .tsx files
+# are the app's.
+VISUAL_CAPTURE=""
+if framework_has nextjs || framework_has nuxt || framework_has angular \
+  || framework_has vue || framework_has svelte; then
+  VISUAL_CAPTURE="playwright"
+elif [ "$HAS_FRONTEND" = true ] && ! framework_has expo && ! framework_has react-native; then
+  VISUAL_CAPTURE="playwright"
+fi
+framework_has flutter && VISUAL_CAPTURE=$(append_csv "$VISUAL_CAPTURE" flutter-test)
+[ -n "$VISUAL_CAPTURE" ] || VISUAL_CAPTURE="none"
+
 # ── Service-layer glob ────────────────────────────────────────────────────────
 #
 # Feeds the `paths:` frontmatter of the backend-services rule, which is the one
@@ -541,6 +561,7 @@ json_set TYPECHECK_CMD "$TYPECHECK_CMD"
 json_set COMMANDS_SOURCE "$COMMANDS_SOURCE"
 json_set PREFLIGHT_CMD "$PREFLIGHT_CMD"
 json_set HOOK_MANAGER "$HOOK_MANAGER"
+json_set VISUAL_CAPTURE "$VISUAL_CAPTURE"
 
 if [ "$AS_JSON" = true ]; then
   json_emit

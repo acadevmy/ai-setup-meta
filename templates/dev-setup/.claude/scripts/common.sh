@@ -240,3 +240,52 @@ branch_type() {
 branch_context() {
   printf '%s' "$1" | sed -nE 's#^[a-z]+\(([a-z0-9-]+)\)/.*#\1#p'
 }
+
+# ── Figma REST API ────────────────────────────────────────────────────────────
+#
+# figma-export.sh and figma-screens.sh both read a node over the REST API, with
+# the same checks in front of the call: the file key and the node id reach a
+# URL, so both are held to the shape Figma gives them, and the token reaches
+# curl on stdin (`--config -`), never on a command line where `ps` and the logs
+# show it.
+#
+#   figma_rest_get <file_key> <node_id> <path_and_query> <what>
+#
+# <path_and_query> is appended to FIGMA_API_BASE (default
+# https://api.figma.com/v1), with `{key}` and `{node}` replaced; <what> names
+# the read in the refusal ("the export", "the read"). On success it returns 0
+# with FIGMA_ANSWER (the JSON Figma returned) and FIGMA_NODE (the id with a
+# colon). On a refusal it returns 3 with FIGMA_REFUSAL saying why: the caller
+# decides how to refuse.
+figma_rest_get() {
+  local key="$1" node="$2" path="$3" what="$4" token="${FIGMA_TOKEN:-}" err
+  FIGMA_ANSWER=""
+  FIGMA_REFUSAL=""
+  FIGMA_NODE="$(printf '%s' "$node" | tr '-' ':')"
+  if ! printf '%s' "$key" | grep -qE '^[A-Za-z0-9]{10,128}$'; then
+    FIGMA_REFUSAL="\"$key\" is not a Figma file key"; return 3
+  fi
+  if ! printf '%s' "$FIGMA_NODE" | grep -qE '^[0-9]+:[0-9]+$'; then
+    FIGMA_REFUSAL="\"$FIGMA_NODE\" is not a node id (12:345)"; return 3
+  fi
+  if [ -z "$token" ]; then
+    FIGMA_REFUSAL="FIGMA_TOKEN is not set: $what over the REST API needs a Figma personal access token (File content: read-only)"; return 3
+  fi
+  if ! printf '%s' "$token" | grep -qE '^[A-Za-z0-9_-]+$'; then
+    FIGMA_REFUSAL="FIGMA_TOKEN does not look like a Figma token (letters, digits, dash, underscore)"; return 3
+  fi
+  path="${path//\{key\}/$key}"
+  path="${path//\{node\}/${FIGMA_NODE/:/%3A}}"
+  if ! FIGMA_ANSWER="$(printf 'header = "X-Figma-Token: %s"\n' "$token" \
+      | curl --silent --show-error --max-time 60 --config - "${FIGMA_API_BASE:-https://api.figma.com/v1}$path")"; then
+    FIGMA_REFUSAL="Figma did not answer: the API is unreachable from here"; return 3
+  fi
+  if ! printf '%s' "$FIGMA_ANSWER" | jq -e . >/dev/null 2>&1; then
+    FIGMA_REFUSAL="Figma answered with something that is not JSON"; return 3
+  fi
+  err="$(printf '%s' "$FIGMA_ANSWER" | jq -r '.err // empty | tostring')"
+  if [ -n "$err" ]; then
+    FIGMA_REFUSAL="Figma refused $what: $err"; return 3
+  fi
+  return 0
+}

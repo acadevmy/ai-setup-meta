@@ -30,7 +30,7 @@
 #                                          project's .claude/tracker.json says so)
 #     "task":       { "title", "description", "url", "priority" }
 #                                          required with tracker none
-#     "stack":      { "lint", "typecheck", "test" }
+#     "stack":      { "lint", "typecheck", "test", "visualCapture" }
 #                                          default: detect-stack.sh, with
 #                                          quality-preflight.sh for what cannot
 #                                          run here
@@ -263,13 +263,13 @@ case "$PRIORITY" in urgent|high|normal|low|"") ;; *) PRIORITY="" ;; esac
 # ── The quality commands ──────────────────────────────────────────────────────
 
 if jq -e '.stack | type == "object"' "$ARGS_FILE" >/dev/null 2>&1; then
-  STACK="$(jq -c '.stack | {lint: (.lint // ""), typecheck: (.typecheck // ""), test: (.test // "")}' "$ARGS_FILE")"
+  STACK="$(jq -c '.stack | {lint: (.lint // ""), typecheck: (.typecheck // ""), test: (.test // ""), visualCapture: (.visualCapture // "")}' "$ARGS_FILE")"
   UNAVAILABLE="$(jq -c '.unavailable // [] | map(select(type == "string"))' "$ARGS_FILE")"
   UNAVAILABLE_REASON="$(arg unavailableReason)"
 else
   DETECTED="$(bash "$SCRIPT_DIR/detect-stack.sh" --json)" \
     || refuse "detect-stack.sh rejected the project's quality declaration: see its stderr"
-  STACK="$(printf '%s' "$DETECTED" | jq -c '{lint: .LINT_CMD, typecheck: .TYPECHECK_CMD, test: .TEST_CMD}')"
+  STACK="$(printf '%s' "$DETECTED" | jq -c '{lint: .LINT_CMD, typecheck: .TYPECHECK_CMD, test: .TEST_CMD, visualCapture: (.VISUAL_CAPTURE // "")}')"
   PREFLIGHT="$(bash "$SCRIPT_DIR/quality-preflight.sh" --require-declared --allow-unavailable --json)"
   PREFLIGHT_EXIT=$?
   if [ "$PREFLIGHT_EXIT" -ne 0 ]; then
@@ -293,16 +293,24 @@ LANGUAGE="$(printf '%s' "$META" | jq -r '.LANGUAGE // ""')"
 TASK_FILE="$OUTPUT_DIR/task.md"
 printf '# %s\n\n%s\n' "$TITLE" "$DESCRIPTION" > "$TASK_FILE" || refuse "cannot write $TASK_FILE"
 
+# The Figma frames the task links: the workflow compares each one with the UI
+# it builds, and it cannot read the task file itself.
+FRAMES="$(bash "$SCRIPT_DIR/figma-frames.sh" --file "$TASK_FILE" --json \
+  | jq -c '.FRAMES | split("\n") | map(select(. != "") | split("\t")
+           | {fileKey: .[0], nodeId: .[1], name: (.[2] // ""), url: (.[3] // "")})')" \
+  || FRAMES='[]'
+[ -n "$FRAMES" ] || FRAMES='[]'
+
 WORKFLOW_ARGS="$(jq -nc \
   --arg taskId "$TASK_ID" --arg title "$TITLE" --arg taskFile "$TASK_FILE" \
   --arg url "$URL" --arg priority "$PRIORITY" --arg pluginRoot "$PLUGIN_ROOT" \
   --arg baseBranch "$BASE" --arg branchType "$BRANCH_TYPE" --arg language "$LANGUAGE" \
   --arg challenge "$CHALLENGE" --argjson stack "$STACK" --argjson unavailable "$UNAVAILABLE" \
-  --arg unavailableReason "$UNAVAILABLE_REASON" \
+  --arg unavailableReason "$UNAVAILABLE_REASON" --argjson frames "$FRAMES" \
   '{taskId: $taskId, title: $title, taskFile: $taskFile, url: $url, priority: $priority,
     pluginRoot: $pluginRoot, baseBranch: $baseBranch, branchType: $branchType,
     language: $language, challenge: $challenge, stack: $stack,
-    unavailable: $unavailable, unavailableReason: $unavailableReason}')"
+    unavailable: $unavailable, unavailableReason: $unavailableReason, frames: $frames}')"
 WORKFLOW_ARGS_FILE="$OUTPUT_DIR/workflow-args.json"
 printf '%s\n' "$WORKFLOW_ARGS" > "$WORKFLOW_ARGS_FILE"
 

@@ -373,6 +373,7 @@ jq -n --slurpfile o "$O" --slurpfile l "$LAUNCH" --argjson usage "$USAGE" \
       applied: ($o.applied // []),
       unchecked: ($o.unchecked // []),
       unverified: ($o.unverified // []),
+      visual: ($o.visual // []),
       checks: {ran: ($o.ran // []), absent: ($o.absent // []), output: ($o.output // "")},
       notes: ($o.notes // ""),
       patchFile: $patch,
@@ -410,7 +411,10 @@ if [ "$STATUS" = ready-for-mr ]; then
       "uncheckedAtCommit": "Test non completati al commit",
       "uncheckedAtCommitIntro": "Il gate del commit ha esaurito il tempo e ha lasciato passare il commit prima che questi controlli finissero. L'\''output dei comandi di qualità più sotto viene dalla verifica del run.",
       "notVerified": "Non verificato",
-      "notVerifiedIntro": "Questi comandi non sono stati eseguiti da questo run: chi fa il merge li esegue, o aspetta la CI.",
+      "notVerifiedIntro": "Questi controlli non sono stati eseguiti da questo run: chi fa il merge li esegue, o aspetta la CI.",
+      "visual": "Confronto visivo con Figma",
+      "visualIntro": "Ogni frame confrontato pixel per pixel con la pagina che lo rende (export 1:1, stessa dimensione). Le differenze non fermano il run: decide chi rivede.",
+      "visualKept": "nessuno è stato interpellato: decide chi rivede",
       "toConfirm": "Da confermare",
       "toConfirmIntro": "Scelte che il run ha fatto al posto del task: nessuno le ha ancora viste.",
       "reading": "Lettura scelta", "deviation": "Scostamento dal task",
@@ -428,7 +432,10 @@ if [ "$STATUS" = ready-for-mr ]; then
       "uncheckedAtCommit": "Tests not completed at commit",
       "uncheckedAtCommitIntro": "The commit gate ran out of time and let the commit through before these checks finished. The quality commands output further down comes from the run'\''s own verification.",
       "notVerified": "Not verified",
-      "notVerifiedIntro": "These commands did not run in this run: whoever merges runs them, or waits for the CI.",
+      "notVerifiedIntro": "These checks did not run in this run: whoever merges runs them, or waits for the CI.",
+      "visual": "Visual check against Figma",
+      "visualIntro": "Each frame compared pixel for pixel with the page that renders it (1:1 export, same size). A difference does not stop the run: the reviewer decides.",
+      "visualKept": "nobody was asked: the reviewer decides",
       "toConfirm": "To confirm",
       "toConfirmIntro": "Choices the run made on the task'\''s behalf: nobody has seen them yet.",
       "reading": "Reading taken", "deviation": "Departure from the task",
@@ -444,7 +451,20 @@ if [ "$STATUS" = ready-for-mr ]; then
   fi
 
   jq -r --argjson L "$LABELS_JSON" --arg unchecked "$UNCHECKED_AT_COMMIT" '
-    [ (if $unchecked != "" then
+    # The visual check: the differences first, each with its shifts and the
+    # fact that nobody was asked. With a mismatch it opens the body — a
+    # difference left on a UI change is the first thing its reviewer reads.
+    ((.visual // []) | map(select(.verdict == "mismatch")) | length > 0) as $differs
+    | (if (.visual // []) | length > 0 then
+         "## \($L.visual)\n\n\($L.visualIntro)\n\n"
+         + (.visual | map("- [\(.frame)](\(.url)) — **\(.verdict)**"
+             + (if (.route // "") != "" then " at `\(.route)`" else "" end)
+             + (if (.reason // "") != "" then ": \(.reason)" else "" end)
+             + (if (.shifts // "") != "" then " — \(.shifts)" else "" end)
+             + (if .verdict == "mismatch" then " (\($L.visualKept))" else "" end)) | join("\n"))
+       else null end) as $visual
+    | [ (if $differs then $visual else empty end),
+      (if $unchecked != "" then
          "## \($L.uncheckedAtCommit)\n\n\($L.uncheckedAtCommitIntro)\n\n"
          + ($unchecked | split("\n") | map(select(. != "") | "- " + .) | join("\n"))
        else empty end),
@@ -452,6 +472,7 @@ if [ "$STATUS" = ready-for-mr ]; then
          "## \($L.notVerified)\n\n\($L.notVerifiedIntro)\n\n"
          + (.unverified | map("- **\(.kind)** `\(.command)` — \(.reason)") | join("\n"))
        else empty end),
+      (if ($differs | not) and $visual != null then $visual else empty end),
       (if ((.toConfirm // []) + (.deviations // [])) | length > 0 then
          "## \($L.toConfirm)\n\n\($L.toConfirmIntro)\n\n"
          + (((.toConfirm // []) | map("- \($L.reading): \(.)"))

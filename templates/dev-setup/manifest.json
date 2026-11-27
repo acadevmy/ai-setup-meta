@@ -31,7 +31,8 @@
     "readable-references.md",
     "run-outcomes.md",
     "turn-discipline.md",
-    "worktree.md"
+    "worktree.md",
+    "visual-check.md"
   ],
   "template_agents": [
     "review.md",
@@ -57,7 +58,8 @@
     "verify",
     "auto-dev",
     "auto-dev-select",
-    "devcontainer"
+    "devcontainer",
+    "visual-check"
   ],
   "workflows": [
     "auto-sdd-run.js",
@@ -92,7 +94,13 @@
     "devcontainer-facts.sh",
     "devcontainer-check.sh",
     "validate-story.sh",
-    "parse-story.sh"
+    "parse-story.sh",
+    "figma-frames.sh",
+    "figma-screens.sh",
+    "figma-export.sh",
+    "visual-check.sh",
+    "flutter-capture.sh",
+    "visual-check.mjs"
   ],
   "hooks": [
     "gate-commit.sh",

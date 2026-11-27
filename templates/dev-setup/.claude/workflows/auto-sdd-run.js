@@ -8,7 +8,7 @@ export const meta = {
     { title: 'Spec', detail: 'one agent drafts the spec from the task and the codebase' },
     { title: 'Challenge', detail: 'three reviewers propose, the spec author integrates' },
     { title: 'Dev', detail: 'test-first implementation in an isolated worktree' },
-    { title: 'Verify', detail: 'the project real lint, typecheck and test commands' },
+    { title: 'Verify', detail: 'the UI against its Figma frames, then the project real lint, typecheck and test commands' },
   ],
 }
 
@@ -40,7 +40,8 @@ export const meta = {
 //     baseBranch:  'origin/next',             // required — never hard-coded
 //     title, description, url,                // the task, as the tracker returned it
 //     branchType:  'feat' | 'fix' | 'chore',
-//     stack: { lint, typecheck, test },       // from detect-stack.sh --json;
+//     stack: { lint, typecheck, test,
+//             visualCapture },                // from detect-stack.sh --json;
 //                                             // at least one non-empty, or the
 //                                             // run ends at intake
 //     unavailable: ['lint', 'test'],          // quality-preflight.sh UNAVAILABLE:
@@ -176,6 +177,209 @@ const unverified = unavailable.map((kind) => ({
   reason: unavailableReason || 'this environment cannot run it',
 }))
 
+// ── Figma frames ─────────────────────────────────────────────────────────────
+//
+// A task that links Figma frames is compared with them as rendered (the
+// visual check, reference/visual-check.md), and the comparison blocks like a
+// red test. Which frames is decided here, in code, the way figma-frames.sh
+// reads them — a link with a node-id is a frame, a bare file link is not — so
+// an agent cannot forget one: every frame needs a row in the spec, and a frame
+// without one goes to the merge request as not verified.
+const FIGMA_LINK = /https?:\/\/(?:www\.)?figma\.com\/(?:design|file|proto)\/([A-Za-z0-9]+)(?:\/branch\/([A-Za-z0-9]+))?[^\s)\]>]*/g
+const FRAME_KEY_SHAPE = /^[A-Za-z0-9]{10,128}$/
+const NODE_SHAPE = /^[0-9]+:[0-9]+$/
+
+function figmaFrames(text) {
+  const named = {}
+  const found = []
+  String(text || '').replace(/\[([^\]]*)\]\((https?:\/\/(?:www\.)?figma\.com\/[^)\s]+)\)/g, (all, name, url) => {
+    named[url] = name
+    return all
+  })
+  for (const match of String(text || '').matchAll(FIGMA_LINK)) {
+    // A link that ends a sentence carries its punctuation: it is not the URL's.
+    const url = match[0].replace(/[.,;:!?]+$/, '')
+    const id = (url.match(/[?&]node-id=([0-9]+(?:-|:|%3[Aa])[0-9]+)/) || [])[1]
+    if (!id) continue
+    const frame = {
+      fileKey: match[2] || match[1],
+      nodeId: id.replace(/%3[Aa]/, ':').replace('-', ':'),
+      name: named[url] || '',
+      url: url,
+    }
+    if (!found.some((f) => f.fileKey === frame.fileKey && f.nodeId === frame.nodeId)) found.push(frame)
+  }
+  return found
+}
+
+// Frames passed by the launcher (auto-dev reads them from the task file with
+// figma-frames.sh) are held to the shape Figma gives them: they reach a shell
+// command inside an agent prompt.
+const frames = (Array.isArray(input.frames) ? input.frames : figmaFrames(task.description))
+  .map((f) => ({
+    fileKey: String((f && f.fileKey) || ''),
+    nodeId: String((f && f.nodeId) || '').replace('-', ':'),
+    name: String((f && f.name) || '').replace(/[\n\r]/g, ' ').slice(0, 120),
+    url: String((f && f.url) || ''),
+  }))
+  .filter((f) => FRAME_KEY_SHAPE.test(f.fileKey) && NODE_SHAPE.test(f.nodeId))
+
+const frameLabel = (f) => (f.name ? f.name + ' (' + f.nodeId + ')' : 'node ' + f.nodeId)
+
+// How this stack's UI is captured — detect-stack.sh VISUAL_CAPTURE, passed by
+// the launcher: playwright renders a web page, flutter-test a Flutter screen
+// through a widget test, none means neither can (React Native). The script
+// decides it, not the spec's agent: on `none` every frame is not compared,
+// here, and a row mapped with a capture the stack has not is never run with
+// the wrong cause. A launcher that passes nothing accepts both kinds of row.
+const CAPTURES = String(stack.visualCapture || '')
+  .split(',')
+  .map((c) => c.trim())
+  .filter((c) => ['playwright', 'flutter-test', 'none'].includes(c))
+const noCapture = CAPTURES.length > 0 && CAPTURES.every((c) => c === 'none')
+const flutterCapture = CAPTURES.length === 0 || CAPTURES.includes('flutter-test')
+// A Flutter row names its capture test: a *_test.dart path inside the project.
+const FLUTTER_TARGET = /^[A-Za-z0-9_][A-Za-z0-9_./-]*_test\.dart$/
+
+// A spec row reaches a shell command too: the route, the selector and the
+// threshold are held to a shape, and a row that fails it is no row.
+const SAFE_TEXT = /^[^"`$\\\n\r]{1,200}$/
+// A link can point at a board — a whole flow, every state of every device
+// side by side — and the spec then maps each screen it renders, so one linked
+// frame can have many rows. A frame with none is missing. The comparisons a
+// run makes are capped: past the cap a row is not verified, never dropped.
+const MAX_COMPARED = 12
+
+function visualRow(frame, row) {
+  if (row.notCompared) {
+    return { frame, status: 'not-compared', reason: String(row.notCompared).slice(0, 300), name: String(row.name || '').slice(0, 120) }
+  }
+  const route = String(row.route || '')
+  const target = String(row.target || '')
+  const testName = String(row.test || '')
+  const capture = target ? 'flutter-test' : 'playwright'
+  const selector = String(row.selector || 'page')
+  const threshold = Number(row.threshold)
+  // The node exported may be a child of the linked one — the screen inside a
+  // presentation wrapper or on a board — and the crop takes off what no page
+  // renders. A component frame is captured at its page's viewport, never at
+  // its own width: the page would switch to another breakpoint.
+  const node = String(row.node || '').replace('-', ':')
+  const cropRect = String(row.crop || '')
+  const viewport = String(row.viewport || '')
+  const name = String(row.name || '').replace(/[\n\r]/g, ' ').slice(0, 120)
+  if (target) {
+    if (!FLUTTER_TARGET.test(target) || /(^|\/)\.\.(\/|$)/.test(target) || !SAFE_TEXT.test(testName)) {
+      return { frame, status: 'missing' }
+    }
+  } else if (!/^(\/|https?:\/\/)/.test(route) || !SAFE_TEXT.test(route) || !SAFE_TEXT.test(selector)) {
+    return { frame, status: 'missing' }
+  }
+  if (CAPTURES.length > 0 && !CAPTURES.includes(capture)) return { frame, status: 'wrong-capture', capture, name }
+  return {
+    frame,
+    status: 'compare',
+    capture,
+    name,
+    route: target ? '' : route,
+    target,
+    test: target ? testName : '',
+    selector: target ? '' : selector,
+    clip: target ? '' : row.clip === 'viewport' ? 'viewport' : 'full',
+    state: String(row.state || '').replace(/[\n\r]/g, ' ').slice(0, 300),
+    threshold: threshold >= 0 && threshold <= 0.05 ? threshold : 0.02,
+    node: NODE_SHAPE.test(node) ? node : frame.nodeId,
+    crop: /^[0-9]+,[0-9]+,[1-9][0-9]*,[1-9][0-9]*$/.test(cropRect) ? cropRect : '',
+    viewport: !target && /^[1-9][0-9]{1,4}x[1-9][0-9]{1,4}$/.test(viewport) ? viewport : '',
+  }
+}
+
+function visualRows(spec) {
+  if (noCapture) {
+    return frames.map((frame) => ({
+      frame,
+      status: 'not-compared',
+      reason: 'native UI: this stack has no capture for it (detect-stack.sh VISUAL_CAPTURE=none)',
+      name: '',
+    }))
+  }
+  const all = (spec && spec.visualChecks) || []
+  const out = []
+  frames.forEach((frame) => {
+    const mine = all.filter((r) => r && String(r.nodeId || '').replace('-', ':') === frame.nodeId)
+    if (mine.length === 0) out.push({ frame, status: 'missing' })
+    else mine.forEach((row) => out.push(visualRow(frame, row)))
+  })
+  let compared = 0
+  return out.map((row) => {
+    if (row.status !== 'compare') return row
+    compared++
+    return compared <= MAX_COMPARED ? row : Object.assign({}, row, { status: 'over-cap' })
+  })
+}
+
+// How a row reads to a person: the linked frame, and the screen when the row
+// compares one inside it.
+const rowLabel = (row) =>
+  frameLabel(row.frame) + (row.name ? ' › ' + row.name : row.node && row.node !== row.frame.nodeId ? ' › node ' + row.node : '')
+
+const VISUAL_ROW = {
+  type: 'object',
+  required: ['nodeId'],
+  properties: {
+    nodeId: { type: 'string', description: 'the frame node id, 12:345' },
+    route: { type: 'string', description: 'a web page: the dev server path (/signup) or a Storybook story URL' },
+    target: { type: 'string', description: 'a Flutter screen, in place of route: the capture test, a *_test.dart path from the repository root (apps/mobile/test/visual/login_visual_test.dart)' },
+    test: { type: 'string', description: 'with target: the capture test\'s name, run alone' },
+    selector: { type: 'string', description: '`page`, or the CSS selector of the element the frame draws' },
+    clip: { type: 'string', enum: ['full', 'viewport'] },
+    state: { type: 'string', description: 'what the page needs to look like the frame' },
+    threshold: { type: 'number', description: 'share of pixels allowed to differ, 0.02 unless photos or live charts; at most 0.05' },
+    node: { type: 'string', description: 'the node to export when it is not the linked one: the screen inside a presentation wrapper that carries a label, found with get_metadata' },
+    crop: { type: 'string', description: 'x,y,width,height of the exported node the page renders, in its pixels — without a phone status bar or home indicator; empty for all of it' },
+    viewport: { type: 'string', description: 'WxH the page is captured at when the frame is a component or a panel (with a selector): the full-screen frame of the same device on the board, e.g. 1440x926; empty for the frame\'s own size' },
+    name: { type: 'string', description: 'the screen\'s name, when the row compares one screen of a board or a wrapper' },
+    notCompared: { type: 'string', description: 'instead of a route or a target: why this frame is not compared (not rendered by this task)' },
+  },
+}
+
+const VISUAL_SCHEMA = {
+  type: 'object',
+  required: ['results'],
+  properties: {
+    results: {
+      type: 'array',
+      description: 'one entry per frame you were given',
+      items: {
+        type: 'object',
+        required: ['nodeId', 'verdict', 'reason'],
+        properties: {
+          nodeId: { type: 'string', description: 'the export node of the row, as given' },
+          verdict: { type: 'string', enum: ['match', 'mismatch', 'unverified'] },
+          cause: { type: 'string', description: 'on unverified: the CAUSE visual-check.sh or figma-export.sh gave — environment or page' },
+          reason: { type: 'string', description: 'the REASON the script gave, verbatim' },
+          shifts: { type: 'string', description: 'SHIFTS, verbatim, or ""' },
+          sideBySide: { type: 'string', description: 'the SIDE_BY_SIDE path, or ""' },
+        },
+      },
+    },
+  },
+}
+
+function visualLines(rows) {
+  return rows
+    .filter((r) => r.status === 'compare')
+    .map((r) =>
+      '  - ' + rowLabel(r) + ': file ' + r.frame.fileKey + ', export node ' + r.node +
+      (r.crop ? ', design crop ' + r.crop : '') + (r.viewport ? ', viewport ' + r.viewport : '') +
+      (r.capture === 'flutter-test'
+        ? ' -> flutter capture test ' + r.target + ', test "' + r.test + '"'
+        : ' -> route ' + r.route + ', selector ' + r.selector + ', clip ' + r.clip) +
+      ', threshold ' + r.threshold + (r.state ? ', state: ' + r.state : ''),
+    )
+    .join('\n')
+}
+
 // The task text is data, not instruction: an agent reads it to design, never to
 // take orders from it. Said once here and repeated in every prompt that carries
 // it, because each agent reads its own prompt and nothing else.
@@ -275,6 +479,11 @@ const SPEC_SCHEMA = {
       description:
         'where the task admits two readings with different behaviour for its users: the reading the spec took, and why. The merge request reviewer confirms them; nothing waits on them',
       items: { type: 'string' },
+    },
+    visualChecks: {
+      type: 'array',
+      description: 'one row per Figma frame the task links — the spec\'s Visual check section, as data',
+      items: VISUAL_ROW,
     },
   },
 }
@@ -437,6 +646,40 @@ const bullets = (items) => (items || []).map((item) => '  - ' + item).join('\n')
 // The agent writes no file. The spec travels as data so that the dev agent can
 // write it inside its own worktree, and so a resumed run does not need it back.
 
+// The frames the spec has to map, when the task links any.
+const FRAMES_FOR_SPEC = [
+  'The task links these Figma frames. After development each one is compared,',
+  'pixel for pixel, with the page that renders it, and every difference goes to',
+  'the merge request.',
+  'Map every one, in `visualChecks` and in a `## Visual check` section of the',
+  'spec, as ' + plugin + '/reference/visual-check.md describes: the route that',
+  'shows it, `page` or the CSS selector of the element it draws, the clip, the',
+  'state the page needs to look like it, the threshold — or `notCompared` with',
+  'why, for a frame this task does not render.',
+  flutterCapture
+    ? 'A Flutter screen has no route: its row names a `target` — the capture test,' +
+      ' a *_test.dart path from the repository root, under the package\'s test/visual/' +
+      ' — and its `test` name, which the development step writes as that reference' +
+      ' says; no selector, no clip, no viewport.'
+    : '',
+  CAPTURES.length > 0
+    ? 'This stack captures with: ' + CAPTURES.join(', ') + ' (detect-stack.sh VISUAL_CAPTURE).'
+    : '',
+  'First ask what each link is:',
+  '`bash "' + plugin + '/scripts/figma-screens.sh" --file-key <key> --node <id> --json`',
+  'with FIGMA_TOKEN, or `--metadata <file>` with what get_metadata returned. A',
+  '`wrapper` gets its screen as `node`; a `board` gets one row per screen this',
+  'task renders, each with its `node` and `name` (the others are listed in the',
+  'section, not compared). A phone status bar is cropped off (`crop`); a panel',
+  'or component frame is captured with a `selector` at the `viewport` of its',
+  'page — the full-screen frame of the same device on the board. A wrapper',
+  'whose label does not match its name (MISMATCHED) leaves the drawn state in',
+  'doubt: say which one the spec took, in `toConfirm`. A frame left out is',
+  'reported to the reviewer as never checked.',
+  '',
+  frames.map((f) => '  - ' + frameLabel(f) + ' — ' + f.url).join('\n'),
+].join('\n')
+
 phase('Spec')
 log('Spec — drafting ' + task.id + ' from the task and the codebase')
 
@@ -484,6 +727,7 @@ const spec = await agent(
     '',
     READABLE,
     '',
+    frames.length > 0 && !noCapture ? FRAMES_FOR_SPEC + '\n' : '',
     'Three reviewers will look at the spec next, one focus each, and propose',
     'what would make it better. Check your draft against them before you return',
     'it:',
@@ -726,6 +970,10 @@ log(
 
 const reqLines = draft.reqs.map((req) => '  - ' + req.id + ': ' + req.statement).join('\n')
 
+// A revision that dropped the rows keeps the first draft's.
+const visual = visualRows(draft.visualChecks ? draft : spec)
+const toCompare = visual.filter((row) => row.status === 'compare')
+
 // ── 3. Dev ───────────────────────────────────────────────────────────────────
 //
 // `isolation: 'worktree'` is what keeps the developer checkout untouched while
@@ -737,6 +985,18 @@ const reqLines = draft.reqs.map((req) => '  - ' + req.id + ': ' + req.statement)
 // A prepared worktree replaces the isolation: parallel made it on the branch,
 // from the same base, with its own ports, .env and dependencies, so the agent
 // works there and an instance of the project can run beside the others.
+
+// How a frame is exported here: the Figma MCP when the session has it, the
+// REST API with FIGMA_TOKEN otherwise. Both end in figma-export.sh, which
+// checks the file is a PNG at scale 1.
+const VISUAL_EXPORT = [
+  'Export each frame at scale 1 with the Figma MCP when its tools are available',
+  'to you — download_assets with defaultFormat "png" and defaultScale 1, then',
+  '`bash "' + plugin + '/scripts/figma-export.sh" --url "<its export url>" --out <file> --json`',
+  '— and otherwise with the REST API, which reads FIGMA_TOKEN from the',
+  'environment: `bash "' + plugin + '/scripts/figma-export.sh" --file-key <key> --node <id> --out <file> --json`.',
+  'Never get_screenshot: it is capped at 1024 px and cannot be laid over a page.',
+].join('\n')
 
 phase('Dev')
 log(
@@ -872,6 +1132,33 @@ const dev = await agent(
           '',
         ].join('\n')
       : '',
+    toCompare.length > 0
+      ? [
+          'Step 4 — the visual check. The task links Figma frames and the spec maps',
+          'them to pages. Once a page a frame names is built, compare it with the',
+          'frame as ' + plugin + '/reference/visual-check.md describes, steps 1 to 4:',
+          '',
+          visualLines(visual),
+          '',
+          VISUAL_EXPORT,
+          '',
+          'A mismatch: read the side-by-side image and SHIFTS, take the exact values',
+          'from the frame, fix what is your code\'s and compare again. A difference',
+          'you cannot remove without departing from the spec — the frame itself is',
+          'off — leave it and say in `notes` which and why: it goes to the merge',
+          'request, and nobody stops the run on it. Never raise a threshold to pass.',
+          toCompare.some((row) => row.capture === 'flutter-test')
+            ? 'A row with a flutter capture test: write that test first, as the' +
+              ' reference\'s "Capturing a Flutter screen" section says — skipped unless' +
+              ' VISUAL_CAPTURE_OUT is defined, so the suite never runs it — then compare' +
+              ' with --flutter-target and --flutter-test; it needs no dev server.\n'
+            : '',
+          'A frame you could not compare (no Playwright, no Chromium, no Flutter SDK,',
+          'no Figma access), say so in `notes` and install nothing. Stop the dev server',
+          'when you are done. Verify compares again.',
+          '',
+        ].join('\n')
+      : '',
     'Read .claude/rules/ before you write code: they are this project',
     'constraints, and the review after you checks them.',
     '',
@@ -934,6 +1221,84 @@ const outcome = {
   notes: dev.notes || '',
 }
 
+// The visual check, before the commands. It never stops the run: a frame is a
+// drawing, and a badly built one differs from a page that is right, so a
+// person decides — the launcher asks one when there is one, and the merge
+// request carries every difference either way. Here the outcome is only
+// sorted, from what the scripts printed: a mismatch goes to `visual` with its
+// shifts and its image; a frame nobody could compare — the environment, a
+// page that did not load, a frame the agent did not report — to `unverified`.
+const visualUnverified = visual
+  .filter((row) => ['missing', 'over-cap', 'wrong-capture'].includes(row.status))
+  .map((row) => ({
+    kind: 'visual',
+    command: rowLabel(row),
+    reason: row.status === 'missing'
+      ? 'the spec maps no page to this frame, so nothing compared it'
+      : row.status === 'wrong-capture'
+        ? 'the spec maps it with ' + row.capture + ', which this stack does not capture with (VISUAL_CAPTURE=' + CAPTURES.join(',') + ')'
+        : 'past the ' + MAX_COMPARED + ' comparisons a run makes: compare it by hand, or split the task',
+  }))
+outcome.visual = visual
+  .filter((row) => row.status === 'not-compared')
+  .map((row) => ({ frame: rowLabel(row), url: row.frame.url, verdict: 'not-compared', reason: row.reason }))
+
+if (toCompare.length > 0) {
+  log('Verify — comparing ' + toCompare.length + ' Figma frame(s) with the UI')
+  const seen = await agent(
+    [
+      'Compare the UI this run built with its Figma frames, and report what the',
+      'scripts printed. You are not here to fix anything: a mismatch is the answer,',
+      'not a problem to solve.',
+      '',
+      'Work inside this worktree, and nowhere else:',
+      '',
+      '  cd ' + JSON.stringify(dev.worktreePath),
+      '',
+      'For each frame, follow ' + plugin + '/reference/visual-check.md, steps 1 to 3:',
+      '',
+      visualLines(visual),
+      '',
+      VISUAL_EXPORT,
+      '',
+      toCompare.some((row) => row.capture === 'playwright')
+        ? 'For a route, start the dev server the way that reference says, and stop it when done.'
+        : '',
+      toCompare.some((row) => row.capture === 'flutter-test')
+        ? 'For a flutter capture test, no server: visual-check.sh --flutter-target <test> --flutter-test "<name>".'
+        : '',
+      'Report one result per frame: VERDICT, CAUSE, REASON, SHIFTS and SIDE_BY_SIDE',
+      'exactly as visual-check.sh printed them. An export that exits 3 is',
+      '`unverified`, cause `environment`, with its REASON. Never install anything,',
+      'never change a threshold, never edit the code.',
+    ].join('\n'),
+    { label: 'visual:' + task.id, phase: 'Verify', effort: 'medium', schema: VISUAL_SCHEMA },
+  )
+  toCompare.forEach((row) => {
+    const result = seen && Array.isArray(seen.results)
+      ? seen.results.find((r) => r && String(r.nodeId || '').replace('-', ':') === row.node)
+      : null
+    const entry = {
+      frame: rowLabel(row),
+      url: row.frame.url,
+      route: row.capture === 'flutter-test' ? row.target + ' › ' + row.test : row.route,
+      verdict: result && ['match', 'mismatch', 'unverified'].includes(result.verdict) ? result.verdict : 'unverified',
+      reason: result ? String(result.reason || '') : 'the visual check reported nothing for this frame',
+      shifts: result ? String(result.shifts || '') : '',
+      sideBySide: result ? String(result.sideBySide || '') : '',
+    }
+    if (entry.verdict === 'unverified') {
+      visualUnverified.push({ kind: 'visual', command: entry.frame, reason: entry.reason })
+      return
+    }
+    outcome.visual.push(entry)
+  })
+  // Mismatches first: they are what a person has to look at.
+  outcome.visual.sort((a, b) => (a.verdict === 'mismatch' ? 0 : 1) - (b.verdict === 'mismatch' ? 0 : 1))
+  const mismatched = outcome.visual.filter((v) => v.verdict === 'mismatch').length
+  if (mismatched > 0) log('Verify — ' + mismatched + ' Figma frame(s) differ from the UI: they go to the merge request')
+}
+
 // Nothing this environment can run: the run still reaches the merge request,
 // which leads with every check nobody ran.
 if (runnable.length === 0) {
@@ -942,7 +1307,7 @@ if (runnable.length === 0) {
     output: '',
     ran: [],
     absent: KINDS.filter((kind) => !commands[kind]),
-    unverified,
+    unverified: unverified.concat(visualUnverified),
   })
 }
 
@@ -993,7 +1358,7 @@ const notStarted = (check && Array.isArray(check.notStarted) ? check.notStarted 
   command: command,
   reason: 'it did not start in this environment (exit 126/127: program not found)',
 }))
-const allUnverified = unverified.concat(notStarted)
+const allUnverified = unverified.concat(notStarted, visualUnverified)
 
 if (!check) {
   return Object.assign({ status: 'failed', stage: 'verify' }, outcome, {

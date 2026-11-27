@@ -574,6 +574,54 @@ task says so.
 A board status the map does not name stops the move with an error that names
 the key to add — a Linear team has no `Blocked` state until someone adds it.
 
+### Figma frames: the visual check
+
+When a task links Figma frames — a story's **Design** section, or any link
+with a `node-id` — the UI is compared with each frame **as rendered**, not only
+as the design tools read it. A frame that is not well built (a spacer
+rectangle instead of a gap, a padding on one card and not its sibling) reads
+as one thing and renders as another, and only the rendering shows it.
+
+| Step | What runs |
+|---|---|
+| The spec | a `## Visual check` section maps every frame to a route, `page` or a CSS selector, the state the page needs, and a threshold (default 2%, at most 5%) — or `not compared: <why>`. A frame that wraps the screen with an annotation label is mapped to its screen child (**Node**), and a phone status bar is cropped off (**Crop**): the page never renders either. A link to a whole section — a flow with every state of every device — gets one row per screen the task renders (`figma-screens.sh` tells a screen, a wrapper and a board apart); a desktop panel is captured with its selector at the **Viewport** of its page, never at its own width. At most 12 rows a run |
+| The export | the frame as a PNG at **scale 1**: through the Figma MCP in a session, over the REST API with `FIGMA_TOKEN` in a headless run (`figma-export.sh`) |
+| The capture | the page at the frame's size, device scale factor 1, animations off, with **your project's Playwright** (`visual-check.sh`); on **Flutter**, a widget test the development step writes under `test/visual/`, pumped at the frame's size with pixel ratio 1 and written as a PNG (`flutter-capture.sh`) — headless, so it runs in CI and in `auto-dev` too. `detect-stack.sh` decides which (`VISUAL_CAPTURE`); React Native has none, and its frames are **not compared** |
+| The verdict | `match`, or `mismatch` when the size differs, when content is the frame's but **displaced** by 3 px or more (`8 px lower than the frame`, read on where edges sit, so a font Figma draws differently is not a shift), or when more pixels differ than the threshold allows |
+
+**A mismatch is yours to decide, never silently passed.** A frame can be the
+one that is wrong, so the check does not stop the work: before the commit
+(`sdd`, `quick`), or before the merge request (`auto-sdd`, `multi-sdd`), you
+see each differing frame — the side-by-side image, the shifts — and choose
+**Back to development** or **Continue**. Continue writes the difference into
+the spec's decision log and the merge request. A headless run has nobody to
+ask: it goes on, and its merge request opens with the differences.
+A frame nobody could compare — no Playwright in the project, no Chromium, no
+Flutter SDK, no `FIGMA_TOKEN` on the runner — is listed as **not verified** at the top of the
+merge request, never silently passed. The procedure is
+[`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`](../templates/dev-setup/.claude/reference/visual-check.md).
+
+**On its own, outside a task: `/dev-setup:visual-check <figma link>… <page
+url>`.** The same check on a page you serve — a page already shipped, code
+written by hand, a frame to re-check after a fix — with no branch, spec or
+merge request. A link to a whole board lists its screens and proposes the
+ones the page renders; `--selector`, `--viewport` and `--threshold` apply to
+every frame. It reports, mismatches first, with each side-by-side image, and
+changes no code unless you ask. It is optional, like `devcontainer`: in the
+catalogue (`/dev-setup`), not in the generated `AGENTS.md`.
+
+To enable it: `@playwright/test` (or `playwright`) as a devDependency with
+Chromium installed (`npx playwright install chromium`) — on Flutter, the SDK
+where the check runs and the app's fonts loaded in
+`test/flutter_test_config.dart` (a widget test draws text in boxes otherwise;
+text never renders exactly as on a device, so shifts and sizes are what to
+trust on a text-heavy screen) — and for headless runs
+a Figma personal access token with *File content: read-only* as
+`FIGMA_TOKEN`. The sandbox template allows the dev server to listen on
+`localhost` (`allowLocalBinding`) and the Figma export hosts (`www.figma.com`
+for the MCP, `api.figma.com` and its image bucket for REST); `UPDATE`
+adds them to a project set up before.
+
 ---
 
 ## 3. The rules, and when each one loads
@@ -977,6 +1025,15 @@ only the commands run again.
 `Workflow "dev-setup:auto-sdd-run" not found` almost always means a stale install is
 shadowing a newer build. Check that the plugin actually ships it, and reinstall
 or rebuild if it does not.
+
+### The visual check says "not verified"
+
+`REASON` names what is missing: Playwright not in the project's
+dependencies, Chromium not installed (`npx playwright install chromium`),
+the Flutter SDK not installed, a capture test missing or failing,
+`FIGMA_TOKEN` not set on a headless runner, or the sandbox refusing the
+connection to the dev server — `sandbox.network.allowLocalBinding` must be
+`true` in `.claude/settings.json`. The check installs nothing by itself.
 
 ### A network call was refused
 

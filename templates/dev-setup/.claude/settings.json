@@ -105,12 +105,16 @@
       ]
     },
     "network": {
+      "allowLocalBinding": true,
       "allowedDomains": [
         "registry.npmjs.org",
         "github.com",
         "api.github.com",
         "codeload.github.com",
-        "objects.githubusercontent.com"
+        "objects.githubusercontent.com",
+        "www.figma.com",
+        "api.figma.com",
+        "figma-alpha-api.s3.us-west-2.amazonaws.com"
       ]
     },
     "credentials": {
@@ -171,6 +175,10 @@
         },
         {
           "name": "AWS_SESSION_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "FIGMA_TOKEN",
           "mode": "deny"
         }
       ]

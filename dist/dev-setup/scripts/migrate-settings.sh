@@ -32,7 +32,7 @@
 #                      does not manage
 #
 # A settings that already carries a `sandbox` block is the team's file and is
-# normally left alone — with four exceptions, and nothing else is touched:
+# normally left alone — with five exceptions, and nothing else is touched:
 #   - if it still holds the `.env` read denies the template retired
 #     (`Read(**/.env*)` permission rules, the `.env` family in
 #     `sandbox.filesystem.denyRead`), those entries are removed. Write denies
@@ -49,13 +49,20 @@
 #     `git push origin *` is excluded. Outside the sandbox the deny rules are
 #     the only boundary left, so the exclusion never arrives without them;
 #   - if it still holds an `ask` entry the template retired (see RETIRED_ASK
-#     below), that entry is removed.
+#     below), that entry is removed;
+#   - the template's network and credential entries it lacks are added: a
+#     `sandbox.network.allowedDomains` host (the Figma export reaches
+#     api.figma.com and the bucket the image is served from), a
+#     `sandbox.credentials.envVars` deny by name (FIGMA_TOKEN), and
+#     `sandbox.network.allowLocalBinding` when the key is absent — a dev server
+#     the visual check renders cannot listen without it. A key the team set,
+#     to false included, is the team's and stays.
 #
 # Report keys (--json):
 #   MIGRATED        true | false
 #   REASON          migrated | env-read-unblocked | ask-retired |
 #                   excluded-commands-added | excluded-commands-guarded |
-#                   already-sandboxed | no-template-sandbox (when several
+#                   network-updated | already-sandboxed | no-template-sandbox (when several
 #                   exceptions apply, the first in that order wins)
 #   ADDED_SANDBOX   true | false
 #   ADDED_ASK       number of `ask` entries the project did not have
@@ -67,6 +74,9 @@
 #   RETIRED_ASK     comma-separated `ask` entries removed, or ""
 #   ADDED_EXCLUDED  comma-separated `sandbox.excludedCommands` entries added, or ""
 #   RETIRED_EXCLUDED comma-separated entries replaced by their ` *` form, or ""
+#   ADDED_DOMAINS   comma-separated `allowedDomains` entries added, or ""
+#   ADDED_ENV_DENY  comma-separated `envVars` names added, or ""
+#   ADDED_LOCAL_BINDING true when `allowLocalBinding` was added
 #
 # Exit code: 0 = merged · 3 = nothing to migrate · other = error.
 # The merged output is written; it is never applied in place. The caller shows
@@ -181,6 +191,9 @@ report_and_exit() {
     json_set RETIRED_ASK ""
     json_set ADDED_EXCLUDED ""
     json_set RETIRED_EXCLUDED ""
+    json_set ADDED_DOMAINS ""
+    json_set ADDED_ENV_DENY ""
+    json_set ADDED_LOCAL_BINDING false
     json_emit
   else
     warn "nothing to migrate: $reason"
@@ -216,6 +229,20 @@ MISSING_GUARDS=$(jq -n --slurpfile proj "$IN_FILE" --slurpfile tpl "$TEMPLATE_FI
     | map(select(. as $d | ($p | index([$d]) | not)
                  and any($cmds[]; . as $c | $d | startswith("Bash(" + $c + " "))))')
 
+# The template's network hosts and credential denies the project lacks, and
+# whether the local-binding key has to arrive (only when the team never set it).
+MISSING_DOMAINS=$(jq -n --slurpfile proj "$IN_FILE" --slurpfile tpl "$TEMPLATE_FILE" '
+  (((($tpl[0].sandbox // {}).network // {}).allowedDomains) // []) as $t |
+  (((($proj[0].sandbox // {}).network // {}).allowedDomains) // []) as $p |
+  $t | map(select(. as $e | $p | index([$e]) | not))')
+MISSING_ENV=$(jq -n --slurpfile proj "$IN_FILE" --slurpfile tpl "$TEMPLATE_FILE" '
+  (((($tpl[0].sandbox // {}).credentials // {}).envVars) // []) as $t |
+  (((($proj[0].sandbox // {}).credentials // {}).envVars) // [] | map(.name)) as $p |
+  $t | map(select(.name as $n | $p | index([$n]) | not))')
+ADD_LOCAL_BINDING=$(jq -n --slurpfile proj "$IN_FILE" --slurpfile tpl "$TEMPLATE_FILE" '
+  ((($tpl[0].sandbox // {}).network // {}) | has("allowLocalBinding"))
+  and ((($proj[0].sandbox // {}).network // {}) | has("allowLocalBinding") | not)')
+
 if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
   # The team's file, normally left alone. Four checks remain: the `.env` read
   # denies and the `ask` entries the template retired, the template's excluded
@@ -233,13 +260,18 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
   if [ "$(printf '%s' "$FOUND_RETIRED" | jq 'length')" -eq 0 ] \
      && [ "$(printf '%s' "$FOUND_ASK" | jq 'length')" -eq 0 ] \
      && [ "$(printf '%s' "$MISSING_EXCLUDED" | jq 'length')" -eq 0 ] \
-     && [ "$(printf '%s' "$MISSING_GUARDS" | jq 'length')" -eq 0 ]; then
+     && [ "$(printf '%s' "$MISSING_GUARDS" | jq 'length')" -eq 0 ] \
+     && [ "$(printf '%s' "$MISSING_DOMAINS" | jq 'length')" -eq 0 ] \
+     && [ "$(printf '%s' "$MISSING_ENV" | jq 'length')" -eq 0 ] \
+     && [ "$ADD_LOCAL_BINDING" != true ]; then
     report_and_exit already-sandboxed 3
   fi
 
   MERGED=$(jq --argjson rd "$RETIRED_DENY_JSON" --argjson rr "$RETIRED_DENYREAD_JSON" \
               --argjson ex "$MISSING_EXCLUDED" --argjson sup "$SUPERSEDED_EXCLUDED" \
-              --argjson gd "$MISSING_GUARDS" --argjson ra "$RETIRED_ASK_JSON" '
+              --argjson gd "$MISSING_GUARDS" --argjson ra "$RETIRED_ASK_JSON" \
+              --argjson dom "$MISSING_DOMAINS" --argjson env "$MISSING_ENV" \
+              --argjson lb "$ADD_LOCAL_BINDING" --slurpfile tpl "$TEMPLATE_FILE" '
     (if ((.permissions // {}) | has("ask")) then
        .permissions.ask |= map(select(. as $e | $ra | index($e) | not))
      else . end)
@@ -258,6 +290,15 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
     | (if ($gd | length) > 0 then
          .permissions.deny = (((.permissions // {}).deny // []) + $gd)
        else . end)
+    | (if ($dom | length) > 0 then
+         .sandbox.network.allowedDomains = (((.sandbox.network // {}).allowedDomains // []) + $dom)
+       else . end)
+    | (if ($env | length) > 0 then
+         .sandbox.credentials.envVars = (((.sandbox.credentials // {}).envVars // []) + $env)
+       else . end)
+    | (if $lb then
+         .sandbox.network.allowLocalBinding = $tpl[0].sandbox.network.allowLocalBinding
+       else . end)
     ' "$IN_FILE")
   [ -n "$MERGED" ] || die "the sandbox pass produced nothing — is $IN_FILE a settings.json?"
 
@@ -266,14 +307,18 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
   ADDED_EXCLUDED=$(printf '%s' "$MISSING_EXCLUDED" | csv_of)
   RETIRED_EXCLUDED=$(printf '%s' "$SUPERSEDED_EXCLUDED" | csv_of)
   ADDED_GUARDS=$(printf '%s' "$MISSING_GUARDS" | jq 'length')
+  ADDED_DOMAINS=$(printf '%s' "$MISSING_DOMAINS" | csv_of)
+  ADDED_ENV_DENY=$(printf '%s' "$MISSING_ENV" | jq 'map(.name)' | csv_of)
   if [ -n "$RETIRED_DENY_FOUND" ]; then
     PATCH_REASON=env-read-unblocked
   elif [ -n "$RETIRED_ASK_FOUND" ]; then
     PATCH_REASON=ask-retired
   elif [ -n "$ADDED_EXCLUDED" ]; then
     PATCH_REASON=excluded-commands-added
-  else
+  elif [ "$ADDED_GUARDS" -gt 0 ]; then
     PATCH_REASON=excluded-commands-guarded
+  else
+    PATCH_REASON=network-updated
   fi
 
   if [ -n "$OUT_FILE" ]; then
@@ -293,6 +338,9 @@ if jq -e 'has("sandbox")' "$IN_FILE" >/dev/null 2>&1; then
     json_set RETIRED_ASK "$RETIRED_ASK_FOUND"
     json_set ADDED_EXCLUDED "$ADDED_EXCLUDED"
     json_set RETIRED_EXCLUDED "$RETIRED_EXCLUDED"
+    json_set ADDED_DOMAINS "$ADDED_DOMAINS"
+    json_set ADDED_ENV_DENY "$ADDED_ENV_DENY"
+    json_set ADDED_LOCAL_BINDING "$ADD_LOCAL_BINDING"
     json_emit
   elif [ -z "$OUT_FILE" ]; then
     printf '%s\n' "$MERGED"
@@ -381,6 +429,9 @@ if [ "$AS_JSON" = true ]; then
     (($proj[0].permissions // {}).ask // []) as $p | ($ra | map(select(. as $e | $p | index($e))))' | csv_of)"
   json_set ADDED_EXCLUDED "$(printf '%s' "$MISSING_EXCLUDED" | csv_of)"
   json_set RETIRED_EXCLUDED ""
+  json_set ADDED_DOMAINS ""
+  json_set ADDED_ENV_DENY ""
+  json_set ADDED_LOCAL_BINDING false
   json_emit
 elif [ -z "$OUT_FILE" ]; then
   printf '%s\n' "$MERGED"

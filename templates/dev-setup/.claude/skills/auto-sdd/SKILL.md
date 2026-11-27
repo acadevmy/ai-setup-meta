@@ -77,7 +77,7 @@ Workflow({
     "branchType": "feat",
     "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
     "baseBranch": "<the ref confirmed in step 2>",
-    "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>" },
+    "stack": { "lint": "<LINT_CMD>", "typecheck": "<TYPECHECK_CMD>", "test": "<TEST_CMD>", "visualCapture": "<VISUAL_CAPTURE>" },
     "unavailable": ["<each kind in UNAVAILABLE>"],
     "unavailableReason": "<UNAVAILABLE_REASON, then OUTPUT>"
   }
