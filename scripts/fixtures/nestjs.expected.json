@@ -13,5 +13,6 @@
   "SERVICES_GLOB": "**/*.{service,controller,repository,resolver,guard,interceptor}.ts",
   "TEST_CMD": "npm run test",
   "TYPECHECK_CMD": "npx tsc --noEmit",
-  "VCS": "none"
+  "VCS": "none",
+  "VISUAL_CAPTURE": "none"
 }

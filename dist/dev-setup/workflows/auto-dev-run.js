@@ -59,7 +59,8 @@ export const meta = {
 //     branchType:  'feat' | 'fix' | 'chore',
 //     language:    'it' | 'en',               // the merge request's language
 //     challenge:   'auto' | 'always' | 'never',
-//     stack: { lint, typecheck, test },       // at least one non-empty, or the
+//     stack: { lint, typecheck, test,
+//             visualCapture },                // at least one non-empty, or the
 //                                             // run ends at intake
 //     unavailable: ['lint', 'test'],          // declared, but this environment
 //     unavailableReason: '<text>',            // cannot run them — never run,
@@ -209,6 +210,21 @@ const frames = (Array.isArray(input.frames) ? input.frames : [])
 
 const frameLabel = (f) => (f.name ? f.name + ' (' + f.nodeId + ')' : 'node ' + f.nodeId)
 
+// How this stack's UI is captured — detect-stack.sh VISUAL_CAPTURE, passed by
+// the launcher: playwright renders a web page, flutter-test a Flutter screen
+// through a widget test, none means neither can (React Native). The script
+// decides it, not the spec's agent: on `none` every frame is not compared,
+// here, and a row mapped with a capture the stack has not is never run with
+// the wrong cause. A launcher that passes nothing accepts both kinds of row.
+const CAPTURES = String(stack.visualCapture || '')
+  .split(',')
+  .map((c) => c.trim())
+  .filter((c) => ['playwright', 'flutter-test', 'none'].includes(c))
+const noCapture = CAPTURES.length > 0 && CAPTURES.every((c) => c === 'none')
+const flutterCapture = CAPTURES.length === 0 || CAPTURES.includes('flutter-test')
+// A Flutter row names its capture test: a *_test.dart path inside the project.
+const FLUTTER_TARGET = /^[A-Za-z0-9_][A-Za-z0-9_./-]*_test\.dart$/
+
 // A spec row reaches a shell command too: the route, the selector and the
 // threshold are held to a shape, and a row that fails it is no row.
 const SAFE_TEXT = /^[^"`$\\\n\r]{1,200}$/
@@ -223,6 +239,9 @@ function visualRow(frame, row) {
     return { frame, status: 'not-compared', reason: String(row.notCompared).slice(0, 300), name: String(row.name || '').slice(0, 120) }
   }
   const route = String(row.route || '')
+  const target = String(row.target || '')
+  const testName = String(row.test || '')
+  const capture = target ? 'flutter-test' : 'playwright'
   const selector = String(row.selector || 'page')
   const threshold = Number(row.threshold)
   // The node exported may be a child of the linked one — the screen inside a
@@ -232,25 +251,42 @@ function visualRow(frame, row) {
   const node = String(row.node || '').replace('-', ':')
   const cropRect = String(row.crop || '')
   const viewport = String(row.viewport || '')
-  if (!/^(\/|https?:\/\/)/.test(route) || !SAFE_TEXT.test(route) || !SAFE_TEXT.test(selector)) {
+  const name = String(row.name || '').replace(/[\n\r]/g, ' ').slice(0, 120)
+  if (target) {
+    if (!FLUTTER_TARGET.test(target) || /(^|\/)\.\.(\/|$)/.test(target) || !SAFE_TEXT.test(testName)) {
+      return { frame, status: 'missing' }
+    }
+  } else if (!/^(\/|https?:\/\/)/.test(route) || !SAFE_TEXT.test(route) || !SAFE_TEXT.test(selector)) {
     return { frame, status: 'missing' }
   }
+  if (CAPTURES.length > 0 && !CAPTURES.includes(capture)) return { frame, status: 'wrong-capture', capture, name }
   return {
     frame,
     status: 'compare',
-    name: String(row.name || '').replace(/[\n\r]/g, ' ').slice(0, 120),
-    route,
-    selector,
-    clip: row.clip === 'viewport' ? 'viewport' : 'full',
+    capture,
+    name,
+    route: target ? '' : route,
+    target,
+    test: target ? testName : '',
+    selector: target ? '' : selector,
+    clip: target ? '' : row.clip === 'viewport' ? 'viewport' : 'full',
     state: String(row.state || '').replace(/[\n\r]/g, ' ').slice(0, 300),
     threshold: threshold >= 0 && threshold <= 0.05 ? threshold : 0.02,
     node: NODE_SHAPE.test(node) ? node : frame.nodeId,
     crop: /^[0-9]+,[0-9]+,[1-9][0-9]*,[1-9][0-9]*$/.test(cropRect) ? cropRect : '',
-    viewport: /^[1-9][0-9]{1,4}x[1-9][0-9]{1,4}$/.test(viewport) ? viewport : '',
+    viewport: !target && /^[1-9][0-9]{1,4}x[1-9][0-9]{1,4}$/.test(viewport) ? viewport : '',
   }
 }
 
 function visualRows(spec) {
+  if (noCapture) {
+    return frames.map((frame) => ({
+      frame,
+      status: 'not-compared',
+      reason: 'native UI: this stack has no capture for it (detect-stack.sh VISUAL_CAPTURE=none)',
+      name: '',
+    }))
+  }
   const all = (spec && spec.visualChecks) || []
   const out = []
   frames.forEach((frame) => {
@@ -276,7 +312,9 @@ const VISUAL_ROW = {
   required: ['nodeId'],
   properties: {
     nodeId: { type: 'string', description: 'the frame node id, 12:345' },
-    route: { type: 'string', description: 'the dev server path (/signup) or a Storybook story URL' },
+    route: { type: 'string', description: 'a web page: the dev server path (/signup) or a Storybook story URL' },
+    target: { type: 'string', description: 'a Flutter screen, in place of route: the capture test, a *_test.dart path from the repository root (apps/mobile/test/visual/login_visual_test.dart)' },
+    test: { type: 'string', description: 'with target: the capture test\'s name, run alone' },
     selector: { type: 'string', description: '`page`, or the CSS selector of the element the frame draws' },
     clip: { type: 'string', enum: ['full', 'viewport'] },
     state: { type: 'string', description: 'what the page needs to look like the frame' },
@@ -285,7 +323,7 @@ const VISUAL_ROW = {
     crop: { type: 'string', description: 'x,y,width,height of the exported node the page renders, in its pixels — without a phone status bar or home indicator; empty for all of it' },
     viewport: { type: 'string', description: 'WxH the page is captured at when the frame is a component or a panel (with a selector): the full-screen frame of the same device on the board, e.g. 1440x926; empty for the frame\'s own size' },
     name: { type: 'string', description: 'the screen\'s name, when the row compares one screen of a board or a wrapper' },
-    notCompared: { type: 'string', description: 'instead of a route: why this frame is not compared (not rendered by this task, native UI)' },
+    notCompared: { type: 'string', description: 'instead of a route or a target: why this frame is not compared (not rendered by this task)' },
   },
 }
 
@@ -318,7 +356,9 @@ function visualLines(rows) {
     .map((r) =>
       '  - ' + rowLabel(r) + ': file ' + r.frame.fileKey + ', export node ' + r.node +
       (r.crop ? ', design crop ' + r.crop : '') + (r.viewport ? ', viewport ' + r.viewport : '') +
-      ' -> route ' + r.route + ', selector ' + r.selector + ', clip ' + r.clip +
+      (r.capture === 'flutter-test'
+        ? ' -> flutter capture test ' + r.target + ', test "' + r.test + '"'
+        : ' -> route ' + r.route + ', selector ' + r.selector + ', clip ' + r.clip) +
       ', threshold ' + r.threshold + (r.state ? ', state: ' + r.state : ''),
     )
     .join('\n')
@@ -646,7 +686,17 @@ const FRAMES_FOR_SPEC = [
   'spec, as ' + plugin + '/reference/visual-check.md describes: the route that',
   'shows it, `page` or the CSS selector of the element it draws, the clip, the',
   'state the page needs to look like it, the threshold — or `notCompared` with',
-  'why, for a frame this task does not render. First ask what each link is:',
+  'why, for a frame this task does not render.',
+  flutterCapture
+    ? 'A Flutter screen has no route: its row names a `target` — the capture test,' +
+      ' a *_test.dart path from the repository root, under the package\'s test/visual/' +
+      ' — and its `test` name, which the development step writes as that reference' +
+      ' says; no selector, no clip, no viewport.'
+    : '',
+  CAPTURES.length > 0
+    ? 'This stack captures with: ' + CAPTURES.join(', ') + ' (detect-stack.sh VISUAL_CAPTURE).'
+    : '',
+  'First ask what each link is:',
   '`bash "' + plugin + '/scripts/figma-screens.sh" --file-key <key> --node <id> --json`',
   'with FIGMA_TOKEN, or `--metadata <file>` with what get_metadata returned. A',
   '`wrapper` gets its screen as `node`; a `board` gets one row per screen this',
@@ -709,7 +759,7 @@ const spec = await agent(
     '',
     READABLE,
     '',
-    frames.length > 0 ? FRAMES_FOR_SPEC + '\n' : '',
+    frames.length > 0 && !noCapture ? FRAMES_FOR_SPEC + '\n' : '',
     'A reviewer will look at the spec next through three focuses and propose',
     'what would make it better. Check your draft against them before you return',
     'it:',
@@ -1130,9 +1180,15 @@ const dev = await agent(
           'you cannot remove without departing from the spec — the frame itself is',
           'off — leave it and say in `notes` which and why: it goes to the merge',
           'request, and nobody stops the run on it. Never raise a threshold to pass.',
-          'A frame you could not compare (no Playwright, no Chromium, no Figma',
-          'access), say so in `notes` and install nothing. Stop the dev server when',
-          'you are done. Verify compares again.',
+          toCompare.some((row) => row.capture === 'flutter-test')
+            ? 'A row with a flutter capture test: write that test first, as the' +
+              ' reference\'s "Capturing a Flutter screen" section says — skipped unless' +
+              ' VISUAL_CAPTURE_OUT is defined, so the suite never runs it — then compare' +
+              ' with --flutter-target and --flutter-test; it needs no dev server.\n'
+            : '',
+          'A frame you could not compare (no Playwright, no Chromium, no Flutter SDK,',
+          'no Figma access), say so in `notes` and install nothing. Stop the dev server',
+          'when you are done. Verify compares again.',
           '',
         ].join('\n')
       : '',
@@ -1250,13 +1306,15 @@ const outcome = {
 // shifts and its image; a frame nobody could compare — the environment, a
 // page that did not load, a frame the agent did not report — to `unverified`.
 const visualUnverified = visual
-  .filter((row) => row.status === 'missing' || row.status === 'over-cap')
+  .filter((row) => ['missing', 'over-cap', 'wrong-capture'].includes(row.status))
   .map((row) => ({
     kind: 'visual',
     command: rowLabel(row),
     reason: row.status === 'missing'
       ? 'the spec maps no page to this frame, so nothing compared it'
-      : 'past the ' + MAX_COMPARED + ' comparisons a run makes: compare it by hand, or split the task',
+      : row.status === 'wrong-capture'
+        ? 'the spec maps it with ' + row.capture + ', which this stack does not capture with (VISUAL_CAPTURE=' + CAPTURES.join(',') + ')'
+        : 'past the ' + MAX_COMPARED + ' comparisons a run makes: compare it by hand, or split the task',
   }))
 outcome.visual = visual
   .filter((row) => row.status === 'not-compared')
@@ -1280,7 +1338,12 @@ if (toCompare.length > 0) {
       '',
       VISUAL_EXPORT,
       '',
-      'Start the dev server the way that reference says, and stop it when done.',
+      toCompare.some((row) => row.capture === 'playwright')
+        ? 'For a route, start the dev server the way that reference says, and stop it when done.'
+        : '',
+      toCompare.some((row) => row.capture === 'flutter-test')
+        ? 'For a flutter capture test, no server: visual-check.sh --flutter-target <test> --flutter-test "<name>".'
+        : '',
       'Report one result per frame: VERDICT, CAUSE, REASON, SHIFTS and SIDE_BY_SIDE',
       'exactly as visual-check.sh printed them. Never install anything, never',
       'change a threshold, never edit the code.',
@@ -1294,7 +1357,7 @@ if (toCompare.length > 0) {
     const entry = {
       frame: rowLabel(row),
       url: row.frame.url,
-      route: row.route,
+      route: row.capture === 'flutter-test' ? row.target + ' › ' + row.test : row.route,
       verdict: result && ['match', 'mismatch', 'unverified'].includes(result.verdict) ? result.verdict : 'unverified',
       reason: result ? String(result.reason || '') : 'the visual check reported nothing for this frame',
       shifts: result ? String(result.shifts || '') : '',

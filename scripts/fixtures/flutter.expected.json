@@ -13,5 +13,6 @@
   "SERVICES_GLOB": "",
   "TEST_CMD": "flutter test",
   "TYPECHECK_CMD": "flutter analyze",
-  "VCS": "none"
+  "VCS": "none",
+  "VISUAL_CAPTURE": "flutter-test"
 }

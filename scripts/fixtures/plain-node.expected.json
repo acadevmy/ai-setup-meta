@@ -13,5 +13,6 @@
   "SERVICES_GLOB": "**/{services,controllers,repositories,routes,handlers,use-cases}/**/*.{ts,js,mts}",
   "TEST_CMD": "",
   "TYPECHECK_CMD": "",
-  "VCS": "none"
+  "VCS": "none",
+  "VISUAL_CAPTURE": "none"
 }

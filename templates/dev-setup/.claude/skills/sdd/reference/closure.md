@@ -54,7 +54,8 @@ its own.
 
 ## 2b. Visual check
 
-Only when the spec has a `## Visual check` section with a route in it. Compare
+Only when the spec has a `## Visual check` section with a route or a Flutter
+capture test (**Target**) in it. Compare
 every row's frame with the page, as
 `${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md` describes, on the code as
 `simplify` left it — the last change before the commit.

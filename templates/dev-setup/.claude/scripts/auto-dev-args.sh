@@ -30,7 +30,7 @@
 #                                          project's .claude/tracker.json says so)
 #     "task":       { "title", "description", "url", "priority" }
 #                                          required with tracker none
-#     "stack":      { "lint", "typecheck", "test" }
+#     "stack":      { "lint", "typecheck", "test", "visualCapture" }
 #                                          default: detect-stack.sh, with
 #                                          quality-preflight.sh for what cannot
 #                                          run here
@@ -263,13 +263,13 @@ case "$PRIORITY" in urgent|high|normal|low|"") ;; *) PRIORITY="" ;; esac
 # ── The quality commands ──────────────────────────────────────────────────────
 
 if jq -e '.stack | type == "object"' "$ARGS_FILE" >/dev/null 2>&1; then
-  STACK="$(jq -c '.stack | {lint: (.lint // ""), typecheck: (.typecheck // ""), test: (.test // "")}' "$ARGS_FILE")"
+  STACK="$(jq -c '.stack | {lint: (.lint // ""), typecheck: (.typecheck // ""), test: (.test // ""), visualCapture: (.visualCapture // "")}' "$ARGS_FILE")"
   UNAVAILABLE="$(jq -c '.unavailable // [] | map(select(type == "string"))' "$ARGS_FILE")"
   UNAVAILABLE_REASON="$(arg unavailableReason)"
 else
   DETECTED="$(bash "$SCRIPT_DIR/detect-stack.sh" --json)" \
     || refuse "detect-stack.sh rejected the project's quality declaration: see its stderr"
-  STACK="$(printf '%s' "$DETECTED" | jq -c '{lint: .LINT_CMD, typecheck: .TYPECHECK_CMD, test: .TEST_CMD}')"
+  STACK="$(printf '%s' "$DETECTED" | jq -c '{lint: .LINT_CMD, typecheck: .TYPECHECK_CMD, test: .TEST_CMD, visualCapture: (.VISUAL_CAPTURE // "")}')"
   PREFLIGHT="$(bash "$SCRIPT_DIR/quality-preflight.sh" --require-declared --allow-unavailable --json)"
   PREFLIGHT_EXIT=$?
   if [ "$PREFLIGHT_EXIT" -ne 0 ]; then

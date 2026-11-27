@@ -178,13 +178,21 @@ Close with **exactly one** line for the summary — one of:
 
 Unless the line is the `skipped` one, add a second line on the **visual check**
 — the comparison of the UI with its Figma frames, rendered 1:1
-(`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`), which captures the page
-with the project's own Playwright. Look for `playwright`, `@playwright/test`
-or `playwright-core` in any `package.json` of the repository; install nothing:
+(`${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`). How it captures is
+`VISUAL_CAPTURE` from Step 2's `detect-stack.sh`, never a guess; install
+nothing. One line per value it holds:
+
+- `playwright` — look for `playwright`, `@playwright/test` or
+  `playwright-core` in any `package.json` of the repository;
+- `flutter-test` — a widget test captures each screen: nothing to add, and
+  never suggest Playwright;
+- `none` — React Native: nothing captures it.
 
 ```
   - Visual check ready: Playwright found (<package>)
   - Visual check not ready: no Playwright in this project — Figma frames are reported not verified until it is a devDependency
+  - Visual check ready: Flutter screens captured by widget tests — needs the Flutter SDK where it runs, and the app's fonts loaded in test/flutter_test_config.dart
+  - Visual check not available: React Native renders nothing it can capture — Figma frames are reported not compared
 ```
 
 The line is not decoration. This step is the flow's only optional registration,

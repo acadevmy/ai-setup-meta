@@ -13,5 +13,6 @@
   "SERVICES_GLOB": "",
   "TEST_CMD": "pnpm run test",
   "TYPECHECK_CMD": "pnpm run typecheck",
-  "VCS": "none"
+  "VCS": "none",
+  "VISUAL_CAPTURE": "playwright"
 }

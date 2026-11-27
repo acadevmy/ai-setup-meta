@@ -198,7 +198,7 @@ plus what this flow owes a reviewer who was not watching:
   does: a green merge request that hides an unrun suite is the defect this
   section exists to prevent.
 - **the visual check**, when `visual` holds anything: one line per Figma
-  frame — the frame as a link, its verdict, the route it was compared at —
+  frame — the frame as a link, its verdict, the route or the Flutter capture test it was compared at —
   the mismatches first, each with its shifts and the developer's choice. A
   frame that could not be compared is in **not verified** with kind `visual`.
 - **the real test output**, in a fenced block: the `output` field, as it came

@@ -890,6 +890,18 @@ for SNAPSHOT in "$FIXTURES"/*.expected.json; do
     "$(jq 'has("COMMANDS_SOURCE") and has("PREFLIGHT_CMD")' "$SNAPSHOT")"
 done
 
+# How the visual check captures the UI is the stack's, decided by the script:
+# a web page by Playwright, a Flutter screen by a widget test, and React
+# Native by nothing at all.
+assert_eq "a Next.js app is captured by Playwright" "playwright" "$(stack_key "$WORK_DIR/nextjs" VISUAL_CAPTURE)"
+assert_eq "a Flutter app by a widget test" "flutter-test" "$(stack_key "$WORK_DIR/flutter" VISUAL_CAPTURE)"
+assert_eq "a NestJS API by nothing" "none" "$(stack_key "$WORK_DIR/nestjs" VISUAL_CAPTURE)"
+RN_APP="$WORK_DIR/rn-app"
+mkdir -p "$RN_APP"
+echo '{"dependencies":{"expo":"51.0.0","react":"18.2.0","react-native":"0.74.0"}}' > "$RN_APP/package.json"
+touch "$RN_APP/App.tsx"
+assert_eq "an Expo app's .tsx files are no web page: none" "none" "$(stack_key "$RN_APP" VISUAL_CAPTURE)"
+
 # REQ-1: a malformed declaration is an error, not a guess. Exit non-zero, the
 # cause on stderr, nothing on stdout — the precedent mr-meta.sh set.
 slug_of() { printf '%s' "$1" | tr -cs 'A-Za-z0-9' '-'; }
@@ -2553,6 +2565,14 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
     visualRows: ((prompts['visual:DE-1'] || '').match(/export node /g) || []).length,
     visualViewport: (prompts['visual:DE-1'] || '').includes('export node 50:22, viewport 1440x926 -> route /login, selector #login-form'),
     specBoards: (prompts['spec:DE-1'] || '').includes('/plugin/scripts/figma-screens.sh'),
+    specAsked: 'spec:DE-1' in prompts && (prompts['spec:DE-1'] || '').includes('Map every one, in `visualChecks`'),
+    specCaptures: ((prompts['spec:DE-1'] || '').match(/This stack captures with: ([a-z-]+(?:, [a-z-]+)*)/) || ['', ''])[1],
+    visualFlutter: (prompts['visual:DE-1'] || '').includes('-> flutter capture test apps/mobile/test/visual/login_visual_test.dart, test "login empty"')
+      && (prompts['visual:DE-1'] || '').includes('--flutter-target'),
+    visualServer: (prompts['visual:DE-1'] || '').includes('start the dev server'),
+    devFlutter: (prompts['dev:DE-1'] || '').includes('Capturing a Flutter screen'),
+    visualRoute: (out.visual || []).map((v) => v.route || '').join('|'),
+    notComparedWhy: (out.visual || []).filter((v) => v.verdict === 'not-compared').map((v) => v.reason).join('|'),
   }));
 });
 NODEJS
@@ -2720,6 +2740,32 @@ NODEJS
   SIM=$(sim '{"rows":[{"nodeId":"12:345","route":"/x\"; rm -rf ~"},{"nodeId":"12:400","notCompared":"web only"}]}' "$FRAMES_TASK")
   assert_eq "a route a shell would read as syntax is no row: unverified, and nothing runs it" \
     "ready-for-mr false visual=Sign up (12:345)" "$(field "$SIM" status) $(field "$SIM" visualAgent) $(field "$SIM" unverified)"
+
+  # Flutter: detect-stack.sh decides the capture (VISUAL_CAPTURE), not the
+  # spec's agent. A Flutter row names its capture test in place of a route;
+  # React Native has no capture, and its frames are not compared, in code.
+  with_capture() { printf '%s' "$FRAMES_TASK" | jq -c --arg c "$1" '. + {stack: {lint: "make lint", typecheck: "", test: "make test", visualCapture: $c}}'; }
+  FLUTTER_ROWS='"rows":[{"nodeId":"12:345","target":"apps/mobile/test/visual/login_visual_test.dart","test":"login empty","crop":"0,59,390,751"},{"nodeId":"12:400","notCompared":"tablet, not this task"}]'
+  SIM=$(sim "{$FLUTTER_ROWS,\"visual\":[{\"nodeId\":\"12:345\",\"verdict\":\"match\",\"reason\":\"ok\"}]}" "$(with_capture flutter-test)")
+  assert_eq "a Flutter row is compared through its capture test, with no dev server" \
+    "ready-for-mr true false not-compared,match" \
+    "$(field "$SIM" status) $(field "$SIM" visualFlutter) $(field "$SIM" visualServer) $(field "$SIM" visual)"
+  assert_eq "the dev agent writes the capture test, and the spec knows the stack's capture" "true flutter-test" \
+    "$(field "$SIM" devFlutter) $(field "$SIM" specCaptures)"
+  assert_eq "the merge request names the test it was compared at" "|apps/mobile/test/visual/login_visual_test.dart › login empty" \
+    "$(field "$SIM" visualRoute)"
+  SIM=$(sim '{"rows":[{"nodeId":"12:345","target":"../outside_test.dart","test":"x"},{"nodeId":"12:400","notCompared":"x"}]}' "$(with_capture flutter-test)")
+  assert_eq "a target outside the project is no row" "false visual=Sign up (12:345)" \
+    "$(field "$SIM" visualAgent) $(field "$SIM" unverified)"
+  SIM=$(sim "{$ROWS}" "$(with_capture flutter-test)")
+  assert_eq "a route on a Flutter-only stack is never run with the wrong cause: not verified, saying why" \
+    "false visual=Sign up (12:345)" "$(field "$SIM" visualAgent) $(field "$SIM" unverified)"
+  assert_contains "naming the capture the stack has" "$(field "$SIM" unverifiedReason)" "VISUAL_CAPTURE=flutter-test"
+  SIM=$(sim "{$ROWS}" "$(with_capture none)")
+  assert_eq "React Native: every frame not compared, decided in code, the spec not asked to map them" \
+    "ready-for-mr false false not-compared,not-compared" \
+    "$(field "$SIM" status) $(field "$SIM" visualAgent) $(field "$SIM" specAsked) $(field "$SIM" visual)"
+  assert_contains "saying it is native UI" "$(field "$SIM" notComparedWhy)" "native UI"
 else
   printf '%s  skip%s  node not found: the Challenge simulation needs it\n' "$DIM" "$NC"
 fi
@@ -5235,6 +5281,7 @@ vm.runInNewContext('(async () => {' + src.slice(meta[0].length) + '})()', contex
       && !(prompts.visual || '').includes('download_assets'),
     devVisualBeforeCommit: (prompts.dev || '').indexOf('Step 3b — the visual check') > 0
       && (prompts.dev || '').indexOf('Step 3b — the visual check') < (prompts.dev || '').indexOf('Step 4 — one commit'),
+    visualFlutter: (prompts.visual || '').includes('-> flutter capture test app/test/visual/home_visual_test.dart, test "home"'),
   }));
 });
 NODEJS
@@ -5260,6 +5307,14 @@ NODEJS
   assert_eq "a headless run with nobody to ask goes on, and reports the difference" \
     "ready-for-mr spec,dev,visual,verify mismatch" "$(dfield "$SIM" status) $(dfield "$SIM" agents) $(dfield "$SIM" visual)"
   assert_contains "and the result says why the Challenge was skipped" "$(dfield "$SIM" skipped)" "small task"
+  DFLUTTER="$(printf '%s' "$DFRAMES" | jq -c '. + {stack: {lint: "", typecheck: "", test: "flutter test", visualCapture: "flutter-test"}}')"
+  SIM=$(dsim '{"rows":[{"nodeId":"12:345","target":"app/test/visual/home_visual_test.dart","test":"home"}],"visual":[{"nodeId":"12:345","verdict":"match","reason":"ok"}]}' "$DFLUTTER")
+  assert_eq "a headless Flutter run compares through the capture test" "ready-for-mr true match" \
+    "$(dfield "$SIM" status) $(dfield "$SIM" visualFlutter) $(dfield "$SIM" visual)"
+  DNATIVE="$(printf '%s' "$DFRAMES" | jq -c '. + {stack: {lint: "", typecheck: "", test: "npm test", visualCapture: "none"}}')"
+  SIM=$(dsim '{"rows":[{"nodeId":"12:345","route":"/signup"}]}' "$DNATIVE")
+  assert_eq "a headless React Native run launches no visual agent" "ready-for-mr spec,dev,verify not-compared" \
+    "$(dfield "$SIM" status) $(dfield "$SIM" agents) $(dfield "$SIM" visual)"
   assert_eq "the spec agent reads the task from its file" "true" "$(dfield "$SIM" taskFile)"
   assert_eq "Dev works in the checkout, never in a worktree" "false true" \
     "$(dfield "$SIM" isolated) $(dfield "$SIM" devNoWorktree)"
@@ -6517,6 +6572,58 @@ if command -v node >/dev/null 2>&1; then
     "$(bash "$PLUGIN_SCRIPTS/visual-check.sh" --design "$VC_FIX/frame.png" --actual "$VC_FIX/frame.png" --design-crop 0,100,348,100 --out-dir "$VC_DIR/out-badcrop" 2>&1)" "does not fit"
   assert_contains "a threshold above 5% is refused: past it a layout shift passes" \
     "$(bash "$PLUGIN_SCRIPTS/visual-check.sh" --design "$VC_FIX/frame.png" --actual "$VC_FIX/frame.png" --threshold 0.2 2>&1)" "above 0.05"
+  # Flutter: the screen comes from a capture test, run by flutter-capture.sh
+  # with a stub SDK that writes the frame where VISUAL_CAPTURE_OUT says.
+  FL_APP="$VC_DIR/fl-repo"
+  mkdir -p "$FL_APP/app/test/visual" "$VC_DIR/flbin"
+  printf 'name: app\n' > "$FL_APP/app/pubspec.yaml"
+  printf '// capture test\n' > "$FL_APP/app/test/visual/home_visual_test.dart"
+  cat > "$VC_DIR/flbin/flutter" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$PWD" "\$@" > "$VC_DIR/flutter-args"
+case "\${FLUTTER_STUB:-ok}" in
+  fail) echo "Expected: one widget"; echo "Some tests failed."; exit 1 ;;
+  notests) echo "No tests ran."; exit 79 ;;
+  nofile) echo "All tests skipped."; exit 0 ;;
+  sandbox) echo "Operation not permitted: bin/cache/lockfile"; exit 1 ;;
+esac
+for A in "\$@"; do
+  case "\$A" in --dart-define=VISUAL_CAPTURE_OUT=*) cp "$VC_FIX/frame.png" "\${A#--dart-define=VISUAL_CAPTURE_OUT=}" ;; esac
+done
+echo "All tests passed!"
+STUB
+  chmod +x "$VC_DIR/flbin/flutter"
+  flc() { PATH="$VC_DIR/flbin:$PATH" bash "$PLUGIN_SCRIPTS/flutter-capture.sh" --project-dir "$FL_APP" \
+    --target app/test/visual/home_visual_test.dart --test "home" --width 348 --height 127 --json "$@" 2>/dev/null; }
+  OUT="$(flc --out "$VC_DIR/fl/a.png")"; STATUS=$?
+  assert_eq "a capture test that writes its golden is captured, exit 0" "0 true" \
+    "$STATUS $([ -f "$VC_DIR/fl/a.png" ] && echo true || echo false)"
+  assert_eq "run alone, from its package, writing the golden at the frame's size" "true" \
+    "$(tr '\n' ' ' < "$VC_DIR/flutter-args" | grep -qE "^$FL_APP/app test --update-goldens --plain-name home .*VISUAL_CAPTURE_WIDTH=348 .*VISUAL_CAPTURE_HEIGHT=127 test/visual/home_visual_test.dart" && echo true || tr '\n' ' ' < "$VC_DIR/flutter-args")"
+  OUT="$(FLUTTER_STUB=fail flc --out "$VC_DIR/fl/b.png")"; STATUS=$?
+  assert_eq "a failing capture test is the page's cause, exit 3" "page 3" "$(printf '%s' "$OUT" | jq -r .CAUSE) $STATUS"
+  assert_contains "with the test's own output" "$(printf '%s' "$OUT" | jq -r .REASON)" "Expected: one widget"
+  assert_contains "no test by that name says so" "$(FLUTTER_STUB=notests flc --out "$VC_DIR/fl/c.png" | jq -r .REASON)" 'no test named "home"'
+  assert_contains "a test that wrote nothing points at VISUAL_CAPTURE_OUT" \
+    "$(FLUTTER_STUB=nofile flc --out "$VC_DIR/fl/d.png" | jq -r .REASON)" "VISUAL_CAPTURE_OUT"
+  assert_eq "an SDK the sandbox stops is the environment, not the page" "environment" \
+    "$(FLUTTER_STUB=sandbox flc --out "$VC_DIR/fl/e.png" | jq -r .CAUSE)"
+  assert_eq "a missing capture test is the page's cause" "page" \
+    "$(PATH="$VC_DIR/flbin:$PATH" bash "$PLUGIN_SCRIPTS/flutter-capture.sh" --project-dir "$FL_APP" --target app/test/visual/none_test.dart --test x --out "$VC_DIR/fl/f.png" --width 1 --height 1 --json 2>/dev/null | jq -r .CAUSE)"
+  assert_contains "a target outside the project is refused" \
+    "$(bash "$PLUGIN_SCRIPTS/flutter-capture.sh" --target app/../../x_test.dart --test x --out "$VC_DIR/fl/g.png" --width 1 --height 1 2>&1)" "leaves the project"
+  if ! command -v flutter >/dev/null 2>&1 && ! command -v fvm >/dev/null 2>&1; then
+    assert_eq "no Flutter SDK: the environment's cause" "environment" \
+      "$(bash "$PLUGIN_SCRIPTS/flutter-capture.sh" --project-dir "$FL_APP" --target app/test/visual/home_visual_test.dart --test home --out "$VC_DIR/fl/h.png" --width 1 --height 1 --json 2>/dev/null | jq -r .CAUSE)"
+  fi
+  OUT="$(PATH="$VC_DIR/flbin:$PATH" vc flutter --flutter-target app/test/visual/home_visual_test.dart --flutter-test home --project-dir "$FL_APP")"; STATUS=$?
+  assert_eq "visual-check.sh compares what the capture test rendered" "match flutter-test 0" \
+    "$(printf '%s' "$OUT" | jq -r '.VERDICT + " " + .CAPTURE') $STATUS"
+  assert_contains "a selector is Playwright's, refused on a Flutter capture" \
+    "$(bash "$PLUGIN_SCRIPTS/visual-check.sh" --design "$VC_FIX/frame.png" --flutter-target a_test.dart --flutter-test x --selector '#a' 2>&1)" "Playwright's"
+  assert_contains "and one source only" \
+    "$(bash "$PLUGIN_SCRIPTS/visual-check.sh" --design "$VC_FIX/frame.png" --flutter-target a_test.dart --flutter-test x --url http://localhost/ 2>&1)" "only one"
+
   mkdir -p "$VC_DIR/no-playwright"
   OUT="$(vc nopw --url http://localhost:1/ --project-dir "$VC_DIR/no-playwright")"; STATUS=$?
   assert_eq "no Playwright in the project: unverified for the environment, exit 3" "unverified environment 3" \

@@ -13,5 +13,6 @@
   "SERVICES_GLOB": "",
   "TEST_CMD": "",
   "TYPECHECK_CMD": "",
-  "VCS": "none"
+  "VCS": "none",
+  "VISUAL_CAPTURE": "none"
 }

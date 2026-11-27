@@ -99,6 +99,7 @@
     "figma-screens.sh",
     "figma-export.sh",
     "visual-check.sh",
+    "flutter-capture.sh",
     "visual-check.mjs"
   ],
   "hooks": [

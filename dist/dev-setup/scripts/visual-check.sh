@@ -8,18 +8,27 @@
 # code faithfully reproduces the reading. Only the rendering shows the
 # difference, so this script compares renderings: the frame exported 1:1 by
 # figma-export.sh, and the page rendered by the project's own Playwright at
-# the same size, device scale factor 1.
+# the same size, device scale factor 1 — or, on Flutter, the screen rendered
+# by a widget test (flutter-capture.sh) at the same size, pixel ratio 1.
 #
 # Usage:
 #   visual-check.sh --design <png> --url <url> [--selector <css>]
 #                   [--clip full|viewport] [--width <px> --height <px>]
 #                   [--threshold <ratio>] [--name <slug>] [--out-dir <dir>]
 #                   [--project-dir <dir>] [--timeout <ms>] [--json]
+#   visual-check.sh --design <png> --flutter-target <test file> --flutter-test <name>
+#                   [--design-crop …] [--threshold …] [--name …] [--out-dir …]
+#                   [--project-dir <dir>] [--json]
 #   visual-check.sh --design <png> --actual <png> [same options]
 #
 #   --design      the frame, exported at scale 1 (figma-export.sh)
 #   --url         the page to capture — the dev server the caller started
 #   --actual      an image already captured: compare only, no browser
+#   --flutter-target, --flutter-test  a Flutter screen: the capture test (a
+#                 *_test.dart path relative to --project-dir) and its name,
+#                 run by flutter-capture.sh at the frame's size. --selector
+#                 and --clip do not apply: the test's finder is the selector,
+#                 and a Flutter screen is always the size it is pumped at
 #   --selector    capture that element instead of the page: the frame is a
 #                 component or a section, not a whole screen
 #   --clip        full (default): the whole page height, so a page that grew
@@ -40,7 +49,8 @@
 # Output (--json): VERDICT (match | mismatch | unverified), REASON, CAUSE
 # (environment | page, on unverified), DESIGN, ACTUAL, DIFF, SIDE_BY_SIDE,
 # DESIGN_SIZE, ACTUAL_SIZE, SIZE_MATCH, DIFF_PIXELS, DIFF_RATIO, THRESHOLD,
-# REGIONS, REGION_COUNT, SHIFTS, OUT_DIR, PLAYWRIGHT.
+# REGIONS, REGION_COUNT, SHIFTS, OUT_DIR, CAPTURE (playwright | flutter-test |
+# given), PLAYWRIGHT.
 #
 # Three things make a mismatch, each on its own:
 #   - a size that differs by more than 1 px in either direction: on a page
@@ -57,8 +67,9 @@
 # actual | diff in one image, the one to look at.
 #
 # Exit code: 0 match · 4 mismatch · 3 unverified (no Node, no Playwright, no
-# browser: CAUSE=environment; the page did not load or the selector matched
-# nothing: CAUSE=page) · other = error.
+# browser, no Flutter SDK: CAUSE=environment; the page did not load, the
+# selector matched nothing, the capture test is missing or failed:
+# CAUSE=page) · other = error.
 #
 # It needs Node and, to capture, the project's Playwright: the exception to the
 # bash + jq contract, because rendering a page takes a browser. It installs
@@ -73,6 +84,8 @@ source "$SCRIPT_DIR/common.sh"
 DESIGN=""
 ACTUAL_IN=""
 URL=""
+FLUTTER_TARGET=""
+FLUTTER_TEST=""
 SELECTOR=""
 CLIP="full"
 WIDTH=""
@@ -91,6 +104,8 @@ while [ $# -gt 0 ]; do
     --design) DESIGN="${2-}"; shift 2 ;;
     --actual) ACTUAL_IN="${2-}"; shift 2 ;;
     --url) URL="${2-}"; shift 2 ;;
+    --flutter-target) FLUTTER_TARGET="${2-}"; shift 2 ;;
+    --flutter-test) FLUTTER_TEST="${2-}"; shift 2 ;;
     --selector) SELECTOR="${2-}"; shift 2 ;;
     --clip) CLIP="${2-}"; shift 2 ;;
     --width) WIDTH="${2-}"; shift 2 ;;
@@ -102,7 +117,7 @@ while [ $# -gt 0 ]; do
     --project-dir) PROJECT_DIR="${2-}"; shift 2 ;;
     --timeout) TIMEOUT="${2-}"; shift 2 ;;
     --json) AS_JSON=true; shift ;;
-    -h|--help) sed -n '2,65p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,76p' "$0"; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
@@ -110,10 +125,16 @@ done
 require_jq
 [ -n "$DESIGN" ] || die "--design is required (see --help)"
 [ -f "$DESIGN" ] || die "design image not found: $DESIGN"
+SOURCES=0
+for SOURCE in "$ACTUAL_IN" "$URL" "$FLUTTER_TARGET"; do [ -n "$SOURCE" ] && SOURCES=$((SOURCES + 1)); done
+[ "$SOURCES" -eq 1 ] || die "one of --url, --flutter-target or --actual is required, and only one (see --help)"
 if [ -n "$ACTUAL_IN" ]; then
   [ -f "$ACTUAL_IN" ] || die "actual image not found: $ACTUAL_IN"
+elif [ -n "$FLUTTER_TARGET" ]; then
+  [ -n "$FLUTTER_TEST" ] || die "--flutter-target needs --flutter-test, the capture test's name"
+  [ -z "$SELECTOR" ] && [ "$CLIP" = full ] \
+    || die "--selector and --clip are Playwright's: a Flutter capture test's finder picks the widget"
 else
-  [ -n "$URL" ] || die "--url or --actual is required (see --help)"
   printf '%s' "$URL" | grep -qE '^(https?|file)://[^[:space:]]+$' || die "--url must be an http(s) or file URL: $URL"
 fi
 case "$CLIP" in full|viewport) ;; *) die "--clip is full or viewport, not $CLIP" ;; esac
@@ -175,6 +196,7 @@ json_set REGIONS ""
 json_set REGION_COUNT ""
 json_set SHIFTS ""
 json_set OUT_DIR "$OUT_DIR"
+json_set CAPTURE ""
 json_set PLAYWRIGHT ""
 
 unverified() {
@@ -201,8 +223,20 @@ fi
 [ -n "$HEIGHT" ] || HEIGHT="${DESIGN_DIMS#* }"
 
 if [ -n "$ACTUAL_IN" ]; then
+  json_set CAPTURE given
   [ "$ACTUAL_IN" -ef "$OUT_DIR/actual.png" ] || cp "$ACTUAL_IN" "$OUT_DIR/actual.png" || die "cannot copy the capture into $OUT_DIR"
+elif [ -n "$FLUTTER_TARGET" ]; then
+  json_set CAPTURE flutter-test
+  CAPTURED="$(bash "$SCRIPT_DIR/flutter-capture.sh" --target "$FLUTTER_TARGET" --test "$FLUTTER_TEST" \
+    --out "$OUT_DIR/actual.png" --width "$WIDTH" --height "$HEIGHT" --project-dir "$PROJECT_DIR" --json)"
+  STATUS=$?
+  if [ "$STATUS" -eq 3 ]; then
+    unverified "$(printf '%s' "$CAPTURED" | jq -r '.CAUSE // "environment"')" \
+      "$(printf '%s' "$CAPTURED" | jq -r '.REASON // "the capture did not run"')"
+  fi
+  [ "$STATUS" -eq 0 ] || die "the Flutter capture failed (exit $STATUS)"
 else
+  json_set CAPTURE playwright
   CAPTURE_ARGS=(capture --project-dir "$PROJECT_DIR" --url "$URL" --width "$WIDTH" --height "$HEIGHT"
     --out "$OUT_DIR/actual.png" --clip "$CLIP" --timeout "$TIMEOUT")
   [ -n "$SELECTOR" ] && CAPTURE_ARGS+=(--selector "$SELECTOR")

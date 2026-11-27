@@ -7,9 +7,8 @@ user-invocable: true
 
 # Visual check
 
-The check `sdd`, `quick` and the autonomous runs make on a task with Figma
-frames, run on its own: no branch, no spec, no commit. It reports; nothing
-stops and nothing is fixed unasked. The procedure, and how each verdict is
+The check the flows make on a task with Figma frames, run on its own: no
+branch, no spec, no commit. It reports; nothing is fixed unasked. The procedure, and how each verdict is
 read, is `${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`: follow it, with the differences below.
 
 **Usage**: `/dev-setup:visual-check <figma link>… <page url> [--selector <css>]
@@ -22,9 +21,9 @@ read, is `${CLAUDE_PLUGIN_ROOT}/reference/visual-check.md`: follow it, with the 
 printf '%s' "<the arguments>" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/figma-frames.sh" --json
 ```
 
-`COUNT` 0 → stop: only a link with a `node-id` names a frame. No page URL in
-the arguments → one `AskUserQuestion`, header `Page`, for it, and end the turn.
-The page is served by the developer: never start a server.
+`COUNT` 0 → stop: only a link with a `node-id` names a frame. No page URL →
+one `AskUserQuestion`, header `Page`, and end the turn. The developer serves
+the page: never start a server.
 
 ## 2 — What each link points at
 
@@ -49,6 +48,10 @@ and threshold. A panel on a desktop board is captured with `--selector` at
 its page's viewport (the reference says why); no selector given → ask for
 it in step 2's question.
 
+Flutter (`detect-stack.sh` `VISUAL_CAPTURE` holds `flutter-test`): no URL,
+`--flutter-target <test> --flutter-test "<name>"` instead (the reference's
+Flutter section); a missing test is written only on a yes. `none` → stop.
+
 ## 4 — The report
 
 One table, mismatches first: frame (as a link), verdict, `SHIFTS`,
@@ -58,5 +61,5 @@ looks like the code or the frame — `get_design_context` on that node gives
 the exact padding and gap. A frame `unverified` is listed with its `CAUSE`
 and `REASON`: install nothing.
 
-Change no code unless the developer asks for it afterwards. Never raise a
+Change no code unless asked afterwards. Never raise a
 threshold to make a frame pass.
